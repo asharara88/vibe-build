@@ -3,7 +3,7 @@
 | | |
 | --- | --- |
 | Status | **Proposal. Awaiting the owner's approval. No product code until then.** |
-| Written | 11 November 2026, by Claude Code, from `HANDOVER.md` and the checks recorded in `docs/SOURCES.md` and `docs/ENVIRONMENT-CHECK.md` |
+| Written | 11 November 2026, by Claude Code, from `HANDOVER.md` (the owner's edited version of the same day, which adds Decision F and gate item 9) and the checks recorded in `docs/SOURCES.md` and `docs/ENVIRONMENT-CHECK.md` |
 | Reader | The owner first (section 1). Then an incoming engineer (sections 2 to 8) |
 
 Marks used, as in the handover: **Verified** means checked against the source in `docs/SOURCES.md` on 11 November 2026. **Measured** means run in this session and recorded in `docs/ENVIRONMENT-CHECK.md`. **Assumption** means not yet checked. **Proposal** means recommended here and not yet decided.
@@ -28,7 +28,9 @@ Marks used, as in the handover: **Verified** means checked against the source in
 
 **What I checked, and what I could not.** I verified Anthropic's documentation on the build engine, its hosting, its security guidance, its permissions, the cloud development machine, model prices and the plan's monthly API credits (section 3). I measured the development machine: containers run, and containers can reach the package registries and the model API with a workaround that is acceptable for development only (section 4). I could **not** read any cloud provider's pricing page, because the session's network policy blocks those sites. The demo-server options in section 4 therefore carry indicative figures from search results, marked as such, and a decision on hosting has to wait until you either allow those sites or check the prices yourself.
 
-**Where I disagree with the handover.** In three small places, set out in section 2.6. The largest is that the handover's "Powered by Claude" wording is not quite what Anthropic permits: the permitted form is "{our name} Powered by Claude". The second is that the build engine's licence is a commercial licence, not a permissive one, so hard rule 2 needs your written exception. The third concerns processing inside the UAE: today no verified option keeps the model's processing in the country, and that matters for the regulated buyers in the handover.
+**Where I disagree with the handover.** In three small places, set out in section 2.9. The largest is that the handover's "Powered by Claude" wording is not quite what Anthropic permits: the permitted form is "{our name} Powered by Claude". The second is that the build engine's licence is a commercial licence, not a permissive one, so hard rule 2 needs your written exception. The third concerns processing inside the UAE: today no verified option keeps the model's processing in the country, and that matters for the regulated buyers in the handover.
+
+**On staying adaptable (the owner's Decision F).** I agree with the two seams and the profiles, and I propose that the second engine proven before the gate be a small loop of our own against an OpenAI-compatible endpoint, because that is the engine a UAE-only profile would need, and the Codex SDK would add a second provider account without answering that question (section 2.8).
 
 **What I need from you.** The decisions in section 9, in order. The first two unblock everything: approve this note, and approve the licence exception for the build engine. The third unblocks the demo-server decision. The model key is needed before the skeleton can make its first model call.
 
@@ -177,14 +179,46 @@ Ruby on Rails (MIT) was considered as the batteries-included candidate and set a
 - `acceptance/` travels with the export, so the customer can run the same checks.
 - The user's own sign-off is recorded as an event and is the final approval. Automated checks make it quick; they do not replace it.
 
-### 2.8 Where I disagree with the handover
+### 2.8 Decision F: staying adaptable
+
+**Position: agree with the two seams, the profiles and certification by the protocol. One recommendation on which second engine, and two cautions.**
+
+The handover separates two things that are often confused: the **model source** (who serves a model: Anthropic directly, a router, or a cloud inside the UAE) and the **build engine** (the agent that writes code). A router alone does not make the builder adaptable, because the Claude Agent SDK can only drive Claude models (the handover records Anthropic's statement that routing Claude Code to non-Claude models through a gateway is not supported; today's check of that page is in `docs/SOURCES.md`).
+
+How the design already carries the two seams:
+
+| Seam | Where it is in this note | What Decision F adds |
+| --- | --- | --- |
+| Model gateway | Section 2.1 and 2.4. The only route to the model; meters usage; the engine's container reaches it via `ANTHROPIC_BASE_URL` | It must also speak the OpenAI-compatible format, because the analyst, optimiser and acceptance writer are plain model calls that could go to any provider, and because a second engine would speak that format. One gateway, two dialects, one meter |
+| Build engine interface | Section 2.4: start a step, stream progress, stop, report usage | Named explicitly as the second seam: one step's instruction and a workspace in; changes, events and usage out. Any engine adapter implements exactly that |
+
+**Profiles.** A profile is a named bundle: one engine adapter, one model per role (analyst, optimiser, acceptance writer, engine), and the endpoints each may reach. The gateway enforces the endpoints; the event log records the profile on every project; the test protocol's results are stored per profile. Stage 1 has one profile, `standard`. A `uae-only` profile is defined as a shape with no contents until a model and endpoint that process inside the country are verified, which today they are not (section 2.9, point 3).
+
+**Which second engine for the gate.** The handover names two candidates: OpenAI's Codex SDK, and a loop of our own for open models.
+
+| Option | For | Against |
+| --- | --- | --- |
+| **A loop of our own against an OpenAI-compatible endpoint. Recommended.** | It is the engine a `uae-only` profile would need, since the in-country provider named in the handover exposes that format. It has no vendor licence question. It can be pointed at any provider that speaks the format, including Anthropic's own models for a like-for-like comparison | More work: file tools, shell handling and a turn loop must be written, kept small, and reviewed. The result will be weaker than a mature agent, and the comparison must say so |
+| OpenAI's Codex SDK | Same shape as the Claude Agent SDK, so the adapter is thin. A mature agent. Its repository is Apache-2.0 (verified today; the terms of the SDK directory itself and of the OpenAI API were not checked) | A second provider account, key and spend line. It answers "does the seam work" but not "can the builder run on an in-country model" |
+
+Recommendation: the loop of our own, kept deliberately small, used for the two gate examples and labelled with its measured score and nothing more. If the owner prefers the Codex SDK for a quicker proof, the adapter is thin and the recommendation does not block it; the licence check comes first either way.
+
+**Two cautions.**
+
+1. Engine-neutral assets cost discipline, not code. The analyst, question bank, template, generators, quality gate and acceptance checks must never carry an instruction phrased for one model. The optimiser's rule slots (B4) are the one place engine-specific phrasing is allowed, and they are stored per profile. This is checked in review, not by a tool.
+2. The handover's point that "the more the template and generators do, the less the result depends on the strength of the model" strengthens the proposal in section 2.3 to move the data step to a deterministic generator early. A weaker in-country model is exactly the case where a generator pays.
+
+Gate item 9 (two test examples built with a second engine, difference reported) becomes milestone 7b in section 8.
+
+### 2.9 Where I disagree with the handover
 
 1. **Branding wording** (section 8.4 and 16). "Powered by Claude" alone is not among the permitted forms; "{our name} Powered by Claude" is. Minor, but the handover's statement should not be repeated as written.
 2. **Licence of the build engine.** The handover records the Commercial Terms as a verified fact but does not connect it to hard rule 2. The SDK is not permissively licensed, and the rule needs a written exception. I have put it in `docs/OPEN-DECISIONS.md` and in this note's section 9.
 3. **Processing inside the UAE** (sections 3, 8.4, 15). The handover treats this as a Stage 3 question. The evidence today is worse than "open": Anthropic's own data-residency options are US or global (verified), and AWS's own documentation found through search says Claude models in the UAE region run through global cross-region inference, so the data may leave the country (search result, not verified from the page). If regulated buyers are in the pitch, the pitch must say that the app and its data can stay in the country and that the model calls, today, cannot be shown to. This affects what the demo claims, which is a Stage 1 matter.
 4. **Order of app spec and template** (2.3). Spec first.
 5. **"Not verified" items in section 16.** Two are now partly answered by measurement: containers started inside a cloud session can reach the model API and the package registry, with the host-network workaround and the proxy's certificate; and the Claude Code memory statement is confirmed in substance. One is being tested at the end of this session: whether a page served inside the session can be opened by the owner.
-6. **Where the walking skeleton starts.** The handover's milestone table puts "record, cost and export" seventh. Principle 6 says capture data from the first day, and principle 7 says cost is visible and capped. I pull the event log and the gateway's meter into the skeleton, and leave only the export's polish for later.
+6. **Decision F's sources.** The four facts added for Decision F are dated 11 November 2026 in the handover. I could re-check only those on reachable hosts (see `docs/SOURCES.md`); the Core42 and OpenRouter hosts are blocked from this session. Where a fact could not be re-read it is carried as the owner's verification, not mine.
+7. **Where the walking skeleton starts.** The handover's milestone table puts "record, cost and export" seventh. Principle 6 says capture data from the first day, and principle 7 says cost is visible and capped. I pull the event log and the gateway's meter into the skeleton, and leave only the export's polish for later.
 
 ---
 
@@ -206,6 +240,7 @@ Every tool this note plans to rely on, with what its documentation confirms, the
 | Mailpit 1.33.1 | Repository | Local mail catcher for notification evidence | 11 Nov 2026 | MIT |
 | license-checker-rseidelsohn 5.0.1, pip-licenses 5.5.5 | Package registries | Automated licence reports for both stacks | 11 Nov 2026 | BSD-3-Clause, MIT |
 | E2B, gVisor | Repositories | Later-stage isolation options; self-hostable; Apache-2.0 | 11 Nov 2026 | Apache-2.0 |
+| Decision F sources: LLM gateway page, OpenRouter, Core42 Compass documentation, OpenAI Codex announcement | As listed in the handover's section 16 | See `docs/SOURCES.md` for which were re-read today and which were not reachable | 11 Nov 2026 (owner); re-check noted per item | n/a; Codex SDK licence not yet checked |
 | Managed Agents | platform.claude.com overview and data-residency pages | Hosted loop; self-hosted sandbox option; session state stored by Anthropic; inference geography US or global only | 11 Nov 2026 | Commercial service |
 
 Not verified today and needed before the relevant step: Django's documentation (host blocked), PostgreSQL's licence page (host blocked), Docker's licence (not re-checked), the WebContainer terms (not needed, bolt.diy rejected).
@@ -383,6 +418,7 @@ In order. Each names what the owner is shown. No dates. Each ends with a pull re
 | 5 | **Changes** | A change request going back through the analyst, the brief and plan updated, the change built, and the full acceptance test passing again |
 | 6 | **Record, cost and export in full** | A project's complete record browsed in the interface; its cost per step; the exported repository started on a clean machine with one command and its README |
 | 7 | **Test protocol** | The ten answer sheets for the owner's review first. Then a trial run of two examples for the owner to set the pass target. Then the full protocol: the report with raw, brief and tuned scores, the drift and phrasing findings, the first optimiser rules, and the (H) marks removed or kept. Repeated tuned runs for consistency |
+| 7b | **Second engine** (gate item 9) | Two test examples built through the second engine adapter, scored against the same acceptance tests as their tuned runs, with the difference in score and cost reported plainly and no claim beyond what was measured |
 | 8 | **Demo** | The demo environment running the builder behind a login; the chosen demo candidate built live end to end and changed twice; the rehearsed script; a labelled recording as fallback |
 | 9 | **Gate review** | Each Stage 1 gate item in `HANDOVER.md` section 6 marked done with its evidence, and `docs/KNOWN-GAPS.md` current with the reviewing engineer's starting points |
 
@@ -440,5 +476,10 @@ In order. One at a time. Each has a recommendation and its reason. Answers are r
 - (c) Change them; say how.
 
 **10. The `main` branch.** Not a choice unless you object. The repository was empty, so a `main` branch was created holding only `HANDOVER.md` and `CLAUDE.md`, the starting point the handover describes, so that a pull request could be opened. Say if you would rather it were done differently.
+
+**11. Which second engine for gate item 9?**
+- (a) A small loop of our own against an OpenAI-compatible endpoint. **Recommended.** Reason: it is the engine a UAE-only profile would need, and it has no vendor licence question. Its weakness is reported as measured.
+- (b) OpenAI's Codex SDK. Quicker proof of the seam; its repository is Apache-2.0; needs a second provider account and spend line; does not answer the in-country question.
+- (c) Both, if the budget allows after the protocol's trial run.
 
 Not asked now: the product name (no rush; `builder` until then), the pass target for the protocol (set after the trial run, as the handover says), the legal owner (Ahmed Sharara personally for now), and the default model (measured in the skeleton, not decided).

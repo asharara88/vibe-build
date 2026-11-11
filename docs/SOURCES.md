@@ -37,7 +37,17 @@ Every outside fact this project relies on, with the link and the date it was che
 | gVisor: Apache-2.0; an application kernel that isolates containers from the host kernel | [gVisor repository](https://github.com/google/gvisor) |
 | Dyad: Apache-2.0 outside `src/pro`; `src/pro` is under the Functional Source License 1.1; a local app that runs "right on your machine" for Mac or Windows | [Dyad repository](https://github.com/dyad-sh/dyad) |
 | Candidate components, licence and version (from the project's own repository or package index): Next.js MIT v16.4.6; React Router MIT v8.5.1; Drizzle ORM Apache-2.0 0.45.4; Prisma Apache-2.0 7.10.1; better-auth MIT v1.7.20; Auth.js ISC 4.24.15 (its repository recommends new projects start with Better Auth); next-intl MIT v4.14.10; Tailwind CSS MIT v4.3.5; shadcn/ui MIT; Zod MIT v4.6.7; Hono MIT v4.13.17; Django BSD-3-Clause 6.1.3 and 5.2.19 LTS; django-allauth MIT 65.21.1; Django REST framework BSD-3-Clause 3.18.3; htmx Zero-Clause BSD v4.0.1; Ruby on Rails MIT 8.1.4.1; Playwright Apache-2.0 v1.65.0; Mailpit MIT v1.33.1; pip-licenses MIT 5.5.5; license-checker-rseidelsohn BSD-3-Clause 5.0.1; Fastify MIT v5.12.8; Vitest MIT v5.1.0 | Each project's GitHub repository or PyPI/RubyGems page, 11 Nov 2026; `npm view` for license-checker-rseidelsohn |
+| "Anthropic doesn't endorse, maintain, or audit third-party gateway products, and doesn't support routing Claude Code to non-Claude models through any gateway." `ANTHROPIC_BASE_URL` points Claude Code at a gateway; `allowedProviders: ["customEndpoint"]` in managed settings pins it there | [LLM gateways](https://code.claude.com/docs/en/llm-gateway) |
+| "OpenRouter offers EU and US in-region routing." Regional base URLs are eu.openrouter.ai and us.openrouter.ai only. No UAE or Middle East region is mentioned | [OpenRouter sovereign AI](https://openrouter.ai/docs/guides/features/sovereign-ai) |
+| OpenAI's Codex repository is licensed Apache-2.0 (sidebar and README). The `sdk/` directory's own terms were not read | [Codex repository](https://github.com/openai/codex) |
 | PostgreSQL current major is 18 (tag REL_18_7, 9 Nov 2026). The licence name was not confirmed from postgresql.org (host not reachable); the mirror's COPYRIGHT file carries the PostgreSQL permissive notice | [PostgreSQL mirror](https://github.com/postgres/postgres) |
+
+## From the handover, verified by the owner and not re-checkable from this session
+
+| Fact | Source |
+| --- | --- |
+| Core42 Compass exposes an OpenAI-compatible API. Its release notes show some models running in the UAE and others in the US (owner, 11 Nov 2026). Host not reachable from this session | [Compass API reference](https://www.core42.ai/compass/documentation/compass-api-reference); [Compass release notes](https://www.core42.ai/compass/documentation/2025) |
+| The Codex SDK embeds OpenAI's coding agent in an application by driving its command-line tool as a separate process (owner, 11 Nov 2026). Host not reachable from this session | [OpenAI announcement](https://openai.com/index/codex-now-generally-available) |
 
 ## From the handover, checked on 10 November 2026 and not re-checked today
 

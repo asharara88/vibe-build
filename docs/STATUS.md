@@ -2,7 +2,7 @@
 
 Read this first in every session. Update it before every session ends. Nothing else carries over between sessions.
 
-**Last updated:** 11 November 2026, end of the first session (Task 0 and Task 1).
+**Last updated:** 11 November 2026, end of the first session (Task 0 and Task 1, including the owner's same-day edit of the handover adding Decision F).
 
 ## Current state
 
@@ -14,6 +14,7 @@ Read this first in every session. Update it before every session ends. Nothing e
 
 - Development machine: containers run, Compose runs PostgreSQL 16, hardened container flags work, and containers reach the npm registry, PyPI and the Anthropic API when given the host network, the session proxy and its certificate. Run and recorded in `docs/ENVIRONMENT-CHECK.md`.
 - Anthropic documentation for the Agent SDK (overview, hosting, secure deployment, permissions), the cloud sessions, the memory page, model prices and the plan's API credits: read on 11 November 2026 and recorded in `docs/SOURCES.md`.
+- The owner's four new facts for Decision F: the LLM-gateway statement and OpenRouter's regions were re-read today and confirmed; the Core42 and OpenAI pages are not reachable from this session and are carried as the owner's verification. OpenAI's Codex repository was read and is Apache-2.0.
 - Licences and current versions of every candidate component: read from each project's own repository or package index and recorded in `docs/SOURCES.md`.
 - **Not verified:** any cloud provider's price from its own page (hosts blocked by the session's network policy); Django's documentation; PostgreSQL's licence page; Bedrock, Azure and Core42 pages on in-country model processing. All marked as assumptions or search results in the design note.
 
