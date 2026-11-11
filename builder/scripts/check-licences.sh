@@ -4,9 +4,21 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 ALLOW="MIT;Apache-2.0;BSD-2-Clause;BSD-3-Clause;ISC;0BSD;BlueOak-1.0.0;CC0-1.0;Python-2.0;PostgreSQL;Unlicense"
-# Owner-approved exceptions (docs/DECISIONS.md, 11 Nov 2026): the Claude Agent SDK is under
-# Anthropic's Commercial Terms. Add it here when it is installed.
+# Owner-approved exceptions, each with the date and place of the written approval:
+# - @anthropic-ai/claude-agent-sdk: Anthropic Commercial Terms of Service. Approved by the owner
+#   on 11 Nov 2026, recorded in docs/DECISIONS.md.
 EXCLUDE="@anthropic-ai/claude-agent-sdk"
+echo "Production dependencies:"
 npx license-checker-rseidelsohn --production --onlyAllow "$ALLOW" --excludePackages "$EXCLUDE" --excludePrivatePackages --summary
-npx license-checker-rseidelsohn --production --excludePrivatePackages --csv --out licences.csv >/dev/null
-echo "Licence report written to builder/licences.csv"
+# Development tools are not shipped to customers. They must still be free of strong copyleft, and any
+# licence outside the permitted list is printed here so it is seen and recorded (docs/OPEN-DECISIONS.md).
+FAIL_ON="GPL-1.0;GPL-2.0;GPL-3.0;AGPL-1.0;AGPL-3.0;LGPL-2.0;LGPL-2.1;LGPL-3.0;SSPL-1.0;BUSL-1.1;CC-BY-NC-4.0"
+echo "All dependencies, development tools included (summary):"
+npx license-checker-rseidelsohn --failOn "$FAIL_ON" --excludePackages "$EXCLUDE" --excludePrivatePackages --summary
+echo "Development-only packages whose licence is outside the permitted list:"
+npx license-checker-rseidelsohn --development --excludePackages "$EXCLUDE" --excludePrivatePackages --csv 2>/dev/null \
+  | awk -F'","' 'NR>1 { gsub(/"/, "", $0); split($0, f, ","); print f[1] " | " f[2] }' \
+  | grep -vE ' \| (MIT|Apache-2\.0|BSD-2-Clause|BSD-3-Clause|ISC|0BSD|BlueOak-1\.0\.0|CC0-1\.0|Python-2\.0|PostgreSQL|Unlicense)( OR .*)?$' \
+  || echo "  none"
+npx license-checker-rseidelsohn --excludePrivatePackages --csv --out licences.csv >/dev/null
+echo "Licence report (every dependency) written to builder/licences.csv"

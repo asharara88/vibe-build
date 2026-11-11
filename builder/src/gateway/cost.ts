@@ -1,4 +1,4 @@
-import { priceFor } from "./prices.js";
+import { FAST_MODE_FACTOR, priceFor } from "./prices.js";
 
 /** The usage block Anthropic returns on a message, or accumulates over a stream. */
 export interface Usage {
@@ -6,6 +6,10 @@ export interface Usage {
   output_tokens: number;
   cache_creation_input_tokens: number;
   cache_read_input_tokens: number;
+  /** Of the cache writes, how many were one-hour writes (priced higher). */
+  cache_creation_1h_tokens: number;
+  /** "fast" when the response reports fast mode. */
+  speed: "standard" | "fast";
 }
 
 export const emptyUsage = (): Usage => ({
@@ -13,28 +17,49 @@ export const emptyUsage = (): Usage => ({
   output_tokens: 0,
   cache_creation_input_tokens: 0,
   cache_read_input_tokens: 0,
+  cache_creation_1h_tokens: 0,
+  speed: "standard",
 });
+
+/** What the provider's JSON may carry. Only the fields the meter needs. */
+export interface ProviderUsage {
+  input_tokens?: number | null;
+  output_tokens?: number | null;
+  cache_creation_input_tokens?: number | null;
+  cache_read_input_tokens?: number | null;
+  cache_creation?: { ephemeral_5m_input_tokens?: number | null; ephemeral_1h_input_tokens?: number | null } | null;
+  speed?: string | null;
+}
 
 /** Cost in USD, rounded to 6 places. Null when the model is not in the price table. */
 export function costUsd(model: string, u: Usage): number | null {
-  const totalInput = u.input_tokens + u.cache_creation_input_tokens + u.cache_read_input_tokens;
-  const p = priceFor(model, totalInput);
+  const promptTokens = u.input_tokens + u.cache_creation_input_tokens + u.cache_read_input_tokens;
+  const p = priceFor(model, promptTokens);
   if (!p) return null;
   const perM = (n: number, price: number) => (n * price) / 1_000_000;
-  const c =
+  const write1h = Math.min(u.cache_creation_1h_tokens, u.cache_creation_input_tokens);
+  const write5m = u.cache_creation_input_tokens - write1h;
+  let c =
     perM(u.input_tokens, p.input) +
-    perM(u.cache_creation_input_tokens, p.cache_write_5m) +
+    perM(write5m, p.cache_write_5m) +
+    perM(write1h, p.cache_write_1h) +
     perM(u.cache_read_input_tokens, p.cache_read) +
     perM(u.output_tokens, p.output);
+  if (u.speed === "fast") c *= FAST_MODE_FACTOR;
   return Math.round(c * 1e6) / 1e6;
 }
 
-/** Merge a (partial) usage object into an accumulator. Used while reading a stream. */
-export function mergeUsage(acc: Usage, part: Partial<Record<keyof Usage, number | null | undefined>>): Usage {
+/**
+ * Merge a provider usage object into the accumulator. Values replace, they do not add:
+ * message_delta.usage is cumulative for the message.
+ */
+export function mergeUsage(acc: Usage, part: ProviderUsage): Usage {
   return {
     input_tokens: part.input_tokens ?? acc.input_tokens,
     output_tokens: part.output_tokens ?? acc.output_tokens,
     cache_creation_input_tokens: part.cache_creation_input_tokens ?? acc.cache_creation_input_tokens,
     cache_read_input_tokens: part.cache_read_input_tokens ?? acc.cache_read_input_tokens,
+    cache_creation_1h_tokens: part.cache_creation?.ephemeral_1h_input_tokens ?? acc.cache_creation_1h_tokens,
+    speed: part.speed === "fast" ? "fast" : part.speed ? "standard" : acc.speed,
   };
 }

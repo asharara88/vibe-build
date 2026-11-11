@@ -1,0 +1,60 @@
+/**
+ * Evidence run: one project's containers started by the sandbox manager on the development profile,
+ * the egress proxy letting an allowed host through and refusing another, then everything removed.
+ * Run from builder/: npx tsx scripts/demo-sandbox.ts
+ */
+import { execFile } from "node:child_process";
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
+import { promisify } from "node:util";
+import { createSandbox, sandbox } from "../src/sandbox/manager.js";
+
+const run = promisify(execFile);
+const log = (s: string) => console.log(s);
+const dir = mkdtempSync(join(tmpdir(), "builder-demo-"));
+const sb = createSandbox(
+  {
+    projectId: "demo_sandbox",
+    dir,
+    profile: "development-cloud-session",
+    allowHosts: ["registry.npmjs.org", "api.anthropic.com"],
+    gatewayUrl: "http://127.0.0.1:4010",
+    builderDir: resolve(import.meta.dirname, ".."),
+    hostProxy: { url: process.env.HTTPS_PROXY ?? "", caBundlePath: "/root/.ccr/ca-bundle.crt" },
+    devDbPort: 5545,
+  },
+  "sample-only-password",
+);
+log(`Compose project ${sb.projectName} written to ${sb.composeFile}`);
+log("Profile: development-cloud-session (host network, session proxy, session certificate). Allowed hosts: registry.npmjs.org, api.anthropic.com.");
+log("");
+try {
+  await sandbox.up(sb, ["db", "egress"]);
+  const ps = JSON.parse(`[${(await sandbox.ps(sb)).trim().split("\n").join(",")}]`) as Array<{ Service: string; State: string; Health?: string }>;
+  for (const p of ps) log(`Container ${p.Service}: ${p.State}${p.Health ? ` (${p.Health})` : ""}`);
+  const ready = await sandbox.exec(sb, "db", ["pg_isready", "-U", "app", "-d", "app", "-p", "5545"]);
+  log(`Database: ${ready.trim()}`);
+  for (let i = 0; i < 20 && !(await sandbox.logs(sb, "egress")).includes('"listening"'); i++) await new Promise((r) => setTimeout(r, 500));
+  const curl = async (url: string) => {
+    try {
+      const { stdout } = await run("curl", ["-s", "-o", "/dev/null", "-w", "%{http_code}", "--max-time", "30", "--noproxy", "", "--cacert", "/root/.ccr/ca-bundle.crt", "--proxy", "http://127.0.0.1:3128", url]);
+      return stdout.trim();
+    } catch (e) {
+      return ((e as { stdout?: string }).stdout ?? "000").trim();
+    }
+  };
+  log("");
+  log(`Through the egress proxy, https://registry.npmjs.org/-/ping answered HTTP ${await curl("https://registry.npmjs.org/-/ping")} (allowed host).`);
+  log(`Through the egress proxy, https://api.anthropic.com/v1/models answered HTTP ${await curl("https://api.anthropic.com/v1/models")} (allowed host; 401 means reached, no key sent).`);
+  log(`Through the egress proxy, https://example.com/ answered HTTP ${await curl("https://example.com/")} (not allowed; 000 means the tunnel was refused).`);
+  log(`Through the egress proxy, https://github.com/ answered HTTP ${await curl("https://github.com/")} (not allowed).`);
+  log("");
+  log("Egress proxy log, one line per decision:");
+  const lines = (await sandbox.logs(sb, "egress")).split("\n").filter((l) => l.includes('"decision"')).map((l) => l.replace(/^[^|]*\|\s*/, "  "));
+  for (const l of lines) log(l);
+} finally {
+  await sandbox.destroy(sb);
+  log("");
+  log("Containers, network and volume removed.");
+}

@@ -59,5 +59,5 @@ All run inside `builder/`.
 - `npm run gateway`: start the model gateway; needs `BUILDER_MODEL_API_KEY`.
 - `npx tsx scripts/demo-cap.ts`: the cap demonstration against a stand-in provider.
 
-- Cloud session set-up: `service docker start`. The Docker daemon is not running when a session begins (measured 11 Nov 2026).
+- Cloud session set-up: the Docker daemon is not running when a session begins. `service docker start` sometimes does not keep it running; `nohup dockerd > /tmp/dockerd.log 2>&1 &` does (measured 11 Nov 2026). Then `service postgresql start` and, inside `builder/`, `bash scripts/dev-db.sh`.
 - Containers in a cloud session need `--network host`, the proxy variables and the proxy certificate at `/root/.ccr/ca-bundle.crt` mounted, or they have no internet. See `docs/ENVIRONMENT-CHECK.md`.

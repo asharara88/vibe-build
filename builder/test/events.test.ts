@@ -29,6 +29,10 @@ describe("event log", () => {
     await expect(pool.query("update events set payload = '{}' where id = $1", [e.id])).rejects.toThrow(/append-only/);
   });
 
+  it("refuses to truncate the event log", async () => {
+    await expect(pool.query("truncate events")).rejects.toThrow(/append-only/);
+  });
+
   it("refuses to delete an event", async () => {
     const id = uniqueId("p");
     await createProject(pool, { id, name: "test", capUsd: 1 });
