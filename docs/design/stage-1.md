@@ -28,7 +28,7 @@ Marks used, as in the handover: **Verified** means checked against the source in
 - The exported app starts on its own with one command.
 - The whole thing runs on the development machine we have, within its limits.
 
-**What I checked, and what I could not.** I verified Anthropic's documentation on the build engine, its hosting, its security guidance, its permissions, the cloud development machine, model prices and the plan's monthly API credits (section 3). I measured the development machine: containers run, and containers can reach the package registries and the model API with a workaround that is acceptable for development only (section 4). I could **not** read any cloud provider's pricing page, because the session's network policy blocks those sites. The demo-server options in section 4 therefore carry indicative figures from search results, marked as such, and a decision on hosting has to wait until you either allow those sites or check the prices yourself.
+**What I checked, and what I could not.** I verified Anthropic's documentation on the build engine, its hosting, its security guidance, its permissions, the cloud development machine, model prices and the plan's monthly API credits (section 3). I measured the development machine: containers run, and containers can reach the package registries and the model API with a workaround that is acceptable for development only (section 4). After you allowed the research sites, I read Hetzner's and DigitalOcean's prices from their own pages, and confirmed that Oracle, AWS and Azure each have regions in the UAE. Oracle's, AWS's and Azure's price tables are drawn by a script in the browser and could not be read by this session; you can read those in a browser if you want the demo server in the UAE.
 
 **Where I disagree with the handover.** In seven places, set out in section 2.9, most of them small. The three that matter: the first is that the handover's "Powered by Claude" wording is not quite what Anthropic permits: the permitted form is "{our name} Powered by Claude". The second is that the build engine's licence is a commercial licence, not a permissive one, so hard rule 2 needs your written exception. The third concerns processing inside the UAE: today no verified option keeps the model's processing in the country, and that matters for the regulated buyers in the handover.
 
@@ -145,7 +145,7 @@ Later stages: the secure-deployment guide compares containers, gVisor and virtua
 | Database access | Drizzle ORM (Apache-2.0) | Django ORM and migrations, built in |
 | Sign-in and roles | better-auth (MIT). Auth.js's own repository now recommends new projects start with Better Auth (verified) | Django auth and permissions, built in; django-allauth (MIT) for the email flow |
 | Forms and validation | Zod (MIT) | Django forms, built in |
-| Translation and right-to-left | next-intl (MIT); CSS logical properties | Django i18n, built in (assumption: documentation host not reachable today) |
+| Translation and right-to-left | next-intl (MIT); CSS logical properties | Django i18n, built in, with `LANGUAGES_BIDI` for right-to-left languages (verified) |
 | Interface | Tailwind CSS (MIT), shadcn/ui (MIT) | Django templates with htmx (Zero-Clause BSD) and Tailwind |
 | Tests and acceptance | Playwright (Apache-2.0), Vitest (MIT) | Playwright, pytest (MIT) |
 | Mail catcher | Mailpit (MIT) | Mailpit |
@@ -158,7 +158,7 @@ How the criteria fall, before measurement:
 
 | Criterion | Leans to |
 | --- | --- |
-| Quality rules true by construction | P. Role checks, validated forms, migrations and who-and-when stamps are framework features in Django. In Next.js each is a library or a convention the template must impose |
+| Quality rules true by construction | P. Django's documentation states a built-in authentication system with users, groups and permissions, form and field validation, and migrations (verified). Who-and-when stamps are a convention in both. In Next.js each is a library or a convention the template must impose |
 | Acceptance score and model cost on example 1 | Unknown until measured. Models write both well; Next.js has the larger body of recent code |
 | Standard PostgreSQL, containers, permissive licences | Both |
 | Maintained and widely used; engineers hireable | Both. Django is older and changes less; Next.js changes more |
@@ -201,7 +201,7 @@ How the design already carries the two seams:
 | Option | For | Against |
 | --- | --- | --- |
 | **A loop of our own against an OpenAI-compatible endpoint. Recommended.** | It is the engine a `uae-only` profile would need, since the in-country provider named in the handover exposes that format. It has no vendor licence question. It can be pointed at any provider that speaks the format, including Anthropic's own models for a like-for-like comparison | More work: file tools, shell handling and a turn loop must be written, kept small, and reviewed. The result will be weaker than a mature agent, and the comparison must say so |
-| OpenAI's Codex SDK | Same shape as the Claude Agent SDK, so the adapter is thin. A mature agent. Its repository is Apache-2.0 (verified today; the terms of the SDK directory itself and of the OpenAI API were not checked) | A second provider account, key and spend line. It answers "does the seam work" but not "can the builder run on an in-country model" |
+| OpenAI's Codex SDK | Same shape as the Claude Agent SDK: its README says it "wraps the codex CLI" and "spawns the CLI and exchanges JSONL events over stdin/stdout" (verified). Package `@openai/codex-sdk`, Apache-2.0 (verified). A mature agent | A second provider account, key and spend line. It answers "does the seam work" but not "can the builder run on an in-country model" |
 
 Recommendation: the loop of our own, kept deliberately small, used for the two gate examples and labelled with its measured score and nothing more. If the owner prefers the Codex SDK for a quicker proof, the adapter is thin and the recommendation does not block it; the licence check comes first either way.
 
@@ -216,7 +216,7 @@ Gate item 9 (two test examples built with a second engine, difference reported) 
 
 1. **Branding wording** (section 8.4 and 16). "Powered by Claude" alone is not among the permitted forms; "{our name} Powered by Claude" is. Minor, but the handover's statement should not be repeated as written.
 2. **Licence of the build engine.** The handover records the Commercial Terms as a verified fact but does not connect it to hard rule 2. The SDK is not permissively licensed, and the rule needs a written exception. I have put it in `docs/OPEN-DECISIONS.md` and in this note's section 9.
-3. **Processing inside the UAE** (sections 3, 8.4, 15). The handover treats this as a Stage 3 question. The evidence today is worse than "open": Anthropic's own data-residency options are US or global (verified), and AWS's own documentation found through search says Claude models in the UAE region run through global cross-region inference, so the data may leave the country (search result, not verified from the page). If regulated buyers are in the pitch, the pitch must say that the app and its data can stay in the country and that the model calls, today, cannot be shown to. This affects what the demo claims, which is a Stage 1 matter.
+3. **Processing inside the UAE** (sections 3, 8.4, 15). The handover treats this as a Stage 3 question. The evidence today is worse than "open": Anthropic's own data-residency options are US or global (verified), and AWS's Bedrock region table lists the UAE region for Claude Sonnet 5.5 and Claude Opus 5.5 only under "Global" cross-region inference, which AWS describes as for use "when you have no data residency constraints" (verified from the page). Core42's release notes name Claude Sonnet 4 as a preview for select customers without saying where it runs (verified). If regulated buyers are in the pitch, the pitch must say that the app and its data can stay in the country and that the model calls, today, cannot be shown to. This affects what the demo claims, which is a Stage 1 matter.
 4. **Order of app spec and template** (2.3). Spec first.
 5. **"Not verified" items in section 16.** One is now answered by measurement: containers started inside a cloud session can reach the model API and the package registry, with the host-network workaround and the proxy's certificate. One is being tested at the end of this session: whether a page served inside the session can be opened by the owner.
 6. **Decision F's sources.** The four facts added for Decision F are dated 11 November 2026 in the handover. I could re-check only those on reachable hosts (see `docs/SOURCES.md`); the Core42 and OpenRouter hosts are blocked from this session. Where a fact could not be re-read it is carried as the owner's verification, not mine.
@@ -235,18 +235,18 @@ Every tool this note plans to rely on, with what its documentation confirms, the
 | Plan API credits | support.claude.com articles 15036540 and 17154008 | Max $100 and Ultra $200 per month; Team $20 or $100 per seat pooled; covers the API and the Agent SDK with a key from the linked Console organization; no rollover | 11 Nov 2026 | n/a |
 | Cloud development sessions | Cloud environments, Cloud sessions pages | Ubuntu 24.04; Docker, Compose, PostgreSQL 16, Node 20 to 22, Python; approximate 4 vCPU, 16 GB, 30 GB; limited network with package managers allowed; env vars readable by environment users; pauses when idle; command time limits | 11 Nov 2026; resources also measured | n/a |
 | Docker 29.9.2, Compose v5.6.1 | Measured on the machine | Containers run; Compose runs PostgreSQL 16; hardened flags work | 11 Nov 2026 | Apache-2.0 (assumption; not re-checked today) |
-| PostgreSQL 16 | Mirror repository (official site not reachable) | Current major is 18; 16 is installed here | 11 Nov 2026 | PostgreSQL licence (permissive; the licence page itself was not reachable) |
+| PostgreSQL 16 | postgresql.org licence and versioning pages | 16.15 is the current 16 release, supported until 9 November 2028; 18.6 is the current 18 release; 19 is at release candidate | 11 Nov 2026 | PostgreSQL Licence, "a liberal Open Source license, similar to the BSD or MIT licenses" (verified) |
 | Playwright 1.65.0 (1.63.0 installed on the development machine, with Chromium; measured) | Repository | Browser automation for acceptance checks | 11 Nov 2026 | Apache-2.0 |
 | pytest 9.2.0 | PyPI | Test runner for candidate P | 11 Nov 2026 | MIT |
 | Next.js 16.4.6, Drizzle 0.45.4, better-auth 1.7.20, next-intl 4.14.10, Tailwind 4.3.5, shadcn/ui, Zod 4.6.7, Vitest 5.1.0 | Each repository | Current versions and licences | 11 Nov 2026 | MIT, Apache-2.0 (Drizzle), MIT, MIT, MIT, MIT, MIT, MIT |
-| Django 5.2.19 LTS, django-allauth 65.21.1, htmx 4.0.1 | PyPI and repositories | Current versions and licences. Django's built-in features are an assumption until its documentation host is reachable | 11 Nov 2026 | BSD-3-Clause, MIT, Zero-Clause BSD |
+| Django 5.2.19 LTS, django-allauth 65.21.1, htmx 4.0.1 | PyPI, repositories, and docs.djangoproject.com | Current versions and licences. Django's documentation confirms built-in authentication with groups and permissions, form validation, migrations, and right-to-left language support | 11 Nov 2026 | BSD-3-Clause, MIT, Zero-Clause BSD |
 | Mailpit 1.33.1 | Repository | Local mail catcher for notification evidence | 11 Nov 2026 | MIT |
 | license-checker-rseidelsohn 5.0.1, pip-licenses 5.5.5 | Package registries | Automated licence reports for both stacks | 11 Nov 2026 | BSD-3-Clause, MIT |
 | E2B, gVisor | Repositories | Later-stage isolation options; self-hostable; Apache-2.0 | 11 Nov 2026 | Apache-2.0 |
-| Decision F sources: LLM gateway page, OpenRouter, Core42 Compass documentation, OpenAI Codex announcement | As listed in the handover's section 16 | See `docs/SOURCES.md` for which were re-read today and which were not reachable | 11 Nov 2026 (owner); re-check noted per item | n/a; Codex SDK licence not yet checked |
+| Decision F sources: LLM gateway page, OpenRouter, Core42 Compass documentation, OpenAI Codex SDK | code.claude.com, openrouter.ai, core42.ai, github.com/openai/codex | All four re-read today: no non-Claude routing through gateways; OpenRouter EU and US only; Compass is OpenAI-compatible with some models in the UAE and some in the US, and names Claude Sonnet 4 as a preview for select customers; the Codex SDK "wraps the codex CLI" and "spawns the CLI and exchanges JSONL events over stdin/stdout" | 11 Nov 2026 | Codex SDK package `@openai/codex-sdk`: Apache-2.0 (package metadata and repository). OpenAI's API terms not yet read |
 | Managed Agents | platform.claude.com overview and data-residency pages | Hosted loop; self-hosted sandbox option; session state stored by Anthropic; inference geography US or global only | 11 Nov 2026 | Commercial service |
 
-Not verified today and needed before the relevant step: Django's documentation (host blocked), PostgreSQL's licence page (host blocked), Docker's licence (not re-checked), the WebContainer terms (not needed, bolt.diy rejected).
+Not verified today and needed before the relevant step: Docker's licence (not re-checked), OpenAI's API terms (before the second-engine milestone), the WebContainer terms (not needed, bolt.diy rejected).
 
 ---
 
@@ -260,7 +260,7 @@ Three limits shape the work:
 
 - **Idle pause and reclaim.** Running processes do not survive. Nothing is hosted here. Every milestone produces screenshots and recordings from an automated run, committed in the pull request.
 - **Command time limits.** Foreground commands wait two minutes by default and up to ten on request; background work up to thirty more. The test harness runs one build per invocation and writes results to the repository as it goes, so a cut-off loses one build, not a run.
-- **Network policy.** Package registries, GitHub, Anthropic and the Claude documentation sites are reachable. Provider pricing pages and several documentation sites are not. Containers need the host network and the proxy's certificate (section 2.5).
+- **Network policy.** Package registries, GitHub, Anthropic and the Claude documentation sites are reachable, and since the owner's approval on 11 November so are the nineteen research sites listed in `docs/OPEN-DECISIONS.md`. Containers need the host network and the proxy's certificate (section 2.5).
 
 The repository is the only memory between sessions. `docs/STATUS.md` is updated at the end of every session.
 
@@ -274,19 +274,19 @@ GitHub Actions can run the harness's quick checks on every pull request (lint, u
 
 One small server with Docker, a web address, and a login in front of the builder. The owner opens it in a browser. Requirement: about 4 processors, 8 GB memory, 80 GB disk, Linux. Rationale: the hosting guide's floor is 1 GiB per agent; one project at a time needs the builder, one engine, one app, one database, one acceptance runner, and the egress proxy. 8 GB leaves room for two projects at once.
 
-**Prices could not be fetched from any provider's own pricing page.** The session's network policy blocks the hosts. The figures below are from search-result snippets dated today, are marked as such in `docs/SOURCES.md`, and must be read from the provider's page before any decision. Hard rule 4 says the price and its source come first; this table does not meet that rule yet.
+**Prices, read from the providers' own pages on 11 November 2026** after the owner allowed the sites. Where a provider's price table is drawn by a script in the browser and not present in the page itself, this session could not read it, and the row says so rather than carrying a number from elsewhere.
 
-| Option | Location | Indicative figure (search result, unverified) | Notes |
+| Option | Location | Price from the provider's page | Notes |
 | --- | --- | --- | --- |
-| Hetzner Cloud shared vCPU (CX or CPX line) | Germany, Finland, US, Singapore. **No UAE location** (assumption; not confirmed today) | A 2024 press release listed CX32, 4 vCPU 8 GB 80 GB, at €6.80 per month. Current CPX snippets were inconsistent | Cheapest line. Hourly billing, no minimum term |
-| DigitalOcean Basic Droplet | No UAE location (assumption; page not reachable) | 4 vCPU 8 GiB 160 GiB: $48.00 per month | Simple; widely documented |
-| Oracle Cloud VM.Standard.E4.Flex | UAE East (Dubai) named in Oracle's service-limits documentation (search result; the page itself was not read); Abu Dhabi not confirmed | $0.032765 per OCPU-hour plus $0.0019659 per GB-hour. 2 OCPU (4 vCPU) and 8 GB for a 730-hour month works out to about $59, by my arithmetic from those two rates | The one option with a confirmed UAE region and a visible rate. Oracle's pages returned 403 to this session, so even the rate is from a snippet |
-| AWS EC2 t3.large or t4g.large | **Middle East (UAE), me-central-1** | t3.large $0.0835 per hour, region not stated in the snippet, about $61 per month at that rate | UAE region exists (AWS blog, search result). UAE-region price not found |
-| Azure B2ms | **UAE North** | No UAE North price found | UAE regions exist (assumption from general knowledge; page not reachable) |
-| UAE-based providers (Core42, Khazna, Moro Hub) | UAE | None reachable from this session | Likely enterprise pricing on request |
+| **Hetzner CPX32**: 4 AMD vCPU, 8 GB, 160 GB NVMe | Germany (Falkenstein, Nuremberg), Finland (Helsinki), USA (Hillsboro, Ashburn), Singapore. **No UAE location** (verified) | **€30.49 per month excl. VAT**, €0.0489 per hour. "Your server's bill will never exceed its monthly price cap" | Verified. The cheaper CX33 (4 vCPU, 8 GB, 80 GB) is €8.99 per month but shown as "currently not available" |
+| **DigitalOcean Basic Droplet**: 4 vCPU, 8 GiB, 160 GiB SSD | Regions named on the page include Amsterdam, Atlanta, Bangalore, Frankfurt, London, Singapore, Sydney, Toronto. No UAE | **$48.00 per month**, $0.07143 per hour | Verified |
+| **Oracle Cloud VM.Standard.E4.Flex**: 2 OCPU (4 vCPU), 8 GB | **Dubai and Abu Dhabi regions confirmed** on Oracle's own region page (verified) | Not readable: Oracle's compute price table is drawn by a script and the page refuses this session's requests. A search snippet earlier gave $0.032765 per OCPU-hour and $0.0019659 per GB-hour, about $59 per month at those rates; **unverified** | The one option with a UAE region whose rate was seen anywhere. The owner can read the price in a browser at oracle.com/ae/cloud/compute/pricing |
+| **AWS EC2 t3.large or t4g.large** | **Middle East (UAE), me-central-1, confirmed** on AWS's region page (verified) | Not readable: the on-demand price table is drawn by a script | The owner can read it in a browser with the UAE region selected |
+| **Azure B2ms** | **UAE North and UAE Central confirmed** on Azure's geographies page (verified) | Not readable: the price table is drawn by a script | Same |
+| UAE-based providers (Core42, Khazna, Moro Hub) | UAE | Core42 publishes no public price for a small machine (verified). Khazna's and Moro's sites did not answer this session | Enterprise pricing on request |
 | Hosted sandbox service (E2B cloud or similar) | Varies | Not checked | Stage 1 alternative only, behind the sandbox manager's interface. Would not give the owner a web address for the builder itself |
 
-Recommendation, subject to the prices being confirmed: **Oracle Cloud in the Dubai region** if its price is close to the figure above, because it is the one option with both a UAE region and a visible small-server rate, and the first demo audience is in the UAE. **Hetzner** if location does not matter for the demo and the owner wants the lowest spend. The owner approves the spend before anything is created.
+**Recommendation.** For the Stage 1 demo environment, which holds the builder and made-up data only: **Hetzner CPX32 at €30.49 per month excl. VAT**, hourly billed, because its price is verified from the provider's page and it is the lowest. Its servers are in Europe, the USA and Singapore, not the UAE. If the owner wants to say during the demo that the demo server itself is in the UAE, Oracle's Dubai region or AWS's UAE region are confirmed to exist, and the owner reads the price in a browser before approving it. Nothing is created until the owner says yes to a named option and its price (hard rule 4). The question is in `docs/OPEN-DECISIONS.md`.
 
 The model key lives on the demo server as an environment variable read only by the gateway process, which runs outside every project container.
 
