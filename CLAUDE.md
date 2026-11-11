@@ -4,7 +4,8 @@ This repository holds **the builder**: a system that turns a plain-language busi
 
 - Full context: `HANDOVER.md`. Read it in full once. Do not edit it.
 - Current state: `docs/STATUS.md`. Read it at the start of every session once it exists.
-- Product specification: `docs/spec/`. Until Task 0 creates it, use Part B of the handover.
+- Product specification: `docs/spec/`, one file per section. `HANDOVER.md` Part B is the frozen original.
+- Design note for Stage 1: `docs/design/stage-1.md`. No product code until the owner has approved it.
 
 ## Every session
 
@@ -50,4 +51,7 @@ Ahmed Sharara is the founder and the only person on the project. He does not rea
 
 ## Commands
 
-None yet. Add the real commands here as they come to exist: start, test, check, deploy.
+No product commands yet. Add the real ones here as they come to exist: start, test, check, deploy.
+
+- Cloud session set-up: `service docker start`. The Docker daemon is not running when a session begins (measured 11 Nov 2026).
+- Containers in a cloud session need `--network host`, the proxy variables and the proxy certificate at `/root/.ccr/ca-bundle.crt` mounted, or they have no internet. See `docs/ENVIRONMENT-CHECK.md`.

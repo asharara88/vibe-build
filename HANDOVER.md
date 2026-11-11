@@ -115,7 +115,8 @@ There is no engineer on the project yet. That shapes the work:
 6. Each project's record shows the questions and answers, the confirmations, every build instruction and result, every check result, and the model usage and cost.
 7. A demo script exists and has been rehearsed end to end on the demo environment. A recorded run exists as a fallback and is labelled as a recording.
 8. `docs/KNOWN-GAPS.md` is current, with a note on what a reviewing engineer should look at first.
-9. One prospective buyer has seen it. This item is the owner's task.
+9. Two test examples have been built with a second build engine, and the difference is reported (proposal; section 8.8).
+10. One prospective buyer has seen it. This item is the owner's task.
 
 ## 7. The journey Stage 1 must deliver
 
@@ -257,6 +258,28 @@ Record the chosen versions and pin them.
 - The build engine cannot edit the checks. If a check is wrong, the fix goes back through the analyst as a change to the brief.
 - Automated checks do not replace the user's sign-off. They make it quick.
 
+### 8.8 Decision F: staying adaptable
+
+The builder must be able to change where its models come from, and which engine does the building, without being rebuilt. These are two different things:
+
+- **Model source.** Who serves a model: Anthropic directly, a router such as OpenRouter, or a cloud inside the UAE such as Core42 Compass.
+- **Build engine.** The agent that writes the code: the Claude Agent SDK, OpenAI's Codex SDK, or a loop of our own for open models.
+
+A router in the middle does not provide this on its own. Verified (section 16):
+
+- Routing Claude Code's engine to non-Claude models through a gateway is not supported.
+- OpenRouter's in-region routing covers the EU and the US. It offers no UAE region.
+- Core42 Compass exposes an OpenAI-compatible API. Some of its models run in the UAE and others in the US, so the location depends on the model chosen.
+- The Codex SDK has the same shape as the Claude Agent SDK: a library that drives a command-line agent as a separate process.
+
+Proposal:
+
+1. **Two seams.** The model gateway serves the analyst, the optimiser and the acceptance writer. It speaks Anthropic's format and the OpenAI-compatible format that most providers expose. The build engine interface takes one step's instruction and a workspace, and returns the changes, the events and the usage.
+2. **Profiles.** A profile names one build engine, the model for each role, and the endpoints they may reach. Example: a standard profile, and a UAE-only profile limited to models and endpoints that process inside the country.
+3. **Certification by the test protocol.** A profile is offered to a customer only after it has passed B5. Scores, and every "builds reliably" in the question bank, are recorded per profile.
+4. **Engine-neutral assets.** The analyst, question bank, house template, generators, quality gate, acceptance checks and record must not depend on any one engine. The more the template and generators do, the less the result depends on the strength of the model. That matters most for a UAE-only profile.
+5. **One adapter now, the seam proven before the gate.** Stage 1 builds one engine adapter. Before the gate, build two test examples with a second engine and report the difference. Make no claim of working with any model beyond what was measured.
+
 ## 9. Standard for generated apps
 
 A **proposal**, to be settled in the design note.
@@ -332,7 +355,7 @@ No product code.
 Write `docs/design/stage-1.md`. No product code. Contents:
 
 1. **Summary for the owner.** One page, plain language: what you will build first, what he will see, what you need from him.
-2. **Architecture.** Your position on decisions A to E in section 8, the alternatives you weighed, and where you disagree with this handover.
+2. **Architecture.** Your position on decisions A to F in section 8, the alternatives you weighed, and where you disagree with this handover.
 3. **Verification.** For every tool you plan to rely on: the documentation page, what it confirms, the date you checked, and the licence.
 4. **Environments.** Development, test and demo. Demo server options with prices from the providers' pricing pages.
 5. **Cost.** What drives the cost of a build. State what is unknown until measured, and how the walking skeleton will measure it. How the per-project cap works.
@@ -420,6 +443,10 @@ Checked on 10 November 2026 unless another date is shown. Re-check before relyin
 | `CLAUDE.md` at the repository root is loaded at the start of every session. Keep it under 200 lines. It is advice to the model, not enforcement; hooks enforce | [Memory](https://code.claude.com/docs/en/memory) |
 | Claude Code's auto memory is local to one machine and is not shared across cloud environments | Memory |
 | Max, Ultra and Team plans include monthly API credits, usable with a Console API key for the API, Managed Agents and the Agent SDK (announced 7 Oct 2026; amount not stated) | [Support article](https://support.claude.com/en/articles/15036540-use-the-claude-agent-sdk-with-your-claude-plan) |
+| Anthropic does not support routing Claude Code to non-Claude models through any gateway (11 Nov 2026) | [LLM gateways](https://code.claude.com/docs/en/llm-gateway) |
+| OpenRouter offers in-region routing for the EU and the US only (11 Nov 2026) | [OpenRouter sovereign AI](https://openrouter.ai/docs/guides/features/sovereign-ai) |
+| Core42 Compass exposes an OpenAI-compatible API. Its release notes show some models running in the UAE and others in the US (11 Nov 2026) | [Compass API reference](https://www.core42.ai/compass/documentation/compass-api-reference); [Compass release notes](https://www.core42.ai/compass/documentation/2025) |
+| The Codex SDK embeds OpenAI's coding agent in an application by driving its command-line tool as a separate process (11 Nov 2026) | [OpenAI announcement](https://openai.com/index/codex-now-generally-available) |
 | Dyad: Apache 2.0 for everything outside `src/pro`; a single-user desktop app (9 Nov 2026) | [Dyad repository](https://github.com/dyad-sh/dyad) |
 | bolt.diy: MIT, but it depends on the WebContainer API, which needs a separate licence for commercial production use (9 Nov 2026; secondary source only) | [Rapid Developers](https://www.rapidevelopers.com/blog/best-free-lovable-alternatives) |
 | E2B: Apache-2.0 for runtime, SDKs and control plane; can run on hardware you control (9 Nov 2026) | [E2B open source](https://e2b.dev/open-source) |
