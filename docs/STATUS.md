@@ -1,60 +1,87 @@
 # Status
 
-Read this first in every session. Update it before every session ends. Nothing else carries over between sessions.
+Read this first in every session, then `docs/BUILD-PLAN.md` section 3. This file is rewritten each session, not added to; older versions are in `docs/log/`.
 
-**Last updated:** 11 November 2026, after the owner's three corrections to the design note.
+**As of:** 11 November 2026, end of the first session under the build plan. Nothing here is a time estimate.
 
-- **Design note corrected on the owner's instruction (11 Nov 2026):** acceptance tests never in the engine's container, stored outside the project's working copy and git history, joining the app at export; the budget cap by worst-case holds with a pre-step check; the Codex SDK recorded as the second engine. `docs/DECISIONS.md` records that the approval stands subject to these corrections. **Consequence for the code:** the gateway's cap must be rebuilt to the holds design (gaps 20 and 21) before the engine adapter uses it; no acceptance code existed, so nothing is undone there (gap 34).
+## One-line state
 
-## Current state
+The design note is approved subject to three corrections, which are made. Code exists on branch `claude/stage-1` as an **unapproved starting baseline**: the model gateway (the one door to the AI model, which counts and caps spend), the egress proxy (the one way out of a project's containers), the sandbox manager (which creates a project's containers), the app spec (the machine-readable brief), the event log (the append-only record), and the TypeScript house template (the starter every generated app begins from). The builder's own code has 38 passing tests; the template has screenshots, not tests. No app can be built yet. No real model call has been made; the month's model spend is $0.00 (no key exists).
 
-- **Walking skeleton, increment 1: built and tested.** Branch `claude/walking-skeleton`. In `builder/`: the app spec (the machine-readable brief) with test example 1 written out in full; the project store and append-only event log in PostgreSQL (updates and deletes are refused by the database); the model gateway, which holds the real key, gives the engine a project token instead, meters every call from the provider's usage figures and the dated price table, and refuses a call that would cross the project's cap, in plain words. 14 tests pass. Licence check passes (17 production packages, MIT and ISC). Evidence: `evidence/2026-11-11-skeleton-1/gateway-cap.md`.
-- **Walking skeleton, increment 2: built and tested.** The egress proxy (a project's only way out: allowed hosts pass, everything else is refused and logged) and the sandbox manager (one set of containers per project, hardened, in two profiles: `server` with an internal network and the egress proxy as the only bridge, and `development-cloud-session` for this machine). A live test starts a project's database and egress proxy, shows an allowed host answering and a refused host blocked, and removes everything. A fresh reviewer's findings on the gateway were fixed: parallel calls are held to the cap, abandoned streams are recorded, only two paths are forwarded, redirects are not followed, TRUNCATE is refused, one-hour cache writes and fast mode are priced, and the served model is priced rather than the requested one. 38 tests pass. Evidence: `evidence/2026-11-11-skeleton-2/sandbox-egress.md`.
-- **Walking skeleton, increment 3, part one: the TypeScript house template, built and running.** `templates/next/`: Next.js 16 with sign-in by email and password through a maintained library, three sample roles, a role check before every page, who-and-when stamps for every app table, English and Arabic with right-to-left layout, validated forms with plain-words messages, an empty state, a sample-data banner, settings from the environment only, and a two-stage container image. The sandbox manager now builds the app image and runs the app next to the project's database. Evidence with seven browser screenshots: `evidence/2026-11-11-skeleton-3/next-template.md`. Whole run (build, tables, seed, start, screenshots) about 17 seconds after the first build.
-- **Increment 3, part two: the Django template is waiting on the owner.** Django's PostgreSQL driver is LGPL-3.0, which hard rule 2 does not allow without the owner's written exception (`docs/OPEN-DECISIONS.md`, item 10). Nothing LGPL has been installed.
-- **Not yet built:** the engine adapter, the acceptance runner, the exporter, the harness, any app screen beyond sign-in and home. No app can be built yet.
+## Three states, per the plan
 
-- **Nothing is built.** No product code exists. The repository holds the handover, the project rules, the specification, the Stage 1 design note and the working documents.
-- **Task 0 (set up the repository): done.** Environment checked and recorded in `docs/ENVIRONMENT-CHECK.md`. `README.md`, `LICENSE`, `.gitignore`, `docs/STATUS.md`, `docs/DECISIONS.md`, `docs/OPEN-DECISIONS.md`, `docs/KNOWN-GAPS.md`, `docs/SOURCES.md` and `docs/spec/` created. `HANDOVER.md` left as supplied. Work is on branch `claude/new-session-ftnls6`; draft pull request: https://github.com/asharara88/vibe-build/pull/1
-- **Task 1 (design note): done and approved.** The owner approved `docs/design/stage-1.md` as written on 11 November 2026 and answered the questions in section 9; the answers are in `docs/DECISIONS.md`. Still open: the demo candidate, the monthly spending limit figure, the model key.
-- **Network change: done.** The owner asked for the research sites to be allowed. Nineteen hosts were added to the personal Default cloud environment's allowed list with the owner's approval (list in `docs/OPEN-DECISIONS.md`). Verified reachable afterwards: Hetzner, DigitalOcean, AWS, PostgreSQL, Django docs, OpenAI developer docs, Core42. Oracle's site answers 403 to this session's requests, which is Oracle refusing automated requests, not the network policy.
-- **Prices and blocked documentation: read.** Hetzner and DigitalOcean prices read from their pages; Oracle, AWS and Azure UAE regions confirmed from their pages, but their price tables are drawn by a script and were not readable here. Django, PostgreSQL, Bedrock, Core42 Compass and the Codex SDK documentation read and recorded in `docs/SOURCES.md`. Still unread: the law-firm note on the UAE data law (site blocks automated requests) and OpenAI's API terms.
-
-## What was verified, and how
-
-- Development machine: containers run, Compose runs PostgreSQL 16, hardened container flags work, and containers reach the npm registry, PyPI and the Anthropic API when given the host network, the session proxy and its certificate. Run and recorded in `docs/ENVIRONMENT-CHECK.md`.
-- Anthropic documentation for the Agent SDK (overview, hosting, secure deployment, permissions), the cloud sessions, the memory page, model prices and the plan's API credits: read on 11 November 2026 and recorded in `docs/SOURCES.md`.
-- The owner's four new facts for Decision F: the LLM-gateway statement and OpenRouter's regions were re-read today and confirmed; the Core42 and OpenAI pages are not reachable from this session and are carried as the owner's verification. OpenAI's Codex repository was read and is Apache-2.0.
-- Licences and current versions of every candidate component: read from each project's own repository or package index and recorded in `docs/SOURCES.md`.
-- **Not verified:** any cloud provider's price from its own page (hosts blocked by the session's network policy); Django's documentation; PostgreSQL's licence page; Bedrock, Azure and Core42 pages on in-country model processing. All marked as assumptions or search results in the design note.
-
-## Preview test
-
-At the end of the session a one-page test server was started inside the session on port 8080 and the port was reported to the Claude app. Whether the owner could open it is not known to this session. **Owner: say whether a page titled "builder: preview test" was shown to you.** If yes, the open question "can a service inside a cloud session be opened from outside" is answered yes, and milestone evidence can include a live page as well as screenshots. If no, screenshots and recordings remain the only way until a demo server exists. The server does not survive the session pausing.
-
-## Next step
-
-1. Increment 3, part two: the Django template, once the owner answers the LGPL question (`docs/OPEN-DECISIONS.md` item 10). If declined, Decision D is settled on the TypeScript candidate without a measurement, and the design note says so.
-2. Increment 4, first part: rebuild the gateway's cap to the approved holds design (design note 5.5): worst-case hold per call from the request, holds as database rows under a project-row lock, settlement to actual cost, interrupted and expired holds settled at the full amount, recovery on start-up, and the pre-step check. Evidence as listed in design note 7.2.
-3. Increment 4, second part: the engine adapter for the Claude Agent SDK, driving the two fixed steps for example 1 through the gateway, on the TypeScript template. **Needs the model key.** Until the key exists, the adapter and its hooks can be written and tested against a stand-in.
-4. Increment 5: the acceptance store and runner to the corrected design (design note 2.7: store outside the workspace, runner-only mount, tests join the app at export), the export check, and the skeleton report.
-
-## Blocked, and on whom
-
-| What | On whom | Why |
-| --- | --- | --- |
-| Increment 4 (engine adapter) | Owner | Model key not yet set as `BUILDER_MODEL_API_KEY`; monthly limit and cap figures to confirm |
-| Demo-server decision | Owner | Options with verified prices are in `docs/OPEN-DECISIONS.md` item 5; recommended Hetzner CPX32 at €30.49 per month excl. VAT |
-| Demo candidate | Owner | Undecided between D1, D2 and D3; not needed until the intake milestone |
-| Second-engine milestone (Codex SDK) | Owner, later | OpenAI account and spend need a separate yes under hard rule 4 when that milestone comes |
-
-## Session log
-
-| Date | What was done |
+| State | What is in it |
 | --- | --- |
-| 11 Nov 2026 (corrections) | The owner's three corrections made in the design note; decisions, known gaps 8, 12, 20, 21, 33, 34 and this file brought up to date. No code changed |
-| 11 Nov 2026 (skeleton 3a) | TypeScript house template built and run in the sandbox with screenshots. Django template held pending the LGPL exception. Known gaps 28 to 31 |
-| 11 Nov 2026 (skeleton 2) | Reviewer's gateway findings fixed. Egress proxy and sandbox manager built with tests and a live run. Known gaps 20 to 26 added. Pull request #2 updated |
-| 11 Nov 2026 (skeleton 1) | Pull request #1 merged. Builder project created in TypeScript. App spec, event log and gateway built with tests and evidence. Pull request #2 opened |
-| 11 Nov 2026 (later) | The owner issued an edited handover (Decision F) and then approved the design note and answered its questions. Decisions recorded. Network hosts allowed with the owner's approval. Prices and blocked documentation re-fetched (see the design note, section 4.3 and `docs/SOURCES.md`) |
-| 11 Nov 2026 | Repository set up from the empty state. Environment measured. Task 0 documents written. Specification cut from the handover. Stage 1 design note written as a proposal. Draft pull request opened. Preview test started |
+| **Accepted by the owner (in `main`)** | The handover, the project rules, the specification, the approved design note (with the three corrections on `claude/stage-1`, not yet in `main`), and the Task 0 documents |
+| **Tested** (done means run and passed, evidence written, reviewer's findings closed) | Four document packages from this session: 0.1, 0.2, 1.1 and W4 (below). The baseline's 38 tests pass, but the owner's six findings on it are open, so no code package is tested |
+| **Built, not tested** | Baseline: `builder/` (gateway with an estimate-based cap, egress proxy, sandbox manager, event log, app spec); `templates/next/` (sign-in, three roles, Arabic and English). What is wrong with each is in `docs/reviews/2026-11-11-pull-request-2.md` |
+| **Parked, waiting on the owner** | Everything under `builder/` and `templates/next/` until the licence answers below (L9, L11). The second-stack template until L10 or a waiver. The first real model call (2.3) until checkpoint 1 and the key. The demo server until chosen |
+
+## Progress under the plan
+
+| Package | State | Pull request | Evidence |
+| --- | --- | --- | --- |
+| Set-up (section 3) | Done: `claude/stage-1` created from `claude/walking-skeleton`; pull request #2 closed as superseded; review file written; baseline decision recorded; `CLAUDE.md` line added | | `docs/reviews/2026-11-11-pull-request-2.md`, `docs/DECISIONS.md` |
+| 0.1 `docs/STATUS.md` rewritten | Tested: a fresh reviewer and a review bot read it for contradictions; their seven findings fixed; under 120 lines | #3 | This file; the findings and fixes listed on the pull request |
+| 0.2 Evidence claims narrowed | Tested: the reviewer confirmed the text matches the script and the test, one wording fixed | #4 | `evidence/2026-11-11-skeleton-2/sandbox-egress.md` |
+| 1.1 Design note 5.5 amended | Tested: five amendments under a dated list, a proof row for each; reviewer's four findings fixed | #5 | `docs/design/stage-1.md`, section 5.5 and the 7.2 table |
+| W4 Arabic wording list | Tested: 33 English and 33 Arabic messages, none missing, checked independently by the reviewer; two wording suggestions listed for the owner | #6 | `docs/arabic-wording-list.md`, generated by `docs/tools/arabic-wording-list.py` |
+| 1.2, 2.1, W1, W3 | Parked on L9 | | |
+| 0.3 | Parked on L11 | | |
+| 0.4, 0.5 | Parked on both L9 and L11 | | |
+| 0.6a, 1.3, 1.4, 1.5, 2.2, 3.1, 3.2, W2 | Wait for the packages above | | |
+| 2.3, M2 | Parked on the key (checkpoint 1) | | |
+| S1a, S1b | Parked on L10 or a waiver. S1a (the second template, no model) can run before checkpoint 1 once L10 is true | | |
+| 0.6b, M8, gate item 5 on a clean machine | Parked on a demo server | | |
+| C1, C2 | Parked on the demo candidate | | |
+
+## Waiting on the owner
+
+Answer in order. One decision at a time; each has a recommendation and its reason. The plan's codes are in brackets. A *licence* is the permission that comes with a piece of software someone else wrote; the project's rule is permissive licences only unless the owner names an exception in writing.
+
+**1. [L9] Four development-only packages outside the permitted licences** (`lightningcss`, `lightningcss-linux-x64-gnu`: MPL-2.0; `spdx-exceptions`, `spdx-ranges`: CC-BY-3.0). None ships to a customer.
+- (a) **Approve all four by name.** Recommended. Reason: they are tools used only while building; MPL-2.0 asks that changes to its own files be published, CC-BY-3.0 asks for credit; neither touches what customers receive.
+- (b) Replace them (package R1). Means changing the test runner and the licence checker.
+Until approved or replaced, no work under `builder/` can be finished.
+
+**2. [L11] `caniuse-lite`, a browser-support data file that Next.js** (the web framework the template is built with) **ships in every app** (CC-BY-4.0: credit required, nothing else).
+- (a) **Approve by name, with the credit carried in each app's licence report.** Recommended. Reason: every Next.js app carries it; the obligation is one line of credit.
+- (b) Decline. Rules out Next.js and the existing template; the second stack would have to complete the skeleton alone.
+Until approved or replaced, no work on the template can be finished.
+
+**3. Make the repository private?** (pre-flight item 3). Today anyone with the link can read the design, the evidence and the gap list.
+- (a) **Yes: make it private now, then confirm this session can still reach it.** Recommended. Reason: nothing in it is meant for the public, and it costs nothing.
+- (b) Leave it public for now.
+
+**4. [L10 or Waiver] The second stack.** Django's PostgreSQL driver `psycopg` (the piece that lets a Python app talk to the database) is LGPL-3.0, a weak copyleft licence: an app may use it unchanged as a separate package and stay proprietary.
+- (a) **Approve `psycopg` by name**, which schedules packages S1a and S1b and a real comparison, as the design note says. Recommended. Reason: the stack choice should rest on a measurement.
+- (b) Record a waiver: no comparison; the TypeScript stack stands.
+
+**5. [Candidate] The demo candidate:** (a) **D3, the commission leak report** (recommended: you can judge every number yourself; shows rules 8 and 9); (b) D1, the inspection tracker; (c) D2, the cylinder tracking.
+
+**6. The reviewing engineer.** Needed by checkpoint 2, when the gateway and the sandbox manager exist in their corrected form.
+- (a) **Someone you already trust with your systems**, named now, so the read can be arranged. Recommended.
+- (b) An engineer found through the reviewing of the demo, later.
+- (c) Nobody in Stage 1. Not recommended: the handover makes the review a condition before any technical pitch.
+
+**7. Did the Claude app show you a page titled "builder: preview test"** during the first session? (a) Yes; (b) No; (c) Not sure. It decides whether live pages can be part of the evidence.
+
+**8. [Server] A demo server**, when you are ready to spend; not needed until package 0.6b and the demo. The four options with the prices read on 11 Nov 2026 are in `docs/OPEN-DECISIONS.md` item 5: (a) **Hetzner CPX32, €30.49 per month excl. VAT, no UAE location** (recommended: lowest verified price; the server holds made-up data only); (b) Oracle Cloud in Dubai, price to be read in a browser; (c) AWS in the UAE, price to be read in a browser; (d) DigitalOcean, $48.00 per month, no UAE. Whichever is chosen, its price is read again on the day you approve.
+
+The model key is not asked for yet. It is created at checkpoint 1, with the spending limits ($100 a month and $20 a project proposed).
+
+## Money
+
+| Meter | Figure |
+| --- | --- |
+| Model key spend this month | $0.00. No key exists; no real model call has been made |
+| Monthly limit | Not yet set (proposed $100) |
+| Per-project cap | Not yet set (proposed $20) |
+
+## What the next session does
+
+Follow `docs/BUILD-PLAN.md` section 3: take the first package in section 7 that is not tested and whose dependencies are met. A licence code becomes true only when the owner has **approved** the named packages in `docs/DECISIONS.md`, or they have been replaced and the licence check passes; an answer of "replace them" opens nothing until package R1 is done. When L9 is true, 1.2 (1.1 is tested), 2.1, W1 and W3 open up. When L11 is true, 0.3 opens up. Packages 0.4 and 0.5 need **both** L9 and L11. With no owner answer, nothing in the queue can be done, and the session says so.
+
+## How the development machine is started
+
+`CLAUDE.md`, Commands. In short: start the Docker daemon (the background program that runs containers) directly, start PostgreSQL (the database), run the database script in `builder/`. Measured on 11 Nov 2026: 4 processors, 15 GiB memory, 30 GB disk; containers need the host network and the session proxy's certificate (`docs/ENVIRONMENT-CHECK.md`).
