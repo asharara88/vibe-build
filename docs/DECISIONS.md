@@ -30,4 +30,8 @@ Record every decision here with the date and who decided. **Owner** means Ahmed 
 | 11 Nov 2026 | Confirmed: portable from the start, with hosting inside the UAE built when a buyer requires it. Confirmed: the first use is a live demonstration to a group-level decision-maker | Owner |
 | 11 Nov 2026 | The `main` branch created by Claude Code with the two starting files stands | Owner (no objection) |
 | 11 Nov 2026 | The second build engine for gate item 9 is OpenAI's Codex SDK, driven through the same build-engine interface as the Claude Agent SDK. Its repository is Apache-2.0 (verified); the OpenAI account, key and spend it needs are a separate approval under hard rule 4 when that milestone comes | Owner |
+| 11 Nov 2026 | Pull request #1 merged into `main` on the owner's instruction to lead the project forward. The walking skeleton proceeds on its own branch and pull request, one increment at a time | Owner ("lead the way"); done by Claude Code |
+| 11 Nov 2026 | The builder itself is written in TypeScript on Node.js 22. Reason: both engine SDKs (Claude Agent SDK, Codex SDK) and Playwright are TypeScript-first, so one reviewer can cover the builder and the TypeScript candidate stack. If the Django candidate wins Decision D, the generated apps are Python and the builder stays TypeScript | Claude Code; owner may overturn |
+| 11 Nov 2026 | The engine's container never holds the model key. It holds a project token issued by the builder; the gateway maps the token to the project and substitutes the real key. Only the token's hash is stored | Claude Code (design note 2.4 made concrete) |
+| 11 Nov 2026 | The gateway refuses any model not in the price table, so no call can go unmetered. The price table carries its source and date | Claude Code |
 

@@ -29,3 +29,6 @@ tmp/
 .idea/
 .vscode/
 *.swp
+
+# Builder
+builder/dist/

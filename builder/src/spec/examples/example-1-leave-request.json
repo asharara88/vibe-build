@@ -1,0 +1,102 @@
+{
+  "spec_version": 1,
+  "name": "leave_request",
+  "purpose": {
+    "one_sentence": "Staff request leave and their manager approves it, replacing email threads, so that balances are right and HR can see every request in one place.",
+    "replaces": "email_or_chat",
+    "who_feels_the_pain": ["submitters", "approvers", "reporters"]
+  },
+  "roles": [
+    { "name": "employee", "label": "Employee", "sees": "own" },
+    { "name": "manager", "label": "Manager", "sees": "team" },
+    { "name": "hr_admin", "label": "HR admin", "sees": "all" }
+  ],
+  "sign_in": "email_and_password",
+  "entities": [
+    {
+      "name": "employee_record",
+      "label": "Employee",
+      "starting_data": "uploaded_once",
+      "fields": [
+        { "name": "full_name", "label": "Full name", "type": "text", "sensitive": "contact_details" },
+        { "name": "email", "label": "Work email", "type": "email", "sensitive": "contact_details" },
+        { "name": "manager", "label": "Direct manager", "type": "reference", "references": "employee_record", "required": false },
+        { "name": "annual_balance_days", "label": "Annual leave balance (days)", "type": "integer" }
+      ]
+    },
+    {
+      "name": "leave_request",
+      "label": "Leave request",
+      "starting_data": "typed_in",
+      "fields": [
+        { "name": "employee", "label": "Employee", "type": "reference", "references": "employee_record" },
+        { "name": "start_date", "label": "First day of leave", "type": "date" },
+        { "name": "end_date", "label": "Last day of leave", "type": "date" },
+        { "name": "days", "label": "Working days requested", "type": "integer" },
+        { "name": "reason", "label": "Reason", "type": "long_text", "required": false },
+        { "name": "status", "label": "Status", "type": "choice", "choices": ["waiting", "approved", "rejected", "withdrawn"] },
+        { "name": "decision_note", "label": "Manager's note", "type": "long_text", "required": false }
+      ]
+    }
+  ],
+  "screens": [
+    { "name": "my_requests", "label": "My requests", "for_role": "employee", "kind": "my_items", "entity": "leave_request", "shows": "My leave requests with their status, my remaining balance, and a button to add a request." },
+    { "name": "new_request", "label": "New leave request", "for_role": "employee", "kind": "form", "entity": "leave_request", "shows": "A form with first day, last day, working days and reason. It says in plain words what is wrong before it is sent." },
+    { "name": "team_queue", "label": "Team queue", "for_role": "manager", "kind": "queue", "entity": "leave_request", "shows": "Requests from my team waiting for my decision, then my team's history." },
+    { "name": "hr_table", "label": "All requests", "for_role": "hr_admin", "kind": "table_with_filters", "entity": "leave_request", "shows": "Every request in a table with filters by employee, status and month, and an export that shows the filters used." }
+  ],
+  "actions": [
+    {
+      "name": "submit_request", "label": "Submit a leave request", "by_role": "employee",
+      "trigger": "The employee fills in the new-request form and presses Submit.",
+      "steps": ["Check the dates and the number of days.", "Check the days do not exceed the employee's balance.", "Save the request with status waiting.", "Tell the manager."],
+      "result": "The request appears in the employee's list as waiting and in the manager's queue.",
+      "notifies": [{ "role": "manager", "by": "email" }, { "role": "manager", "by": "in_app" }]
+    },
+    {
+      "name": "approve_request", "label": "Approve a request", "by_role": "manager",
+      "trigger": "The manager opens a waiting request and presses Approve.",
+      "steps": ["Set the status to approved.", "Reduce the employee's balance by the days requested.", "Tell the employee."],
+      "result": "The employee sees the request as approved and a lower balance. HR sees it in the table.",
+      "notifies": [{ "role": "employee", "by": "email" }, { "role": "employee", "by": "in_app" }]
+    },
+    {
+      "name": "reject_request", "label": "Reject a request", "by_role": "manager",
+      "trigger": "The manager opens a waiting request, writes a note and presses Reject.",
+      "steps": ["Require a note.", "Set the status to rejected.", "Tell the employee."],
+      "result": "The employee sees the request as rejected with the manager's note. The balance is unchanged.",
+      "notifies": [{ "role": "employee", "by": "email" }, { "role": "employee", "by": "in_app" }]
+    },
+    {
+      "name": "withdraw_request", "label": "Withdraw a request", "by_role": "employee",
+      "trigger": "The employee opens a waiting request and presses Withdraw, then confirms.",
+      "steps": ["Ask for confirmation.", "Set the status to withdrawn.", "Remove it from the manager's queue."],
+      "result": "The request shows as withdrawn. Nothing else changes.",
+      "notifies": []
+    }
+  ],
+  "rules": [
+    { "name": "approver_is_direct_manager", "statement": "A request is approved by the employee's direct manager.", "on_breach": "block_and_say_why", "their_call": true },
+    { "name": "within_annual_balance", "statement": "A request may not exceed the employee's annual leave balance.", "on_breach": "block_and_say_why", "their_call": true },
+    { "name": "withdraw_only_while_waiting", "statement": "A request can be withdrawn only while it is waiting.", "on_breach": "block_and_say_why" }
+  ],
+  "must_never_happen": "A balance goes negative, or a request is approved by someone other than the employee's manager.",
+  "acceptance": [
+    { "number": 1, "as_role": "employee", "does": "Signs in and submits a request for five working days.", "sees": "The request in My requests with status waiting." },
+    { "number": 2, "as_role": "manager", "does": "Signs in and opens the Team queue.", "sees": "The employee's five-day request waiting for a decision." },
+    { "number": 3, "as_role": "manager", "does": "Approves the request.", "sees": "The request marked approved in the team's history." },
+    { "number": 4, "as_role": "employee", "does": "Opens My requests.", "sees": "The request marked approved, and the balance five days lower than before." },
+    { "number": 5, "as_role": "hr_admin", "does": "Opens All requests and filters by the employee.", "sees": "The approved request in the table, and the filters shown on the export." },
+    { "number": 6, "as_role": "employee", "does": "Submits a request for more days than the balance.", "sees": "The form blocked, with a plain-words message saying the balance is too low." }
+  ],
+  "signs_off": ["hr_admin", "manager", "employee"],
+  "later": [
+    { "item": "Company email sign-in (single sign-on)", "reason": "Not available in Stage 1; email and password is used until then." },
+    { "item": "Syncing the employee list from another system", "reason": "Live connections are out of scope for version one; the list is uploaded once." }
+  ],
+  "assumed": [
+    { "about": "Working days", "chose": "The employee types the number of working days; the app does not compute public holidays.", "reason": "Public holiday rules are the customer's own policy and were not stated." }
+  ],
+  "in_country_hosting_required": false,
+  "quality_rules_noted": [1, 2, 3, 4, 5, 6, 7, 9, 10]
+}

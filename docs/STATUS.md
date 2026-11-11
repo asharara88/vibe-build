@@ -2,9 +2,12 @@
 
 Read this first in every session. Update it before every session ends. Nothing else carries over between sessions.
 
-**Last updated:** 11 November 2026, after the owner's decisions on the design note.
+**Last updated:** 11 November 2026, walking skeleton increment 1 (gateway, event log, app spec).
 
 ## Current state
+
+- **Walking skeleton, increment 1: built and tested.** Branch `claude/walking-skeleton`. In `builder/`: the app spec (the machine-readable brief) with test example 1 written out in full; the project store and append-only event log in PostgreSQL (updates and deletes are refused by the database); the model gateway, which holds the real key, gives the engine a project token instead, meters every call from the provider's usage figures and the dated price table, and refuses a call that would cross the project's cap, in plain words. 14 tests pass. Licence check passes (17 production packages, MIT and ISC). Evidence: `evidence/2026-11-11-skeleton-1/gateway-cap.md`.
+- **Not yet built:** the sandbox manager, the house templates, the engine adapter, the acceptance runner, the exporter, the harness, any screen. No app can be built yet.
 
 - **Nothing is built.** No product code exists. The repository holds the handover, the project rules, the specification, the Stage 1 design note and the working documents.
 - **Task 0 (set up the repository): done.** Environment checked and recorded in `docs/ENVIRONMENT-CHECK.md`. `README.md`, `LICENSE`, `.gitignore`, `docs/STATUS.md`, `docs/DECISIONS.md`, `docs/OPEN-DECISIONS.md`, `docs/KNOWN-GAPS.md`, `docs/SOURCES.md` and `docs/spec/` created. `HANDOVER.md` left as supplied. Work is on branch `claude/new-session-ftnls6`; draft pull request: https://github.com/asharara88/vibe-build/pull/1
@@ -26,15 +29,15 @@ At the end of the session a one-page test server was started inside the session 
 
 ## Next step
 
-1. Merge pull request #1 (the owner, or Claude Code on the owner's word).
-2. The owner creates the model key and sets it as `BUILDER_MODEL_API_KEY` on the personal cloud environment (never in the conversation), and confirms the monthly limit and project cap.
-3. Then: the walking skeleton (design note, section 7), on both candidate stacks, on its own branch and pull request, with the evidence in the pull request. The non-model parts (template, sandbox manager, gateway, event log) can start before the key exists; the first model call cannot.
+1. Increment 2 of the skeleton: the sandbox manager (one Compose project per builder project, two profiles), and the minimal house template for each candidate stack with sign-in, three roles and the who-and-when stamps. Evidence: the two templates running in containers with a screenshot each.
+2. Increment 3: the engine adapter for the Claude Agent SDK, driving the two fixed steps for example 1 through the gateway. **Needs the model key.**
+3. Increment 4: the acceptance runner (Playwright in its own container), the export check, and the skeleton report for both stacks and both models.
 
 ## Blocked, and on whom
 
 | What | On whom | Why |
 | --- | --- | --- |
-| First model call | Owner | Model key not yet set; monthly limit and cap figures to confirm |
+| Increment 3 (engine adapter) | Owner | Model key not yet set as `BUILDER_MODEL_API_KEY`; monthly limit and cap figures to confirm |
 | Demo-server decision | Owner | Options with verified prices are in `docs/OPEN-DECISIONS.md` item 5; recommended Hetzner CPX32 at €30.49 per month excl. VAT |
 | Demo candidate | Owner | Undecided between D1, D2 and D3; not needed until the intake milestone |
 | Second-engine milestone (Codex SDK) | Owner, later | OpenAI account and spend need a separate yes under hard rule 4 when that milestone comes |
@@ -43,5 +46,6 @@ At the end of the session a one-page test server was started inside the session 
 
 | Date | What was done |
 | --- | --- |
+| 11 Nov 2026 (skeleton 1) | Pull request #1 merged. Builder project created in TypeScript. App spec, event log and gateway built with tests and evidence. Pull request #2 opened |
 | 11 Nov 2026 (later) | The owner issued an edited handover (Decision F) and then approved the design note and answered its questions. Decisions recorded. Network hosts allowed with the owner's approval. Prices and blocked documentation re-fetched (see the design note, section 4.3 and `docs/SOURCES.md`) |
 | 11 Nov 2026 | Repository set up from the empty state. Environment measured. Task 0 documents written. Specification cut from the handover. Stage 1 design note written as a proposal. Draft pull request opened. Preview test started |

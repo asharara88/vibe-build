@@ -1,0 +1,32 @@
+{
+  "name": "builder",
+  "version": "0.0.1",
+  "private": true,
+  "description": "The builder: turns a plain-language business need into a working internal web app, under a control layer. Proprietary. (c) 2026 Ahmed Sharara.",
+  "license": "UNLICENSED",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "check:licences": "bash scripts/check-licences.sh",
+    "gateway": "tsx src/gateway/main.ts",
+    "db:migrate": "tsx src/store/migrate.ts"
+  },
+  "dependencies": {
+    "@hono/node-server": "2.1.6",
+    "hono": "4.13.17",
+    "pg": "8.23.1",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.6",
+    "@types/pg": "8.23.1",
+    "license-checker-rseidelsohn": "5.0.1",
+    "tsx": "4.23.15",
+    "typescript": "7.0.2",
+    "vitest": "5.1.0"
+  }
+}
