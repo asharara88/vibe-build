@@ -40,6 +40,7 @@ Every outside fact this project relies on, with the link and the date it was che
 | "Anthropic doesn't endorse, maintain, or audit third-party gateway products, and doesn't support routing Claude Code to non-Claude models through any gateway." `ANTHROPIC_BASE_URL` points Claude Code at a gateway; `allowedProviders: ["customEndpoint"]` in managed settings pins it there | [LLM gateways](https://code.claude.com/docs/en/llm-gateway) |
 | "OpenRouter offers EU and US in-region routing." Regional base URLs are eu.openrouter.ai and us.openrouter.ai only. No UAE or Middle East region is mentioned | [OpenRouter sovereign AI](https://openrouter.ai/docs/guides/features/sovereign-ai) |
 | OpenAI's Codex repository is licensed Apache-2.0 (sidebar and README). The `sdk/` directory's own terms were not read | [Codex repository](https://github.com/openai/codex) |
+| pytest 9.2.0, licence MIT (PyPI metadata). Playwright 1.63.0 with Chromium is installed on the development machine (measured) | [PyPI JSON for pytest](https://pypi.org/pypi/pytest/json); `node -e "require('playwright')"` in this session |
 | PostgreSQL current major is 18 (tag REL_18_7, 9 Nov 2026). The licence name was not confirmed from postgresql.org (host not reachable); the mirror's COPYRIGHT file carries the PostgreSQL permissive notice | [PostgreSQL mirror](https://github.com/postgres/postgres) |
 
 ## From the handover, verified by the owner and not re-checkable from this session

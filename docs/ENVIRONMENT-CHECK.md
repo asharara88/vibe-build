@@ -37,6 +37,8 @@ Measured on 11 November 2026 inside a Claude Code cloud session. Everything here
 | Same on the bridge network without proxy | Fails: no route |
 | Docker Compose with `postgres:16-alpine` and a health check | Works. `select version()` returned PostgreSQL 16.15 |
 | Hardened container flags: `--user 65534:65534 --memory 512m --pids-limit 100 --cap-drop ALL --security-opt no-new-privileges` | Works |
+| Same plus `--read-only --tmpfs /tmp:rw,noexec,nosuid,size=50m` | Works. A write to `/tmp` succeeds; a write to `/etc` fails with "Read-only file system" |
+| Playwright on the host: `require('playwright')` and the browser directory | Works. Playwright 1.63.0 with Chromium installed at `/opt/pw-browsers` |
 
 ## Network from the session itself
 
@@ -54,6 +56,6 @@ The session's network policy is "limited: package managers allowed". Provider pr
 ## What this means for Stage 1
 
 1. Development and the automated test harness can run here. Each session must start the Docker daemon first.
-2. In a cloud session, project containers must share the machine's network and use the session proxy with its certificate. This is a development-only arrangement. On a demo server there is no such proxy, and the design note (section 6) describes the egress proxy the builder runs for itself.
+2. In a cloud session, project containers must share the machine's network and use the session proxy with its certificate. This is a development-only arrangement. On a demo server there is no such proxy, and the design note (section 2.5) describes the egress proxy the builder runs for itself.
 3. Nothing can be hosted here: the machine pauses when idle and running processes do not survive. The owner sees progress through screenshots and recordings in pull requests until a demo server exists.
 4. Whether a web page served inside a session can be opened by the owner is tested at the end of this session: a one-page test server was started and its port was reported to the Claude app. The result is in `docs/STATUS.md`.

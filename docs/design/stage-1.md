@@ -4,13 +4,15 @@
 | --- | --- |
 | Status | **Proposal. Awaiting the owner's approval. No product code until then.** |
 | Written | 11 November 2026, by Claude Code, from `HANDOVER.md` (the owner's edited version of the same day, which adds Decision F and gate item 9) and the checks recorded in `docs/SOURCES.md` and `docs/ENVIRONMENT-CHECK.md` |
-| Reader | The owner first (section 1). Then an incoming engineer (sections 2 to 8) |
+| Reader | The owner: section 1, then section 9 (the questions). An incoming engineer: everything |
 
 Marks used, as in the handover: **Verified** means checked against the source in `docs/SOURCES.md` on 11 November 2026. **Measured** means run in this session and recorded in `docs/ENVIRONMENT-CHECK.md`. **Assumption** means not yet checked. **Proposal** means recommended here and not yet decided.
 
 ---
 
 ## 1. Summary for the owner
+
+**Terms used below, each in one line.** A *codebase* is the set of files that make up an app. A *container* is a sealed box on a machine in which a program runs with only what it is given. The *template* is the starter app every generated app begins from, with the quality rules already built in. A *stack* is the set of tools an app is written with; two candidate stacks are compared. The *gateway* is the one door through which every request to the AI model passes, so it can be counted and capped. The *model key* is the password-like code that lets the builder use the AI model; you create it in your Anthropic account. A *pull request* is a proposed set of changes on GitHub that you can read and approve. A *network policy* is the list of websites the development machine is allowed to reach.
 
 **What this is.** A plan for the first stage of the builder: a single-user prototype that takes a plain-language need, interviews the user with closed-choice questions, writes a brief and a plan the user confirms, builds the app one step at a time inside a container, checks every step against the ten quality rules, runs an acceptance test that was fixed before building started, and exports an ordinary codebase. It is the journey in section 7 of the handover, built so that it can be measured and demonstrated.
 
@@ -28,13 +30,13 @@ Marks used, as in the handover: **Verified** means checked against the source in
 
 **What I checked, and what I could not.** I verified Anthropic's documentation on the build engine, its hosting, its security guidance, its permissions, the cloud development machine, model prices and the plan's monthly API credits (section 3). I measured the development machine: containers run, and containers can reach the package registries and the model API with a workaround that is acceptable for development only (section 4). I could **not** read any cloud provider's pricing page, because the session's network policy blocks those sites. The demo-server options in section 4 therefore carry indicative figures from search results, marked as such, and a decision on hosting has to wait until you either allow those sites or check the prices yourself.
 
-**Where I disagree with the handover.** In three small places, set out in section 2.9. The largest is that the handover's "Powered by Claude" wording is not quite what Anthropic permits: the permitted form is "{our name} Powered by Claude". The second is that the build engine's licence is a commercial licence, not a permissive one, so hard rule 2 needs your written exception. The third concerns processing inside the UAE: today no verified option keeps the model's processing in the country, and that matters for the regulated buyers in the handover.
+**Where I disagree with the handover.** In seven places, set out in section 2.9, most of them small. The three that matter: the first is that the handover's "Powered by Claude" wording is not quite what Anthropic permits: the permitted form is "{our name} Powered by Claude". The second is that the build engine's licence is a commercial licence, not a permissive one, so hard rule 2 needs your written exception. The third concerns processing inside the UAE: today no verified option keeps the model's processing in the country, and that matters for the regulated buyers in the handover.
 
 **On staying adaptable (the owner's Decision F).** I agree with the two seams and the profiles, and I propose that the second engine proven before the gate be a small loop of our own against an OpenAI-compatible endpoint, because that is the engine a UAE-only profile would need, and the Codex SDK would add a second provider account without answering that question (section 2.8).
 
 **What I need from you.** The decisions in section 9, in order. The first two unblock everything: approve this note, and approve the licence exception for the build engine. The third unblocks the demo-server decision. The model key is needed before the skeleton can make its first model call.
 
-**What this note does not do.** It gives no dates. It does not say the system is secure, ready or reviewed. Section 6 says what is protected in Stage 1 and what is not, and the register in `docs/KNOWN-GAPS.md` is already thirteen entries long.
+**What this note does not do.** It gives no dates. It does not say the system is secure, ready or reviewed. Section 6 says what is protected in Stage 1 and what is not, and the register in `docs/KNOWN-GAPS.md` is already fourteen entries long.
 
 ---
 
@@ -94,7 +96,7 @@ Verified today (sources in `docs/SOURCES.md`):
 - Authentication is by API key. Offering claude.ai sign-in is not allowed without prior approval. We will not offer it.
 - Branding: the permitted forms are "Claude Agent", "Claude" inside a menu labelled "Agents", and "{our name} Powered by Claude". "Claude Code" is not permitted. The handover's "Powered by Claude" should be read as the full form with our name in front.
 - Permissions: modes include `default` and `dontAsk`; tools can be allow-listed and deny-listed; a bare tool name in the deny list removes the tool entirely; `Edit(path)` deny rules protect paths; a `PreToolUse` hook can deny a call in every mode. The documentation's own recommendation for a locked-down agent is an allow list with `dontAsk`. That is what we will use.
-- Each session is one subprocess owning a shell, a working directory and its transcript on local disk. No overall timeout; a turn limit must be set. Starting resources of 1 GiB memory, 5 GiB disk and 1 CPU per agent are "a floor, not the ceiling".
+- Each session is one subprocess owning a shell, a working directory and its transcript on local disk. No overall timeout; a turn limit must be set. Starting resources are 1 GiB memory, 5 GiB disk and 1 CPU per agent, and the memory figure is "a floor, not the ceiling".
 - The key can stay outside the container by pointing `ANTHROPIC_BASE_URL` at a proxy that injects it. Our gateway is that proxy.
 
 How it is used here:
@@ -123,9 +125,9 @@ The engine is specific to Claude. The interface around it has four operations: s
 
 Stage 1 design, Docker on one machine:
 
-- One Docker Compose project per builder project, on its own **internal** Docker network (no route out). Three containers: the app, its PostgreSQL database, and the engine. A fourth, the **egress proxy**, is attached to the project network and to the outside. It is the only way out.
-- The egress proxy allows exactly two destinations: the model gateway and the package registry for the chosen stack. Everything else is refused and logged. This replaces the secure-deployment guide's `--network none` plus Unix socket, which is the stronger pattern; the difference is recorded in `docs/KNOWN-GAPS.md` and the sandbox manager's interface allows the stronger pattern later.
-- Engine and app containers run as a non-root user with `--cap-drop ALL`, `--security-opt no-new-privileges`, a memory limit, a process limit, and a read-only root filesystem with a writable workspace mount. **Measured:** these flags work on the development machine.
+- One Docker Compose project per builder project, on its own **internal** Docker network (no route out). Up to five containers: the app, its PostgreSQL database, the engine (present only while a step is being built), the acceptance runner (present only while checks run), and the **egress proxy**, which is attached to the project network and to the outside and is the only way out. The builder itself is one more container per server, not per project.
+- The egress proxy allows exactly two destinations: the model gateway and the package registry for the chosen stack. Everything else is refused and logged. This replaces the secure-deployment guide's `--network none` plus Unix socket, which is the stronger pattern; the difference is recorded as gap 14 in `docs/KNOWN-GAPS.md` and the sandbox manager's interface allows the stronger pattern later.
+- Engine and app containers run as a non-root user with `--cap-drop ALL`, `--security-opt no-new-privileges`, a memory limit, a process limit, and a read-only root filesystem with a writable workspace mount. **Measured:** all of these flags, including the read-only root, work on the development machine.
 - The engine's workspace is the project's git checkout. Protected paths are a separate read-only mount.
 - The user's text and uploaded spreadsheet are untrusted input. They enter the engine only as files in the workspace and as quoted text inside the optimiser's instruction template, never as instructions in their own right.
 
@@ -145,10 +147,10 @@ Later stages: the secure-deployment guide compares containers, gVisor and virtua
 | Forms and validation | Zod (MIT) | Django forms, built in |
 | Translation and right-to-left | next-intl (MIT); CSS logical properties | Django i18n, built in (assumption: documentation host not reachable today) |
 | Interface | Tailwind CSS (MIT), shadcn/ui (MIT) | Django templates with htmx (Zero-Clause BSD) and Tailwind |
-| Tests and acceptance | Playwright (Apache-2.0), Vitest (MIT) | Playwright, pytest |
+| Tests and acceptance | Playwright (Apache-2.0), Vitest (MIT) | Playwright, pytest (MIT) |
 | Mail catcher | Mailpit (MIT) | Mailpit |
 | Licence check | license-checker-rseidelsohn (BSD-3-Clause) | pip-licenses (MIT) |
-| Database | PostgreSQL 16 in both (the current major is 18; 16 is what the development machine and most hosts have, and the version is pinned either way) | |
+| Database | PostgreSQL 16 in both (the current major is 18; 16 is what the development machine has, and the version is pinned either way) | |
 
 All licences above were verified today against each project's own repository or package index (`docs/SOURCES.md`). Every one is permissive. htmx's "Zero-Clause BSD" is a BSD-family licence and permissive; I list it so the owner sees it.
 
@@ -216,7 +218,7 @@ Gate item 9 (two test examples built with a second engine, difference reported) 
 2. **Licence of the build engine.** The handover records the Commercial Terms as a verified fact but does not connect it to hard rule 2. The SDK is not permissively licensed, and the rule needs a written exception. I have put it in `docs/OPEN-DECISIONS.md` and in this note's section 9.
 3. **Processing inside the UAE** (sections 3, 8.4, 15). The handover treats this as a Stage 3 question. The evidence today is worse than "open": Anthropic's own data-residency options are US or global (verified), and AWS's own documentation found through search says Claude models in the UAE region run through global cross-region inference, so the data may leave the country (search result, not verified from the page). If regulated buyers are in the pitch, the pitch must say that the app and its data can stay in the country and that the model calls, today, cannot be shown to. This affects what the demo claims, which is a Stage 1 matter.
 4. **Order of app spec and template** (2.3). Spec first.
-5. **"Not verified" items in section 16.** Two are now partly answered by measurement: containers started inside a cloud session can reach the model API and the package registry, with the host-network workaround and the proxy's certificate; and the Claude Code memory statement is confirmed in substance. One is being tested at the end of this session: whether a page served inside the session can be opened by the owner.
+5. **"Not verified" items in section 16.** One is now answered by measurement: containers started inside a cloud session can reach the model API and the package registry, with the host-network workaround and the proxy's certificate. One is being tested at the end of this session: whether a page served inside the session can be opened by the owner.
 6. **Decision F's sources.** The four facts added for Decision F are dated 11 November 2026 in the handover. I could re-check only those on reachable hosts (see `docs/SOURCES.md`); the Core42 and OpenRouter hosts are blocked from this session. Where a fact could not be re-read it is carried as the owner's verification, not mine.
 7. **Where the walking skeleton starts.** The handover's milestone table puts "record, cost and export" seventh. Principle 6 says capture data from the first day, and principle 7 says cost is visible and capped. I pull the event log and the gateway's meter into the skeleton, and leave only the export's polish for later.
 
@@ -234,7 +236,8 @@ Every tool this note plans to rely on, with what its documentation confirms, the
 | Cloud development sessions | Cloud environments, Cloud sessions pages | Ubuntu 24.04; Docker, Compose, PostgreSQL 16, Node 20 to 22, Python; approximate 4 vCPU, 16 GB, 30 GB; limited network with package managers allowed; env vars readable by environment users; pauses when idle; command time limits | 11 Nov 2026; resources also measured | n/a |
 | Docker 29.9.2, Compose v5.6.1 | Measured on the machine | Containers run; Compose runs PostgreSQL 16; hardened flags work | 11 Nov 2026 | Apache-2.0 (assumption; not re-checked today) |
 | PostgreSQL 16 | Mirror repository (official site not reachable) | Current major is 18; 16 is installed here | 11 Nov 2026 | PostgreSQL licence (permissive; the licence page itself was not reachable) |
-| Playwright 1.65.0 | Repository | Browser automation for acceptance checks; pre-installed on the development machine | 11 Nov 2026 | Apache-2.0 |
+| Playwright 1.65.0 (1.63.0 installed on the development machine, with Chromium; measured) | Repository | Browser automation for acceptance checks | 11 Nov 2026 | Apache-2.0 |
+| pytest 9.2.0 | PyPI | Test runner for candidate P | 11 Nov 2026 | MIT |
 | Next.js 16.4.6, Drizzle 0.45.4, better-auth 1.7.20, next-intl 4.14.10, Tailwind 4.3.5, shadcn/ui, Zod 4.6.7, Vitest 5.1.0 | Each repository | Current versions and licences | 11 Nov 2026 | MIT, Apache-2.0 (Drizzle), MIT, MIT, MIT, MIT, MIT, MIT |
 | Django 5.2.19 LTS, django-allauth 65.21.1, htmx 4.0.1 | PyPI and repositories | Current versions and licences. Django's built-in features are an assumption until its documentation host is reachable | 11 Nov 2026 | BSD-3-Clause, MIT, Zero-Clause BSD |
 | Mailpit 1.33.1 | Repository | Local mail catcher for notification evidence | 11 Nov 2026 | MIT |
@@ -276,14 +279,14 @@ One small server with Docker, a web address, and a login in front of the builder
 | Option | Location | Indicative figure (search result, unverified) | Notes |
 | --- | --- | --- | --- |
 | Hetzner Cloud shared vCPU (CX or CPX line) | Germany, Finland, US, Singapore. **No UAE location** (assumption; not confirmed today) | A 2024 press release listed CX32, 4 vCPU 8 GB 80 GB, at €6.80 per month. Current CPX snippets were inconsistent | Cheapest line. Hourly billing, no minimum term |
-| DigitalOcean Basic Droplet | US, Europe, Asia. No UAE | 4 vCPU 8 GiB 160 GiB: $48.00 per month | Simple; widely documented |
-| Oracle Cloud VM.Standard.E4.Flex | **UAE East (Dubai)** named in Oracle's own service-limits documentation; Abu Dhabi not confirmed | $0.032765 per OCPU-hour plus $0.0019659 per GB-hour. 2 OCPU (4 vCPU) and 8 GB for a 730-hour month works out to about $59, by my arithmetic from those two rates | The one option with a confirmed UAE region and a visible rate. Oracle's pages returned 403 to this session, so even the rate is from a snippet |
+| DigitalOcean Basic Droplet | No UAE location (assumption; page not reachable) | 4 vCPU 8 GiB 160 GiB: $48.00 per month | Simple; widely documented |
+| Oracle Cloud VM.Standard.E4.Flex | UAE East (Dubai) named in Oracle's service-limits documentation (search result; the page itself was not read); Abu Dhabi not confirmed | $0.032765 per OCPU-hour plus $0.0019659 per GB-hour. 2 OCPU (4 vCPU) and 8 GB for a 730-hour month works out to about $59, by my arithmetic from those two rates | The one option with a confirmed UAE region and a visible rate. Oracle's pages returned 403 to this session, so even the rate is from a snippet |
 | AWS EC2 t3.large or t4g.large | **Middle East (UAE), me-central-1** | t3.large $0.0835 per hour, region not stated in the snippet, about $61 per month at that rate | UAE region exists (AWS blog, search result). UAE-region price not found |
 | Azure B2ms | **UAE North** | No UAE North price found | UAE regions exist (assumption from general knowledge; page not reachable) |
 | UAE-based providers (Core42, Khazna, Moro Hub) | UAE | None reachable from this session | Likely enterprise pricing on request |
 | Hosted sandbox service (E2B cloud or similar) | Varies | Not checked | Stage 1 alternative only, behind the sandbox manager's interface. Would not give the owner a web address for the builder itself |
 
-Recommendation, subject to the prices being confirmed: **Oracle Cloud in the Dubai region** if its price is close to the figure above, because it is the only option that puts the demo in the UAE at a small-server price, and the first demo audience is in the UAE. **Hetzner** if location does not matter for the demo and the owner wants the lowest spend. The owner approves the spend before anything is created.
+Recommendation, subject to the prices being confirmed: **Oracle Cloud in the Dubai region** if its price is close to the figure above, because it is the one option with both a UAE region and a visible small-server rate, and the first demo audience is in the UAE. **Hetzner** if location does not matter for the demo and the owner wants the lowest spend. The owner approves the spend before anything is created.
 
 The model key lives on the demo server as an environment variable read only by the gateway process, which runs outside every project container.
 
@@ -366,7 +369,7 @@ Stage 1 is a single-user prototype with made-up data. It is **not secure, not re
 
 ### 6.3 First entries for the known-gaps register
 
-Written to `docs/KNOWN-GAPS.md` today: host networking in development sessions (gaps 1 and 2); the key never entering a container, with a note to record any shortcut before taking it (3); environment variables readable by environment users (4); Docker Hub rate limits (5); password handling in the template (6); no verified in-country model processing for the UAE (7); the SDK's commercial licence (8); no SDK session timeout (9); session pause and command limits (10); `CLAUDE.md` is not enforcement (11); pricing pages unreachable (12); several documentation hosts unreachable (13).
+Written to `docs/KNOWN-GAPS.md` today, fourteen entries: host networking in development sessions (gaps 1 and 2); the key never entering a container, with a note to record any shortcut before taking it (3); environment variables readable by environment users (4); Docker Hub rate limits (5); password handling in the template (6); no verified in-country model processing for the UAE (7); the SDK's commercial licence (8); no SDK session timeout (9); session pause and command limits (10); `CLAUDE.md` is not enforcement (11); pricing pages unreachable (12); several documentation hosts unreachable (13); the egress proxy is weaker than the guide's no-network pattern (14).
 
 ---
 
@@ -436,12 +439,12 @@ In order. One at a time. Each has a recommendation and its reason. Answers are r
 - (c) Do not approve. Say what is missing.
 
 **2. Licence exception for the build engine?** The Claude Agent SDK is governed by Anthropic's Commercial Terms of Service, not a permissive open-source licence. Hard rule 2 needs your written exception.
-- (a) Approve the exception for the Claude Agent SDK, behind our own interface so it can be replaced. **Recommended.** Reason: it is the engine the handover chose, it is what Claude Code itself runs on, and the interface limits the dependence.
-- (b) Do not approve; build our own loop on the Claude API instead. More work, same model provider, no licence question.
+- (a) Approve the exception for the Claude Agent SDK, behind an interface of our own (a fixed boundary in the code, so the engine can be swapped without touching the rest). **Recommended.** Reason: it is the engine the handover chose, it is what Claude Code itself runs on, and the interface limits the dependence.
+- (b) Do not approve; build our own engine on the Claude API instead (our own code that asks the model what to do and runs it, step by step). More work, same model provider, no licence question.
 - (c) Decide later; the skeleton may use it provisionally. Not recommended: the exception should be written before the first line of code depends on it.
 
 **3. Network hosts for pricing and documentation research?** The session cannot reach provider pricing pages or several documentation sites, so hard rule 4 cannot be met for the demo server.
-- (a) Allow the hosts listed in `docs/OPEN-DECISIONS.md` item 11 in the cloud environment's network settings. **Recommended.** Reason: it lets every price and fact be read from the primary page and dated, which is what the rules require.
+- (a) Allow the hosts listed in `docs/OPEN-DECISIONS.md` item 11 in the cloud environment's network settings (in Claude Code on the web: the environment's settings page has a list of allowed websites; add these to it). **Recommended.** Reason: it lets every price and fact be read from the primary page and dated, which is what the rules require.
 - (b) You check the prices yourself on the providers' pages and paste them.
 - (c) Decide the demo server on the indicative figures in section 4.3. Not recommended: they come from search snippets.
 
@@ -460,13 +463,13 @@ In order. One at a time. Each has a recommendation and its reason. Answers are r
 - (b) Always approve every step, including in demonstrations.
 - (c) Allow run-through mode for any user. Not recommended: it removes a control point.
 
-**7. Model key and monthly limit.** Not a choice, a request. Create an API key in your own Anthropic Console account, set a monthly spending limit there, and add the key as the environment variable `BUILDER_MODEL_API_KEY` on your personal cloud environment. Never paste the key into the conversation. Before paying for usage, check that your plan's monthly API credits are claimed and the Console organization is linked to the plan ($100 on Max, $200 on Ultra, verified today). Tell me the monthly limit you set, so the per-project default cap can be chosen below it.
+**7. Model key and monthly limit.** Not a choice, a request, in four steps. (1) Sign in to the Anthropic Console (console.anthropic.com, the account for paid use of the model, separate from the Claude app) and create an API key. (2) In the Console's billing settings, set a monthly spending limit. (3) In Claude Code on the web, open your personal cloud environment's settings and add an environment variable named `BUILDER_MODEL_API_KEY` with the key as its value. An environment variable is a named setting the machine reads at start; anyone who uses that environment can read it, which today is you alone. (4) Tell me it is done. Never paste the key into the conversation. Before paying for usage, check that your plan's monthly API credits are claimed and the Console organization is linked to the plan ($100 on Max, $200 on Ultra, verified today). Tell me the monthly limit you set, so the per-project default cap can be chosen below it.
 - (a) Monthly limit $50, default project cap $10.
 - (b) Monthly limit $100, default project cap $20. **Recommended** if the plan credits cover it. Reason: the skeleton and the protocol trial need room to measure, and the cap still stops any single project early.
 - (c) Another figure.
 
 **8. Reviewing engineer: at which milestone?**
-- (a) After the walking skeleton, for an hour's read of the gateway and the sandbox manager; then again before the demo. **Recommended.** Reason: the two security-critical parts exist after the skeleton and are small; a second look before anyone technical sees a demo is the handover's own rule.
+- (a) After the walking skeleton, for a short read of the gateway (the one door to the model) and the sandbox manager (the part that creates the containers); then again before the demo. **Recommended.** Reason: the two security-critical parts exist after the skeleton and are small; a second look before anyone technical sees a demo is the handover's own rule.
 - (b) Only before the demo.
 - (c) Not in Stage 1. Not recommended.
 
@@ -475,7 +478,7 @@ In order. One at a time. Each has a recommendation and its reason. Answers are r
 - (b) Confirm one; say which.
 - (c) Change them; say how.
 
-**10. The `main` branch.** Not a choice unless you object. The repository was empty, so a `main` branch was created holding only `HANDOVER.md` and `CLAUDE.md`, the starting point the handover describes, so that a pull request could be opened. Say if you would rather it were done differently.
+**10. The `main` branch.** Not a choice unless you object. A branch is a named line of history in the repository, and `main` is the one everything is compared against. The repository was empty, so a `main` branch was created holding only `HANDOVER.md` and `CLAUDE.md`, the starting point the handover describes, so that a pull request could be opened. Say if you would rather it were done differently.
 
 **11. Which second engine for gate item 9?**
 - (a) A small loop of our own against an OpenAI-compatible endpoint. **Recommended.** Reason: it is the engine a UAE-only profile would need, and it has no vendor licence question. Its weakness is reported as measured.

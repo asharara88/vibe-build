@@ -12,4 +12,6 @@ This folder is the living specification of the product's control layer. It was c
 | `B6-demo-candidates.md` | Three candidates for the first live demonstration | Illustrative; the owner chooses |
 | `B7-changes-from-originals.md` | What changed between the owner's 5 November documents and this specification | Record |
 
+The copied text keeps the handover's internal references (for example "section 14" in B6, "section 8.3" in B5). Those point into `HANDOVER.md`, not into this folder.
+
 Change B1 to B5 only with the owner's agreement. Record every change in `docs/DECISIONS.md`.
