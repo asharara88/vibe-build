@@ -14,7 +14,7 @@
  *   certificate. This is development only (known gaps 1 and 2).
  */
 import { execFile } from "node:child_process";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { copyFileSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { promisify } from "node:util";
 
@@ -39,6 +39,17 @@ export interface SandboxSpec {
   devDbPort?: number;
   /** Absolute path of the builder's own source, mounted read-only so the egress proxy can run from it. */
   builderDir: string;
+  /** The app container, once the project has an app to run. */
+  app?: {
+    /** Build context: the project's workspace (the template plus the engine's changes). */
+    buildContext: string;
+    /** Port the app listens on inside the container (and on the host in the development profile). */
+    port: number;
+    /** Extra environment for the app. Secrets go through `secrets`, not here. */
+    env?: Record<string, string>;
+    /** Paths the app must be able to write at run time (everything else is read-only). */
+    writablePaths?: string[];
+  };
 }
 
 export const DEFAULT_IMAGES = {
@@ -59,6 +70,34 @@ export function composeProjectName(projectId: string): string {
   return `builder_${projectId.toLowerCase().replace(/[^a-z0-9_-]/g, "_")}`;
 }
 
+export function appImageName(projectId: string): string {
+  return `${composeProjectName(projectId)}-app:latest`;
+}
+
+/** The app service shared by both profiles, before networking is added. */
+function appService(spec: SandboxSpec, common: Record<string, unknown>, databaseUrl: string) {
+  if (!spec.app) return null;
+  const tmpfs = ["/tmp:rw,noexec,nosuid,size=64m", ...(spec.app.writablePaths ?? []).map((p) => `${p}:rw,nosuid,size=128m`)];
+  return {
+    // The image is built by `sandbox.build`, not by Compose: in development the build steps must
+    // reach the session proxy on the host's loopback address, which needs `docker build --network host`.
+    image: appImageName(spec.projectId),
+    pull_policy: "never",
+    ...common,
+    read_only: true,
+    tmpfs,
+    env_file: ["./secrets/app.env"],
+    environment: { PORT: String(spec.app.port), DATABASE_URL: databaseUrl, ...(spec.app.env ?? {}) },
+    depends_on: { db: { condition: "service_healthy" } },
+    healthcheck: {
+      test: ["CMD-SHELL", `wget -q -O /dev/null http://127.0.0.1:${spec.app.port}/en/sign-in || exit 1`],
+      interval: "3s",
+      retries: 40,
+      start_period: "10s",
+    },
+  };
+}
+
 /** Build the Compose document for a project. Returned as an object so tests can inspect it. */
 export function composeDocument(spec: SandboxSpec): Record<string, unknown> {
   const images = { ...DEFAULT_IMAGES, ...spec.images };
@@ -75,12 +114,14 @@ export function composeDocument(spec: SandboxSpec): Record<string, unknown> {
   const dbCaps = { cap_add: ["CHOWN", "DAC_OVERRIDE", "FOWNER", "SETGID", "SETUID"] };
 
   if (spec.profile === "server") {
+    const app = appService(spec, common, "postgres://app:${DB_PASSWORD}@db:5432/app");
     return {
       name: composeProjectName(spec.projectId),
       networks: { internal: { internal: true }, egress: {} },
       secrets: { db_password: { file: "./secrets/db_password" } },
       volumes: { dbdata: {} },
       services: {
+        ...(app ? { app: { ...app, networks: ["internal"] } } : {}),
         db: {
           image: images.postgres,
           ...common,
@@ -114,11 +155,13 @@ export function composeDocument(spec: SandboxSpec): Record<string, unknown> {
   // development-cloud-session: host network, session proxy, session certificate.
   if (!spec.hostProxy) throw new Error("The development profile needs the host proxy URL and certificate path.");
   const devPort = spec.devDbPort ?? 5433;
+  const app = appService(spec, common, `postgres://app:\${DB_PASSWORD}@127.0.0.1:${devPort}/app`);
   return {
     name: composeProjectName(spec.projectId),
     secrets: { db_password: { file: "./secrets/db_password" } },
     volumes: { dbdata: {} },
     services: {
+      ...(app ? { app: { ...app, network_mode: "host" } } : {}),
       db: {
         image: images.postgres,
         ...common,
@@ -179,16 +222,43 @@ export interface Sandbox {
   dir: string;
   composeFile: string;
   projectName: string;
+  /** How to build the app image, when the project has an app. */
+  appBuild?: { context: string; image: string; hostNetwork: boolean; args: Record<string, string> };
 }
 
-/** Write the compose file and the database secret. Does not start anything. */
-export function createSandbox(spec: SandboxSpec, dbPassword: string): Sandbox {
+/**
+ * Write the compose file and the secrets. Does not start anything.
+ * `appSecrets` are environment variables the app reads (AUTH_SECRET, APP_SAMPLE_PASSWORD, ...);
+ * they are written to secrets/app.env with owner-only permissions, never into the compose file.
+ */
+export function createSandbox(spec: SandboxSpec, dbPassword: string, appSecrets: Record<string, string> = {}): Sandbox {
   mkdirSync(join(spec.dir, "secrets"), { recursive: true });
   mkdirSync(join(spec.dir, "workspace"), { recursive: true });
   writeFileSync(join(spec.dir, "secrets", "db_password"), dbPassword, { mode: 0o600 });
+  // DB_PASSWORD is interpolated by Compose into DATABASE_URL from the project's own .env file.
+  writeFileSync(join(spec.dir, ".env"), `DB_PASSWORD=${dbPassword}\n`, { mode: 0o600 });
+  const appEnv = Object.entries(appSecrets)
+    .map(([k, v]) => `${k}=${v}`)
+    .join("\n");
+  writeFileSync(join(spec.dir, "secrets", "app.env"), appEnv + "\n", { mode: 0o600 });
+  if (spec.app && spec.hostProxy) {
+    // The development build needs the session certificate inside the build context.
+    mkdirSync(join(spec.app.buildContext, "certs"), { recursive: true });
+    copyFileSync(spec.hostProxy.caBundlePath, join(spec.app.buildContext, "certs", "session-ca.crt"));
+  }
   const composeFile = join(spec.dir, "compose.yaml");
   writeFileSync(composeFile, toYaml(composeDocument(spec)));
-  return { dir: spec.dir, composeFile, projectName: composeProjectName(spec.projectId) };
+  const appBuild = spec.app
+    ? {
+        context: spec.app.buildContext,
+        image: appImageName(spec.projectId),
+        hostNetwork: Boolean(spec.hostProxy),
+        args: (spec.hostProxy
+          ? { HTTPS_PROXY: spec.hostProxy.url, HTTP_PROXY: spec.hostProxy.url, NODE_EXTRA_CA_CERTS: "/certs/session-ca.crt" }
+          : {}) as Record<string, string>,
+      }
+    : undefined;
+  return { dir: spec.dir, composeFile, projectName: composeProjectName(spec.projectId), appBuild };
 }
 
 async function compose(sb: Sandbox, args: string[], timeoutMs = 180_000): Promise<string> {
@@ -197,8 +267,23 @@ async function compose(sb: Sandbox, args: string[], timeoutMs = 180_000): Promis
 }
 
 export const sandbox = {
+  /** Build the app image with plain `docker build`, on the host network in development. */
+  build: async (sb: Sandbox): Promise<string> => {
+    if (!sb.appBuild) throw new Error("This sandbox has no app to build.");
+    const args = ["build", "--tag", sb.appBuild.image, ...(sb.appBuild.hostNetwork ? ["--network", "host"] : [])];
+    for (const [k, v] of Object.entries(sb.appBuild.args)) args.push("--build-arg", `${k}=${v}`);
+    args.push(sb.appBuild.context);
+    const { stdout, stderr } = await run("docker", args, { timeout: 1_200_000, maxBuffer: 20 * 1024 * 1024 });
+    return stdout + stderr;
+  },
+  /** Remove the app image after the project's containers are gone. */
+  removeImage: async (sb: Sandbox) => {
+    if (sb.appBuild) await run("docker", ["image", "rm", "-f", sb.appBuild.image]).catch(() => undefined);
+  },
   /** Start services and wait for their health checks. */
-  up: (sb: Sandbox, services: string[] = []) => compose(sb, ["up", "-d", "--wait", ...services]),
+  up: (sb: Sandbox, services: string[] = []) => compose(sb, ["up", "-d", "--wait", ...services], 600_000),
+  /** Run a one-off command in a fresh container of a service (for migrations and seeding). */
+  runOnce: (sb: Sandbox, service: string, cmd: string[]) => compose(sb, ["run", "--rm", "--no-deps", "-T", service, ...cmd], 600_000),
   /** Stop and remove the project's containers, networks and volumes. */
   destroy: (sb: Sandbox) => compose(sb, ["down", "-v", "--remove-orphans"]),
   /** Run a command inside a running service. */

@@ -1,0 +1,45 @@
+{
+  "app": {
+    "name": "Internal app",
+    "sample_banner": "Sample data. Everything you see here is made up.",
+    "language": "Language",
+    "english": "English",
+    "arabic": "Arabic",
+    "sign_out": "Sign out"
+  },
+  "sign_in": {
+    "title": "Sign in",
+    "email": "Work email",
+    "password": "Password",
+    "submit": "Sign in",
+    "signing_in": "Signing in…",
+    "email_required": "Enter your work email address.",
+    "email_invalid": "That does not look like an email address. Check for a missing @ or a typo.",
+    "password_required": "Enter your password.",
+    "wrong_credentials": "The email or password is not right. Check both and try again.",
+    "server_error": "Signing in did not work because the server did not answer. Try again in a moment; if it keeps happening, tell your administrator."
+  },
+  "home": {
+    "title": "Home",
+    "signed_in_as": "Signed in as {name} ({role})",
+    "what_you_can_do": "What you can do",
+    "nothing_yet_title": "Nothing here yet",
+    "nothing_yet_body": "This app has no screens for your role yet. The next build step adds them.",
+    "not_allowed_title": "This page is not for your role",
+    "not_allowed_body": "You are signed in as {role}. This page is only for: {allowed}."
+  },
+  "roles": {
+    "employee": "Employee",
+    "manager": "Manager",
+    "hr_admin": "HR admin"
+  },
+  "common": {
+    "created_by_at": "Created by {who} on {when}",
+    "updated_by_at": "Last changed by {who} on {when}",
+    "confirm_title": "Are you sure?",
+    "confirm_body": "This cannot be undone.",
+    "confirm_yes": "Yes, do it",
+    "confirm_no": "No, go back",
+    "source": "Source: {source}. Period: {period}."
+  }
+}
