@@ -2,63 +2,71 @@
 
 Read this first in every session, then `docs/BUILD-PLAN.md` section 3. This file is rewritten each session, not added to; older versions are in `docs/log/`.
 
-**As of:** 11 November 2026, first session under the build plan. Nothing here is a time estimate.
+**As of:** 11 November 2026, end of the first session under the build plan. Nothing here is a time estimate.
 
 ## One-line state
 
-The design note is approved subject to three corrections, which are made. Code exists on branch `claude/stage-1` as an **unapproved starting baseline**: the model gateway, the egress proxy, the sandbox manager, the app spec, the event log and the TypeScript house template, with 38 passing tests and three evidence folders. No app can be built yet. No real model call has been made; the month's model spend is $0.00 (no key exists).
+The design note is approved subject to three corrections, which are made. Code exists on branch `claude/stage-1` as an **unapproved starting baseline**: the model gateway (the one door to the AI model, which counts and caps spend), the egress proxy (the one way out of a project's containers), the sandbox manager (which creates a project's containers), the app spec (the machine-readable brief), the event log (the append-only record), and the TypeScript house template (the starter every generated app begins from). The builder's own code has 38 passing tests; the template has screenshots, not tests. No app can be built yet. No real model call has been made; the month's model spend is $0.00 (no key exists).
 
 ## Three states, per the plan
 
 | State | What is in it |
 | --- | --- |
-| **Accepted by the owner (in `main`)** | The handover, the project rules, the specification, the approved design note (with the three corrections on this branch, not yet in `main`), and the Task 0 documents |
-| **Tested** (done means run and passed, evidence written, reviewer's findings closed) | Nothing yet under the plan's definition. The baseline's 38 tests pass, but the owner's six findings on it are open |
-| **Built, not tested** | Baseline: `builder/` (gateway with an estimate-based cap, egress proxy, sandbox manager, event log, app spec); `templates/next/` (sign-in, three roles, Arabic and English). Each is listed with what is wrong in `docs/reviews/2026-11-11-pull-request-2.md` |
-| **Parked, waiting on the owner** | Everything under `builder/` and `templates/next/` until the licence answers below (L9, L11). The Django template until L10 or a waiver. The engine adapter until checkpoint 1 and the key. The demo server until chosen |
+| **Accepted by the owner (in `main`)** | The handover, the project rules, the specification, the approved design note (with the three corrections on `claude/stage-1`, not yet in `main`), and the Task 0 documents |
+| **Tested** (done means run and passed, evidence written, reviewer's findings closed) | Four document packages from this session: 0.1, 0.2, 1.1 and W4 (below). The baseline's 38 tests pass, but the owner's six findings on it are open, so no code package is tested |
+| **Built, not tested** | Baseline: `builder/` (gateway with an estimate-based cap, egress proxy, sandbox manager, event log, app spec); `templates/next/` (sign-in, three roles, Arabic and English). What is wrong with each is in `docs/reviews/2026-11-11-pull-request-2.md` |
+| **Parked, waiting on the owner** | Everything under `builder/` and `templates/next/` until the licence answers below (L9, L11). The second-stack template until L10 or a waiver. The first real model call (2.3) until checkpoint 1 and the key. The demo server until chosen |
 
 ## Progress under the plan
 
-| Package | State | Where |
-| --- | --- | --- |
-| Set-up (section 3) | Done this session: `claude/stage-1` created from `claude/walking-skeleton`; pull request #2 closed as superseded; review file written; baseline decision recorded; `CLAUDE.md` line added | `docs/reviews/2026-11-11-pull-request-2.md`, `docs/DECISIONS.md` |
-| 0.1 `docs/STATUS.md` rewritten | This file. Built; tested once a fresh reviewer confirms no statement contradicts another | This pull request |
-| 0.2 Evidence claims narrowed | Next | `evidence/2026-11-11-skeleton-2/` |
-| 1.1 Design note 5.5 amended | Next | `docs/design/stage-1.md` |
-| W4 Arabic wording list | Next | `docs/` |
-| 0.3, 0.4, 0.5, 0.6a, 1.2 to 1.5, 2.1, 2.2, W1, W2, W3 | Parked on L9 or L11 (below) | |
-| 2.3, M2 | Parked on the key (checkpoint 1) | |
-| S1a, S1b | Parked on L10 or a waiver. S1a (the second template, no model) can run before checkpoint 1 once L10 is true | |
-| 0.6b, M8, gate item 5 on a clean machine | Parked on a demo server | |
-| C1, C2 | Parked on the demo candidate | |
+| Package | State | Pull request | Evidence |
+| --- | --- | --- | --- |
+| Set-up (section 3) | Done: `claude/stage-1` created from `claude/walking-skeleton`; pull request #2 closed as superseded; review file written; baseline decision recorded; `CLAUDE.md` line added | | `docs/reviews/2026-11-11-pull-request-2.md`, `docs/DECISIONS.md` |
+| 0.1 `docs/STATUS.md` rewritten | Tested: a fresh reviewer and a review bot read it for contradictions; their seven findings fixed; under 120 lines | #3 | This file; the findings and fixes listed on the pull request |
+| 0.2 Evidence claims narrowed | Tested: the reviewer confirmed the text matches the script and the test, one wording fixed | #4 | `evidence/2026-11-11-skeleton-2/sandbox-egress.md` |
+| 1.1 Design note 5.5 amended | Tested: five amendments under a dated list, a proof row for each; reviewer's four findings fixed | #5 | `docs/design/stage-1.md`, section 5.5 and the 7.2 table |
+| W4 Arabic wording list | Tested: 33 English and 33 Arabic messages, none missing, checked independently by the reviewer; two wording suggestions listed for the owner | #6 | `docs/arabic-wording-list.md`, generated by `docs/tools/arabic-wording-list.py` |
+| 1.2, 2.1, W1, W3 | Parked on L9 | | |
+| 0.3 | Parked on L11 | | |
+| 0.4, 0.5 | Parked on both L9 and L11 | | |
+| 0.6a, 1.3, 1.4, 1.5, 2.2, 3.1, 3.2, W2 | Wait for the packages above | | |
+| 2.3, M2 | Parked on the key (checkpoint 1) | | |
+| S1a, S1b | Parked on L10 or a waiver. S1a (the second template, no model) can run before checkpoint 1 once L10 is true | | |
+| 0.6b, M8, gate item 5 on a clean machine | Parked on a demo server | | |
+| C1, C2 | Parked on the demo candidate | | |
 
 ## Waiting on the owner
 
-Answer in order. One decision at a time; each has a recommendation and its reason. The plan's codes are in brackets.
+Answer in order. One decision at a time; each has a recommendation and its reason. The plan's codes are in brackets. A *licence* is the permission that comes with a piece of software someone else wrote; the project's rule is permissive licences only unless the owner names an exception in writing.
 
 **1. [L9] Four development-only packages outside the permitted licences** (`lightningcss`, `lightningcss-linux-x64-gnu`: MPL-2.0; `spdx-exceptions`, `spdx-ranges`: CC-BY-3.0). None ships to a customer.
 - (a) **Approve all four by name.** Recommended. Reason: they are tools used only while building; MPL-2.0 asks that changes to its own files be published, CC-BY-3.0 asks for credit; neither touches what customers receive.
 - (b) Replace them (package R1). Means changing the test runner and the licence checker.
-Until answered, no work under `builder/` can be finished.
+Until approved or replaced, no work under `builder/` can be finished.
 
-**2. [L11] `caniuse-lite`, a browser-support data file that Next.js ships in every app** (CC-BY-4.0: credit required, nothing else).
+**2. [L11] `caniuse-lite`, a browser-support data file that Next.js** (the web framework the template is built with) **ships in every app** (CC-BY-4.0: credit required, nothing else).
 - (a) **Approve by name, with the credit carried in each app's licence report.** Recommended. Reason: every Next.js app carries it; the obligation is one line of credit.
 - (b) Decline. Rules out Next.js and the existing template; the second stack would have to complete the skeleton alone.
-Until answered, no work on the template can be finished.
+Until approved or replaced, no work on the template can be finished.
 
-**3. Make the repository private** (pre-flight item 3), then confirm this session can still reach it. Nothing in it should be public: the design, the evidence and the gap list are all there.
+**3. Make the repository private?** (pre-flight item 3). Today anyone with the link can read the design, the evidence and the gap list.
+- (a) **Yes: make it private now, then confirm this session can still reach it.** Recommended. Reason: nothing in it is meant for the public, and it costs nothing.
+- (b) Leave it public for now.
 
-**4. [L10 or Waiver] The second stack.** Django's PostgreSQL driver `psycopg` is LGPL-3.0.
+**4. [L10 or Waiver] The second stack.** Django's PostgreSQL driver `psycopg` (the piece that lets a Python app talk to the database) is LGPL-3.0, a weak copyleft licence: an app may use it unchanged as a separate package and stay proprietary.
 - (a) **Approve `psycopg` by name**, which schedules packages S1a and S1b and a real comparison, as the design note says. Recommended. Reason: the stack choice should rest on a measurement.
 - (b) Record a waiver: no comparison; the TypeScript stack stands.
 
-**5. [Candidate] The demo candidate:** (a) **D3, the commission leak report** (recommended: you can judge every number yourself; shows rules 8 and 9); (b) D1; (c) D2.
+**5. [Candidate] The demo candidate:** (a) **D3, the commission leak report** (recommended: you can judge every number yourself; shows rules 8 and 9); (b) D1, the inspection tracker; (c) D2, the cylinder tracking.
 
-**6. The reviewing engineer: who.** Needed by checkpoint 2.
+**6. The reviewing engineer.** Needed by checkpoint 2, when the gateway and the sandbox manager exist in their corrected form.
+- (a) **Someone you already trust with your systems**, named now, so the read can be arranged. Recommended.
+- (b) An engineer found through the reviewing of the demo, later.
+- (c) Nobody in Stage 1. Not recommended: the handover makes the review a condition before any technical pitch.
 
-**7. Did the Claude app show you a page titled "builder: preview test"** during the first session? Yes or no. It decides whether live pages can be part of the evidence.
+**7. Did the Claude app show you a page titled "builder: preview test"** during the first session? (a) Yes; (b) No; (c) Not sure. It decides whether live pages can be part of the evidence.
 
-**8. [Server] A demo server**, when you are ready to spend. Verified prices are in design note 4.3; recommended Hetzner CPX32 at €30.49 per month excl. VAT, re-read on the day you approve. Not needed until 0.6b and the demo.
+**8. [Server] A demo server**, when you are ready to spend; not needed until package 0.6b and the demo. The four options with the prices read on 11 Nov 2026 are in `docs/OPEN-DECISIONS.md` item 5: (a) **Hetzner CPX32, €30.49 per month excl. VAT, no UAE location** (recommended: lowest verified price; the server holds made-up data only); (b) Oracle Cloud in Dubai, price to be read in a browser; (c) AWS in the UAE, price to be read in a browser; (d) DigitalOcean, $48.00 per month, no UAE. Whichever is chosen, its price is read again on the day you approve.
 
 The model key is not asked for yet. It is created at checkpoint 1, with the spending limits ($100 a month and $20 a project proposed).
 
@@ -72,8 +80,8 @@ The model key is not asked for yet. It is created at checkpoint 1, with the spen
 
 ## What the next session does
 
-Follow `docs/BUILD-PLAN.md` section 3: take the first package in section 7 that is not tested and whose dependencies are met. With no owner answers, that is 0.2, then 1.1, then W4. A licence code becomes true only when the owner has **approved** the named packages in `docs/DECISIONS.md`, or they have been replaced and the licence check passes; an answer of "replace them" does not open anything until package R1 is done. When L9 is true, 1.2, 2.1, W1 and W3 open up. When L11 is true, 0.3 opens up. Packages 0.4 and 0.5 need **both** L9 and L11.
+Follow `docs/BUILD-PLAN.md` section 3: take the first package in section 7 that is not tested and whose dependencies are met. A licence code becomes true only when the owner has **approved** the named packages in `docs/DECISIONS.md`, or they have been replaced and the licence check passes; an answer of "replace them" opens nothing until package R1 is done. When L9 is true, 1.2 (1.1 is tested), 2.1, W1 and W3 open up. When L11 is true, 0.3 opens up. Packages 0.4 and 0.5 need **both** L9 and L11. With no owner answer, nothing in the queue can be done, and the session says so.
 
 ## How the development machine is started
 
-`CLAUDE.md`, Commands. In short: start the Docker daemon directly, start PostgreSQL, run the database script in `builder/`. Measured on 11 Nov 2026: 4 processors, 15 GiB memory, 30 GB disk; containers need the host network and the session proxy's certificate (`docs/ENVIRONMENT-CHECK.md`).
+`CLAUDE.md`, Commands. In short: start the Docker daemon (the background program that runs containers) directly, start PostgreSQL (the database), run the database script in `builder/`. Measured on 11 Nov 2026: 4 processors, 15 GiB memory, 30 GB disk; containers need the host network and the session proxy's certificate (`docs/ENVIRONMENT-CHECK.md`).
