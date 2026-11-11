@@ -3,7 +3,7 @@
 | | |
 | --- | --- |
 | File | `docs/BUILD-PLAN.md` |
-| Written | 11 November 2026, for the owner, Ahmed Sharara. Fourth version, with the owner's three rounds of amendments of the same day |
+| Written | 11 November 2026, for the owner, Ahmed Sharara. Fifth version, with the owner's four rounds of amendments of the same day |
 | Starting point | Branch `claude/walking-skeleton` at commit `6fca006`. Its code is an **unapproved starting baseline**: built, partly tested, not accepted by the owner |
 | Authority | This is the owner's standing instruction for long-running work. It replaces "do one task, then stop". The hard rules in `CLAUDE.md` and `HANDOVER.md` section 11 are unchanged and win over anything written here |
 
@@ -184,14 +184,19 @@ A package starts only when everything in its "Depends on" column is true. Other 
 | --- | --- | --- | --- |
 | 3.1 | **Acceptance store and runner** to the corrected design (2.7) | 2.1 | All four are shown. (1) A real acceptance run against an app built by the scripted engine passes, with its screenshot. (2) A deliberately broken copy of that app is rejected, with the failed item named. (3) A run that did not execute is reported as not run, never as passed. (4) From inside the engine container, attempts to reach the acceptance store by file path, over the network, through the project's database and through the project's history all fail, each listed with its result; the container's mounts, listed, show no acceptance folder |
 | 3.2 | **Exporter** | 3.1, L11 | The app starts from the export with the builder stopped, and the check passes from the exported copy |
-| S1 | **Second stack, only if L10 is true:** a comparison prototype of the second template to the same level as the first (sign-in, three roles, the role guard of 0.3, both languages, set-up in a tools container), then the same two fixed steps of example 1 with a real model, the same acceptance check and the same export | L10, 2.3, 3.1, 3.2. On the alternative path below, L10 and Waiver only | The evidence of 2.3, 3.1 and 3.2 repeated for the second stack, from live runs, with its own licence check passing. If a waiver is recorded instead, this package is marked "not applicable: waived" with the decision's date |
-| 3.3 | **Skeleton report** | 2.3, 3.1, 3.2, and S1 or Waiver | One page per stack built, with cost per step for each model tried, all from live runs |
+| S1a | **Second stack, preparation, only if L10 is true:** a comparison prototype of the second template to the same level as the first (sign-in, three roles, the role guard of 0.3, both languages, set-up in a tools container). No model is called, so this can come before checkpoint 1 | L10 | The second template runs in the sandbox with its own licence check passing, a test for each role, and screenshots in both languages |
+| S1b | **Second stack, live runs:** the same two fixed steps of example 1 with a real model, the same acceptance check and the same export | S1a, 2.3, 3.1, 3.2, Key | The evidence of 0.6a, 2.3, 3.1 and 3.2 repeated for the second stack, from live runs |
+| 3.3 | **Skeleton report** | 2.3, 3.1, 3.2, and S1b or Waiver | One page per stack built, with cost per step for each model tried, all from live runs |
 | 3.4 | **Stack decision pack** | 3.3 | Either both stacks side by side on acceptance result, rule compliance and cost; or, under a waiver, a plain statement that the first stack stands and that no comparison was made |
+
+**When S1a and S1b are waived.** Only when the owner chooses the first stack without a comparison. They are then marked "not applicable: waived" with the decision's date. A waiver naming the second stack does not waive them: it makes them the main path, as follows.
 
 **Alternative path: the second stack alone.** This applies when the first stack is ruled out, L10 is true, and the owner has recorded a waiver naming the second stack. Then:
 
-- S1 no longer waits for anything done on the first stack. It builds the second template first.
-- Packages 0.3, 0.5, 2.3, 3.1 and 3.2 are done on the second template, with L10 read wherever L11 is written.
+- S1a comes first and waits for nothing done on the first stack.
+- Packages 0.3, 0.4, 0.5, 2.3, 3.1 and 3.2 are done on the second template, with L10 read wherever L11 is written. Package 0.4 checks only the components that are kept.
+- Package 2.3 keeps every other dependency it has: Key, 1.4, 0.6a and 2.2. No live run comes before checkpoint 1 on this path either.
+- The live results of 2.3, 3.1 and 3.2 on the second template are S1b's evidence. S1b is not run a second time.
 - 3.3 reports one stack. 3.4 states that no comparison was made and why.
 - The first template is removed, or kept and marked as not used. Record which in `docs/DECISIONS.md`.
 
@@ -260,7 +265,7 @@ Update this table at the end of every package. A date goes in a column only when
 | 0.1 to 0.5, 0.6a, 0.6b | | | | | | |
 | 1.1 to 1.5 | | | | | | |
 | 2.1 to 2.3 | | | | | | |
-| 3.1 to 3.4, S1 | | | | | | |
+| 3.1 to 3.4, S1a, S1b | | | | | | |
 | M1 to M9, M7b, C1, C2 | | | | | | |
 | W1 to W4 | | | | | | |
 
@@ -278,7 +283,7 @@ Update this table at the end of every package. A date goes in a column only when
 
 | # | Item | What it unblocks |
 | --- | --- | --- |
-| 4 | The second stack. Either approve `psycopg` by name (open decision 10), which schedules package S1 and a real comparison; or record a waiver, which settles the stack now with no comparison | L10 or Waiver; when M1 can start |
+| 4 | The second stack. Either approve `psycopg` by name (open decision 10), which schedules packages S1a and S1b and a real comparison; or record a waiver, which settles the stack now with no comparison | L10 or Waiver; when M1 can start |
 | 5 | Demo candidate: D1, D2 or D3 | C1, C2, M8 |
 | 6 | Reviewing engineer: who | Checkpoint 2 |
 | 7 | Whether the page titled "builder: preview test" was shown | Whether live pages can be part of the evidence |
