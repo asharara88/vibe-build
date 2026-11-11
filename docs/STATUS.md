@@ -28,7 +28,7 @@ The design note is approved subject to three corrections, which are made. Code e
 | W4 Arabic wording list | Next | `docs/` |
 | 0.3, 0.4, 0.5, 0.6a, 1.2 to 1.5, 2.1, 2.2, W1, W2, W3 | Parked on L9 or L11 (below) | |
 | 2.3, M2 | Parked on the key (checkpoint 1) | |
-| S1 | Parked on L10 or a waiver | |
+| S1a, S1b | Parked on L10 or a waiver. S1a (the second template, no model) can run before checkpoint 1 once L10 is true | |
 | 0.6b, M8, gate item 5 on a clean machine | Parked on a demo server | |
 | C1, C2 | Parked on the demo candidate | |
 
@@ -49,7 +49,7 @@ Until answered, no work on the template can be finished.
 **3. Make the repository private** (pre-flight item 3), then confirm this session can still reach it. Nothing in it should be public: the design, the evidence and the gap list are all there.
 
 **4. [L10 or Waiver] The second stack.** Django's PostgreSQL driver `psycopg` is LGPL-3.0.
-- (a) **Approve `psycopg` by name**, so both stacks are built and compared as the design note says. Recommended. Reason: the stack choice should rest on a measurement.
+- (a) **Approve `psycopg` by name**, which schedules packages S1a and S1b and a real comparison, as the design note says. Recommended. Reason: the stack choice should rest on a measurement.
 - (b) Record a waiver: no comparison; the TypeScript stack stands.
 
 **5. [Candidate] The demo candidate:** (a) **D3, the commission leak report** (recommended: you can judge every number yourself; shows rules 8 and 9); (b) D1; (c) D2.
