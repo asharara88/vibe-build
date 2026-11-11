@@ -260,14 +260,18 @@ Update this table at the end of every package. A date goes in a column only when
 
 | ID | Built | Tested | Accepted by the owner | Pull request | Evidence | Open findings |
 | --- | --- | --- | --- | --- | --- | --- |
-| Skeleton increments 1, 2, 3a (unapproved starting baseline) | 11 Nov 2026 | In part: 38 tests recorded as passing; the owner's six findings open | No | #2, to be closed as superseded | `evidence/2026-11-11-skeleton-1` to `-3` | Six, in `docs/reviews/` |
+| Skeleton increments 1, 2, 3a (unapproved starting baseline) | 11 Nov 2026 | In part: 38 tests recorded as passing; the owner's six findings open | No | #2, closed as superseded 11 Nov 2026 | `evidence/2026-11-11-skeleton-1` to `-3` | Six, in `docs/reviews/`; 0.2 answers finding 2 |
 | R1 (only if chosen) | | | | | | |
-| 0.1 to 0.5, 0.6a, 0.6b | | | | | | |
-| 1.1 to 1.5 | | | | | | |
-| 2.1 to 2.3 | | | | | | |
-| 3.1 to 3.4, S1a, S1b | | | | | | |
-| M1 to M9, M7b, C1, C2 | | | | | | |
-| W1 to W4 | | | | | | |
+| 0.1 `docs/STATUS.md` rewritten | 11 Nov 2026 | 11 Nov 2026 | No | #3, merged into `claude/stage-1` | `docs/STATUS.md`; findings and fixes on the pull request | None |
+| 0.2 Evidence claims narrowed | 11 Nov 2026 | 11 Nov 2026 | No | #4, merged into `claude/stage-1` | `evidence/2026-11-11-skeleton-2/sandbox-egress.md` | None |
+| 0.3, 0.4, 0.5, 0.6a, 0.6b | Parked (L11; L9 and L11; L9 and L11; 0.5; Server) | | | | | |
+| 1.1 Design note 5.5 amended | 11 Nov 2026 | 11 Nov 2026 | No | #5, merged into `claude/stage-1` | `docs/design/stage-1.md` 5.5 and 7.2 | None |
+| 1.2 to 1.5 | Parked (L9) | | | | | |
+| 2.1 to 2.3 | Parked (L9; then 2.1 and 1.2; then Key) | | | | | |
+| 3.1 to 3.4, S1a, S1b | Parked (2.1; L10 or Waiver for S1a, S1b) | | | | | |
+| M1 to M9, M7b, C1, C2 | Not started | | | | | |
+| W1 to W3 | Parked (L9; 2.1; L9) | | | | | |
+| W4 Arabic wording list | 11 Nov 2026 | 11 Nov 2026 | No | #6, merged into `claude/stage-1` | `docs/arabic-wording-list.md` | None; two wording suggestions wait on the owner and L11 |
 
 ## 11. Pre-flight: what the owner settles
 
