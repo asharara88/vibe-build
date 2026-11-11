@@ -72,7 +72,7 @@ The model key is not asked for yet. It is created at checkpoint 1, with the spen
 
 ## What the next session does
 
-Follow `docs/BUILD-PLAN.md` section 3: take the first package in section 7 that is not tested and whose dependencies are met. With no owner answers, that is 0.2, then 1.1, then W4. With L9 answered, 0.4 and 1.2 open up; with L11, 0.3 and 0.5.
+Follow `docs/BUILD-PLAN.md` section 3: take the first package in section 7 that is not tested and whose dependencies are met. With no owner answers, that is 0.2, then 1.1, then W4. A licence code becomes true only when the owner has **approved** the named packages in `docs/DECISIONS.md`, or they have been replaced and the licence check passes; an answer of "replace them" does not open anything until package R1 is done. When L9 is true, 1.2, 2.1, W1 and W3 open up. When L11 is true, 0.3 opens up. Packages 0.4 and 0.5 need **both** L9 and L11.
 
 ## How the development machine is started
 
