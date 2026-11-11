@@ -2,7 +2,7 @@
 
 | | |
 | --- | --- |
-| Status | **Proposal. Awaiting the owner's approval. No product code until then.** |
+| Status | **Approved by the owner on 11 November 2026, as written.** The owner's answers to section 9 are recorded in `docs/DECISIONS.md`; the demo candidate (question 5) is still undecided, and the model key (question 7) is still to be created. The walking skeleton (section 7) is the next task |
 | Written | 11 November 2026, by Claude Code, from `HANDOVER.md` (the owner's edited version of the same day, which adds Decision F and gate item 9) and the checks recorded in `docs/SOURCES.md` and `docs/ENVIRONMENT-CHECK.md` |
 | Reader | The owner: section 1, then section 9 (the questions). An incoming engineer: everything |
 

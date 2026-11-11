@@ -1,24 +1,23 @@
 # Open decisions for the owner
 
-Bring these to the owner one at a time, as multiple-choice questions with a recommendation and its reason. When one is decided, move it to `docs/DECISIONS.md`. The design note (`docs/design/stage-1.md`, section 9) carries the questions in full with the recommendations.
+Bring these to the owner one at a time, as multiple-choice questions with a recommendation and its reason. When one is decided, move it to `docs/DECISIONS.md`. Decided on 11 November 2026 and moved there: the design note, the Agent SDK licence exception, the network hosts, Arabic from the first version, step approvals in demonstrations, the reviewing engineer's timing, the two planning items, the `main` branch, and the second engine.
 
-## From the handover (section 14)
+## Still open
 
 1. **Product name.** Until then, `builder`.
-2. **English and Arabic from the first version?** Proposal: yes. Translation and right-to-left layout are cheap to put in the template now and costly to add later, and the buyers are in the UAE.
-3. **Step approvals during a demonstration.** The specification has the user approve every step. Should a rehearsed demonstration be allowed to run to the end without stopping? Proposal: keep step approval as the default, and offer a run-through mode only for demonstrations.
-4. **Which demo candidate first:** D1, D2 or D3 in `docs/spec/B6-demo-candidates.md`.
-5. **Pass target for the test protocol.** The owner sets it after a trial run of the first two examples, and before the full protocol starts.
-6. **Demo environment and its cost,** after the price options have been shown. Blocked: see item 11.
-7. **Monthly spending limit for model usage.**
-8. **Reviewing engineer:** who, and at which milestone.
-9. **Legal owner of the code.** Ahmed Sharara personally for now. A company later.
+2. **Which demo candidate first:** D1, D2 or D3 in `docs/spec/B6-demo-candidates.md`. The owner is undecided. Recommendation stands: D3, because the owner can judge every number himself and it shows rules 8 and 9. Not needed until the intake milestone; the walking skeleton uses test example 1.
+3. **Monthly spending limit for model usage, and the default per-project cap.** The owner is on the Ultra plan ($200 of API credits a month, verified). Proposed: a $100 monthly limit in the Console and a $20 default project cap. The owner confirms the figures when creating the key.
+4. **Pass target for the test protocol.** The owner sets it after a trial run of the first two examples, and before the full protocol starts.
+5. **Demo environment and its cost,** once prices have been read from the providers' own pages (now possible if the network change was approved).
+6. **Reviewing engineer: who.** The timing is decided (after the walking skeleton, and before the demo). The person is not.
+7. **Legal owner of the code.** Ahmed Sharara personally for now. A company later.
+8. **OpenAI account and spend for the Codex SDK** (gate item 9). The owner chose the Codex SDK as the second engine. Using it needs an OpenAI API account and key, and its usage is paid. Hard rule 4: the price and its source are shown before any sign-up, when the second-engine milestone comes. Not needed for the walking skeleton.
 
-## Added on 11 November 2026
+## Requests to the owner, not choices
 
-10. **Approve the Stage 1 design note** (`docs/design/stage-1.md`), or say what to change. Nothing is built until it is approved.
-11. **Allow the network hosts needed to read provider pricing pages.** The session's network policy blocks them, so no price could be fetched from a provider's own page. Hosts needed: `www.hetzner.com`, `www.digitalocean.com`, `aws.amazon.com`, `docs.aws.amazon.com`, `azure.microsoft.com`, `learn.microsoft.com`, `docs.cloud.google.com`, `www.oracle.com`, `www.core42.ai`, `www.khazna.ae`, `www.moro.ae`. Also useful for verification: `docs.djangoproject.com`, `www.postgresql.org`, `www.npmjs.com`, `e2b.dev`, `openai.com`, `privacy.anthropic.com`. The owner can allow them in the cloud environment's network settings, or fetch the prices himself and paste them, or accept the indicative figures in the design note (which came from search results, not from the pricing pages, and must be re-checked before any spend).
-12. **Licence exception for the Claude Agent SDK.** Hard rule 2 allows permissive licences only unless the owner approves an exception in writing. The Agent SDK's TypeScript package is governed by Anthropic's Commercial Terms of Service, which is a commercial licence, not a permissive open-source one. The Python package is marked MIT on PyPI, with the same Commercial Terms stated in its documentation. Using the SDK as the build engine needs the owner's written approval of this exception. The handover's decision "Build with Claude Code" implies it, but it should be explicit.
-13. **Model key.** Create an API key in the owner's own Anthropic Console account, set a monthly spending limit there, and add the key as the environment variable `BUILDER_MODEL_API_KEY` on the owner's personal cloud environment. Never paste it into the conversation. Before paying for usage, claim the monthly API credits that come with the Max, Ultra and Team plans (verified today: Max $100 per month, Ultra $200 per month, Team $20 or $100 per seat pooled, no rollover; the Console organization must be linked to the plan).
-14. **Default model for the build engine.** Proposal: measure two in the walking skeleton, Claude Opus 5.5 and Claude Sonnet 5.5, and choose on acceptance score and cost. No decision needed before the skeleton.
-15. **Which second engine for gate item 9** (added by the owner's edited handover, Decision F). Proposal: a small loop of our own against an OpenAI-compatible endpoint, because it is what a UAE-only profile would need. Alternative: OpenAI's Codex SDK (repository Apache-2.0, verified today). Design note, section 9, question 11.
+9. **Model key.** Create an API key in the Anthropic Console, set a monthly spending limit there, and add the key as the environment variable `BUILDER_MODEL_API_KEY` on the personal cloud environment. Steps are in `docs/design/stage-1.md`, section 9, question 7. Never paste the key into the conversation. Claim the Ultra plan's monthly API credits and link the Console organization to the plan first.
+10. **Preview test.** Say whether the page titled "builder: preview test" was shown in the Claude app during the first session.
+
+## Network hosts allowed on 11 November 2026 (for the record)
+
+`www.hetzner.com`, `www.digitalocean.com`, `aws.amazon.com`, `docs.aws.amazon.com`, `azure.microsoft.com`, `learn.microsoft.com`, `docs.cloud.google.com`, `www.oracle.com`, `www.core42.ai`, `www.khazna.ae`, `www.moro.ae`, `docs.djangoproject.com`, `www.postgresql.org`, `www.npmjs.com`, `e2b.dev`, `openai.com`, `developers.openai.com`, `privacy.anthropic.com`, `www.morganlewis.com`. Proposed as an edit to the owner's personal Default environment; the outcome is recorded in `docs/STATUS.md`.

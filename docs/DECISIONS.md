@@ -20,3 +20,14 @@ Record every decision here with the date and who decided. **Owner** means Ahmed 
 | 11 Nov 2026 | The copyright notice is "© 2026 Ahmed Sharara, all rights reserved", in `LICENSE` and `README.md`. Legal owner to be revisited when a company exists | Owner (handover, Task 0 and section 14.9) |
 | 11 Nov 2026 | The Stage 1 design note is written as a proposal and no product code is written until the owner approves it | Owner (handover, Task 1) |
 | 11 Nov 2026 | The owner issued an edited `HANDOVER.md` the same day: gate item 9 (two test examples built with a second build engine), Decision F (staying adaptable: model source and build engine as two seams, profiles, certification per profile) and four new verified facts. Task 1 now covers decisions A to F. The edited file replaces the first in the repository; Part B is unchanged | Owner |
+| 11 Nov 2026 | The Stage 1 design note (`docs/design/stage-1.md`) is approved as written. The walking skeleton is the next task | Owner |
+| 11 Nov 2026 | Licence exception under hard rule 2: the Claude Agent SDK, governed by Anthropic's Commercial Terms of Service, may be used as the build engine, behind an interface of our own so it can be replaced | Owner, in writing in the session chat |
+| 11 Nov 2026 | The websites needed for pricing and documentation research are to be allowed in the cloud environment's network settings "for now". The exact list is in `docs/OPEN-DECISIONS.md` item 11 | Owner |
+| 11 Nov 2026 | English and Arabic from the first version. The template is built with translation and right-to-left layout from the start, and both candidate stacks are judged on it | Owner |
+| 11 Nov 2026 | Step approval stays the default. A run-through mode is offered only in a rehearsed demonstration and is labelled as such on screen | Owner |
+| 11 Nov 2026 | The owner's Claude plan is Ultra, which includes $200 of API credits per month (verified 11 Nov 2026). The monthly spending limit and the default project cap are still to be set; proposed $100 and $20 | Owner (plan); limit to confirm |
+| 11 Nov 2026 | A reviewing engineer reads the gateway and the sandbox manager after the walking skeleton, and reviews again before the demo | Owner |
+| 11 Nov 2026 | Confirmed: portable from the start, with hosting inside the UAE built when a buyer requires it. Confirmed: the first use is a live demonstration to a group-level decision-maker | Owner |
+| 11 Nov 2026 | The `main` branch created by Claude Code with the two starting files stands | Owner (no objection) |
+| 11 Nov 2026 | The second build engine for gate item 9 is OpenAI's Codex SDK, driven through the same build-engine interface as the Claude Agent SDK. Its repository is Apache-2.0 (verified); the OpenAI account, key and spend it needs are a separate approval under hard rule 4 when that milestone comes | Owner |
+

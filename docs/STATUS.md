@@ -2,13 +2,14 @@
 
 Read this first in every session. Update it before every session ends. Nothing else carries over between sessions.
 
-**Last updated:** 11 November 2026, end of the first session (Task 0 and Task 1, including the owner's same-day edit of the handover adding Decision F).
+**Last updated:** 11 November 2026, after the owner's decisions on the design note.
 
 ## Current state
 
 - **Nothing is built.** No product code exists. The repository holds the handover, the project rules, the specification, the Stage 1 design note and the working documents.
 - **Task 0 (set up the repository): done.** Environment checked and recorded in `docs/ENVIRONMENT-CHECK.md`. `README.md`, `LICENSE`, `.gitignore`, `docs/STATUS.md`, `docs/DECISIONS.md`, `docs/OPEN-DECISIONS.md`, `docs/KNOWN-GAPS.md`, `docs/SOURCES.md` and `docs/spec/` created. `HANDOVER.md` left as supplied. Work is on branch `claude/new-session-ftnls6`; draft pull request: https://github.com/asharara88/vibe-build/pull/1
-- **Task 1 (design note): done as a proposal.** `docs/design/stage-1.md`, awaiting the owner's approval. No product code until then.
+- **Task 1 (design note): done and approved.** The owner approved `docs/design/stage-1.md` as written on 11 November 2026 and answered the questions in section 9; the answers are in `docs/DECISIONS.md`. Still open: the demo candidate, the monthly spending limit figure, the model key.
+- **Network change: done.** The owner asked for the research sites to be allowed. Nineteen hosts were added to the personal Default cloud environment's allowed list with the owner's approval (list in `docs/OPEN-DECISIONS.md`). Verified reachable afterwards: Hetzner, DigitalOcean, AWS, PostgreSQL, Django docs, OpenAI developer docs, Core42. Oracle's site still answers 403 to this session, which is Oracle refusing automated requests, not the network policy.
 
 ## What was verified, and how
 
@@ -24,21 +25,22 @@ At the end of the session a one-page test server was started inside the session 
 
 ## Next step
 
-1. The owner answers the decisions in `docs/design/stage-1.md` section 9, in order. The first two unblock the walking skeleton.
-2. The owner creates the model key and sets it as `BUILDER_MODEL_API_KEY` on their personal cloud environment (never in the conversation).
-3. Then: the walking skeleton (design note, section 7), on both candidate stacks, with the evidence in a pull request.
+1. Merge pull request #1 (the owner, or Claude Code on the owner's word).
+2. The owner creates the model key and sets it as `BUILDER_MODEL_API_KEY` on the personal cloud environment (never in the conversation), and confirms the monthly limit and project cap.
+3. Then: the walking skeleton (design note, section 7), on both candidate stacks, on its own branch and pull request, with the evidence in the pull request. The non-model parts (template, sandbox manager, gateway, event log) can start before the key exists; the first model call cannot.
 
 ## Blocked, and on whom
 
 | What | On whom | Why |
 | --- | --- | --- |
-| Any product code | Owner | Design note not yet approved |
-| Licence exception for the Claude Agent SDK | Owner | Hard rule 2; see `docs/OPEN-DECISIONS.md` item 12 |
-| Demo-server prices from provider pages | Owner | Session network policy blocks the hosts; see `docs/OPEN-DECISIONS.md` item 11 |
-| First model call | Owner | Model key not yet set |
+| First model call | Owner | Model key not yet set; monthly limit and cap figures to confirm |
+| Demo-server decision | Owner | Prices now being read from provider pages; decision after they are shown |
+| Demo candidate | Owner | Undecided between D1, D2 and D3; not needed until the intake milestone |
+| Second-engine milestone (Codex SDK) | Owner, later | OpenAI account and spend need a separate yes under hard rule 4 when that milestone comes |
 
 ## Session log
 
 | Date | What was done |
 | --- | --- |
+| 11 Nov 2026 (later) | The owner issued an edited handover (Decision F) and then approved the design note and answered its questions. Decisions recorded. Network hosts allowed with the owner's approval. Prices and blocked documentation re-fetched (see the design note, section 4.3 and `docs/SOURCES.md`) |
 | 11 Nov 2026 | Repository set up from the empty state. Environment measured. Task 0 documents written. Specification cut from the handover. Stage 1 design note written as a proposal. Draft pull request opened. Preview test started |
