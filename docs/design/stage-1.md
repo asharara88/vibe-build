@@ -321,11 +321,14 @@ The handover's hosting source says model usage typically costs ten times the con
 
 USD per million tokens, from Anthropic's pricing page on 11 November 2026:
 
-| Model | Input | Cache hit | Output |
-| --- | --- | --- | --- |
-| Claude Opus 5.5 | $4.00 | $0.20 | $20.00 |
-| Claude Sonnet 5.5 | $2.00 | $0.10 | $10.00 |
-| Claude Haiku 5.5 (prompts up to 100k tokens) | $0.10 | $0.01 | $0.50 |
+| Model | Input | Cache write, 5 minutes | Cache write, 1 hour | Cache hit | Output |
+| --- | --- | --- | --- | --- | --- |
+| Claude Opus 5.5 | $4.00 | $5.00 | $8.00 | $0.20 | $20.00 |
+| Claude Sonnet 5.5 | $2.00 | $2.50 | $4.00 | $0.10 | $10.00 |
+| Claude Haiku 5.5, prompts up to 100,000 tokens | $0.10 | $0.125 | $0.20 | $0.01 | $0.50 |
+| Claude Haiku 5.5, prompts over 100,000 tokens (the long-prompt rate) | $0.50 | $0.625 | $1.00 | $0.05 | $2.50 |
+
+Fast mode, where the profile allows it, is priced at twice the standard rates (the pricing page states input and output; the gateway applies the factor to every rate, which can only over-count: gap 23). The worst-case hold in 5.5 uses the dearest rates in this table that could apply: the one-hour cache-write rate for input, the long-prompt rate where a model has one, and the fast-mode factor where the profile allows it.
 
 ### 5.3 What is unknown until measured
 
@@ -347,17 +350,18 @@ Each project has a cap in dollars, set when the project is created, with a defau
 
 | Part of the hold | How it is bounded |
 | --- | --- |
-| Input | The request's prompt tokens, counted by the provider's token-counting call (free, unmetered) or, if that call fails, from the request size at three bytes per token, which over-counts. Priced at the dearest input rate for the model (the one-hour cache-write rate), since the gateway cannot know in advance what will be cached |
+| Input | The request's prompt tokens, counted by the provider's token-counting call (free, unmetered). **If the prompt cannot be counted, the call is refused**; no estimate from the request's size is used (amendment b). Priced at the dearest input rate that could apply to this model and this prompt: the one-hour cache-write rate, and the long-prompt rate where the model has one and the count could reach it (amendment c) |
 | Output | The request's `max_tokens`, which the model cannot exceed, priced at the output rate. The gateway refuses a request whose `max_tokens` is above the profile's ceiling, so a hold cannot be made absurd |
-| Fast mode | Doubles both parts when the request asks for it |
+| Fast mode | Doubles both parts whenever the request asks for it **or the profile allows the provider to serve it** (amendment c), so the hold is never below what fast mode would cost |
 
 **The life of a hold.**
 
 1. **Open.** Check-and-hold runs inside one database transaction that locks the project's row, so two calls arriving together are judged one after the other, whatever gateway process they came through. If the equation fails, the call is refused with the message below and a `gateway.refused` event. If it passes, a `hold.opened` event is written with the amount and a deadline, and the call is forwarded.
-2. **Settle.** When the provider's answer ends, the gateway reads the actual usage, prices it, writes the `model.call` event with the actual cost, and closes the hold (`hold.settled`). The difference between the hold and the actual cost returns to the budget at that moment.
-3. **Interrupted calls.** If the client disconnects or the provider's stream fails part-way, the gateway settles with the usage it has seen so far, marked incomplete. If nothing at all was seen (the request may or may not have reached the provider), the hold settles at its full worst-case amount and the call is marked `unreconciled`, so money is never released on a guess. Unreconciled calls are listed for comparison with the provider's own usage report.
-4. **Expired holds.** Every hold carries a deadline: the call's own time limit plus a margin (ten minutes for a plain call, thirty for a streamed one). A hold still open at its deadline is settled at its full worst-case amount, marked `expired`, and the call is cut off. On start-up the gateway finds holds left open by a crash and treats them the same way, so a restart can never leak budget.
-5. **Record.** Holds are rows in the database and events in the log, not memory, so they survive a restart and hold across more than one gateway process.
+2. **Settle.** When the provider's answer ends and its usage figures can be read, the gateway prices them, writes the `model.call` event with the actual cost, and closes the hold (`hold.settled`). The difference between the hold and the actual cost returns to the budget at that moment. **If the answer succeeded but its usage cannot be read** (an unexpected shape, a missing usage block), the hold keeps its full worst-case amount and the call is marked `unreconciled` (amendment d). *Unreconciled* means: the gateway does not know what the provider will bill for this call, so it charges the worst case against the budget until the owner establishes the true figure. **A kept hold stays open:** it counts as an open hold in the budget equation and in the invariants below until the owner closes it (step 3).
+3. **Interrupted calls.** If the client disconnects or the provider's stream fails part-way, **the hold keeps its full worst-case amount and the call is marked `unreconciled`** (amendment a). The output count arrives late in a stream, so what was seen before the cut is not a measure of what the provider will bill; the usage seen so far is recorded for information only and releases nothing. The same holds when nothing at all was seen. Money is never released on a guess. Unreconciled calls are listed for the owner (package 1.5 of the build plan) and are closed only by a recorded owner action stating the actual cost and its evidence, such as the provider's usage record.
+4. **Expired holds.** Every hold carries a deadline: the call's own time limit plus a margin (ten minutes for a plain call, thirty for a streamed one). A hold still open at its deadline is kept at its full worst-case amount, marked `expired` and listed as unreconciled, stays open, and the call is cut off. On start-up the gateway finds holds left open by a crash and treats them the same way, so a restart can never leak budget.
+5. **A finished call that cannot be saved.** If the provider has answered but the event log refuses the write (the database is down or full), the hold stays open at its full amount, the project is marked `frozen`, and **the project makes no further calls until the call is reconciled** by the owner's recorded action (amendment e). The gateway raises a fault: a message to the builder's own log and to the owner's unreconciled list saying that money was spent that could not be recorded. Nothing the provider billed can go unrecorded and uncharged against the budget.
+6. **Record.** Holds are rows in the database and events in the log, not memory, so they survive a restart and hold across more than one gateway process.
 
 **The pre-step check.** A step must not start without room to finish, so each step carries a **step budget**: the worst case for the whole step, which is the step's turn limit multiplied by the worst-case hold of one call at the profile's `max_tokens` ceiling and the largest prompt the step may send. Before the orchestrator starts a step, it asks the gateway to open a step hold for that amount under the same equation. If it does not fit, the step does not start, and the user sees why and what raising the cap would allow. While the step runs, each call's hold is taken from the step hold rather than from the project's free budget; when the step ends, the unused part of the step hold is released. Step budgets are set from measurement once the skeleton has numbers; until then the turn limit and `max_tokens` ceiling are deliberately small, so the first step budgets are small and visible.
 
@@ -365,7 +369,19 @@ Each project has a cap in dollars, set when the project is created, with a defau
 
 **Other limits.** Every engine call also carries a turn limit, because the SDK has no overall timeout (verified). The owner sets a monthly spending limit in the Anthropic Console as the outer cap. The plan's monthly API credits ($100 on Max, $200 on Ultra, verified) are spent first.
 
-**State of the code.** The gateway built on 11 November 2026 (`evidence/2026-11-11-skeleton-1/`) implements an earlier version of this: serialised check, in-flight calls counted, but with the next call estimated from recent history instead of bounded from the request, holds kept in memory, and no step hold. It is brought in line with this section before the engine adapter uses it (gaps 20 and 21).
+**The two invariants** that every failure test must show at every moment (build plan, package 1.4): recorded spend plus open holds is never above the approved cap; and recorded spend plus open holds is never below what the provider was owed. No settled call costs more than its hold.
+
+**State of the code.** The gateway built on 11 November 2026 (`evidence/2026-11-11-skeleton-1/`) implements an earlier version of this: serialised check, in-flight calls counted, but with the next call estimated from recent history instead of bounded from the request, holds kept in memory, and no step hold. It is brought in line with this section before the engine adapter uses it (gaps 20 and 21; build plan packages 1.2 to 1.5).
+
+**Amendments to this section, 11 November 2026** (approved by the owner through `docs/BUILD-PLAN.md`, package 1.1; recorded in `docs/DECISIONS.md`):
+
+| | Amendment | Where it now stands |
+| --- | --- | --- |
+| (a) | A call cut off part-way keeps its full hold and is marked unreconciled, because the output count arrives late in the stream. The earlier text settled such a call with the usage seen so far | Step 3 of the life of a hold |
+| (b) | If the prompt cannot be counted, the call is refused. The earlier text estimated from the request's size | The hold table, "Input" |
+| (c) | The hold allows for fast mode and the long-prompt rate when either could apply, not only when the request asks for them | The hold table, "Input" and "Fast mode" |
+| (d) | A successful answer whose usage cannot be read keeps its full hold and is marked unreconciled | Step 2 of the life of a hold |
+| (e) | If a finished call cannot be saved, its hold stays open, the project is frozen, and no further call is made until the owner reconciles it | Step 5 of the life of a hold |
 
 ---
 
@@ -429,7 +445,12 @@ The thinnest path from a fixed brief to a running app with one acceptance check 
 | Every model call goes through the gateway and is metered | The gateway's usage rows match the SDK's reported usage for each call |
 | The cap holds before a call, not after | For every call: the `hold.opened` event with its worst-case amount and the `hold.settled` event with the actual cost, actual never above the hold. A run with the cap set below the second step's budget, refused at the pre-step check with the message shown. A run with the cap set between the step budget and one call's hold, refused at the call with the message shown |
 | The cap holds for calls in flight at the same time | Several calls sent at once against a cap with room for one: exactly one forwarded, the rest refused, spend plus holds never above the cap, from the event log |
-| Interrupted and expired holds release no money on a guess | One call cut off mid-stream, settled with the usage seen and marked incomplete; one call with no answer at all, settled at its full hold and marked unreconciled; one hold driven past its deadline, settled at its full amount and marked expired; a gateway restart with a hold open, the hold found and settled. Each from the event log |
+| Interrupted and expired holds release no money on a guess | One call cut off mid-stream after output began, its hold kept in full and marked unreconciled, the usage seen recorded for information only (amendment a); one call with no answer at all, the same; one hold driven past its deadline, kept at its full amount and marked expired; a gateway restart with a hold open, the hold found and kept. Each from the event log |
+| A prompt that cannot be counted is refused | A request sent while the token-counting path is made to fail: refused with the reason named, no hold opened, nothing forwarded (amendment b) |
+| The hold covers fast mode and the long-prompt rate | For a model with a long-prompt rate and a profile that allows fast mode, the `hold.opened` amount equals the worst case at the fast and long-prompt rates, shown beside the arithmetic (amendment c) |
+| A successful answer that cannot be read keeps its hold | The stand-in provider answers 200 with no usage block: the hold is kept in full and the call marked unreconciled (amendment d) |
+| A finished call that cannot be saved freezes the project | The event log made to refuse the write after the provider answered: the hold stays open, the project is marked frozen, the next call is refused with the reason named, a fault is raised (amendment e; package 1.4). The second half, the project running again after a recorded reconciliation, is shown with package 1.5, and 1.4's evidence says so rather than reporting the freeze as the whole row |
+| The two invariants hold throughout | For every failure test, a trace of recorded spend plus open holds against the cap and against what the provider was owed, never above the first and never below the second |
 | The acceptance check is independent | The check's generation log shows its inputs: app spec and app address only. The engine container's mounts, listed by the container runtime, show no acceptance mount. The project's git history, listed, shows no acceptance file before the export commit. The runner container's mounts show the store folder read-only and no workspace |
 | The export runs alone, with its tests | The app started from the export with the builder stopped; the exported repository's history shows `acceptance/` arriving in the export commit; the check passing against the exported app from the exported copy |
 | The development machine suffices | Wall-clock time of the whole run, memory peak, and disk used |
