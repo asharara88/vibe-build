@@ -2,7 +2,9 @@
 
 Read this first in every session. Update it before every session ends. Nothing else carries over between sessions.
 
-**Last updated:** 11 November 2026, walking skeleton increment 1 (gateway, event log, app spec).
+**Last updated:** 11 November 2026, after the owner's three corrections to the design note.
+
+- **Design note corrected on the owner's instruction (11 Nov 2026):** acceptance tests never in the engine's container, stored outside the project's working copy and git history, joining the app at export; the budget cap by worst-case holds with a pre-step check; the Codex SDK recorded as the second engine. `docs/DECISIONS.md` records that the approval stands subject to these corrections. **Consequence for the code:** the gateway's cap must be rebuilt to the holds design (gaps 20 and 21) before the engine adapter uses it; no acceptance code existed, so nothing is undone there (gap 34).
 
 ## Current state
 
@@ -33,8 +35,9 @@ At the end of the session a one-page test server was started inside the session 
 ## Next step
 
 1. Increment 3, part two: the Django template, once the owner answers the LGPL question (`docs/OPEN-DECISIONS.md` item 10). If declined, Decision D is settled on the TypeScript candidate without a measurement, and the design note says so.
-2. Increment 4: the engine adapter for the Claude Agent SDK, driving the two fixed steps for example 1 through the gateway, on the TypeScript template. **Needs the model key.** Until the key exists, the adapter and its hooks can be written and tested against a stand-in.
-3. Increment 5: the acceptance runner (Playwright in its own container), the export check, and the skeleton report.
+2. Increment 4, first part: rebuild the gateway's cap to the approved holds design (design note 5.5): worst-case hold per call from the request, holds as database rows under a project-row lock, settlement to actual cost, interrupted and expired holds settled at the full amount, recovery on start-up, and the pre-step check. Evidence as listed in design note 7.2.
+3. Increment 4, second part: the engine adapter for the Claude Agent SDK, driving the two fixed steps for example 1 through the gateway, on the TypeScript template. **Needs the model key.** Until the key exists, the adapter and its hooks can be written and tested against a stand-in.
+4. Increment 5: the acceptance store and runner to the corrected design (design note 2.7: store outside the workspace, runner-only mount, tests join the app at export), the export check, and the skeleton report.
 
 ## Blocked, and on whom
 
@@ -49,6 +52,7 @@ At the end of the session a one-page test server was started inside the session 
 
 | Date | What was done |
 | --- | --- |
+| 11 Nov 2026 (corrections) | The owner's three corrections made in the design note; decisions, known gaps 8, 12, 20, 21, 33, 34 and this file brought up to date. No code changed |
 | 11 Nov 2026 (skeleton 3a) | TypeScript house template built and run in the sandbox with screenshots. Django template held pending the LGPL exception. Known gaps 28 to 31 |
 | 11 Nov 2026 (skeleton 2) | Reviewer's gateway findings fixed. Egress proxy and sandbox manager built with tests and a live run. Known gaps 20 to 26 added. Pull request #2 updated |
 | 11 Nov 2026 (skeleton 1) | Pull request #1 merged. Builder project created in TypeScript. App spec, event log and gateway built with tests and evidence. Pull request #2 opened |
