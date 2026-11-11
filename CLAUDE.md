@@ -12,6 +12,7 @@ This repository holds **the builder**: a system that turns a plain-language busi
 1. Read `docs/STATUS.md`. If it does not exist yet, read `HANDOVER.md` in full.
 2. Before you start, say in two or three plain sentences what you are about to do and what the owner will see at the end.
 3. Before you end, update `docs/STATUS.md`: what was done, what was verified and how, what is next, what is blocked and on whom. Nothing else carries over between sessions.
+4. Then follow `docs/BUILD-PLAN.md`, section 3.
 
 ## The owner
 
