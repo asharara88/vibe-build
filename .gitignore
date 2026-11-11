@@ -1,0 +1,31 @@
+# Secrets and local settings. Never commit keys.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Dependencies and build output
+node_modules/
+dist/
+build/
+.next/
+.cache/
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Test and run artefacts
+coverage/
+test-results/
+playwright-report/
+*.log
+tmp/
+.tmp/
+
+# Editors and operating systems
+.DS_Store
+.idea/
+.vscode/
+*.swp
