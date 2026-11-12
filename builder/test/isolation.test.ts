@@ -201,13 +201,13 @@ describe("isolation probe: live, the engine container (development profile)", ()
     const report = parseProbeOutput(lines);
     expect(report.problems).toEqual([]);
     expect(report.ended).toBe(true);
+    // First, and all at once: every attempt that got an answer of any kind. There must be none.
+    expect(report.attempts.filter((a) => gotAnswer(a.result)).map((a) => `${a.id} ${a.target}: ${a.result}`)).toEqual([]);
+    expect(report.attempts.filter((a) => a.toward === "outside").length).toBeGreaterThanOrEqual(13);
     // Nothing listens inside a container with no network, so the probe adds no attempt of its own.
     expect(report.attempts.map((a) => a.id)).toEqual(planAttempts(parseSettings(settings)).map((a) => a.id));
     expect(report.info.find((i) => i.name === "network interfaces")?.value).toMatch(/^lo \([^;]*\)$/);
     expect(report.info.find((i) => i.name === "a copy of the session certificate inside")?.value).toBe("none");
-    const outside = report.attempts.filter((a) => a.toward === "outside");
-    expect(outside.length).toBeGreaterThanOrEqual(13);
-    for (const a of report.attempts) expect(gotAnswer(a.result), `${a.id} ${a.target}: ${a.result}`).toBe(false);
     const left = await run("docker", ["ps", "-a", "--filter", `name=${sb.projectName}-isolation-engine`, "--format", "{{.Names}}"], { env: dockerEnv(sb) });
     expect(left.stdout.trim()).toBe("");
   }, 180_000);
