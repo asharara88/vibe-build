@@ -13,6 +13,19 @@ ROOT = Path(__file__).resolve().parents[2]
 EN = ROOT / "templates/next/messages/en.json"
 AR = ROOT / "templates/next/messages/ar.json"
 OUT = ROOT / "docs/arabic-wording-list.md"
+# Package 2.1: the scripted engine's fixed changes carry message files of their own (whole files that
+# replace the template's in a project's workspace). Their new and changed texts are listed too.
+SCRIPTED = ROOT / "builder/scripted/example-1"
+
+# A sentence as the app shows it, where part of it comes from the date formatter rather than the message
+# files, so the tables do not show it whole (second review of package 2.1). Copied from the screenshot
+# named; the same text comes out of the formatter with the page's options.
+AS_SHOWN = [
+    ("leave.sent_on", "Sent on {when}", "أُرسل في {when}",
+     "evidence/2026-11-12-package-2.1/screens/06-scripted-my-requests-waiting-ar.png",
+     "أُرسل في 12 نوفمبر 2026 في 17:12 UTC", "12 نوفمبر 2026 في 17:12 UTC",
+     "builder/scripted/example-1/02-submitter-screen/files/src/app/[locale]/my-requests/page.tsx, line 31"),
+]
 
 # Wording changes suggested by review, for the owner to accept or reject. They are not applied to the
 # template here: they wait on the owner.
@@ -33,6 +46,14 @@ def flat(d, prefix=""):
         else:
             out[key] = v
     return out
+
+
+def scripted_messages():
+    steps = sorted(d for d in SCRIPTED.iterdir() if (d / "files/messages/en.json").exists())
+    last = steps[-1]
+    sen = flat(json.loads((last / "files/messages/en.json").read_text(encoding="utf-8")))
+    sar = flat(json.loads((last / "files/messages/ar.json").read_text(encoding="utf-8")))
+    return last.name, sen, sar
 
 
 def main():
@@ -72,7 +93,23 @@ def main():
           "- The sample-data banner appears on every page of every generated app in Stage 1 and must stay (house standard: sample data is labelled as sample data).",
           "- The app's name, `Internal app` / `تطبيق داخلي`, is a placeholder until a project names its app.",
           "- Messages for later features (confirmation before anything destructive, numbers with their source and period) are already translated so they are ready when those screens appear.",
-          "", "## Record", "",
+          ""]
+    step, sen, sar = scripted_messages()
+    changed = [k for k in sen if k not in en or sen[k] != en[k] or sar.get(k) != ar.get(k)]
+    s_missing = [k for k in sen if k not in sar] + [k for k in sar if k not in sen]
+    L += ["## Texts the scripted engine adds (package 2.1)", "",
+          f"The scripted engine is a stand-in for the AI builder: it writes the same fixed changes every time, for test example 1 (leave requests), and calls no model. Its changes carry their own copies of the two message files. These are the texts in its last step's copies (`builder/scripted/example-1/{step}/files/messages/`) that are new or different from the template's: {len(changed)} of them. Missing in either language: {len(s_missing)}. They were written by Claude Code; nobody who reads Arabic has checked them yet. The first row is the sentence added to the sample-data banner, which every screen of an app built by the scripted engine shows. A pair of tags such as `<bdi>…</bdi>` is not shown on screen: it marks text the person typed, which the app keeps apart so that it reads in its own direction; the tags must stay as they are in both languages.",
+          "", "| Key | English | Arabic |", "| --- | --- | --- |"]
+    # Tags are written so that they show in the document instead of being read as HTML.
+    esc = lambda v: str(v).replace("<", "&lt;").replace(">", "&gt;")
+    for k in changed:
+        L.append(f"| `{k}` | {esc(sen[k])} | {esc(sar[k]) if k in sar else '**missing**'} |")
+    L += ["", "## A sentence as shown on screen (package 2.1)", "",
+          "Part of this sentence is not in the message files, so the table above does not show it whole. Only the words around `{when}` come from the message files; what replaces `{when}` is made by the date formatter built into the app's server, from the date and time the request was sent: the day, the month's name, the year, the second \"في\" (at), the time and \"UTC\" in Latin letters. Nobody who reads Arabic has checked it; the repeated \"في\" and the Latin \"UTC\" are the points to look at. A change to the formatter's part is made in the page's code, not in the message files.",
+          "", "| Key | Message (English / Arabic) | As shown on screen | Made by the date formatter | Seen on | Formatter set at |", "| --- | --- | --- | --- | --- | --- |"]
+    for key, men, mar, where, shown, part, at in AS_SHOWN:
+        L.append(f"| `{key}` | {men} / {mar} | {shown} | {part} | `{where}` | `{at}` |")
+    L += ["", "## Record", "",
           f"Generated on {today} by `docs/tools/arabic-wording-list.py`. Keys compared one by one: {len(en)} English, {len(ar)} Arabic, {len(missing_ar) + len(missing_en)} missing in either direction. Empty messages in either language: {len(empty)}. Messages whose Arabic is identical to the English: {len(same)}" + (" (" + ", ".join(f"`{k}`" for k in same) + "; the language's own name is shown in its own language on purpose, so a reader who cannot read Arabic can find the switch)." if same else ".")]
     OUT.write_text("\n".join(L) + "\n", encoding="utf-8")
     print(f"wrote {OUT.relative_to(ROOT)}: {len(en)} en, {len(ar)} ar, missing {len(missing_ar)}/{len(missing_en)}")

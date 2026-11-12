@@ -1,0 +1,395 @@
+# The tests of this round run against the code before it: builder/src/engine/scripted.ts and project-repo.ts of commit cc322e2 put in place for the run, the test file of this round (as committed in 727b8b9, but for two code comments reworded after these runs), then the files of this round put back.
+# Run 1, the whole file: npx vitest run test/scripted-engine.test.ts --reporter=verbose (TMPDIR set to a scratch folder). The four live failures after the renamed-folder test follow from it: its folder was not put back, so the next tests found protected files missing.
+
+ RUN  v5.1.0 <checkout>/builder
+
+ ✓ test/scripted-engine.test.ts > scripted engine: the fixed change sets of example 1 > has the two steps of the design note's slice, in order 3ms
+ ✓ test/scripted-engine.test.ts > scripted engine: the fixed change sets of example 1 > each copy matches its fingerprint; each add is a file not there yet; each replace names the fingerprint of the file the step finds (the template's, or the previous step's) 3ms
+ ✓ test/scripted-engine.test.ts > scripted engine: the fixed change sets of example 1 > no path is protected, outside the workspace, under certs/ or hidden 1ms
+ ✓ test/scripted-engine.test.ts > scripted engine: the fixed change sets of example 1 > every protected path is a plain file in the template 1ms
+ ✓ test/scripted-engine.test.ts > scripted engine: the fixed change sets of example 1 > every code file written starts with "Written by the scripted engine (fixed change …). No AI model wrote this." 1ms
+ ✓ test/scripted-engine.test.ts > scripted engine: the fixed change sets of example 1 > after each step the banner says, in both languages, that the scripted engine built the app; English and Arabic have the same messages 2ms
+ ✓ test/scripted-engine.test.ts > scripted engine: the fixed change sets of example 1 > the leave-request statuses are exactly the example spec's, with waiting as the default 1ms
+ ✓ test/scripted-engine.test.ts > scripted engine: the fixed change sets of example 1 > the change sets hold nothing but the applier, the manifests and the files they list 1ms
+ ✓ test/scripted-engine.test.ts > scripted engine: the fixed change sets of example 1 > the applier uses nothing but Node's own modules 1ms
+ ✓ test/scripted-engine.test.ts > scripted engine: the engine service in the compose file > server profile: no network, no settings, the hardening, user node, and exactly three mounts 2ms
+ ✓ test/scripted-engine.test.ts > scripted engine: the engine service in the compose file > development-cloud-session profile: no network, no settings, the hardening, user node, and exactly three mounts 1ms
+ ✓ test/scripted-engine.test.ts > scripted engine: the engine service in the compose file > there is no engine service unless the sandbox asks for one 0ms
+ ✓ test/scripted-engine.test.ts > scripted engine: the engine service in the compose file > Docker Compose accepts the file; the empty folder is made; up refuses the engine service 91ms
+ ✓ test/scripted-engine.test.ts > scripted engine: the class, against a stand-in runner (no container, no model) > a step that runs: name scripted, its events, zero usage, turns = files written, and a commit labelled [scripted] by the scripted engine 255ms
+ ✓ test/scripted-engine.test.ts > scripted engine: the class, against a stand-in runner (no container, no model) > the turn limit: the container is told it; a limit line ends the step as failed with 'turn limit reached'; nothing is committed 180ms
+ ✓ test/scripted-engine.test.ts > scripted engine: the class, against a stand-in runner (no container, no model) > an unknown step fails before any container is started 88ms
+ ✓ test/scripted-engine.test.ts > scripted engine: the class, against a stand-in runner (no container, no model) > a write to a protected path refused by the applier becomes a 'blocked' event and a failed step 122ms
+ ✓ test/scripted-engine.test.ts > scripted engine: the class, against a stand-in runner (no container, no model) > a file the change does not name, or one git ignores, fails the step and is reported; nothing is committed 343ms
+ ✓ test/scripted-engine.test.ts > scripted engine: the class, against a stand-in runner (no container, no model) > stop() kills the running container and resolves only once the step has ended 'stopped' 164ms
+ ✓ test/scripted-engine.test.ts > scripted engine: the class, against a stand-in runner (no container, no model) > stop() asked for while the step is being prepared: no container is started, and stop() resolves once the step has ended 174ms
+ ✓ test/scripted-engine.test.ts > scripted engine: the class, against a stand-in runner (no container, no model) > a runner that reports a time limit or a failing event handler ends the step as failed, saying so 157ms
+ ✓ test/scripted-engine.test.ts > scripted engine: the class, against a stand-in runner (no container, no model) > an event handler that throws before the container is asked for fails the step; no container is started 99ms
+ ✓ test/scripted-engine.test.ts > scripted engine: the class, against a stand-in runner (no container, no model) > entries git cannot see (a .git at the top, a .git in a folder git tracks, a .GIT, a named pipe, a nested repository) fail the step and are reported; nothing is committed; the reset leaves nothing 592ms
+ ✓ test/scripted-engine.test.ts > scripted engine: the class, against a stand-in runner (no container, no model) > a step does not start on a workspace that holds an entry git cannot see; the walk follows no link 103ms
+ ✓ test/scripted-engine.test.ts > scripted engine: the class, against a stand-in runner (no container, no model) > the reset: a nested repository and a named pipe are removed, nothing is left; what cannot be put back is returned 192ms
+ ✓ test/scripted-engine.test.ts > scripted engine: the class, against a stand-in runner (no container, no model) > a step does not start on a workspace with changes that are not committed, or when a protected path is missing 149ms
+ × test/scripted-engine.test.ts > scripted engine: the class, against a stand-in runner (no container, no model) > an async event handler whose promise rejects before the container is asked for fails the step; no container is asked for 162ms
+   → expected { ok: true, …(3) } to match object { ok: false, …(2) }
+(8 matching properties omitted from actual)
+ × test/scripted-engine.test.ts > scripted engine: the class, against a stand-in runner (no container, no model) > an ignored symbolic link that is pointed elsewhere counts as a change: the step fails, nothing is committed, and the reset reports it 189ms
+   → expected { ok: true, …(3) } to match object { ok: false, …(1) }
+(9 matching properties omitted from actual)
+ × test/scripted-engine.test.ts > scripted engine: the class, against a stand-in runner (no container, no model) > a folder tree deeper than the machine's path limit: the step fails saying the workspace could not be checked, nothing is committed; the reset cannot put it back (known gap 58) 223ms
+   → ENAMETOOLONG: name too long, lstat '<scratch>/builder-scripted-unit-QUWMOP/workspace/d2345678901234567890/[… the same folder name, 300 levels in all …]'
+ ✓ test/scripted-engine.test.ts > scripted engine: live, in the engine container (development profile) > set-up: a fresh copy of the template, its history outside it, owned by the engine's user 66ms
+ ✓ test/scripted-engine.test.ts > scripted engine: live, in the engine container (development profile) > stop() part-way: the container is killed and removed, and the workspace is put back 2549ms
+ ✓ test/scripted-engine.test.ts > scripted engine: live, in the engine container (development profile) > stop() asked for while the step is being prepared: no engine container is started, and the workspace is unchanged 44ms
+ ✓ test/scripted-engine.test.ts > scripted engine: live, in the engine container (development profile) > a step that runs past its time limit: the container is killed and removed, and the step fails saying so 2203ms
+ ✓ test/scripted-engine.test.ts > scripted engine: live, in the engine container (development profile) > an event handler that throws while the container runs: the builder goes on, the container is killed and removed, and the step fails saying so 2082ms
+ ✓ test/scripted-engine.test.ts > scripted engine: live, in the engine container (development profile) > applies both fixed steps in the engine container; each is committed as [scripted] by the scripted engine, with zero usage 923ms
+ ✓ test/scripted-engine.test.ts > scripted engine: live, in the engine container (development profile) > a protected path: the applier refuses to write it (a 'blocked' event), and the read-only mount refuses a write in place (EROFS), which is all a mount over a file stops (next test) 796ms
+ × test/scripted-engine.test.ts > scripted engine: live, in the engine container (development profile) > a protected file replaced through a renamed folder, or its folder moved aside and replaced by a link to the moved copy: the read-only mount over the file does not stop it; the check after the step does (the step fails, nothing is committed, one reset puts the folder back) 913ms
+   → expected [ 'src/lib/access.ts', …(1) ] to deeply equal []
+ × test/scripted-engine.test.ts > scripted engine: live, in the engine container (development profile) > a step that plants .git folders and a named pipe beside its own file: the walk sees them though git does not, the step fails, nothing is committed, the reset removes them 9ms
+   → expected 'D src/lib/access.ts\n D src/lib/roles…' to be '?? src/note-c.ts' // Object.is equality
+ × test/scripted-engine.test.ts > scripted engine: live, in the engine container (development profile) > the applier's refusals, in the engine container: a wrong fingerprint for a replace (nothing written, though the entry before it was sound), an add over an existing file, a path outside the workspace, a path through a link; and the applier does not start outside /engine or without a workspace 2ms
+   → The mount source "<scratch>/builder-engine-live-mDOWXB/workspace/src/lib/roles.tsx" does not exist; nothing is created for it.
+ × test/scripted-engine.test.ts > scripted engine: live, in the engine container (development profile) > the turn limit inside the applier: with a limit of 1 it writes one file and stops; the step fails 'turn limit reached'; nothing is committed; the reset puts it back 6ms
+   → expected { ok: false, changedFiles: [], …(3) } to match object { ok: false, …(3) }
+(7 matching properties omitted from actual)
+ ✓ test/scripted-engine.test.ts > scripted engine: live, in the engine container (development profile) > runStreaming: a line handler that throws does not bring the builder down; the container is killed and removed, and the run ends carrying the error 422ms
+ × test/scripted-engine.test.ts > scripted engine: live, in the engine container (development profile) > an event handler that fails asynchronously (its promise rejects) while the container runs: no rejection is left unhandled, the container is killed and removed, and the step fails saying so 5ms
+   → expected { ok: false, changedFiles: [], …(3) } to match object { ok: false, …(3) }
+(7 matching properties omitted from actual)
+ ✓ test/scripted-engine.test.ts > scripted engine: live, in the engine container (development profile) > inside the engine container: user node, no settings of its own, no network but loopback, an empty certs folder, the change sets read-only 377ms
+ ✓ test/scripted-engine.test.ts > scripted engine: live, in the engine container (development profile) > removing the project also removes an engine container whose run was cut off 10537ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 8 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/scripted-engine.test.ts > scripted engine: the class, against a stand-in runner (no container, no model) > an async event handler whose promise rejects before the container is asked for fails the step; no container is asked for
+AssertionError: expected { ok: true, …(3) } to match object { ok: false, …(2) }
+(8 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "failureReason": "handling the step's events failed: made-up failure in an async event handler",
+-   "ok": false,
+-   "turns": 0,
++   "ok": true,
++   "turns": 4,
+  }
+
+ ❯ test/scripted-engine.test.ts:534:17
+    532|       if (e.type === "text") throw new Error("made-up failure in an as…
+    533|     });
+    534|     expect(res).toMatchObject({ ok: false, failureReason: "handling th…
+       |                 ^
+    535|     expect(r.calls).toEqual([]);
+    536|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/8]⎯
+
+ FAIL  test/scripted-engine.test.ts > scripted engine: the class, against a stand-in runner (no container, no model) > an ignored symbolic link that is pointed elsewhere counts as a change: the step fails, nothing is committed, and the reset reports it
+AssertionError: expected { ok: true, …(3) } to match object { ok: false, …(1) }
+(9 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "failureReason": "files changed that git ignores, so the history would not show them: node_modules/.bin/tool",
+-   "ok": false,
++   "ok": true,
+  }
+
+ ❯ test/scripted-engine.test.ts:554:17
+    552|     });
+    553|     const res = await engineWith(r).runStep(step("01-data"), () => und…
+    554|     expect(res).toMatchObject({ ok: false, failureReason: "files chang…
+       |                 ^
+    555|     expect(res.changedFiles).toContain("node_modules/.bin/tool");
+    556|     expect(await git(repo, ["rev-parse", "HEAD"])).toBe(head);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/8]⎯
+
+ FAIL  test/scripted-engine.test.ts > scripted engine: the class, against a stand-in runner (no container, no model) > a folder tree deeper than the machine's path limit: the step fails saying the workspace could not be checked, nothing is committed; the reset cannot put it back (known gap 58)
+Error: ENAMETOOLONG: name too long, lstat '<scratch>/builder-scripted-unit-QUWMOP/workspace/d2345678901234567890/[… the same folder name, 300 levels in all …]'
+ ❯ walk src/engine/project-repo.ts:119:18
+    117|     for (const name of readdirSync(rel === "" ? workTree : join(workTr…
+    118|       const path = rel === "" ? name : `${rel}/${name}`;
+    119|       const st = lstatSync(join(workTree, path), { throwIfNoEntry: fal…
+       |                  ^
+    120|       if (name.toLowerCase() === ".git") out.push({ path, what: "named…
+    121|       else if (!st) out.push({ path, what: "an entry whose name could …
+ ❯ walk src/engine/project-repo.ts:122:34
+ ❯ walk src/engine/project-repo.ts:122:34
+ ❯ walk src/engine/project-repo.ts:122:34
+ ❯ walk src/engine/project-repo.ts:122:34
+ ❯ walk src/engine/project-repo.ts:122:34
+ ❯ walk src/engine/project-repo.ts:122:34
+ ❯ walk src/engine/project-repo.ts:122:34
+ ❯ walk src/engine/project-repo.ts:122:34
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+Serialized Error: { errno: -36, code: 'ENAMETOOLONG', syscall: 'lstat', path: '<scratch>/builder-scripted-unit-QUWMOP/workspace/d2345678901234567890/[… the same folder name, 300 levels in all …]' }
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/8]⎯
+
+ FAIL  test/scripted-engine.test.ts > scripted engine: live, in the engine container (development profile) > a protected file replaced through a renamed folder, or its folder moved aside and replaced by a link to the moved copy: the read-only mount over the file does not stop it; the check after the step does (the step fails, nothing is committed, one reset puts the folder back)
+AssertionError: expected [ 'src/lib/access.ts', …(1) ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   "src/lib/access.ts",
++   "src/lib/roles.tsx",
++ ]
+
+ ❯ test/scripted-engine.test.ts:825:58
+    823|     expect(await git(repo, ["rev-parse", "HEAD"])).toBe(head);
+    824|     // One reset puts the folder back: what is new (the link, the move…
+    825|     expect((await resetToLastCommit(repo)).unrestorable).toEqual([]);
+       |                                                          ^
+    826|     expect(await workspaceChanges(repo)).toEqual(CLEAN);
+    827|     expect(lstatSync(join(workspace, "src", "lib")).isDirectory()).toB…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/8]⎯
+
+ FAIL  test/scripted-engine.test.ts > scripted engine: live, in the engine container (development profile) > a step that plants .git folders and a named pipe beside its own file: the walk sees them though git does not, the step fails, nothing is committed, the reset removes them
+AssertionError: expected 'D src/lib/access.ts\n D src/lib/roles…' to be '?? src/note-c.ts' // Object.is equality
+
+- Expected
++ Received
+
+- ?? src/note-c.ts
++ D src/lib/access.ts
++  D src/lib/roles.tsx
+
+ ❯ test/scripted-engine.test.ts:849:90
+    847|     // git itself lists only the note.
+    848|     const res = await engine.runStep(stepOf("01-note"), () => undefine…
+    849|     expect((await git(repo, ["status", "--porcelain", "--untracked-fil…
+       |                                                                                          ^
+    850|     expect(res).toMatchObject({
+    851|       ok: false,
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/8]⎯
+
+ FAIL  test/scripted-engine.test.ts > scripted engine: live, in the engine container (development profile) > the applier's refusals, in the engine container: a wrong fingerprint for a replace (nothing written, though the entry before it was sound), an add over an existing file, a path outside the workspace, a path through a link; and the applier does not start outside /engine or without a workspace
+Error: The mount source "<scratch>/builder-engine-live-mDOWXB/workspace/src/lib/roles.tsx" does not exist; nothing is created for it.
+ ❯ Object.runStreaming src/sandbox/manager.ts:526:63
+    524|     const source = v.split(":")[0] ?? "";
+    525|     // The short form of a mount would create a missing source as an e…
+    526|     if (!source.startsWith("/") || !existsSync(source)) throw new Erro…
+       |                                                               ^
+    527|   }
+    528|   const env = dockerEnv(sb);
+ ❯ inEngine test/scripted-engine.test.ts:610:23
+ ❯ applier test/scripted-engine.test.ts:864:41
+ ❯ test/scripted-engine.test.ts:875:27
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/8]⎯
+
+ FAIL  test/scripted-engine.test.ts > scripted engine: live, in the engine container (development profile) > the turn limit inside the applier: with a limit of 1 it writes one file and stops; the step fails 'turn limit reached'; nothing is committed; the reset puts it back
+AssertionError: expected { ok: false, changedFiles: [], …(3) } to match object { ok: false, …(3) }
+(7 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "changedFiles": [
+-     "notes/a.txt",
+-   ],
+-   "failureReason": "turn limit reached",
++   "changedFiles": [],
++   "failureReason": "the protected path \"src/lib/roles.tsx\" does not exist in the workspace, so it cannot be mounted read-only",
+    "ok": false,
+-   "turns": 1,
++   "turns": 0,
+  }
+
+ ❯ test/scripted-engine.test.ts:911:17
+    909|     const head = await git(repo, ["rev-parse", "HEAD"]);
+    910|     const res = await engine.runStep(stepOf("06-two-files", 1), () => …
+    911|     expect(res).toMatchObject({ ok: false, failureReason: "turn limit …
+       |                 ^
+    912|     expect(await git(repo, ["rev-parse", "HEAD"])).toBe(head);
+    913|     expect((await resetToLastCommit(repo)).unrestorable).toEqual([]);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/8]⎯
+
+ FAIL  test/scripted-engine.test.ts > scripted engine: live, in the engine container (development profile) > an event handler that fails asynchronously (its promise rejects) while the container runs: no rejection is left unhandled, the container is killed and removed, and the step fails saying so
+AssertionError: expected { ok: false, changedFiles: [], …(3) } to match object { ok: false, …(3) }
+(7 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "changedFiles": [
+-     "notes/a.txt",
+-   ],
+-   "failureReason": "handling the step's events failed, so the engine container was stopped: made-up failure in an async event handler",
++   "changedFiles": [],
++   "failureReason": "the protected path \"src/lib/roles.tsx\" does not exist in the workspace, so it cannot be mounted read-only",
+    "ok": false,
+-   "turns": 1,
++   "turns": 0,
+  }
+
+ ❯ test/scripted-engine.test.ts:951:19
+    949|         }
+    950|       });
+    951|       expect(res).toMatchObject({
+       |                   ^
+    952|         ok: false,
+    953|         failureReason: "handling the step's events failed, so the engi…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/8]⎯
+
+⎯⎯⎯⎯⎯⎯ Unhandled Errors ⎯⎯⎯⎯⎯⎯
+
+Vitest caught 2 unhandled errors during the test run.
+This might cause false positive tests. Resolve unhandled errors to make sure your tests are not affected.
+
+⎯⎯⎯⎯ Unhandled Rejection ⎯⎯⎯⎯⎯
+Error: made-up failure in an async event handler
+ ❯ test/scripted-engine.test.ts:532:36
+    530|     const r = new StandInRunner(repo.workTree, (s) => applierLines(s));
+    531|     const res = await engineWith(r).runStep(step("01-data"), async (e)…
+    532|       if (e.type === "text") throw new Error("made-up failure in an as…
+       |                                    ^
+    533|     });
+    534|     expect(res).toMatchObject({ ok: false, failureReason: "handling th…
+ ❯ emit src/engine/scripted.ts:188:9
+ ❯ ScriptedEngine.run src/engine/scripted.ts:197:5
+ ❯ ScriptedEngine.runStep src/engine/scripted.ts:154:26
+ ❯ test/scripted-engine.test.ts:531:37
+ ❯ node_modules/vitest/dist/chunks/run.CjdgFZiW.js:1632:35
+ ❯ node_modules/vitest/dist/chunks/run.CjdgFZiW.js:2801:26
+ ❯ node_modules/vitest/dist/chunks/run.CjdgFZiW.js:3338:20
+ ❯ runWithCancel node_modules/vitest/dist/chunks/run.CjdgFZiW.js:3333:10
+
+This error originated in "test/scripted-engine.test.ts" test file. It doesn't mean the error was thrown inside the file itself, but while it was running.
+The last test to run before this error was "an async event handler whose promise rejects before the container is asked for fails the step; no container is asked for". This means either:
+- the error was thrown while Vitest was running this test, or
+- the error was thrown after the test completed, and this was the most recent test at that point.
+
+⎯⎯⎯⎯ Unhandled Rejection ⎯⎯⎯⎯⎯
+Error: made-up failure in an async event handler
+ ❯ test/scripted-engine.test.ts:532:36
+    530|     const r = new StandInRunner(repo.workTree, (s) => applierLines(s));
+    531|     const res = await engineWith(r).runStep(step("01-data"), async (e)…
+    532|       if (e.type === "text") throw new Error("made-up failure in an as…
+       |                                    ^
+    533|     });
+    534|     expect(res).toMatchObject({ ok: false, failureReason: "handling th…
+ ❯ Object.onLine src/engine/scripted.ts:250:9
+ ❯ Timeout._onTimeout test/scripted-engine.test.ts:267:37
+ ❯ listOnTimeout node:internal/timers:585:17
+ ❯ process.processTimers node:internal/timers:521:7
+
+This error originated in "test/scripted-engine.test.ts" test file. It doesn't mean the error was thrown inside the file itself, but while it was running.
+The last test to run before this error was "an async event handler whose promise rejects before the container is asked for fails the step; no container is asked for". This means either:
+- the error was thrown while Vitest was running this test, or
+- the error was thrown after the test completed, and this was the most recent test at that point.
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+
+
+ Test Files  1 failed (1)
+      Tests  8 failed | 36 passed (44)
+     Errors  2 errors
+   Start at  17:50:19
+   Duration  24.58s (tests 100%)
+
+exit 1
+
+# Run 2, the async-handler live test alone, with the set-up test it needs: npx vitest run test/scripted-engine.test.ts --reporter=verbose -t "set-up|fails asynchronously"
+
+ RUN  v5.1.0 <checkout>/builder
+
+ ↓ test/scripted-engine.test.ts > scripted engine: the fixed change sets of example 1 > has the two steps of the design note's slice, in order
+ ↓ test/scripted-engine.test.ts > scripted engine: the fixed change sets of example 1 > each copy matches its fingerprint; each add is a file not there yet; each replace names the fingerprint of the file the step finds (the template's, or the previous step's)
+ ↓ test/scripted-engine.test.ts > scripted engine: the fixed change sets of example 1 > no path is protected, outside the workspace, under certs/ or hidden
+ ↓ test/scripted-engine.test.ts > scripted engine: the fixed change sets of example 1 > every protected path is a plain file in the template
+ ↓ test/scripted-engine.test.ts > scripted engine: the fixed change sets of example 1 > every code file written starts with "Written by the scripted engine (fixed change …). No AI model wrote this."
+ ↓ test/scripted-engine.test.ts > scripted engine: the fixed change sets of example 1 > after each step the banner says, in both languages, that the scripted engine built the app; English and Arabic have the same messages
+ ↓ test/scripted-engine.test.ts > scripted engine: the fixed change sets of example 1 > the leave-request statuses are exactly the example spec's, with waiting as the default
+ ↓ test/scripted-engine.test.ts > scripted engine: the fixed change sets of example 1 > the change sets hold nothing but the applier, the manifests and the files they list
+ ↓ test/scripted-engine.test.ts > scripted engine: the fixed change sets of example 1 > the applier uses nothing but Node's own modules
+ ↓ test/scripted-engine.test.ts > scripted engine: the engine service in the compose file > server profile: no network, no settings, the hardening, user node, and exactly three mounts
+ ↓ test/scripted-engine.test.ts > scripted engine: the engine service in the compose file > development-cloud-session profile: no network, no settings, the hardening, user node, and exactly three mounts
+ ↓ test/scripted-engine.test.ts > scripted engine: the engine service in the compose file > there is no engine service unless the sandbox asks for one
+ ↓ test/scripted-engine.test.ts > scripted engine: the engine service in the compose file > Docker Compose accepts the file; the empty folder is made; up refuses the engine service
+ ↓ test/scripted-engine.test.ts > scripted engine: the class, against a stand-in runner (no container, no model) > a step that runs: name scripted, its events, zero usage, turns = files written, and a commit labelled [scripted] by the scripted engine
+ ↓ test/scripted-engine.test.ts > scripted engine: the class, against a stand-in runner (no container, no model) > the turn limit: the container is told it; a limit line ends the step as failed with 'turn limit reached'; nothing is committed
+ ↓ test/scripted-engine.test.ts > scripted engine: the class, against a stand-in runner (no container, no model) > an unknown step fails before any container is started
+ ↓ test/scripted-engine.test.ts > scripted engine: the class, against a stand-in runner (no container, no model) > a write to a protected path refused by the applier becomes a 'blocked' event and a failed step
+ ↓ test/scripted-engine.test.ts > scripted engine: the class, against a stand-in runner (no container, no model) > a file the change does not name, or one git ignores, fails the step and is reported; nothing is committed
+ ↓ test/scripted-engine.test.ts > scripted engine: the class, against a stand-in runner (no container, no model) > stop() kills the running container and resolves only once the step has ended 'stopped'
+ ↓ test/scripted-engine.test.ts > scripted engine: the class, against a stand-in runner (no container, no model) > stop() asked for while the step is being prepared: no container is started, and stop() resolves once the step has ended
+ ↓ test/scripted-engine.test.ts > scripted engine: the class, against a stand-in runner (no container, no model) > a runner that reports a time limit or a failing event handler ends the step as failed, saying so
+ ↓ test/scripted-engine.test.ts > scripted engine: the class, against a stand-in runner (no container, no model) > an event handler that throws before the container is asked for fails the step; no container is started
+ ↓ test/scripted-engine.test.ts > scripted engine: the class, against a stand-in runner (no container, no model) > entries git cannot see (a .git at the top, a .git in a folder git tracks, a .GIT, a named pipe, a nested repository) fail the step and are reported; nothing is committed; the reset leaves nothing
+ ↓ test/scripted-engine.test.ts > scripted engine: the class, against a stand-in runner (no container, no model) > a step does not start on a workspace that holds an entry git cannot see; the walk follows no link
+ ↓ test/scripted-engine.test.ts > scripted engine: the class, against a stand-in runner (no container, no model) > the reset: a nested repository and a named pipe are removed, nothing is left; what cannot be put back is returned
+ ↓ test/scripted-engine.test.ts > scripted engine: the class, against a stand-in runner (no container, no model) > a step does not start on a workspace with changes that are not committed, or when a protected path is missing
+ ↓ test/scripted-engine.test.ts > scripted engine: the class, against a stand-in runner (no container, no model) > an async event handler whose promise rejects before the container is asked for fails the step; no container is asked for
+ ↓ test/scripted-engine.test.ts > scripted engine: the class, against a stand-in runner (no container, no model) > an ignored symbolic link that is pointed elsewhere counts as a change: the step fails, nothing is committed, and the reset reports it
+ ↓ test/scripted-engine.test.ts > scripted engine: the class, against a stand-in runner (no container, no model) > a folder tree deeper than the machine's path limit: the step fails saying the workspace could not be checked, nothing is committed; the reset cannot put it back (known gap 58)
+ ✓ test/scripted-engine.test.ts > scripted engine: live, in the engine container (development profile) > set-up: a fresh copy of the template, its history outside it, owned by the engine's user 81ms
+ ↓ test/scripted-engine.test.ts > scripted engine: live, in the engine container (development profile) > stop() part-way: the container is killed and removed, and the workspace is put back
+ ↓ test/scripted-engine.test.ts > scripted engine: live, in the engine container (development profile) > stop() asked for while the step is being prepared: no engine container is started, and the workspace is unchanged
+ ↓ test/scripted-engine.test.ts > scripted engine: live, in the engine container (development profile) > a step that runs past its time limit: the container is killed and removed, and the step fails saying so
+ ↓ test/scripted-engine.test.ts > scripted engine: live, in the engine container (development profile) > an event handler that throws while the container runs: the builder goes on, the container is killed and removed, and the step fails saying so
+ ↓ test/scripted-engine.test.ts > scripted engine: live, in the engine container (development profile) > applies both fixed steps in the engine container; each is committed as [scripted] by the scripted engine, with zero usage
+ ↓ test/scripted-engine.test.ts > scripted engine: live, in the engine container (development profile) > a protected path: the applier refuses to write it (a 'blocked' event), and the read-only mount refuses a write in place (EROFS), which is all a mount over a file stops (next test)
+ ↓ test/scripted-engine.test.ts > scripted engine: live, in the engine container (development profile) > a protected file replaced through a renamed folder, or its folder moved aside and replaced by a link to the moved copy: the read-only mount over the file does not stop it; the check after the step does (the step fails, nothing is committed, one reset puts the folder back)
+ ↓ test/scripted-engine.test.ts > scripted engine: live, in the engine container (development profile) > a step that plants .git folders and a named pipe beside its own file: the walk sees them though git does not, the step fails, nothing is committed, the reset removes them
+ ↓ test/scripted-engine.test.ts > scripted engine: live, in the engine container (development profile) > the applier's refusals, in the engine container: a wrong fingerprint for a replace (nothing written, though the entry before it was sound), an add over an existing file, a path outside the workspace, a path through a link; and the applier does not start outside /engine or without a workspace
+ ↓ test/scripted-engine.test.ts > scripted engine: live, in the engine container (development profile) > the turn limit inside the applier: with a limit of 1 it writes one file and stops; the step fails 'turn limit reached'; nothing is committed; the reset puts it back
+ ↓ test/scripted-engine.test.ts > scripted engine: live, in the engine container (development profile) > runStreaming: a line handler that throws does not bring the builder down; the container is killed and removed, and the run ends carrying the error
+ × test/scripted-engine.test.ts > scripted engine: live, in the engine container (development profile) > an event handler that fails asynchronously (its promise rejects) while the container runs: no rejection is left unhandled, the container is killed and removed, and the step fails saying so 4445ms
+   → expected { ok: true, …(3) } to match object { ok: false, …(3) }
+(7 matching properties omitted from actual)
+ ↓ test/scripted-engine.test.ts > scripted engine: live, in the engine container (development profile) > inside the engine container: user node, no settings of its own, no network but loopback, an empty certs folder, the change sets read-only
+ ↓ test/scripted-engine.test.ts > scripted engine: live, in the engine container (development profile) > removing the project also removes an engine container whose run was cut off
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/scripted-engine.test.ts > scripted engine: live, in the engine container (development profile) > an event handler that fails asynchronously (its promise rejects) while the container runs: no rejection is left unhandled, the container is killed and removed, and the step fails saying so
+AssertionError: expected { ok: true, …(3) } to match object { ok: false, …(3) }
+(7 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+    "changedFiles": [
+      "notes/a.txt",
++     "notes/b.txt",
+    ],
+-   "failureReason": "handling the step's events failed, so the engine container was stopped: made-up failure in an async event handler",
+-   "ok": false,
+-   "turns": 1,
++   "ok": true,
++   "turns": 2,
+  }
+
+ ❯ test/scripted-engine.test.ts:951:19
+    949|         }
+    950|       });
+    951|       expect(res).toMatchObject({
+       |                   ^
+    952|         ok: false,
+    953|         failureReason: "handling the step's events failed, so the engi…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 1 passed | 42 skipped (44)
+   Start at  17:51:01
+   Duration  4.85s (tests 99%, import 1%)
+
+exit 1

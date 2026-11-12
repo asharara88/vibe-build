@@ -1,0 +1,50 @@
+{
+  "example": "example-1",
+  "step": "02-submitter-screen",
+  "label": "The submitter's screen: an employee's list of their own requests, and a form to add one, with validation",
+  "files": [
+    {
+      "path": "src/app/[locale]/my-requests/rules.ts",
+      "op": "add",
+      "sha256": "d76ce93b1e679e3273ba6ce8ae07eed8b7ccfbcb74765d1eda27931a491b6de4"
+    },
+    {
+      "path": "src/app/[locale]/my-requests/page.tsx",
+      "op": "add",
+      "sha256": "ebb70ec0bd2439808e82cd8e93efefc705829f327d5bad643d3b8310d4901f7f"
+    },
+    {
+      "path": "src/app/[locale]/my-requests/new/page.tsx",
+      "op": "add",
+      "sha256": "f22909bc853cdc2a9decb4326cf8cd367e69fbbba886c42998545da4373eb70d"
+    },
+    {
+      "path": "src/app/[locale]/my-requests/new/NewRequestForm.tsx",
+      "op": "add",
+      "sha256": "6eb5d89d3b5514a506d5f38c4ee60c50f93a40b59c00c365daa117f3a2bea07d"
+    },
+    {
+      "path": "src/app/[locale]/my-requests/new/actions.ts",
+      "op": "add",
+      "sha256": "a661302f9789a15a30dcb70777b26b4598cb10f9ae3f2c3cad20a620f0494908"
+    },
+    {
+      "path": "src/app/[locale]/home/page.tsx",
+      "op": "replace",
+      "sha256": "5b885e59ccb293d7ae9de8d6a0e63e7fb8159e5a89c46779f94c4370ea06b139",
+      "expectSha256": "362aafe99af53890a64e2e67828c70cfa551b166964c54f7d25ee8a944e1e1e5"
+    },
+    {
+      "path": "messages/en.json",
+      "op": "replace",
+      "sha256": "6e858e817cfec7fe03877753c4d7f0d30fdeb1f724aec54d0c37426963815b7d",
+      "expectSha256": "a5baa4d2febeebcd453b1c6ddd91747cf87a027939dd301eed6a082cacb81b61"
+    },
+    {
+      "path": "messages/ar.json",
+      "op": "replace",
+      "sha256": "101ec54e2a632490fc1ecb2237ba24de4931a3c9d2815ffdfb7cd00a01566475",
+      "expectSha256": "1138ac8b1e73cc273d50ef9c54a1087570f1523134402b38435c729de669fdf0"
+    }
+  ]
+}

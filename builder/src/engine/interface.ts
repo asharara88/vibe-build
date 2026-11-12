@@ -34,7 +34,13 @@ export interface StepResult {
 
 export interface BuildEngine {
   readonly name: string;
-  /** Start one step. Events stream as they happen; the promise resolves when the step ends. */
+  /**
+   * Start one step. Events stream as they happen; the promise resolves when the step ends.
+   * `onEvent` may throw, or return a promise that rejects: an engine must not let either bring the
+   * builder down or leave its container running. The scripted engine then kills its container and
+   * fails the step ("handling the step's events failed …"); it does not wait for a promise the handler
+   * returns, so one that rejects after the step's commit leaves the step reported as done.
+   */
   runStep(step: StepInstruction, onEvent: (e: EngineEvent) => void): Promise<StepResult>;
   /** Stop the running step, if any. */
   stop(): Promise<void>;

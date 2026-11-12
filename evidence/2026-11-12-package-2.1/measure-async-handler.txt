@@ -1,0 +1,28 @@
+# measure-async-handler.mts, run from builder/ on 12 Nov 2026 (UTC), the same machine and Docker as the tests (Node 22.23.4).
+# 1. On the code before this round: builder/src of commit cc322e2, taken out with `git archive cc322e2 builder/src` into a scratch folder and given as the argument.
+$ npx tsx ../evidence/2026-11-12-package-2.1/measure-async-handler.mts <scratch>/old-cc322e2/builder/src
+code measured: the folder given (see the evidence file)
+child process: exit code 1 after 2.5 s
+  child: the step starts (01-data, 2 s before each write; the handler rejects 10 ms after the first write's event)
+  child's error output, first line naming an error: throw new Error("made-up failure in an async event handler");
+engine containers of the project right after the child ended: Up 2 seconds
+engine containers 2 s later: Up 4 seconds
+files differing from the last commit: ["drizzle.config.ts","src/db/app-schema.ts"]
+after removing the project: containers none
+scratch folder removed: true
+(the parent's exit code: 0)
+
+# 2. On the code of this round: this checkout's builder/src at commit 727b8b9.
+$ npx tsx ../evidence/2026-11-12-package-2.1/measure-async-handler.mts
+code measured: this checkout's builder/src
+child process: exit code 0 after 3.0 s
+  child: the step starts (01-data, 2 s before each write; the handler rejects 10 ms after the first write's event)
+  child: the step ended: {"ok":false,"failureReason":"handling the step's events failed, so the engine container was stopped: made-up failure in an async event handler","turns":1,"changedFiles":["src/db/app-schema.ts"]}
+  child: still running 0.5 s after the step ended; exits normally
+  child's error output, first line naming an error: (none)
+engine containers of the project right after the child ended: none
+engine containers 2 s later: none
+files differing from the last commit: ["src/db/app-schema.ts"]
+after removing the project: containers none
+scratch folder removed: true
+(the parent's exit code: 0)

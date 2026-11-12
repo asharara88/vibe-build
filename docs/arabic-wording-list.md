@@ -76,6 +76,56 @@ Found by fresh reviewers on 11 and 12 November 2026. Not yet applied: this packa
 - The app's name, `Internal app` / `تطبيق داخلي`, is a placeholder until a project names its app.
 - Messages for later features (confirmation before anything destructive, numbers with their source and period) are already translated so they are ready when those screens appear.
 
+## Texts the scripted engine adds (package 2.1)
+
+The scripted engine is a stand-in for the AI builder: it writes the same fixed changes every time, for test example 1 (leave requests), and calls no model. Its changes carry their own copies of the two message files. These are the texts in its last step's copies (`builder/scripted/example-1/02-submitter-screen/files/messages/`) that are new or different from the template's: 35 of them. Missing in either language: 0. They were written by Claude Code; nobody who reads Arabic has checked them yet. The first row is the sentence added to the sample-data banner, which every screen of an app built by the scripted engine shows. A pair of tags such as `<bdi>…</bdi>` is not shown on screen: it marks text the person typed, which the app keeps apart so that it reads in its own direction; the tags must stay as they are in both languages.
+
+| Key | English | Arabic |
+| --- | --- | --- |
+| `app.sample_banner` | Sample data. Everything you see here is made up. Built by the scripted engine: fixed changes, no AI model. | بيانات تجريبية. كل ما تراه هنا مُختلَق. بناه المحرّك المُبرمَج مسبقاً: تغييرات ثابتة، دون نموذج ذكاء اصطناعي. |
+| `leave.my_requests_title` | My requests | طلباتي |
+| `leave.new_request_title` | New leave request | طلب إجازة جديد |
+| `leave.new_request_link` | New leave request | طلب إجازة جديد |
+| `leave.back_to_my_requests` | Back to My requests | العودة إلى طلباتي |
+| `leave.home_link` | Back to Home | العودة إلى الرئيسية |
+| `leave.empty_title` | You have no leave requests yet | ليست لديك طلبات إجازة بعد |
+| `leave.empty_body` | When you ask for leave, your request appears here with its status. Start with a new leave request. | عندما تطلب إجازة، يظهر طلبك هنا مع حالته. ابدأ بطلب إجازة جديد. |
+| `leave.sent` | Your request was saved. Its status is Waiting. | حُفظ طلبك. حالته: قيد الانتظار. |
+| `leave.dates` | {start} to {end} | من {start} إلى {end} |
+| `leave.days_value` | Working days requested: {days} | عدد أيام العمل المطلوبة: {days} |
+| `leave.reason_value` | Reason: &lt;bdi&gt;{reason}&lt;/bdi&gt; | السبب: &lt;bdi&gt;{reason}&lt;/bdi&gt; |
+| `leave.sent_on` | Sent on {when} | أُرسل في {when} |
+| `leave.first_day` | First day of leave | أول يوم في الإجازة |
+| `leave.last_day` | Last day of leave | آخر يوم في الإجازة |
+| `leave.days` | Working days requested | عدد أيام العمل المطلوبة |
+| `leave.reason` | Reason | السبب |
+| `leave.reason_hint` | Optional. | اختياري. |
+| `leave.submit` | Submit | إرسال |
+| `leave.submitting` | Sending… | جارٍ الإرسال… |
+| `leave.status_waiting` | Waiting | قيد الانتظار |
+| `leave.status_approved` | Approved | تمت الموافقة |
+| `leave.status_rejected` | Rejected | مرفوض |
+| `leave.status_withdrawn` | Withdrawn | مسحوب |
+| `leave.problem_start_date_missing` | Enter the first day of leave. | أدخل أول يوم في الإجازة. |
+| `leave.problem_start_date_invalid` | The first day of leave is not a real date. Pick a date from the calendar. | أول يوم في الإجازة ليس تاريخاً صحيحاً. اختر تاريخاً من التقويم. |
+| `leave.problem_end_date_missing` | Enter the last day of leave. | أدخل آخر يوم في الإجازة. |
+| `leave.problem_end_date_invalid` | The last day of leave is not a real date. Pick a date from the calendar. | آخر يوم في الإجازة ليس تاريخاً صحيحاً. اختر تاريخاً من التقويم. |
+| `leave.problem_end_before_start` | The last day of leave is before the first day. Change one of them so that the last day is the same as the first day or after it. | آخر يوم في الإجازة يسبق أول يوم فيها. غيّر أحدهما بحيث يكون آخر يوم هو أول يوم نفسه أو بعده. |
+| `leave.problem_days_missing` | Enter the number of working days you are asking for. | أدخل عدد أيام العمل التي تطلبها. |
+| `leave.problem_days_not_whole` | Working days requested must be a whole number, such as 5. | يجب أن يكون عدد أيام العمل المطلوبة عدداً صحيحاً، مثل 5. |
+| `leave.problem_days_too_few` | Working days requested must be at least 1. | يجب ألا يقل عدد أيام العمل المطلوبة عن 1. |
+| `leave.problem_days_too_many` | Working days requested cannot be more than {max}, the number of calendar days from the first day of leave to the last. | لا يمكن أن يزيد عدد أيام العمل المطلوبة على {max}، وهو عدد الأيام التقويمية من أول يوم في الإجازة إلى آخر يوم فيها. |
+| `leave.problem_reason_too_long` | The reason is too long. Keep it to {max} characters or fewer. | السبب طويل جداً. اجعله {max} حرف أو أقل. |
+| `leave.save_failed` | Your request was not saved because the server had a problem. Try again in a moment; if it keeps happening, tell your administrator. | لم يُحفظ طلبك لأن الخادم واجه مشكلة. حاول بعد قليل، وإذا تكرر ذلك أخبر المسؤول. |
+
+## A sentence as shown on screen (package 2.1)
+
+Part of this sentence is not in the message files, so the table above does not show it whole. Only the words around `{when}` come from the message files; what replaces `{when}` is made by the date formatter built into the app's server, from the date and time the request was sent: the day, the month's name, the year, the second "في" (at), the time and "UTC" in Latin letters. Nobody who reads Arabic has checked it; the repeated "في" and the Latin "UTC" are the points to look at. A change to the formatter's part is made in the page's code, not in the message files.
+
+| Key | Message (English / Arabic) | As shown on screen | Made by the date formatter | Seen on | Formatter set at |
+| --- | --- | --- | --- | --- | --- |
+| `leave.sent_on` | Sent on {when} / أُرسل في {when} | أُرسل في 12 نوفمبر 2026 في 17:12 UTC | 12 نوفمبر 2026 في 17:12 UTC | `evidence/2026-11-12-package-2.1/screens/06-scripted-my-requests-waiting-ar.png` | `builder/scripted/example-1/02-submitter-screen/files/src/app/[locale]/my-requests/page.tsx, line 31` |
+
 ## Record
 
 Generated on 2026-11-12 by `docs/tools/arabic-wording-list.py`. Keys compared one by one: 44 English, 44 Arabic, 0 missing in either direction. Empty messages in either language: 0. Messages whose Arabic is identical to the English: 1 (`app.english`; the language's own name is shown in its own language on purpose, so a reader who cannot read Arabic can find the switch).
