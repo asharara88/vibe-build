@@ -20,14 +20,14 @@ A *branch* is a named line of work in the repository; a *commit* is one saved st
 | --- | --- |
 | **Accepted by the owner (in `main`)** | The handover, the project rules, the specification, the design note as first approved, the Task 0 documents |
 | **Tested** | Packages 0.1, 0.2, 1.1 and W4, all documents. No code package is tested. No finding about how the running system behaves is closed: fifteen of seventeen findings are open (`docs/reviews/2026-11-11-pull-request-2.md`) |
-| **Built, not tested** | The baseline code. R1, on a branch. The `builder/` half of package 0.4, on a branch, with work on it stopped |
+| **Built, not tested** | The baseline code. Package 1.2, on a branch. R1, on a branch. The `builder/` half of package 0.4, on a branch, with work on it stopped |
 | **Waiting on the owner** | The questions below |
 
 ## Progress under the plan
 
 | Package | State |
 | --- | --- |
-| 0.1 `docs/STATUS.md` rewritten | **Tested again 12 Nov.** Reopened that day; an independent reviewer then read the final commit (`492370c`), found no statement contradicting another, and that commit is the one merged. That review's non-blocking findings on this file were closed in the record update that followed, which was read by a reviewer before it was merged. This file is updated after every package, as the plan requires; the review of `492370c` covers it as it stood then |
+| 0.1 `docs/STATUS.md` rewritten | **Tested again 12 Nov.** Reopened that day; an independent reviewer then read the final commit (`492370c`), found no statement contradicting another, and that commit is the one merged. That review's non-blocking findings on this file are closed in the record update that follows; that update is read by a reviewer before it is merged. This file is updated after every package, as the plan requires; the review of `492370c` covers it as it stood then |
 | 0.2 Evidence claims narrowed | Tested 11 Nov; the merged text re-read 12 Nov, no finding |
 | 1.1 Design note 5.5 amended | **Tested again 12 Nov** at `492370c`: the five amendments are under a dated list and each has a proof row. Tested means the document says what the plan asked; **nothing in it is built**. Still open and recorded: the hold's known limits (known gap 41), one point for an engineer (known gap 35), the expired-hold question |
 | W4 Arabic wording list | Tested 11 Nov; re-read 12 Nov, list and counts confirmed |
@@ -51,11 +51,11 @@ The packages that could come next; later ones are in the plan, section 7.
 | Package | Depends on | Not yet met |
 | --- | --- | --- |
 | 2.1 scripted engine; W1 web shell; W3 analyst instructions | L9 | **Nothing. These can start** |
-| 1.2 holds in the database (proof rows B1 to B6) | 1.1, L9 | **Nothing. It can start, and it is first in the plan's order** |
-| 1.3 the pre-step check | 1.2 | 1.2 |
-| 1.4 failure tests | 1.2, 1.3 | Both. It also builds the part flagged for an engineer (known gap 35) |
-| 1.5 unreconciled list | 1.2 | 1.2; and it is taken after 1.4, because its proof row needs 1.4's cases |
-| 2.2 engine adapter, against a stand-in | 2.1, 1.2 | Both |
+| 1.2 holds in the database (proof rows B1 to B6) | 1.1, L9 | Nothing. **Built 12 Nov on its own branch (pull request #12, not merged), not tested.** It is not marked tested before question 2 is answered |
+| 1.3 the pre-step check | 1.2 | 1.2 tested, which waits on question 2 |
+| 1.4 failure tests | 1.2, 1.3 | Both, so it too waits on question 2. It also builds the part flagged for an engineer (known gap 35) |
+| 1.5 unreconciled list | 1.2 | 1.2 tested (question 2); and it is taken after 1.4, because its proof row needs 1.4's cases |
+| 2.2 engine adapter, against a stand-in | 2.1, 1.2 | Both; 1.2 tested waits on question 2 |
 | 3.1 acceptance store and runner; W2 harness | 2.1 | 2.1 |
 | 0.3 role guard | L11 | L11 |
 | 0.4 one licence rule; 0.5 set-up in a tools container | L9 and L11 | L11 |
@@ -76,8 +76,8 @@ One decision at a time, in this order. Each has a recommendation and its reason,
 - (b) Let package 0.4 be done one component at a time now, ahead of L11. Pull request #9 could then merge once its review is clean.
 - (c) Keep the plan exactly as written. R1, package 0.4 and everything that needs L11 then stay where they are.
 
-**2. What finishes package 1.2?** The plan first said "the rows in design note 7.2". On 12 Nov that was narrowed to proof rows B1 to B6, in answer to a review you passed on; your own approval of that is not recorded. Review also found five ways the hold could fall short (known gap 41), which package 1.2 handles by refusing or by keeping the hold, and which have no proof rows.
-- (a) **B1 to B6, plus a proof row for each of the five known limits.** Recommended. Reason: the refusals are built in 1.2, so what finishes 1.2 should include showing them.
+**2. What finishes package 1.2?** The plan first said "the rows in design note 7.2". On 12 Nov that was narrowed to proof rows B1 to B6, in answer to a review you passed on; your own approval of that is not recorded. The rows themselves were also rewritten that day (B4 is split in two; B1, B2, B5 and B6 say more), so choosing (a) or (b) accepts them as they now read. Review also found four ways the hold could fall short and one case that was not defined (known gap 41). Package 1.2 handles them by refusing the request, by keeping the hold, or by a margin on the token count; none has a proof row.
+- (a) **B1 to B6, plus a proof row for each of those five.** Recommended. Reason: they are built in 1.2, so what finishes 1.2 should include showing them. It adds five rows to the design note and changes the plan's "and only those". The row for the margin can show only that a margin is applied; whether it is large enough needs a real provider (package 2.3).
 - (b) B1 to B6 only, as the plan now reads.
 - (c) The plan's first wording. Package 1.2 could then not be finished before 1.3, 1.4 and 1.5, which depend on it.
 
@@ -116,4 +116,4 @@ One decision at a time, in this order. Each has a recommendation and its reason,
 
 ## What the next session does
 
-Follow `docs/BUILD-PLAN.md` section 3; development machine set-up is in `CLAUDE.md`, Commands. In order: (1) package 1.2, the holds in the database, against a stand-in provider: it is the first package not yet built whose dependencies are met, and work on it has begun on its own branch. It is not marked tested before question 2 is answered. (2) Then, by the plan's step 3: 1.3, 1.4, 1.5; then 2.1 and 2.2; 3.1 comes before W1. (3) R1 (pull request #10) is built and waits on question 1; its first review's findings are answered on its branch and are re-read before any merge. (4) Do no work on pull request #9 and do not merge it until question 1 is answered. (5) Start nothing that needs L11, L10, the key, the candidate or the server.
+Follow `docs/BUILD-PLAN.md` section 3; development machine set-up is in `CLAUDE.md`, Commands. In order: (1) package 1.2, the holds in the database, against a stand-in provider: built on its own branch (pull request #12); answer its review, and do not mark it tested before question 2 is answered. (2) While question 2 is open, nothing that needs 1.2 tested can start (1.3, 1.4, 1.5, 2.2); take 2.1, then 3.1, W1 and W3. Once 1.2 is tested: 1.3, 1.4, 1.5, then 2.2. (3) R1 (pull request #10) is built and waits on question 1; its first review's findings are answered on its branch and are re-read before any merge. (4) Do no work on pull request #9 and do not merge it until question 1 is answered. (5) Start nothing that needs L11, L10, the key, the candidate or the server.
