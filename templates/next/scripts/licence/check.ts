@@ -12,7 +12,7 @@
 // This file and rule.ts are kept, byte for byte, in every component that is checked.
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, readdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
+import { existsSync, lstatSync, readdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { applyRule, renderNotices, type Installed, type LicenceRule, type OwnPackage } from "./rule.js";
@@ -76,23 +76,31 @@ const lockProblems: string[] = [];
 //     component's own. Anything else (an archive file, a git address, another server, a
 //     local folder that is not named) is a problem: its contents are not what a registry
 //     package's licence record describes.
-function readLockFile(installed: Installed, own: OwnPackage[]): { lockOnly: Installed; shipped: Installed } {
+function readLockFile(installed: Installed, own: OwnPackage[]): { lockOnly: Installed; shipped: Installed; entries: Map<string, LockEntry> } {
   const lockPath = path.join(dir, "package-lock.json");
   const lockOnly: Installed = {};
   const shipped: Installed = {};
-  if (!existsSync(lockPath)) return { lockOnly, shipped };
+  const byPath = new Map<string, LockEntry>();
+  // npm reads npm-shrinkwrap.json in preference to the lock file. This check does not read it, so it must not be there.
+  if (existsSync(path.join(dir, "npm-shrinkwrap.json"))) lockProblems.push("npm-shrinkwrap.json is present. npm would install from it, and this check reads only package-lock.json.");
+  // No lock file: where the packages come from, and what another machine would install, cannot be checked.
+  if (!existsSync(lockPath)) {
+    lockProblems.push("package-lock.json is missing, so the source of each package and the packages for other machines could not be checked.");
+    return { lockOnly, shipped, entries: byPath };
+  }
   let lock: { packages?: Record<string, LockEntry> };
   try {
     lock = JSON.parse(readFileSync(lockPath, "utf8")) as { packages?: Record<string, LockEntry> };
   } catch {
     lockProblems.push("package-lock.json could not be read as JSON.");
-    return { lockOnly, shipped };
+    return { lockOnly, shipped, entries: byPath };
   }
   const entries = lock.packages !== null && typeof lock.packages === "object" && !Array.isArray(lock.packages) ? Object.entries(lock.packages) : [];
   if (entries.filter(([where]) => where !== "").length === 0) {
     lockProblems.push("package-lock.json lists no packages, so nothing in it could be checked.");
-    return { lockOnly, shipped };
+    return { lockOnly, shipped, entries: byPath };
   }
+  for (const [where, entry] of entries) if (where !== "" && entry !== null && typeof entry === "object") byPath.set(where, entry);
   for (const [where, entry] of entries) {
     if (where === "" || entry === null || typeof entry !== "object") continue;
     const cut = where.lastIndexOf("node_modules/");
@@ -126,7 +134,109 @@ function readLockFile(installed: Installed, own: OwnPackage[]): { lockOnly: Inst
     else lockOnly[`${key} (${where})`] = fromLock;
     if (entry.dev !== true) shipped[key] = lockOnly[key] ?? fromLock;
   }
-  return { lockOnly, shipped };
+  return { lockOnly, shipped, entries: byPath };
+}
+
+// Every folder that sits where an installed package sits, read directly from the disk. The
+// licence tool reports one entry per name and version, so a second folder calling itself by
+// the same name and version would hide behind the first; and it leaves out a folder whose
+// package.json has no name. What is found here is checked against the lock file, against the
+// component's own packages, and against what the tool reported.
+interface OnDisk {
+  /** Path inside the component, with forward slashes, for example "node_modules/next/node_modules/sharp". */
+  where: string;
+  real: string;
+  name: string;
+  version: string;
+  /** The licence fields exactly as the folder's package.json gives them. */
+  declared: string;
+  isLink: boolean;
+}
+function readDisk(): { found: OnDisk[]; problems: string[] } {
+  const found: OnDisk[] = [];
+  const problems: string[] = [];
+  const rel = (p: string) => path.relative(dir, p).split(path.sep).join("/");
+  const packageFolder = (p: string): void => {
+    const st = lstatSync(p);
+    const isLink = st.isSymbolicLink();
+    if (!isLink && !st.isDirectory()) return;
+    let real: string;
+    try {
+      real = realpathSync(p);
+    } catch {
+      problems.push(`${rel(p)} is a link that leads nowhere.`);
+      return;
+    }
+    const pjPath = path.join(p, "package.json");
+    if (!existsSync(pjPath)) {
+      if (readdirSync(p).some((f) => f !== "node_modules")) problems.push(`${rel(p)} holds files but no package.json, so what it is could not be read.`);
+      else if (existsSync(path.join(p, "node_modules"))) visit(path.join(p, "node_modules"));
+      return;
+    }
+    let pj: { name?: unknown; version?: unknown; license?: unknown; licenses?: unknown };
+    try {
+      pj = JSON.parse(readFileSync(pjPath, "utf8")) as typeof pj;
+    } catch {
+      problems.push(`${rel(p)}/package.json could not be read as JSON.`);
+      return;
+    }
+    if (pj === null || typeof pj !== "object" || typeof pj.name !== "string" || pj.name === "") {
+      problems.push(`${rel(p)}/package.json names no package, so the licence tool does not report it.`);
+      return;
+    }
+    found.push({ where: rel(p), real, name: pj.name, version: typeof pj.version === "string" ? pj.version : "", declared: JSON.stringify([pj.license ?? null, pj.licenses ?? null]), isLink });
+    // A linked folder is not walked into: it is either the component's own, checked file by file, or a problem.
+    if (!isLink && existsSync(path.join(p, "node_modules"))) visit(path.join(p, "node_modules"));
+  };
+  const visit = (nm: string): void => {
+    for (const e of readdirSync(nm, { withFileTypes: true })) {
+      if (e.name.startsWith(".")) continue;
+      if (e.name.startsWith("@")) {
+        for (const sub of readdirSync(path.join(nm, e.name), { withFileTypes: true })) if (!sub.name.startsWith(".")) packageFolder(path.join(nm, e.name, sub.name));
+      } else packageFolder(path.join(nm, e.name));
+    }
+  };
+  if (existsSync(path.join(dir, "node_modules"))) visit(path.join(dir, "node_modules"));
+  return { found, problems };
+}
+
+function checkDisk(found: OnDisk[], installed: Installed, lockEntries: Map<string, LockEntry>, own: OwnPackage[], hasLock: boolean): string[] {
+  const problems: string[] = [];
+  const rootName = (JSON.parse(readFileSync(path.join(dir, "package.json"), "utf8")) as { name?: string }).name;
+  const ownFolders = new Map(own.map((o) => [o.name, safeReal(path.resolve(dir, o.path))]));
+  const byKey = new Map<string, OnDisk[]>();
+  for (const f of found) {
+    const key = `${f.name}@${f.version}`;
+    byKey.set(key, [...(byKey.get(key) ?? []), f]);
+    const ownFolder = ownFolders.get(f.name);
+    if (ownFolder !== undefined) {
+      // The name belongs to the component's own package: only its own folder may carry it, wherever it is found.
+      if (f.real !== ownFolder) problems.push(`${f.where} calls itself ${f.name} and is not the component's own folder for that name.`);
+    } else if (f.isLink) {
+      problems.push(`${f.where} is a link to ${f.real}, which is not named in the rule as one of this component's own.`);
+    }
+    if (rootName !== undefined && f.name === rootName) problems.push(`${f.where} carries this component's own name (${rootName}), so the licence tool may leave it out.`);
+    const folderName = f.where.slice(f.where.lastIndexOf("node_modules/") + "node_modules/".length);
+    const entry = lockEntries.get(f.where);
+    if (hasLock && entry === undefined) problems.push(`${f.where} is installed and is not in the lock file, so where it came from is not recorded.`);
+    if (folderName !== f.name && !(entry !== undefined && entry.name === f.name)) {
+      problems.push(`${f.where} holds a package that calls itself ${f.name}, and the lock file does not record that.`);
+    }
+    if (ownFolder === undefined && installed[key] === undefined) problems.push(`${f.where} (${key}) was not reported by the licence tool, so its licence was not read.`);
+  }
+  for (const [key, group] of byKey) {
+    if (new Set(group.map((g) => g.declared)).size > 1) {
+      problems.push(`${key} is installed in more than one folder with different licence declarations (${group.map((g) => g.where).join(", ")}); the licence tool reports only one of them.`);
+    }
+  }
+  return problems;
+}
+function safeReal(p: string): string {
+  try {
+    return realpathSync(p);
+  } catch {
+    return p;
+  }
 }
 
 // A package named in the rule as the component's own must be exactly that: the folder named,
@@ -170,6 +280,16 @@ function declaredButMissing(): string[] {
   return names.filter((n) => !existsSync(path.join(dir, "node_modules", n, "package.json")));
 }
 
+// An optional or peer dependency need not be installed on this machine, but then the lock file must list it.
+function declaredAndUnknown(lockEntries: Map<string, LockEntry>): string[] {
+  const root = JSON.parse(readFileSync(path.join(dir, "package.json"), "utf8")) as {
+    optionalDependencies?: Record<string, string>;
+    peerDependencies?: Record<string, string>;
+  };
+  const names = [...Object.keys(root.optionalDependencies ?? {}), ...Object.keys(root.peerDependencies ?? {})];
+  return names.filter((n) => !existsSync(path.join(dir, "node_modules", n, "package.json")) && !lockEntries.has(`node_modules/${n}`));
+}
+
 const rule = JSON.parse(readFileSync(rulePath, "utf8")) as LicenceRule;
 const ownPackages = rule.own_packages ?? [];
 const installed = readInstalled(false);
@@ -178,6 +298,9 @@ const all = { ...lock.lockOnly, ...installed };
 const shipped = { ...readInstalled(true), ...lock.shipped };
 const missing = declaredButMissing();
 const ownProblems = checkOwnPackages(ownPackages);
+const disk = readDisk();
+const diskProblems = [...disk.problems, ...checkDisk(disk.found, installed, lock.entries, ownPackages, existsSync(path.join(dir, "package-lock.json")))];
+const unknown = declaredAndUnknown(lock.entries);
 const result = applyRule(rule, all, shipped);
 
 console.log(`Licence check for ${path.relative(path.resolve(componentDir, ".."), dir) || dir}`);
@@ -216,7 +339,11 @@ for (const name of missing) {
   failed = true;
   console.log(`PROBLEM: ${name} is declared as a dependency but is not installed, so its licence could not be read.`);
 }
-for (const p of [...lockProblems, ...ownProblems]) {
+for (const name of unknown) {
+  failed = true;
+  console.log(`PROBLEM: ${name} is declared as an optional or peer dependency, is not installed, and is not in the lock file, so its licence could not be read.`);
+}
+for (const p of [...lockProblems, ...ownProblems, ...diskProblems]) {
   failed = true;
   console.log(`PROBLEM: ${p}`);
 }

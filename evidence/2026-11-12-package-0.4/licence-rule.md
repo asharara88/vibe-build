@@ -7,7 +7,7 @@
 | Components | `builder/` and `templates/next/`. The `builder/` half was first built earlier the same day, before its dependencies were met (known gap 42); that first version and its review are in `evidence/2026-11-12-package-0.4a/`. This file covers the package as it now stands, for both components |
 | Run on | The development machine (a cloud session), directly on the host. The check only reads installed packages' files and the lock files; it runs no generated code and no engine |
 | Done means (plan) | "The check passes with no package outside that rule, and fails when a test package outside it is added" |
-| Result | **Shown for both components** (runs 1 to 4). **State: built, not tested**, until an independent reviewer has read the commit that is merged |
+| Result | **Shown for both components** (runs 1 to 4); an independent reviewer confirmed that much at `892fa52` and found one way a package outside the rule could pass, since closed (the review is at the end of this file). **State: built, not tested**, until an independent reviewer has read the commit that is merged |
 
 A *lock file* is the list, kept beside a component, of the exact packages it installs on any machine. *Shipped* means not development-only: a package that would be part of a running app.
 
@@ -25,13 +25,13 @@ What the template's earlier check did not do, and this one does:
 | A licence naming a permitted licence beside another ("MIT AND LGPL-3.0") | Accepted: a permitted name anywhere in the text was enough | Refused: the whole expression is read |
 | A package marked private | Not seen | Refused unless it is the component's own, named in the rule |
 | A package only another machine would install | Not seen: only what is installed here was read | Judged from the licence the lock file records for it. This is how the LGPL packages of `sharp` went unseen for other machines |
-| Where a package comes from | Not looked at | Anything not from the npm registry (an archive file, a git address, another server, a local folder not named in the rule) is refused |
-| The approved package `caniuse-lite` | Entered with its version, matched by leading text | Entered with its version and licence, matched exactly; approved for shipped use |
-| The stand-in for `sharp` | Not seen (private) | Named in the rule as the template's own: accepted only from its own folder, at its version, with exactly its two files, each by its SHA-256 (a fingerprint of the file's contents). Any other package named `sharp` is refused |
+| Where a package comes from | Not looked at | The lock file must be there and must list every installed package folder. An entry that does not come from the npm registry (an archive file, a git address, another server, a local folder not named in the rule) is refused, and so is an installed folder the lock file does not list, or a link to a folder outside. What is checked is the lock file's record of the source, not the source itself |
+| The approved packages | `caniuse-lite` entered with its version, matched by leading text; the development packages not entered at all, only listed | Each entered with its name, licence and the version read on 12 November, matched exactly; `caniuse-lite` for shipped use, the others for development use. Another version fails until someone has looked at it and changed the number |
+| The stand-in for `sharp` | Not seen (private) | Named in the rule as the template's own: its folder must hold exactly its two files, each by its SHA-256 (a fingerprint of the file's contents), and every installed folder that calls itself `sharp`, at any version and wherever it sits, must be that folder. (As first built, the name and version alone were enough; the review found it.) |
 | The lock-file check that keeps `sharp` out (`check-lock.mjs`) | Run first | Still run first, unchanged except that a lock file listing no packages now fails |
 | A notices file for the approved exceptions | None | `templates/next/THIRD-PARTY-NOTICES.md`, written by the check and failing the check if out of date |
 
-Also changed since the first version of the `builder/` half: packages for other machines are judged from the lock file (the builder's lists 67 beyond the 191 installed here, among them the other ten build packages of `lightningcss`, each named in the rule); a package's source is checked; and the notices file is titled with the component's own package name instead of its folder name, so a copy in another folder is still up to date.
+Also changed since the first version of the `builder/` half: packages for other machines are judged from the lock file (the builder's lists 67 beyond the 191 installed here, among them the other nine build packages of `lightningcss`, each named in the rule; two of the eleven are installed on this machine); a package's source is checked; and the notices file is titled with the component's own package name instead of its folder name, so a copy in another folder is still up to date.
 
 **One reading to know about.** Where a package offers a choice of licences ("A OR B"), it is accepted if one side is on the permitted list, and the check prints each such package. No package in either component uses a choice today.
 
@@ -146,6 +146,13 @@ G. The approved package caniuse-lite at another version (1.0.30001824), same lic
         caniuse-lite@1.0.30001824 | CC-BY-4.0 | caniuse-lite is entered at version 1.0.30001823 only; this version has not been looked at
       PROBLEM: THIRD-PARTY-NOTICES.md is missing or out of date. Run the check with --write and commit the result.
 
+I. A folder nested inside another package calls itself by the stand-in's name and version (sharp@0.0.0-removed) and declares LGPL-3.0-or-later
+   old check: exit code 1 (fails)
+      PROBLEMS: 1
+        sharp is listed as a real package (0.0.0-removed). Only the link to vendor/no-sharp is allowed.
+   new rule:  exit code 1 (fails)
+      PROBLEMS: 1
+
 H. The lock file as it was before the image library sharp was removed (the installed packages unchanged).
    Only the new rule is run here, without the separate lock-file check that keeps sharp out:
    new rule:  exit code 1 
@@ -167,9 +174,11 @@ H. The lock file as it was before the image library sharp was removed (the insta
         sharp@0.35.5 | Apache-2.0 | the name sharp belongs to this component's own package sharp@0.0.0-removed (vendor/no-sharp); any other package of that name is not to be installed
 ```
 
-Reading: the rule passes on the template as it is (A), and fails when a test package outside it is added, shipped (B) or development-only (C). It refuses everything the earlier check refused (B, G) and four things it accepted (C, D, E, F). Run against the lock file from before `sharp` was removed (H), it names all fourteen LGPL-carrying packages, eleven of which were never installed on this machine (three were: known gap 40), and the real `sharp`.
+Reading: the rule passes on the template as it is (A), and fails when a test package outside it is added, shipped (B) or development-only (C). It refuses everything the earlier check refused (B, G, I) and four things it accepted (C, D, E, F). Case I is the one the review found: at `892fa52` the rule accepted it and the earlier check refused it. Run against the lock file from before `sharp` was removed (H), it names all fourteen LGPL-carrying packages, eleven of which were never installed on this machine (three were: known gap 40), and the real `sharp`.
 
-## Run 4: the automated tests for the rule, the type check and the whole suite of `builder/`
+## Run 4: the type check, and the automated tests for the rule
+
+Only the tests of the rule are listed here, with the totals for the whole suite of `builder/`; every test by name is in `run-tests.txt`.
 
 ```text
 $ npm run typecheck   (in builder/)
@@ -181,6 +190,8 @@ $ npx vitest run --reporter=verbose   (in builder/; the whole suite)
  ✓ test/licence-rule.test.ts > one rule, kept the same in every component > both components permit the same licences, and every exception names its approval
  ✓ test/licence-rule.test.ts > the rule > judges a package the lock file lists for another machine like any other, and counts it apart
  ✓ test/licence-rule.test.ts > the rule > holds an exception to one version where the rule gives one
+ ✓ test/licence-rule.test.ts > the rule > matches a build package against any installed version of its main package, where the rule gives no single version
+ ✓ test/licence-rule.test.ts > the rule > holds every approved package in both components to the version that was read
  ✓ test/licence-rule.test.ts > the rule > accepts the component's own package at its named version, and refuses any other package of that name
  ✓ test/licence-rule.test.ts > the rule > passes when every package is permitted
  ✓ test/licence-rule.test.ts > the rule > fails on a development-only package outside the list: there is no weaker rule for development tools
@@ -205,20 +216,53 @@ $ npx vitest run --reporter=verbose   (in builder/; the whole suite)
  ✓ test/licence-rule.test.ts > the real check, run against a folder with a test package added > fails on a package that only another machine would install, read from the lock file
  ✓ test/licence-rule.test.ts > the real check, run against a folder with a test package added > fails on a lock-file package that records no licence, or one that names a permitted licence beside another
  ✓ test/licence-rule.test.ts > the real check, run against a folder with a test package added > fails on a package that does not come from the registry: an archive file, a git address, another server
+ ✓ test/licence-rule.test.ts > the real check, run against a folder with a test package added > fails when there is no lock file, or when a shrinkwrap file that npm would prefer is there
+ ✓ test/licence-rule.test.ts > the real check, run against a folder with a test package added > fails on an installed folder the lock file does not list, and on a link to a folder outside
+ ✓ test/licence-rule.test.ts > the real check, run against a folder with a test package added > fails when two folders call themselves the same package and version but declare different licences
+ ✓ test/licence-rule.test.ts > the real check, run against a folder with a test package added > fails on a folder holding a package under another name that the lock file does not record
+ ✓ test/licence-rule.test.ts > the real check, run against a folder with a test package added > fails on a package folder with no name, an unreadable package.json, or the component's own name
+ ✓ test/licence-rule.test.ts > the real check, run against a folder with a test package added > fails on an optional or peer dependency that is neither installed nor in the lock file
  ✓ test/licence-rule.test.ts > the real check, run against a folder with a test package added > fails on a lock file that lists no packages, or cannot be read
  ✓ test/licence-rule.test.ts > the real check, run against a folder with a test package added > fails on a local package the rule does not name, whether a folder or a link
  ✓ test/licence-rule.test.ts > the real check, run against a folder with a test package added > a component's own package > passes when the folder is exactly what the rule names
  ✓ test/licence-rule.test.ts > the real check, run against a folder with a test package added > a component's own package > fails without the rule naming it: an unlicensed private package is refused like any other
  ✓ test/licence-rule.test.ts > the real check, run against a folder with a test package added > a component's own package > fails when a file in it has changed, or a file has been added
+ ✓ test/licence-rule.test.ts > the real check, run against a folder with a test package added > a component's own package > fails when another folder calls itself by the own package's name and version, nested or under another folder name
  ✓ test/licence-rule.test.ts > the real check, run against a folder with a test package added > a component's own package > fails when a real package is installed under its name
  ✓ test/licence-rule.test.ts > the real check, run against a folder with a test package added > fails when the notices file is out of date
  ✓ test/licence-rule.test.ts > the real check, run against a folder with a test package added > passes on the builder itself, with the notices file up to date
  Test Files  6 passed (6)
-      Tests  76 passed (76)
+      Tests  85 passed (85)
 exit code: 0
 ```
 
 The template's own type check passed (exit code 0) and its build passed with the new files in place (the same route table as before).
+
+## What the check reads
+
+Three things, and it fails if they disagree: what the licence tool reports for the installed packages; the lock file; and every folder that sits where an installed package sits, read directly from the disk. The third was added after the review: the licence tool reports one entry for each name and version, so a second folder calling itself by the same name and version hid behind the first, and it leaves out a folder whose `package.json` has no name.
+
+## The review of the whole package (commit `892fa52`) and what was done
+
+A fresh reviewer, who wrote none of this, ran both checks, the eight cases and about 130 fixtures of its own. **Done means: met.** About 70 licence declarations for each component were refused in every position it tried; the rule files match what is installed and trace to the owner's approval; the fingerprints, the eleven build-package names and the notices are right; no test assertion was removed. **One blocking defect**, and three overstated sentences. The review bot, on the same commit, raised two points of its own (N1 and the last row).
+
+| # | Finding | Blocking | Done |
+| --- | --- | --- | --- |
+| B1 | Any folder calling itself `sharp@0.0.0-removed` was accepted unread, wherever it sat: nested inside another package, or under another folder name. Nested, with an LGPL licence declared, the earlier check refused it and the rule passed it, so the rule was weaker there. Sentences in this file, in `docs/DECISIONS.md` and in known gap 44 said otherwise | Yes | Every installed folder that carries the own package's name must be the own folder. Tested, nested and under another folder name; case I above |
+| B2 | Overstated: "the other ten build packages" (nine); "refuses a package that does not come from the npm registry" (true only where the lock file records the source: a link to an outside folder with no lock entry passed); "reads every installed package" | Yes (records) | Corrected above and in the records. An installed folder the lock file does not list now fails, and so does a link to a folder outside. Tested |
+| N1 | With no lock file the builder's check passed silently (also raised by the review bot) | No | A missing lock file fails. Tested |
+| N2 | A second folder calling itself by an installed package's name and version, with another licence, hid behind the first | No | Fails when two folders with one name and version declare different licences. Tested |
+| N3 | A dependency named like the component itself was left out | No | Fails. Tested |
+| N4 | A folder whose `package.json` has no name, or is not JSON, was invisible | No | Fails. Tested |
+| N5 | A declared optional or peer dependency that is neither installed nor in the lock file passed | No | Fails. Tested |
+| N6 | `npm-shrinkwrap.json`, which npm prefers over the lock file, was ignored | No | Its presence fails the check. Tested |
+| N7 | The scripts passed their arguments on, so a laxer rule file could be named on the command line | No | The scripts take no argument but `--write` |
+| N8 | The three development packages carried no version in the rule, which builds the looser reading of the approval that the owner has not confirmed | No | Each is entered at the version read on 12 November, in both components; a build package must carry the same number. Tested |
+| N9 | The notices said the licence report is "beside this file"; in the template that report is not committed | No | The notices now say the report is written by the check when run with `--write` and describes one machine |
+| N10 | Run 4 was labelled "the whole suite" and listed half of it | No | Relabelled |
+| N11 | Rows of the status file that describe the earlier checks become untrue when this is merged | No | For the record update that follows the merge |
+| N12 | One test rewrites the tracked notices file and restores it; a killed run would leave it changed | No | Left as it is; recorded here |
+| Bot | Two installed versions of an approved main package made the build packages of one of them fail | No | A build package is matched against every installed version of its main package. Tested. (With each exception now held to one version, two versions cannot both pass in any case) |
 
 ## What this does not show
 
@@ -227,6 +271,7 @@ The template's own type check passed (exit code 0) and its build passed with the
 - **That the notices are sufficient** for the conditions of the owner's approval (known gap 39). The notice for `caniuse-lite` states what the package's own files state: its name, its author as named in the package, its source address, its licence and the licence's full text. The package supplies no separate copyright notice. The licence's standard web address could not be opened from this session; the text reproduced is the copy inside the package. Whether that meets the licence is for the reviewing engineer or a lawyer.
 - **That an exported app carries the notices file,** or that the development packages are absent from an export: package 3.2.
 - **Anything about another machine's installed packages** beyond what the lock file records.
+- **Where a package really came from.** The check reads the lock file's record of each source and compares the installed folders with the lock file; it does not download anything or compare a folder's contents with the registry's copy. A folder that the lock file lists as a registry package, and whose `package.json` gives the same name, version and licence, is taken at its word.
 - **The second template.** There is none yet.
 - The licence tool asks for Node 24 or later and ran here on Node 22 (known gap 43). The rule reads the tool's output; whether the tool reads anything differently on Node 24 was not checked.
 - An "A OR B" licence is accepted on its permitted side without anyone having chosen that side in writing.

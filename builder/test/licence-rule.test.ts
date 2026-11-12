@@ -72,6 +72,25 @@ describe("the rule", () => {
     expect(applyRule(pinned, { ...clean, "data-pkg@1.0.51": { licenses: "CC-BY-4.0" } }, {}).problems).toHaveLength(1);
   });
 
+  it("matches a build package against any installed version of its main package, where the rule gives no single version", () => {
+    const loose: LicenceRule = { ...rule, exceptions: rule.exceptions.map((e) => ({ ...e, version: undefined })) };
+    const two: Installed = {
+      ...clean,
+      "lightningcss@1.32.0": { licenses: "MPL-2.0" },
+      "lightningcss@1.33.0": { licenses: "MPL-2.0" },
+      "lightningcss-linux-x64-gnu@1.32.0": { licenses: "MPL-2.0" },
+      "lightningcss-linux-x64-gnu@1.33.0": { licenses: "MPL-2.0" },
+    };
+    expect(applyRule(loose, two, {}).problems).toEqual([]);
+    expect(applyRule(loose, { ...two, "lightningcss-linux-x64-musl@1.31.0": { licenses: "MPL-2.0" } }, {}).problems.map((p) => p.package)).toEqual(["lightningcss-linux-x64-musl@1.31.0"]);
+  });
+
+  it("holds every approved package in both components to the version that was read", () => {
+    for (const ex of rule.exceptions) expect(ex.version).toMatch(/^\d+\.\d+\.\d+/);
+    const later = applyRule(rule, { ...clean, "lightningcss@1.34.0": { licenses: "MPL-2.0" }, "lightningcss-linux-x64-gnu@1.34.0": { licenses: "MPL-2.0" }, "spdx-ranges@2.1.2": { licenses: "(MIT AND CC-BY-3.0)" } }, {});
+    expect(later.problems.map((p) => p.package).sort()).toEqual(["lightningcss-linux-x64-gnu@1.34.0", "lightningcss@1.34.0", "spdx-ranges@2.1.2"]);
+  });
+
   it("accepts the component's own package at its named version, and refuses any other package of that name", () => {
     const withOwn: LicenceRule = { ...rule, own_packages: [{ name: "standin", version: "0.0.0-own", path: "vendor/standin", why: "test", files: {} }] };
     const ok = applyRule(withOwn, { ...clean, "standin@0.0.0-own": { licenses: "UNLICENSED" } }, {});
@@ -204,7 +223,20 @@ describe("the real check, run against a folder with a test package added", () =>
       mkdirSync(p, { recursive: true });
       writeFileSync(path.join(p, "package.json"), JSON.stringify({ name: pkg, version: "1.0.0", license: licence }));
     }
+    // A lock file that lists what is installed, from the registry, so that each case below fails for its own reason only.
+    const packages: Record<string, unknown> = { "": { name, version: "0.0.1" } };
+    for (const [pkg, licence] of Object.entries(licences)) {
+      packages[`node_modules/${pkg}`] = { version: "1.0.0", resolved: `https://registry.npmjs.org/${pkg}/-/${pkg}-1.0.0.tgz`, license: licence, ...(pkg in devDeps ? { dev: true } : {}) };
+    }
+    writeFileSync(path.join(dir, "package-lock.json"), JSON.stringify({ name, lockfileVersion: 3, packages }));
     return dir;
+  }
+  /** Add an entry for a package that a case installs by hand, so that only the thing under test is wrong. */
+  function addToLock(dir: string, where: string, entry: Record<string, unknown>) {
+    const f = path.join(dir, "package-lock.json");
+    const lock = JSON.parse(readFileSync(f, "utf8")) as { packages: Record<string, unknown> };
+    lock.packages[where] = entry;
+    writeFileSync(f, JSON.stringify(lock));
   }
 
   function run(dir: string, rulePath?: string): { code: number; out: string } {
@@ -248,6 +280,7 @@ describe("the real check, run against a folder with a test package added", () =>
     mkdirSync(path.join(dir, "node_modules", "fake-none"), { recursive: true });
     writeFileSync(path.join(dir, "package.json"), JSON.stringify({ name: "no-licence", version: "0.0.1", private: true, dependencies: { "fake-none": "1.0.0" } }));
     writeFileSync(path.join(dir, "node_modules", "fake-none", "package.json"), JSON.stringify({ name: "fake-none", version: "1.0.0" }));
+    writeFileSync(path.join(dir, "package-lock.json"), JSON.stringify({ lockfileVersion: 3, packages: { "": {}, "node_modules/fake-none": { version: "1.0.0", resolved: "https://registry.npmjs.org/fake-none/-/fake-none-1.0.0.tgz" } } }));
     const r = run(dir);
     expect(r.code).toBe(1);
     expect(r.out).toContain("fake-none@1.0.0");
@@ -258,6 +291,7 @@ describe("the real check, run against a folder with a test package added", () =>
     const p = path.join(dir, "node_modules", "fake-private");
     mkdirSync(p, { recursive: true });
     writeFileSync(path.join(p, "package.json"), JSON.stringify({ name: "fake-private", version: "1.0.0", private: true, license: "GPL-3.0-only" }));
+    addToLock(dir, "node_modules/fake-private", { version: "1.0.0", resolved: "https://registry.npmjs.org/fake-private/-/fake-private-1.0.0.tgz", license: "GPL-3.0-only" });
     const r = run(dir);
     expect(r.code).toBe(1);
     // The licence tool reports any package marked private as "UNLICENSED", whatever it declares,
@@ -269,6 +303,7 @@ describe("the real check, run against a folder with a test package added", () =>
     const empty = path.join(tmp, "empty");
     mkdirSync(empty, { recursive: true });
     writeFileSync(path.join(empty, "package.json"), JSON.stringify({ name: "empty", version: "0.0.1", private: true }));
+    writeFileSync(path.join(empty, "package-lock.json"), JSON.stringify({ lockfileVersion: 3, packages: { "": {}, "node_modules/nothing-here": { version: "1.0.0", resolved: "https://registry.npmjs.org/nothing-here/-/nothing-here-1.0.0.tgz", license: "MIT", optional: true } } }));
     const r1 = run(empty);
     expect(r1.code).toBe(1);
     expect(r1.out).toContain("no installed package was found");
@@ -328,6 +363,85 @@ describe("the real check, run against a folder with a test package added", () =>
       expect(r.code).toBe(1);
       expect(r.out).toContain("node_modules/fake-mit does not come from the npm registry");
     }
+  });
+
+  it("fails when there is no lock file, or when a shrinkwrap file that npm would prefer is there", () => {
+    const a = fixture("lock-missing", { "fake-mit": "" }, {}, { "fake-mit": "MIT" });
+    rmSync(path.join(a, "package-lock.json"));
+    const ra = run(a);
+    expect(ra.code).toBe(1);
+    expect(ra.out).toContain("package-lock.json is missing");
+    const b = fixture("shrinkwrap", { "fake-mit": "" }, {}, { "fake-mit": "MIT" });
+    writeFileSync(path.join(b, "npm-shrinkwrap.json"), "{}");
+    const rb = run(b);
+    expect(rb.code).toBe(1);
+    expect(rb.out).toContain("npm-shrinkwrap.json is present");
+  });
+
+  it("fails on an installed folder the lock file does not list, and on a link to a folder outside", () => {
+    const a = fixture("not-in-lock", { "fake-mit": "", "fake-extra": "" }, {}, { "fake-mit": "MIT" });
+    mkdirSync(path.join(a, "node_modules", "fake-extra"), { recursive: true });
+    writeFileSync(path.join(a, "node_modules", "fake-extra", "package.json"), JSON.stringify({ name: "fake-extra", version: "1.0.0", license: "MIT" }));
+    const ra = run(a);
+    expect(ra.code).toBe(1);
+    expect(ra.out).toContain("node_modules/fake-extra is installed and is not in the lock file");
+    const b = fixture("link-outside", { "fake-mit": "", "fake-linked": "" }, {}, { "fake-mit": "MIT" });
+    const outside = path.join(tmp, "outside-folder");
+    mkdirSync(outside, { recursive: true });
+    writeFileSync(path.join(outside, "package.json"), JSON.stringify({ name: "fake-linked", version: "1.0.0", license: "MIT" }));
+    symlinkSync(outside, path.join(b, "node_modules", "fake-linked"));
+    addToLock(b, "node_modules/fake-linked", { version: "1.0.0", resolved: "https://registry.npmjs.org/fake-linked/-/fake-linked-1.0.0.tgz", license: "MIT" });
+    const rb = run(b);
+    expect(rb.code).toBe(1);
+    expect(rb.out).toContain("node_modules/fake-linked is a link to");
+  });
+
+  it("fails when two folders call themselves the same package and version but declare different licences", () => {
+    const dir = fixture("duplicate", { "fake-mit": "", "zz-copy": "" }, {}, { "fake-mit": "MIT" });
+    mkdirSync(path.join(dir, "node_modules", "zz-copy"), { recursive: true });
+    writeFileSync(path.join(dir, "node_modules", "zz-copy", "package.json"), JSON.stringify({ name: "fake-mit", version: "1.0.0", license: "GPL-3.0-only" }));
+    addToLock(dir, "node_modules/zz-copy", { name: "fake-mit", version: "1.0.0", resolved: "https://registry.npmjs.org/fake-mit/-/fake-mit-1.0.0.tgz", license: "MIT" });
+    const r = run(dir);
+    expect(r.code).toBe(1);
+    expect(r.out).toContain("fake-mit@1.0.0 is installed in more than one folder with different licence declarations");
+  });
+
+  it("fails on a folder holding a package under another name that the lock file does not record", () => {
+    const dir = fixture("alias-unrecorded", { "fake-mit": "", "zz-other": "" }, {}, { "fake-mit": "MIT" });
+    mkdirSync(path.join(dir, "node_modules", "zz-other"), { recursive: true });
+    writeFileSync(path.join(dir, "node_modules", "zz-other", "package.json"), JSON.stringify({ name: "something-else", version: "1.0.0", license: "MIT" }));
+    addToLock(dir, "node_modules/zz-other", { version: "1.0.0", resolved: "https://registry.npmjs.org/zz-other/-/zz-other-1.0.0.tgz", license: "MIT" });
+    const r = run(dir);
+    expect(r.code).toBe(1);
+    expect(r.out).toContain("node_modules/zz-other holds a package that calls itself something-else");
+  });
+
+  it("fails on a package folder with no name, an unreadable package.json, or the component's own name", () => {
+    const a = fixture("nameless", { "fake-mit": "" }, {}, { "fake-mit": "MIT" });
+    mkdirSync(path.join(a, "node_modules", "fake-nameless"), { recursive: true });
+    writeFileSync(path.join(a, "node_modules", "fake-nameless", "package.json"), JSON.stringify({ version: "1.0.0", license: "GPL-3.0-only" }));
+    expect(run(a).out).toContain("node_modules/fake-nameless/package.json names no package");
+    const b = fixture("broken-json", { "fake-mit": "" }, {}, { "fake-mit": "MIT" });
+    mkdirSync(path.join(b, "node_modules", "fake-broken"), { recursive: true });
+    writeFileSync(path.join(b, "node_modules", "fake-broken", "package.json"), "{ not json");
+    expect(run(b).out).toContain("node_modules/fake-broken/package.json could not be read as JSON");
+    const c = fixture("own-name", { "fake-mit": "" }, {}, { "fake-mit": "MIT" });
+    mkdirSync(path.join(c, "node_modules", "zz-self"), { recursive: true });
+    writeFileSync(path.join(c, "node_modules", "zz-self", "package.json"), JSON.stringify({ name: "own-name", version: "0.0.1", license: "GPL-3.0-only" }));
+    const rc = run(c);
+    expect(rc.code).toBe(1);
+    expect(rc.out).toContain("node_modules/zz-self carries this component's own name (own-name)");
+    for (const d of [a, b]) expect(run(d).code).toBe(1);
+  });
+
+  it("fails on an optional or peer dependency that is neither installed nor in the lock file", () => {
+    const dir = fixture("optional-unknown", { "fake-mit": "" }, {}, { "fake-mit": "MIT" });
+    const pj = JSON.parse(readFileSync(path.join(dir, "package.json"), "utf8")) as Record<string, unknown>;
+    writeFileSync(path.join(dir, "package.json"), JSON.stringify({ ...pj, optionalDependencies: { "fake-optional": "1.0.0" }, peerDependencies: { "fake-peer": "1.0.0" } }));
+    const r = run(dir);
+    expect(r.code).toBe(1);
+    expect(r.out).toContain("fake-optional is declared as an optional or peer dependency");
+    expect(r.out).toContain("fake-peer is declared as an optional or peer dependency");
   });
 
   it("fails on a lock file that lists no packages, or cannot be read", () => {
@@ -390,6 +504,27 @@ describe("the real check, run against a folder with a test package added", () =>
       expect(rb.code).toBe(1);
       expect(rb.out).toContain("vendor/standin/lib/real.node is a file the rule does not name");
     });
+    it("fails when another folder calls itself by the own package's name and version, nested or under another folder name", () => {
+      // Found by review: the name and version alone were enough to be accepted, wherever the folder sat.
+      const a = own("own-forged-nested");
+      const nested = path.join(a.dir, "node_modules", "fake-mit", "node_modules", "standin");
+      mkdirSync(nested, { recursive: true });
+      writeFileSync(path.join(nested, "package.json"), JSON.stringify({ name: "standin", version: "0.0.0-own", license: "LGPL-3.0-or-later" }));
+      const ra = run(a.dir, a.rulePath);
+      expect(ra.code).toBe(1);
+      expect(ra.out).toContain("node_modules/fake-mit/node_modules/standin calls itself standin and is not the component's own folder");
+      const b = own("own-forged-alias");
+      const alias = path.join(b.dir, "node_modules", "zz-img");
+      mkdirSync(alias, { recursive: true });
+      writeFileSync(path.join(alias, "package.json"), JSON.stringify({ name: "standin", version: "0.0.0-own", license: "GPL-3.0-only" }));
+      const lock = JSON.parse(readFileSync(path.join(b.dir, "package-lock.json"), "utf8")) as { packages: Record<string, unknown> };
+      lock.packages["node_modules/zz-img"] = { name: "standin", version: "0.0.0-own", resolved: "https://registry.npmjs.org/standin/-/standin-0.0.0-own.tgz", license: "GPL-3.0-only" };
+      writeFileSync(path.join(b.dir, "package-lock.json"), JSON.stringify(lock));
+      const rb = run(b.dir, b.rulePath);
+      expect(rb.code).toBe(1);
+      expect(rb.out).toContain("node_modules/zz-img calls itself standin and is not the component's own folder");
+    });
+
     it("fails when a real package is installed under its name", () => {
       const { dir, rulePath } = own("own-replaced");
       rmSync(path.join(dir, "node_modules", "standin"));

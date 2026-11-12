@@ -47,6 +47,11 @@ node -e 'const fs=require("fs"),f=process.argv[1]+"/package-lock.json",l=JSON.pa
 echo "G. The approved package caniuse-lite at another version (1.0.30001824), same licence"; d=$(copy G)
 rm -rf "$d/node_modules/caniuse-lite"; cp -a "$T/node_modules/caniuse-lite" "$d/node_modules/caniuse-lite"
 node -e 'const fs=require("fs"),d=process.argv[1];let f=d+"/node_modules/caniuse-lite/package.json",p=JSON.parse(fs.readFileSync(f,"utf8"));p.version="1.0.30001824";fs.writeFileSync(f,JSON.stringify(p));f=d+"/package-lock.json";const l=JSON.parse(fs.readFileSync(f,"utf8"));l.packages["node_modules/caniuse-lite"].version="1.0.30001824";fs.writeFileSync(f,JSON.stringify(l,null,2)+"\n")' "$d"; run "$d"
+echo "I. A folder nested inside another package calls itself by the stand-in's name and version (sharp@0.0.0-removed) and declares LGPL-3.0-or-later"; d=$(copy I)
+mkdir -p "$d/node_modules/fake-host/node_modules/sharp"
+echo '{"name":"fake-host","version":"1.0.0","license":"MIT"}' > "$d/node_modules/fake-host/package.json"
+echo '{"name":"sharp","version":"0.0.0-removed","license":"LGPL-3.0-or-later"}' > "$d/node_modules/fake-host/node_modules/sharp/package.json"
+node -e 'const fs=require("fs"),d=process.argv[1];let f=d+"/package.json",p=JSON.parse(fs.readFileSync(f,"utf8"));p.dependencies["fake-host"]="1.0.0";fs.writeFileSync(f,JSON.stringify(p,null,2)+"\n");f=d+"/package-lock.json";const l=JSON.parse(fs.readFileSync(f,"utf8"));l.packages["node_modules/fake-host"]={version:"1.0.0",resolved:"https://registry.npmjs.org/fake-host/-/fake-host-1.0.0.tgz",license:"MIT"};l.packages["node_modules/fake-host/node_modules/sharp"]={version:"0.0.0-removed",resolved:"https://registry.npmjs.org/sharp/-/sharp-0.0.0-removed.tgz",license:"LGPL-3.0-or-later"};fs.writeFileSync(f,JSON.stringify(l,null,2)+"\n")' "$d"; run "$d" 6
 echo "H. The lock file as it was before the image library sharp was removed (the installed packages unchanged)."
 echo "   Only the new rule is run here, without the separate lock-file check that keeps sharp out:"; d=$(copy H); cp "$OLDLOCK" "$d/package-lock.json"
 n=$(cd "$d" && npx tsx scripts/licence/check.ts 2>&1); echo "   new rule:  exit code $? "; echo "$n" | grep -E "^PROBLEM|^  .* \| .* \| " | grep -v "approved 20\|| installed" | sed 's/^/      /'

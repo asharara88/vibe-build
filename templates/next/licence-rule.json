@@ -1,5 +1,5 @@
 {
-  "about": "The one licence rule for this component (hard rule 2; build plan package 0.4). Every installed package, shipped or development, must carry a licence on the permitted list, or be named below. An exception is the owner's written approval of one named package for one named use, recorded in docs/DECISIONS.md. It never covers another package with the same licence. Where a package offers a choice of licences (\"A OR B\"), it is accepted if one of the choices is on the permitted list, and that choice is the one taken.",
+  "about": "The one licence rule for this component (hard rule 2; build plan package 0.4). Every installed package, shipped or development, must carry a licence on the permitted list, or be named below. An exception is the owner's written approval of one named package for one named use, recorded in docs/DECISIONS.md. It never covers another package with the same licence. Where a package offers a choice of licences (\"A OR B\"), it is accepted if one of the choices is on the permitted list, and that choice is the one taken. Each exception is entered at the version that was read when it was approved or last looked at; another version fails the check until someone has looked at it and changed the number here.",
   "permitted": [
     "MIT",
     "Apache-2.0",
@@ -28,6 +28,7 @@
     {
       "name": "lightningcss",
       "licence": "MPL-2.0",
+      "version": "1.33.0",
       "use": "development",
       "approved": "2026-11-12",
       "record": "docs/DECISIONS.md, 12 Nov 2026, licence exceptions approved by the owner",
@@ -52,6 +53,7 @@
     {
       "name": "spdx-exceptions",
       "licence": "CC-BY-3.0",
+      "version": "2.5.0",
       "use": "development",
       "approved": "2026-11-12",
       "record": "docs/DECISIONS.md, 12 Nov 2026, licence exceptions approved by the owner",
@@ -62,6 +64,7 @@
     {
       "name": "spdx-ranges",
       "licence": "(MIT AND CC-BY-3.0)",
+      "version": "2.1.1",
       "use": "development",
       "approved": "2026-11-12",
       "record": "docs/DECISIONS.md, 12 Nov 2026, licence exceptions approved by the owner",

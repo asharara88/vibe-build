@@ -9,6 +9,13 @@
 # of 12 Nov 2026, docs/DECISIONS.md).
 set -euo pipefail
 cd "$(dirname "$0")/.."
+# The only argument taken is --write (rewrite the notices file and the report). The rule file and
+# the folder are fixed here: this script always checks this component with its own rule.
+if [ "$#" -gt 1 ] || { [ "$#" -eq 1 ] && [ "$1" != "--write" ]; }; then
+  echo "PROBLEM: this script takes no argument other than --write."
+  echo "RESULT: FAILED"
+  exit 1
+fi
 echo "Lock file:"
 node scripts/check-lock.mjs
 exec npx tsx scripts/licence/check.ts "$@"

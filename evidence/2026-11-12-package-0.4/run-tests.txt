@@ -8,6 +8,8 @@ $ npx vitest run --reporter=verbose   (in builder/; the whole suite)
  ✓ test/licence-rule.test.ts > one rule, kept the same in every component > both components permit the same licences, and every exception names its approval
  ✓ test/licence-rule.test.ts > the rule > judges a package the lock file lists for another machine like any other, and counts it apart
  ✓ test/licence-rule.test.ts > the rule > holds an exception to one version where the rule gives one
+ ✓ test/licence-rule.test.ts > the rule > matches a build package against any installed version of its main package, where the rule gives no single version
+ ✓ test/licence-rule.test.ts > the rule > holds every approved package in both components to the version that was read
  ✓ test/licence-rule.test.ts > the rule > accepts the component's own package at its named version, and refuses any other package of that name
  ✓ test/licence-rule.test.ts > the rule > passes when every package is permitted
  ✓ test/licence-rule.test.ts > the rule > fails on a development-only package outside the list: there is no weaker rule for development tools
@@ -32,14 +34,26 @@ $ npx vitest run --reporter=verbose   (in builder/; the whole suite)
  ✓ test/licence-rule.test.ts > the real check, run against a folder with a test package added > fails on a package that only another machine would install, read from the lock file
  ✓ test/licence-rule.test.ts > the real check, run against a folder with a test package added > fails on a lock-file package that records no licence, or one that names a permitted licence beside another
  ✓ test/licence-rule.test.ts > the real check, run against a folder with a test package added > fails on a package that does not come from the registry: an archive file, a git address, another server
+ ✓ test/licence-rule.test.ts > the real check, run against a folder with a test package added > fails when there is no lock file, or when a shrinkwrap file that npm would prefer is there
+ ✓ test/licence-rule.test.ts > the real check, run against a folder with a test package added > fails on an installed folder the lock file does not list, and on a link to a folder outside
+ ✓ test/licence-rule.test.ts > the real check, run against a folder with a test package added > fails when two folders call themselves the same package and version but declare different licences
+ ✓ test/licence-rule.test.ts > the real check, run against a folder with a test package added > fails on a folder holding a package under another name that the lock file does not record
+ ✓ test/licence-rule.test.ts > the real check, run against a folder with a test package added > fails on a package folder with no name, an unreadable package.json, or the component's own name
+ ✓ test/licence-rule.test.ts > the real check, run against a folder with a test package added > fails on an optional or peer dependency that is neither installed nor in the lock file
  ✓ test/licence-rule.test.ts > the real check, run against a folder with a test package added > fails on a lock file that lists no packages, or cannot be read
  ✓ test/licence-rule.test.ts > the real check, run against a folder with a test package added > fails on a local package the rule does not name, whether a folder or a link
  ✓ test/licence-rule.test.ts > the real check, run against a folder with a test package added > a component's own package > passes when the folder is exactly what the rule names
  ✓ test/licence-rule.test.ts > the real check, run against a folder with a test package added > a component's own package > fails without the rule naming it: an unlicensed private package is refused like any other
  ✓ test/licence-rule.test.ts > the real check, run against a folder with a test package added > a component's own package > fails when a file in it has changed, or a file has been added
+ ✓ test/licence-rule.test.ts > the real check, run against a folder with a test package added > a component's own package > fails when another folder calls itself by the own package's name and version, nested or under another folder name
  ✓ test/licence-rule.test.ts > the real check, run against a folder with a test package added > a component's own package > fails when a real package is installed under its name
  ✓ test/licence-rule.test.ts > the real check, run against a folder with a test package added > fails when the notices file is out of date
  ✓ test/licence-rule.test.ts > the real check, run against a folder with a test package added > passes on the builder itself, with the notices file up to date
+ ✓ test/sandbox.test.ts > sandbox manager: compose documents > server profile: an internal network with no route out, and the egress proxy as the only bridge
+ ✓ test/sandbox.test.ts > sandbox manager: compose documents > development profile: host network, session proxy and certificate, database on a non-default port
+ ✓ test/sandbox.test.ts > sandbox manager: compose documents > writes YAML that Docker Compose accepts
+ ✓ test/sandbox.test.ts > sandbox manager: compose documents > round-trips a small document through the YAML writer
+ ✓ test/sandbox.test.ts > sandbox manager: live, development profile > starts the project's database and egress proxy, and the proxy refuses hosts not on the list
  ✓ test/gateway.test.ts > model gateway: key and metering > forwards with the real key, keeps the key out of the client's view, and records usage and cost
  ✓ test/gateway.test.ts > model gateway: key and metering > relays a streamed response byte for byte and meters it from the stream's events
  ✓ test/gateway.test.ts > model gateway: key and metering > records a stream the client abandoned part-way, marked incomplete, with the usage seen so far
@@ -60,11 +74,6 @@ $ npx vitest run --reporter=verbose   (in builder/; the whole suite)
  ✓ test/gateway.test.ts > model gateway: what is refused > refuses methods other than POST
  ✓ test/gateway.test.ts > model gateway: what is refused > passes token counting through, logged and unmetered
  ✓ test/gateway.test.ts > model gateway: what is refused > raised no faults during this run
- ✓ test/sandbox.test.ts > sandbox manager: compose documents > server profile: an internal network with no route out, and the egress proxy as the only bridge
- ✓ test/sandbox.test.ts > sandbox manager: compose documents > development profile: host network, session proxy and certificate, database on a non-default port
- ✓ test/sandbox.test.ts > sandbox manager: compose documents > writes YAML that Docker Compose accepts
- ✓ test/sandbox.test.ts > sandbox manager: compose documents > round-trips a small document through the YAML writer
- ✓ test/sandbox.test.ts > sandbox manager: live, development profile > starts the project's database and egress proxy, and the proxy refuses hosts not on the list
  ✓ test/egress.test.ts > egress proxy > matches exact hosts and wildcard subdomains, nothing else
  ✓ test/egress.test.ts > egress proxy > lets an allowed HTTPS host through and logs it as allowed
  ✓ test/egress.test.ts > egress proxy > reaches the model API host (401 without a key means it was reached)
@@ -79,5 +88,5 @@ $ npx vitest run --reporter=verbose   (in builder/; the whole suite)
  ✓ test/app-spec.test.ts > app spec > refuses a choice field with no choices
  ✓ test/app-spec.test.ts > app spec > refuses more than five core actions
  Test Files  6 passed (6)
-      Tests  76 passed (76)
+      Tests  85 passed (85)
 exit code: 0
