@@ -21,6 +21,8 @@
 // It prints one JSON line per fact on stdout:
 //   {"kind":"info","name":...,"value":...}           what the container sees (no setting's value is printed)
 //   {"kind":"attempt","id","group","toward","what","target","how","result","code","detail"}
+//                                                    ("timed out" only where no connection opened; once one
+//                                                    opened and nothing more came: OPENED_THEN_SILENT)
 //   {"kind":"end","attempts":n}
 //   {"kind":"error","reason":...}                    (exit 1)
 import dns from "node:dns";
@@ -281,8 +283,10 @@ function httpDetail(status, headers, body) {
 
 /**
  * Run `start(finish, cleanup, atLimit)` with a time limit; `finish` settles once with a result. When the
- * limit comes first, the result is "timed out", unless `atLimit(f)` was called: then it is `f()` (an HTTP
- * attempt whose status and headers have come is an HTTP status, whatever its body does).
+ * limit comes first, the result is "timed out", unless `atLimit(f)` was called: then it is `f()`. An attempt
+ * calls it once its connection opened (`openedThenSilent`), and an HTTP attempt again once its status and
+ * headers have come (then the result is that HTTP status, whatever the body does). So "timed out" is given
+ * only where no connection opened (or, for a lookup, no answer came).
  */
 function withLimit(ms, start) {
   return new Promise((resolve) => {
@@ -309,6 +313,25 @@ function withLimit(ms, start) {
       (f) => (limitResult = f),
     );
   });
+}
+
+/**
+ * The result of an attempt whose connection opened, but which got nothing more before its time limit: a
+ * request went out on an open connection, or a proxy was asked for a tunnel, or it answered 200 and nothing
+ * came back inside the tunnel. It counts as an answer, since a connection opened (review of 0.6a, second
+ * round: these used to be "timed out", which is now kept for an attempt where no connection opened).
+ */
+export const OPENED_THEN_SILENT = "connected, then no answer within the limit";
+
+/** From now on, the limit gives OPENED_THEN_SILENT, with what had happened (`what`) as its detail. */
+function openedThenSilent(atLimit, ms, what) {
+  atLimit(() => ({ result: OPENED_THEN_SILENT, code: "TIMEOUT_AFTER_CONNECT", detail: `${what} within the time limit (${ms} ms)` }));
+}
+
+/** Call `f` once the socket's TCP connection has opened. */
+function whenOpen(sock, f) {
+  if (sock.connecting || !sock.remoteAddress) sock.once("connect", f);
+  else f();
 }
 
 function tcpAttempt(op, ms) {
@@ -365,6 +388,10 @@ function httpAttempt(op, ms, secure, sessionCert) {
       (res) => readAnswer(res, finish, cleanup, atLimit, ms),
     );
     cleanup(() => req.destroy());
+    req.on("socket", (sock) => {
+      whenOpen(sock, () => openedThenSilent(atLimit, ms, secure ? "the connection opened; the secure handshake did not finish" : "the connection opened; no HTTP status came"));
+      if (secure) sock.once("secureConnect", () => openedThenSilent(atLimit, ms, "the secure connection opened; no HTTP status came"));
+    });
     req.on("error", (e) => finish({ result: classifyError(codeOf(e)), code: codeOf(e), detail: "" }));
     req.end();
   });
@@ -378,6 +405,7 @@ function httpViaProxyAttempt(op, ms) {
       (res) => readAnswer(res, finish, cleanup, atLimit, ms),
     );
     cleanup(() => req.destroy());
+    req.on("socket", (sock) => whenOpen(sock, () => openedThenSilent(atLimit, ms, "the connection to the proxy opened; no HTTP status came")));
     req.on("error", (e) => finish({ result: classifyError(codeOf(e)), code: codeOf(e), detail: "" }));
     req.end();
   });
@@ -385,9 +413,10 @@ function httpViaProxyAttempt(op, ms) {
 
 /**
  * Ask a proxy to open a tunnel; `then(socket)` continues once it answers 200. A proxy that closes the
- * connection before a whole answer has its own result, at once, not "timed out" at the limit.
+ * connection before a whole answer has its own result, at once, not "timed out" at the limit. Once the
+ * connection to the proxy opened, and again once it answered 200, the limit gives OPENED_THEN_SILENT.
  */
-function tunnel(op, finish, cleanup, then) {
+function tunnel(op, finish, cleanup, then, atLimit, ms) {
   const s = net.connect({ host: op.proxy.host, port: op.proxy.port });
   cleanup(() => s.destroy());
   let buf = Buffer.alloc(0);
@@ -406,17 +435,21 @@ function tunnel(op, finish, cleanup, then) {
       finish({ result: status ? `proxy answered ${status}` : "not an HTTP answer", code: status ? null : "BAD_ANSWER", detail: status >= 400 && rest ? `says: "${oneLine(rest)}"` : "" });
       return;
     }
+    openedThenSilent(atLimit, ms, "the proxy answered 200 to the CONNECT; nothing came back inside the tunnel");
     then(s);
   };
   s.on("data", onData);
   s.on("end", closed);
   s.on("close", closed);
-  s.on("connect", () => s.write(`CONNECT ${op.target} HTTP/1.1\r\nHost: ${op.target}\r\nUser-Agent: isolation-probe\r\n\r\n`));
+  s.on("connect", () => {
+    openedThenSilent(atLimit, ms, "the connection to the proxy opened; it did not answer the CONNECT");
+    s.write(`CONNECT ${op.target} HTTP/1.1\r\nHost: ${op.target}\r\nUser-Agent: isolation-probe\r\n\r\n`);
+  });
   s.on("error", (e) => finish({ result: classifyError(codeOf(e)), code: codeOf(e), detail: "the proxy itself could not be reached" }));
 }
 
 function connectAttempt(op, ms) {
-  return withLimit(ms, (finish, cleanup) => tunnel(op, finish, cleanup, null));
+  return withLimit(ms, (finish, cleanup, atLimit) => tunnel(op, finish, cleanup, null, atLimit, ms));
 }
 
 function httpsTunnelAttempt(op, ms, sessionCert) {
@@ -435,7 +468,13 @@ function httpsTunnelAttempt(op, ms, sessionCert) {
           method: "GET",
           servername: op.host,
           ...trust(sessionCert),
-          createConnection: () => tls.connect({ socket, servername: op.host, ...trust(sessionCert) }),
+          createConnection: () => {
+            const inside = tls.connect({ socket, servername: op.host, ...trust(sessionCert) });
+            inside.once("secureConnect", () =>
+              openedThenSilent(atLimit, ms, "the proxy answered 200 to the CONNECT and the secure connection inside the tunnel opened; no HTTP status came"),
+            );
+            return inside;
+          },
           headers: { host: op.host, "user-agent": "isolation-probe", connection: "close" },
         },
         (res) => readAnswer(res, finish, cleanup, atLimit, ms),
@@ -443,7 +482,7 @@ function httpsTunnelAttempt(op, ms, sessionCert) {
       cleanup(() => req.destroy());
       req.on("error", (e) => finish({ result: classifyError(codeOf(e)), code: codeOf(e), detail: "the proxy answered 200; the error came after" }));
       req.end();
-    }),
+    }, atLimit, ms),
   );
 }
 

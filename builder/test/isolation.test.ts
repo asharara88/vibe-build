@@ -274,6 +274,58 @@ describe("isolation probe: its attempts, against made-up servers on the loopback
     expect(Date.now() - t0).toBeLessThan(2000);
     expect(r.result).toMatch(RESULT);
   });
+
+  // Review of 0.6a, second round: an attempt whose connection opened and then heard nothing until the limit
+  // was "timed out", counted as no answer. The words are written out here, not taken from the probe.
+  const OPENED_THEN_SILENT = "connected, then no answer within the limit";
+
+  it("a server that accepts the connection and never answers: 'connected, then no answer within the limit', counted as an answer, not 'timed out'", async () => {
+    // A made-up server that accepts every connection and never sends a byte. It listens at "localhost", so
+    // that the HTTPS attempt can name its server as a name, not an address.
+    const host = "localhost";
+    const port = await onLoopback(net.createServer(() => undefined), host);
+    const s = parseSettings(JSON.stringify({ ...SETTINGS, timeoutMs: 300 }));
+    const seen: Record<string, unknown> = {};
+    for (const [name, op] of [
+      ["http", { type: "http", host, port, path: "/" }],
+      ["https", { type: "https", host, port, path: "/" }],
+      ["http-proxy", { type: "http-proxy", proxy: { host, port }, url: "http://made-up.invalid/" }],
+      ["connect", { type: "connect", proxy: { host, port }, target: "made-up.invalid:443" }],
+    ] as const) {
+      const r = await runAttempt(madeUpAttempt(op), s, null);
+      seen[name] = { ...r, counted: gotAnswer(r.result) };
+    }
+    const opened = (detail: string) => ({ result: OPENED_THEN_SILENT, code: "TIMEOUT_AFTER_CONNECT", detail: `${detail} within the time limit (300 ms)`, counted: true });
+    expect(seen).toEqual({
+      http: opened("the connection opened; no HTTP status came"),
+      https: opened("the connection opened; the secure handshake did not finish"),
+      "http-proxy": opened("the connection to the proxy opened; no HTTP status came"),
+      connect: opened("the connection to the proxy opened; it did not answer the CONNECT"),
+    });
+    expect(OPENED_THEN_SILENT).toMatch(RESULT);
+  });
+
+  it("a proxy that answers 200 to a CONNECT and then says nothing: the tunnel attempt is 'connected, then no answer within the limit', with the proxy's 200 in its detail", async () => {
+    // A made-up proxy: it reads the CONNECT, answers 200, and then sends nothing more.
+    const connects: string[] = [];
+    const port = await onLoopback(
+      net.createServer((c) =>
+        c.once("data", (d: Buffer) => {
+          connects.push(d.toString("latin1").split("\r\n")[0] ?? "");
+          c.write("HTTP/1.1 200 Connection established\r\n\r\n");
+        }),
+      ),
+    );
+    const s = parseSettings(JSON.stringify({ ...SETTINGS, timeoutMs: 300 }));
+    const r = await runAttempt(madeUpAttempt({ type: "https-tunnel", proxy: { host: "127.0.0.1", port }, host: "made-up.invalid", port: 443, path: "/" }), s, null);
+    expect({ connects, ...r, counted: gotAnswer(r.result) }).toEqual({
+      connects: ["CONNECT made-up.invalid:443 HTTP/1.1"],
+      result: OPENED_THEN_SILENT,
+      code: "TIMEOUT_AFTER_CONNECT",
+      detail: "the proxy answered 200 to the CONNECT; nothing came back inside the tunnel within the time limit (300 ms)",
+      counted: true,
+    });
+  });
 });
 
 describe("isolation probe: reading what it prints (unit)", () => {
@@ -300,10 +352,13 @@ describe("isolation probe: reading what it prints (unit)", () => {
   });
 
   it(`an answer (${ANSWER_WORDING}) is told apart from a failure; every result given only after a connection opened is an answer (review finding 11)`, () => {
-    // Given only once a connection opened: a TLS server sent a certificate, a connection was reset, a proxy closed or sent something that is not HTTP.
-    const afterAConnection = ["certificate not trusted", "secure connection failed", "connection reset", "proxy closed without an answer", "not an HTTP answer"];
+    // Given only once a connection opened: nothing more came before the limit, a TLS server sent a certificate,
+    // a connection was reset, a proxy closed or sent something that is not HTTP.
+    const afterAConnection = ["connected, then no answer within the limit", "certificate not trusted", "secure connection failed", "connection reset", "proxy closed without an answer", "not an HTTP answer"];
     for (const r of ["connected", "HTTP 403", "proxy answered 200", "found 1 address", "found 12 addresses", ...afterAConnection]) expect(gotAnswer(r), r).toBe(true);
-    for (const r of ["refused", "timed out", "name not found", "no name server answered", "lookup refused by the name server", "network unreachable", "error"]) expect(gotAnswer(r), r).toBe(false);
+    // "Timed out" is given only when no connection opened. A word the probe does not give is not counted either.
+    for (const r of ["refused", "timed out", "name not found", "no name server answered", "lookup refused by the name server", "network unreachable", "error", "connected maybe", "HTTP 2000"])
+      expect(gotAnswer(r), r).toBe(false);
     // Every word either way is one the report accepts.
     for (const r of afterAConnection) expect(r).toMatch(RESULT);
   });
@@ -425,7 +480,8 @@ describe("isolation probe: live, the engine container (development profile)", ()
     expect(report.problems).toEqual([]);
     expect(report.ended).toBe(true);
     // First, and all at once: every attempt that got an answer (a connection opened, an HTTP status, a
-    // proxy's answer, or an address found; any result given only after a connection opened). There must be none.
+    // proxy's answer, or an address found; any result given only after a connection opened, "connected,
+    // then no answer within the limit" among them). There must be none.
     expect(report.attempts.filter((a) => gotAnswer(a.result)).map((a) => `${a.id} ${a.target}: ${a.result}`)).toEqual([]);
     // Nor an attempt whose error the probe could not name: it is not counted as an answer, so it must not pass unseen.
     expect(report.attempts.filter((a) => a.result === "error").map((a) => `${a.id} ${a.target}: ${a.code}`)).toEqual([]);

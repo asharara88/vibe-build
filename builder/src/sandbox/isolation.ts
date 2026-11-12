@@ -36,7 +36,7 @@ export interface ProbeReport {
 
 /** Every result word the probe can give. Anything else is reported as a problem. */
 export const RESULT =
-  /^(connected|refused|timed out|name not found|no name server answered|lookup refused by the name server|network unreachable|certificate not trusted|secure connection failed|connection reset|proxy closed without an answer|not an HTTP answer|error|HTTP \d{3}|proxy answered \d{3}|found \d+ address(es)?)$/;
+  /^(connected|connected, then no answer within the limit|refused|timed out|name not found|no name server answered|lookup refused by the name server|network unreachable|certificate not trusted|secure connection failed|connection reset|proxy closed without an answer|not an HTTP answer|error|HTTP \d{3}|proxy answered \d{3}|found \d+ address(es)?)$/;
 
 const TOWARD = new Set<Toward>(["outside", "host", "lookup", "egress-proxy", "session-proxy"]);
 
@@ -46,15 +46,19 @@ export const ANSWER_WORDING = "a connection opened, an HTTP status, a proxy's an
 /**
  * True if the attempt got an answer: a connection opened, an HTTP status, a proxy's answer, or an address
  * found. Every result the probe gives only after a connection opened counts, not only "connected":
- * "certificate not trusted" and "secure connection failed" (a TLS server answered on an open connection),
- * "connection reset", "proxy closed without an answer" and "not an HTTP answer" (review of 0.6a,
- * finding 11). An answer is not the same as reaching the target: a filter on the way can answer (the
- * report says which, from the answer's own words). Not counted: "refused" and "timed out" (no connection
- * opened), a lookup that found no address, "network unreachable", and "error", which the probe gives for
- * an error code it does not know and which can come before any connection opens.
+ * "connected, then no answer within the limit" (a connection opened, or a proxy answered 200 to a CONNECT,
+ * and nothing more came before the limit: review of 0.6a, second round), "certificate not trusted" and
+ * "secure connection failed" (a TLS server answered on an open connection), "connection reset", "proxy
+ * closed without an answer" and "not an HTTP answer" (review of 0.6a, finding 11). An answer is not the same
+ * as reaching the target: a filter on the way can answer (the report says which, from the answer's own
+ * words). Not counted: "refused"; "timed out", which the probe gives only when the limit came before any
+ * connection opened (or, for a lookup, before any answer); a lookup that found no address; "network
+ * unreachable"; and "error", which the probe gives for an error code it does not know and which can come
+ * before any connection opens. The whole result must match: a word the probe does not give is not counted
+ * (and the report lists it as a problem, RESULT).
  */
 export function gotAnswer(result: string): boolean {
-  return /^(connected|HTTP \d{3}|proxy answered \d{3}|found \d+ address|certificate not trusted|secure connection failed|connection reset|proxy closed without an answer|not an HTTP answer)/.test(result);
+  return /^(connected|connected, then no answer within the limit|HTTP \d{3}|proxy answered \d{3}|found \d+ address(es)?|certificate not trusted|secure connection failed|connection reset|proxy closed without an answer|not an HTTP answer)$/.test(result);
 }
 
 const str = (v: unknown) => typeof v === "string";
