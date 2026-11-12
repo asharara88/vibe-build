@@ -1,0 +1,22 @@
+# Docker on the development machine after run 5 (run-live-5-follow-up.txt, written at 15:52 UTC) and the follow-up's other checks.
+# Listed at 16:01 UTC on 12 Nov 2026. Commands as run; output unchanged.
+
+$ docker ps -a
+CONTAINER ID   IMAGE     COMMAND   CREATED   STATUS    PORTS     NAMES
+
+$ docker images -a
+IMAGE                    ID             DISK USAGE   CONTENT SIZE   EXTRA
+alpine:3.20              d9e853e87e55       12.2MB         3.71MB        
+curlimages/curl:8.10.1   d9b4541e214b         32MB         9.41MB        
+node:22-alpine           0e1754758c2d        239MB         61.7MB        
+postgres:16-alpine       aa6cb33cf4c1        420MB          117MB        
+python:3.13-slim         e48f59cdba69        178MB         45.3MB        
+
+$ docker network ls
+NETWORK ID     NAME      DRIVER    SCOPE
+867f6abaa701   bridge    bridge    local
+38a2fbbade2e   host      host      local
+11c826f30b59   none      null      local
+
+$ docker volume ls
+DRIVER    VOLUME NAME

@@ -1,3 +1,18 @@
+# AN EXCERPT, not the whole output. For each case it keeps the edit, as `diff <original> <edited>` prints it, and the
+# lines of the test runner's output that name the failing test, the failure and the totals; the rest is left out.
+# The command and the two edits were not kept with the output when it was made (12 Nov 2026, before commit 0b39e4d).
+# They were added here afterwards, on 12 Nov 2026, from the diff lines below; an independent re-reader ran this command
+# with each edit on a scratch copy of builder/ at 0b39e4d and got the same failures and totals (the container's random
+# suffix and the timings differ). The lines from "# Each fix" down are as first kept.
+#
+# Edits, one at a time, to src/sandbox/manager.ts in a scratch copy of builder/ at 0b39e4d. These two commands give
+# exactly the diff lines below (checked on 12 Nov 2026 against manager.ts at 0b39e4d):
+#   A: sed -i '372d' src/sandbox/manager.ts
+#   B: sed -i '421s/\["down", "-v", "--remove-orphans"\])/["down", "-v", "--remove-orphans"], 180_000, false)/' src/sandbox/manager.ts
+#      (the added `false` is the setting that leaves the tools profile out of the command)
+# Command, from that copy:
+#   npx vitest run test/sandbox.test.ts -t "live, the tools container"
+#
 # Each fix of the review answers removed in a scratch copy of builder/, and the live tests of the tools container run.
 # A: dockerEnv no longer points DOCKER_CONFIG at the project's own client folder.
 # B: destroy runs 'down' without the tools profile.
