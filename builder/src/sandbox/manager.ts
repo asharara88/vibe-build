@@ -13,8 +13,9 @@
  *   arguments; its certificate is copied into the build stage (`createSandbox`, `build`), so the
  *   tools image, which is that stage, holds a copy. The egress proxy is given the session proxy as
  *   its way out and has the certificate mounted. The app and tools containers are given no proxy
- *   setting, and the app container holds no copy of the certificate (seen in package 0.6a's run,
- *   12 Nov 2026). The session proxy is on the machine's own loopback address, which a container on
+ *   setting (seen in package 0.6a's run, 12 Nov 2026); the app container holds no copy of the
+ *   certificate (none at the two places that run's probe looked; the Dockerfile's `run` stage copies
+ *   none). The session proxy is on the machine's own loopback address, which a container on
  *   Docker's default ("bridge") network could not reach (refused at the machine's address on that
  *   network, attempt G45887). It is not the machine's only way out: in the same run, requests sent
  *   with no proxy got answers, from the app and tools containers and from one on Docker's default
