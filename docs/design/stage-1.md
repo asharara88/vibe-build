@@ -3,7 +3,7 @@
 | | |
 | --- | --- |
 | Status | **Approved by the owner on 11 November 2026, subject to three corrections, which are made in this version:** (1) the acceptance tests are never present in the engine's container and live outside the project's working copy and git history (2.4, 2.5, 2.7, 6.1, 7.2); (2) the budget cap works by worst-case holds settled to actual cost, with a pre-step check (2.4, 5.5, 7.2); (3) the second engine is OpenAI's Codex SDK, the owner's decision (1, 2.8, 8, 9). The owner's answers to section 9 are in `docs/DECISIONS.md`; the demo candidate (question 5) is still undecided, and the model key (question 7) is still to be created |
-| Not covered by that approval | Changes made since. The five amendments to 5.5 were approved by the owner through the build plan. The other changes are listed at the end of 5.5 and in 7.2; those marked there as awaiting the owner, and the open points under "Known limits of the hold", are **not approved** |
+| Not covered by that approval | Changes made since. The five amendments to 5.5 were approved by the owner through the build plan. The other changes are listed at the end of 5.5 and in 7.2. **None of them has the owner's recorded approval**; some are marked there as awaiting his decision, and the points under "Known limits of the hold" are open |
 | Written | 11 November 2026, by Claude Code, from `HANDOVER.md` (the owner's edited version of the same day, which adds Decision F and gate item 9) and the checks recorded in `docs/SOURCES.md` and `docs/ENVIRONMENT-CHECK.md` |
 | Reader | The owner: section 1, then section 9 (the questions). An incoming engineer: everything |
 
@@ -156,7 +156,7 @@ Later stages: the secure-deployment guide compares containers, gVisor and virtua
 | Licence check | license-checker-rseidelsohn (BSD-3-Clause) | pip-licenses (MIT) |
 | Database | PostgreSQL 16 in both (the current major is 18; 16 is what the development machine has, and the version is pinned either way) | |
 
-All licences above were verified today against each project's own repository or package index (`docs/SOURCES.md`). Every one is permissive. htmx's "Zero-Clause BSD" is a BSD-family licence and permissive; I list it so the owner sees it.
+All licences above were verified today against each project's own repository or package index (`docs/SOURCES.md`). Every one listed here is permissive; the packages they bring with them were not checked at the time, and some are not (see the licence row in the table below, and known gaps 32 and 40). htmx's "Zero-Clause BSD" is a BSD-family licence and permissive; I list it so the owner sees it.
 
 How the criteria fall, before measurement:
 
@@ -164,7 +164,8 @@ How the criteria fall, before measurement:
 | --- | --- |
 | Quality rules true by construction | P. Django's documentation states a built-in authentication system with users, groups and permissions, form and field validation, and migrations (verified). Who-and-when stamps are a convention in both. In Next.js each is a library or a convention the template must impose |
 | Acceptance score and model cost on example 1 | Unknown until measured. Models write both well; Next.js has the larger body of recent code |
-| Standard PostgreSQL, containers, permissive licences | Both |
+| Standard PostgreSQL, containers | Both |
+| Permissive licences only | Neither, as found so far: the Django candidate needs `psycopg` (LGPL-3.0); the TypeScript template ships `caniuse-lite` (CC-BY-4.0, approved by the owner on 12 Nov 2026) and carried LGPL packages through `sharp` (found 12 Nov 2026, known gap 40), which package R1 removes |
 | Maintained and widely used; engineers hireable | Both. Django is older and changes less; Next.js changes more |
 | Translation and right-to-left | P built in; T needs next-intl and care with layout |
 | One language across builder and apps | T if the builder is TypeScript. The Agent SDK exists in both languages, so the builder could be Python and match P |
@@ -354,7 +355,7 @@ Each project has a cap in dollars, set when the project is created, with a defau
 
 > spent (settled cost of finished calls) + open holds (calls in flight, and holds kept for calls not yet reconciled) + this call's hold ≤ cap.
 
-**The hold is meant to be the most this call can cost, worked out from the request and not from history.** The gateway computes it from the request itself before forwarding anything. Review on 12 November found ways a call could still cost more than the hold as written here; they are under "Known limits of the hold" below and are settled in package 1.2 before the cap is relied on:
+**The hold is meant to be the most this call can cost, worked out from the request and not from history.** The gateway computes it from the request itself before forwarding anything. Review on 12 November found ways a call could still cost more than the hold as written here; they are under "Known limits of the hold" below, with what package 1.2 is to do about each:
 
 | Part of the hold | How it is bounded |
 | --- | --- |
@@ -371,7 +372,7 @@ Each project has a cap in dollars, set when the project is created, with a defau
 5. **A finished call that cannot be saved.** If the provider has answered but the event log refuses the write (the database is down or full), the hold stays open at its full amount, the project is marked `frozen`, and **the project makes no further calls until the call is reconciled** by the owner's recorded action (amendment e). The gateway raises a fault: a message saying that money was spent that could not be recorded. Nothing the provider billed can go unrecorded and uncharged against the budget. **Where this is recorded while the database is refusing writes is not yet designed, and needs an engineer's judgement** (known gap 35). It is built in package 1.4, with the failure test that shows it (proof row B10), not in package 1.2. The proposal, to be reviewed: the gateway fails closed, meaning that while the event log cannot be written it forwards no metered call for any project; it keeps the unsaved call's record and the frozen mark in a small journal file of its own beside the gateway, outside every project container; and when the database accepts writes again it writes the journal into the log before anything else, so the hold, the freeze and the fault appear in the record and on the unreconciled list.
 6. **Record.** Holds are rows in the database and events in the log, not memory, so they survive a restart and hold across more than one gateway process.
 
-**Known limits of the hold, found in review on 12 November 2026.** As written above, the hold could be less than a call costs in four cases, and one case is not defined at all. None of this is built. In each case package 1.2 builds the stricter choice (refuse the request, or keep the hold), which can only make the cap tighter; the reviewing engineer reads these with the gateway at checkpoint 2.
+**Known limits of the hold, found in review on 12 November 2026.** As written above, the hold could be less than a call costs in four cases, and one case is not defined at all. None of this is on the integration branch. In each case package 1.2 builds the stricter choice (refuse the request, keep the hold, or add a margin to the count), which can only make the cap tighter; the reviewing engineer reads these with the gateway at checkpoint 2.
 
 | Limit | Source, read 12 Nov 2026 | What package 1.2 does about it |
 | --- | --- | --- |
@@ -379,7 +380,9 @@ Each project has a cap in dollars, set when the project is created, with a defau
 | The token count is "an estimate" and the billed input "might differ by a small amount" | Token-counting page | A margin is added to the counted prompt; its size is set from measurement in 1.2 and checked against the real provider in package 2.3 |
 | Server-side tools are billed on top of tokens (web search: $10 per 1,000 searches) | Pricing page | The gateway refuses any request that includes a server-side tool. The engine in Stage 1 is not expected to need one; that is an assumption until package 2.2 |
 | Fast mode for a model the pricing page does not list is assumed to cost twice the standard rate | Pricing page lists it for some models only | The gateway refuses fast mode for a model whose fast-mode price is not in its table |
-| **An error answer from the provider is not defined:** the steps above do not say whether its hold is kept or released, and no proof row covers it | Found in review | The hold is released only when the provider's answer shows the request was rejected before any work was done; in every other case (a server error, a timeout, a cut connection) it is kept, unreconciled. A proof row is added in package 1.4 |
+| **An error answer from the provider is not defined:** the steps above do not say whether its hold is kept or released, and no proof row covers it | Found in review | The hold is released only when the provider's answer shows the request was rejected before any work was done; in every other case, such as a server error, it is kept, unreconciled. A call that never answers or is cut part-way is amendment (a) and belongs to package 1.4 |
+
+**No proof row exists yet for any of these five.** Package 1.2 is finished by rows B1 to B6 and only those, so as the plan stands the refusals and the margin would be built without being part of what finishes the package. Adding rows for them would add to package 1.2's "Done means", which is the owner's to decide (`docs/STATUS.md`, the question on what finishes package 1.2).
 
 **The pre-step check.** A step must not start without room to finish, so each step carries a **step budget**: the worst case for the whole step, which is the step's turn limit multiplied by the worst-case hold of one call at the profile's `max_tokens` ceiling and the largest prompt the step may send. Before the orchestrator starts a step, it asks the gateway to open a step hold for that amount under the same equation. If it does not fit, the step does not start, and the user sees why and what raising the cap would allow. While the step runs, each call's hold is taken from the step hold rather than from the project's free budget; when the step ends, the unused part of the step hold is released. Step budgets are set from measurement once the skeleton has numbers; until then the turn limit and `max_tokens` ceiling are deliberately small, so the first step budgets are small and visible.
 
@@ -401,7 +404,7 @@ Each project has a cap in dollars, set when the project is created, with a defau
 | (d) | A successful answer whose usage cannot be read keeps its full hold and is marked unreconciled | Step 2 of the life of a hold |
 | (e) | If a finished call cannot be saved, its hold stays open, the project is frozen, and no further call is made until the owner reconciles it | Step 5 of the life of a hold |
 
-**Other changes to this section and to 5.2 and 7.2 made with or after those five, each for the owner to see.** They are not among the five amendments the owner approved through the build plan; the first three follow from them, the fourth awaits his confirmation, the rest are corrections found in review.
+**Other changes to this note made with or after those five (to this section, to 5.2 and 7.2, and one to the comparison table under decision D), each for the owner to see.** They are not among the five amendments the owner approved through the build plan; the first three follow from them, the fourth awaits his confirmation, and the rest were found in review: some are corrections, some are new, and some are the owner's to approve, as each row says.
 
 | Date | Change | Why | Standing |
 | --- | --- | --- | --- |
@@ -419,7 +422,10 @@ Each project has a cap in dollars, set when the project is created, with a defau
 | 12 Nov 2026 | Proof rows B1, B2, B5, B6, B7 and B8 say more than the eight rows they replaced: B1 names the settle event; B2 the refusal before forwarding; B5 that the hold stays an open hold; B6 start-up recovery; B8 the count of calls. **B7 asks more than the plan's wording for package 1.3**: besides the refusal with its message, that each call's hold is drawn from the step hold and the unused part released | The rows have to be checkable one by one | The owner's to approve or change, with the row assignment |
 | 12 Nov 2026 | Row B5 says "marked unreconciled", not "listed" | The owner's list is package 1.5, which comes after 1.2 | Correction |
 | 12 Nov 2026 | **Which package builds what.** Package 1.2 builds opening, settling, expiry and start-up recovery (B1 to B6). Package 1.4 builds what happens when a call is cut off, is unreadable or cannot be saved (amendments a, d, e) together with the tests that show it (B8 to B13). B14 (package 1.5) needs those cases, so **1.5 can be finished only after 1.4**, although the plan lists 1.5 as depending on 1.2 alone | The earlier text did not say, and had the engineer's question attached to 1.2 | Decided by Claude Code as a matter of how it is built; whether to add the 1.4 dependency to the plan is the owner's to say |
-| 12 Nov 2026 | "Known limits of the hold" added below | A fresh reviewer checked the hold against the provider's pricing and token-counting pages and found four ways it could fall short, and one case not defined | **Open design points, not approved** |
+| 12 Nov 2026 | "Known limits of the hold" added above | A fresh reviewer checked the hold against the provider's pricing and token-counting pages and found four ways it could fall short, and one case not defined | **Open design points, not approved** |
+| 11 and 12 Nov 2026 | The paragraph "The two invariants" was added to 5.5, and step 3 gained the rule that a kept hold is closed only by the owner's recorded action stating the actual cost and its evidence | The invariants come from the plan's package 1.4 and the closing rule from its package 1.5; the note has to state both | Taken from the plan's own wording; listed here for completeness |
+| 12 Nov 2026 | Proof row B4 split into two cases | No model has both a long-prompt rate and a listed fast-mode price, so the row could not be shown as first written | It changes what finishes package 1.2, so it is the owner's to approve or change, with the row assignment |
+| 12 Nov 2026 | In the comparison table under decision D, "permissive licences: Both" replaced by a row saying neither candidate is free of non-permissive licences as found so far | `caniuse-lite` and the LGPL packages of `sharp` were found in the TypeScript template after the table was written; the sentence above the table that said every component is permissive was corrected with it | Correction of a fact. The stack decision is unchanged and is the owner's |
 
 ---
 
@@ -494,7 +500,7 @@ The thinnest path from a fixed brief to a running app with one acceptance check 
 | B1 | 1.2 | A hold is opened before every forwarded call and settled to the actual cost | For each call in a run: `hold.opened` with its worst-case amount shown beside the arithmetic (prompt count, `max_tokens`, the rates used), then `hold.settled` with the actual cost; the actual cost is never above the hold; the difference returns to the budget |
 | B2 | 1.2 | A call whose hold does not fit is refused at the call | Cap set so that spend plus open holds plus this hold exceeds it: the call is refused with the message shown, a `gateway.refused` event is written, no hold is opened, nothing is forwarded |
 | B3 | 1.2 | A prompt that cannot be counted is refused (amendment b) | The token-counting path made to fail: refused with the reason named, no hold opened, nothing forwarded |
-| B4 | 1.2 | The hold covers fast mode and the long-prompt rate when either could apply (amendment c) | For a model with a long-prompt rate and a profile that allows fast mode, the `hold.opened` amount equals the worst case at those rates, shown beside the arithmetic from the table in 5.2 |
+| B4 | 1.2 | The hold covers fast mode and the long-prompt rate when either could apply (amendment c) | Two cases, each with the `hold.opened` amount shown beside the arithmetic from the table in 5.2. (1) A model with a long-prompt rate (Claude Haiku 5.5) and a prompt at or near the threshold: the hold is at the long-prompt rates. (2) A model with a listed fast-mode price (Claude Opus 5.5) and a profile that allows fast mode: the hold is at twice the standard rates. No model today has both, so the two are shown separately |
 | B5 | 1.2 | A hold past its deadline is kept, not released | One hold driven past its deadline: kept at its full amount, marked `expired`, still counted as an open hold, marked unreconciled |
 | B6 | 1.2 | Holds are database rows that survive the gateway stopping | The gateway stopped cleanly with a hold open and started again: the hold is found at start-up, kept at its full amount, still counted as an open hold; spend plus open holds reads the same before and after |
 | B7 | 1.3 | A step does not start without room to finish | Cap set below a step's budget: the step is refused before it starts, with the message shown. In a step that does start: each call's hold is drawn from the step hold, and the unused part is released when the step ends |

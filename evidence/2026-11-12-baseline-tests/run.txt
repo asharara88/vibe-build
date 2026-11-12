@@ -1,0 +1,9 @@
+Run on 12 November 2026 on the development machine (a cloud session), in builder/ of branch claude/tracking-corrections, whose builder/ and templates/ are identical to commit e0e22e6 of the integration branch. PostgreSQL and Docker were running. The installed packages were a copy of the ones in the main working folder.
+
+$ npm run typecheck
+exit code: 0
+
+$ npm test
+ Test Files  5 passed (5)
+      Tests  38 passed (38)
+exit code: 0
