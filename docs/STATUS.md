@@ -2,7 +2,7 @@
 
 Read this first in every session. Update it before every session ends. Nothing else carries over between sessions.
 
-**Last updated:** 11 November 2026, after the owner's decisions on the design note.
+**Last updated:** 12 November 2026, after the cloud environment set-up.
 
 ## Current state
 
@@ -12,7 +12,11 @@ Read this first in every session. Update it before every session ends. Nothing e
 - **Network change: done.** The owner asked for the research sites to be allowed. Nineteen hosts were added to the personal Default cloud environment's allowed list with the owner's approval (list in `docs/OPEN-DECISIONS.md`). Verified reachable afterwards: Hetzner, DigitalOcean, AWS, PostgreSQL, Django docs, OpenAI developer docs, Core42. Oracle's site answers 403 to this session's requests, which is Oracle refusing automated requests, not the network policy.
 - **Prices and blocked documentation: read.** Hetzner and DigitalOcean prices read from their pages; Oracle, AWS and Azure UAE regions confirmed from their pages, but their price tables are drawn by a script and were not readable here. Django, PostgreSQL, Bedrock, Core42 Compass and the Codex SDK documentation read and recorded in `docs/SOURCES.md`. Still unread: the law-firm note on the UAE data law (site blocks automated requests) and OpenAI's API terms.
 
+- **Cloud environment for this repository: created, not yet proven.** On 12 November 2026 the owner approved a personal cloud environment named `vibe-build`: a setup script that makes Docker startable and downloads three base images, the same network access as before, no variables, no secrets. The Default environment is unchanged. **New sessions for this repository should be started on `vibe-build`.** Details in `docs/ENVIRONMENT-CHECK.md`, last section.
+
 ## What was verified, and how
+
+- 12 November 2026: `service docker start` failed in a fresh session until Docker's start script was patched. The patch and the whole setup script were run by hand twice; afterwards the daemon started and the three base images ran. **Not verified:** the setup script running by itself at the start of a new session, and whether the downloaded images survive into the session.
 
 - Development machine: containers run, Compose runs PostgreSQL 16, hardened container flags work, and containers reach the npm registry, PyPI and the Anthropic API when given the host network, the session proxy and its certificate. Run and recorded in `docs/ENVIRONMENT-CHECK.md`.
 - Anthropic documentation for the Agent SDK (overview, hosting, secure deployment, permissions), the cloud sessions, the memory page, model prices and the plan's API credits: read on 11 November 2026 and recorded in `docs/SOURCES.md`.
@@ -27,8 +31,9 @@ At the end of the session a one-page test server was started inside the session 
 ## Next step
 
 1. Merge pull request #1 (the owner, or Claude Code on the owner's word).
-2. The owner creates the model key and sets it as `BUILDER_MODEL_API_KEY` on the personal cloud environment (never in the conversation), and confirms the monthly limit and project cap.
-3. Then: the walking skeleton (design note, section 7), on both candidate stacks, on its own branch and pull request, with the evidence in the pull request. The non-model parts (template, sandbox manager, gateway, event log) can start before the key exists; the first model call cannot.
+2. The owner creates the model key and confirms the monthly limit and project cap. How the key is stored is an open choice for when it exists: the variable `BUILDER_MODEL_API_KEY` on the `vibe-build` environment, as the design note says (readable inside the session), or a network secret entered through the secure form (the key is added to requests outside the session and is never readable inside it; whether that disturbs Claude Code's own connection is not checked). Never in the conversation either way.
+3. First thing in the next session, started on `vibe-build`: run `service docker start` and `docker images`, and record whether the setup script did its work.
+4. Then: the walking skeleton (design note, section 7), on both candidate stacks, on its own branch and pull request, with the evidence in the pull request. The non-model parts (template, sandbox manager, gateway, event log) can start before the key exists; the first model call cannot.
 
 ## Blocked, and on whom
 
@@ -43,5 +48,6 @@ At the end of the session a one-page test server was started inside the session 
 
 | Date | What was done |
 | --- | --- |
+| 12 Nov 2026 | Cloud environment `vibe-build` created with the owner's approval. Docker start-up failure found, fixed in the setup script and recorded |
 | 11 Nov 2026 (later) | The owner issued an edited handover (Decision F) and then approved the design note and answered its questions. Decisions recorded. Network hosts allowed with the owner's approval. Prices and blocked documentation re-fetched (see the design note, section 4.3 and `docs/SOURCES.md`) |
 | 11 Nov 2026 | Repository set up from the empty state. Environment measured. Task 0 documents written. Specification cut from the handover. Stage 1 design note written as a proposal. Draft pull request opened. Preview test started |

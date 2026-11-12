@@ -59,3 +59,13 @@ The session's network policy is "limited: package managers allowed". Provider pr
 2. In a cloud session, project containers must share the machine's network and use the session proxy with its certificate. This is a development-only arrangement. On a demo server there is no such proxy, and the design note (section 2.5) describes the egress proxy the builder runs for itself.
 3. Nothing can be hosted here: the machine pauses when idle and running processes do not survive. The owner sees progress through screenshots and recordings in pull requests until a demo server exists.
 4. Whether a web page served inside a session can be opened by the owner is tested at the end of this session: a one-page test server was started and its port was reported to the Claude app. The result is in `docs/STATUS.md`.
+
+## Update, 12 November 2026: Docker start-up and the `vibe-build` environment
+
+Measured in a cloud session on 12 November 2026.
+
+- **`service docker start` failed** (exit code 2, daemon not running). Docker's start script (`/etc/init.d/docker`) stops at the first error, and two of its lines try to raise system limits the session is not allowed to raise ("ulimit: error setting limit (Operation not permitted)"). On 11 November the same message appeared as a warning and the daemon started; why it differs is not known.
+- **Fix, run and checked:** adding `|| true` to those lines lets the script carry on. After it, `service docker start` returned 0 and containers ran from `postgres:16-alpine` (16.15), `node:22-alpine` (22.23.5) and `python:3.13-slim` (3.13.18).
+- **The `vibe-build` cloud environment** (personal, created with the owner's approval) carries a setup script, a script that runs once when a new session's machine is built. It applies the fix, starts Docker, downloads those three images, and stops Docker again. Every step is allowed to fail so it cannot stop a session starting. Its network settings are the same as the Default environment's: limited, package managers allowed, plus the twenty research sites. It has no variables and no secrets.
+- **Run here:** the script ran twice by hand in this session, about 15 seconds the first time and 5 the second.
+- **Not checked:** the script has not yet run at the start of a fresh session, so it is unproven there. Whether the downloaded images are still present when the session begins is not known. The first session started on `vibe-build` should check both: `service docker start`, then `docker images`.

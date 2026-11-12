@@ -53,5 +53,5 @@ Ahmed Sharara is the founder and the only person on the project. He does not rea
 
 No product commands yet. Add the real ones here as they come to exist: start, test, check, deploy.
 
-- Cloud session set-up: `service docker start`. The Docker daemon is not running when a session begins (measured 11 Nov 2026).
+- Cloud session set-up: `service docker start`. The Docker daemon is not running when a session begins (measured 11 Nov 2026). On 12 Nov 2026 this command failed (exit code 2) until Docker's start script was patched; the `vibe-build` cloud environment's setup script applies the patch. In a session where it still fails, run `sed -i '/^\s*ulimit .*[^e]$/ s/$/ || true/' /etc/init.d/docker` first. See `docs/ENVIRONMENT-CHECK.md`.
 - Containers in a cloud session need `--network host`, the proxy variables and the proxy certificate at `/root/.ccr/ca-bundle.crt` mounted, or they have no internet. See `docs/ENVIRONMENT-CHECK.md`.

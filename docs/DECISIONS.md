@@ -30,4 +30,4 @@ Record every decision here with the date and who decided. **Owner** means Ahmed 
 | 11 Nov 2026 | Confirmed: portable from the start, with hosting inside the UAE built when a buyer requires it. Confirmed: the first use is a live demonstration to a group-level decision-maker | Owner |
 | 11 Nov 2026 | The `main` branch created by Claude Code with the two starting files stands | Owner (no objection) |
 | 11 Nov 2026 | The second build engine for gate item 9 is OpenAI's Codex SDK, driven through the same build-engine interface as the Claude Agent SDK. Its repository is Apache-2.0 (verified); the OpenAI account, key and spend it needs are a separate approval under hard rule 4 when that milestone comes | Owner |
-
+| 12 Nov 2026 | A separate personal cloud environment named `vibe-build` holds this repository's set-up (setup script, the same allowed sites as before, no variables, no secrets), so the Default environment used by other repositories is left untouched | Owner (chose it from three options in the session chat) |
