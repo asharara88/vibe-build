@@ -1,0 +1,7 @@
+{
+  "name": "sharp",
+  "version": "0.0.0-removed",
+  "private": true,
+  "description": "Empty stand-in. The image library sharp (and its LGPL-licensed parts) is deliberately not installed in this template. See README.",
+  "main": "index.js"
+}

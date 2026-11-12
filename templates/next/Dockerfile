@@ -9,6 +9,8 @@ ARG NODE_EXTRA_CA_CERTS
 COPY certs/ /certs/
 RUN if [ -f /certs/session-ca.crt ]; then npm config set cafile /certs/session-ca.crt; fi
 COPY package.json package-lock.json ./
+# The empty stand-in for the image library sharp, which is deliberately not installed (see README).
+COPY vendor/ ./vendor/
 RUN npm ci --no-fund --no-audit
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1

@@ -9,6 +9,9 @@ const nextConfig: NextConfig = {
   // Rule 7: nothing secret is ever exposed to the browser. Only NEXT_PUBLIC_* variables reach it,
   // and this template defines none.
   serverExternalPackages: ["pg"],
+  // The image library sharp is deliberately not installed (its parts carry LGPL; owner's decision of
+  // 12 Nov 2026), so Next.js must never try to optimise images with it.
+  images: { unoptimized: true },
 };
 
 export default withNextIntl(nextConfig);
