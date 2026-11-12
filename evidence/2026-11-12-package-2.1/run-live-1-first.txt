@@ -1,3 +1,4 @@
+# Run 1, the first run. Edited after the run: drizzle-kit's terminal colour codes were removed from this file, and the checkout's path is shown as <checkout>. The build was not told to skip Docker's cache, and this output does not say which steps came from it (see scripted-engine.md, run 1).
 Template copied from <checkout>/templates/next to the project workspace.
 Compose project builder_demo_scripted: db, egress, app, tools, and engine for one step at a time. Secrets written to the sandbox's secrets folder only.
 Workspace handed to the engine's user (uid 1000).
