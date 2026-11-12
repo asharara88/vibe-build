@@ -86,6 +86,19 @@ function standInProvider() {
     if (mode === "thinking-details-over") return ok({ ...PLAIN_USAGE, output_tokens_details: { thinking_tokens: 9_999 } });
     if (mode === "model-not-text") return c.json({ id: "msg_test", type: "message", model: ["claude-haiku-5-5"], content: [], usage: PLAIN_USAGE });
     const k = c.req.header("x-api-key") ?? "";
+    // Found by the fifth review. One backslash in front of the key: for a key that begins with b, f, n, r or t this is
+    // valid JSON whose first character is read as a tab or the like, and written out again it spells the key.
+    if (mode === "echo-key-after-backslash-500") return c.body(`{"type":"error","error":{"type":"api_error","message":"\\${k}"}}`, 500, { "content-type": "application/json" });
+    if (mode === "echo-key-after-backslash-200") return c.body(`{"id":"msg_test","type":"message","model":"${body.model}","note":"\\${k}","content":[],"usage":${JSON.stringify(PLAIN_USAGE)}}`, 200, { "content-type": "application/json" });
+    // A backslash put in front of each u and x of the key.
+    const uxKey = k.replace(/([ux])/g, "\\$1");
+    if (mode === "echo-key-backslash-ux-text") return c.text(`bad key ${uxKey}`, 500);
+    if (mode === "echo-key-backslash-ux-json") return c.json({ type: "error", error: { type: "api_error", message: `bad key ${uxKey}` } }, 500);
+    if (mode === "echo-key-backslash-ux-header") return c.json({ id: "msg_test", type: "message", model: body.model, content: [], usage: PLAIN_USAGE }, 200, { "x-echo": uxKey });
+    if (mode === "nul-500") return c.body(`{"type":"error","error":{"type":"api_error","message":"a\\u0000b"}}`, 500, { "content-type": "application/json" });
+    if (mode === "served-constructor") return ok(PLAIN_USAGE, "constructor");
+    if (mode === "huge-200") return c.body(`{"id":"msg_test","type":"message","model":"${body.model}","pad":"${"a".repeat(8_100_000)}","content":[],"usage":${JSON.stringify(PLAIN_USAGE)}}`, 200, { "content-type": "application/json" });
+    if (mode === "backslash-run") return c.body(`{"id":"msg_test","type":"message","model":"${body.model}","content":[{"type":"text","text":"${"\\".repeat(30_000)}"}],"usage":${JSON.stringify(PLAIN_USAGE)}}`, 200, { "content-type": "application/json" });
     // The same name twice in one object: a JSON reader keeps the second and drops the first.
     if (mode === "echo-key-shadowed-500") return c.body(`{"type":"error","error":{"type":"api_error","message":"bad key ${k}","message":"nothing here"}}`, 500, { "content-type": "application/json" });
     if (mode === "echo-key-shadowed-escaped-500") return c.body(`{"type":"error","error":{"type":"api_error","message":"bad key ${escapedKey}","message":"nothing here"}}`, 500, { "content-type": "application/json" });
@@ -131,6 +144,10 @@ function standInProvider() {
         "stream-name-and-type-differ": [STREAM_FRAMES[0]!, STREAM_FRAMES[2]!, `event: message_delta\ndata: {"type":"ping","usage":{"output_tokens":5000}}\n\n`, STREAM_FRAMES[3]!],
         "stream-start-without-message": [`event: message_start\ndata: {"type":"message_start","message":null}\n\n`, ...STREAM_FRAMES],
         "stream-model-empty": [start("", { input_tokens: 1000, output_tokens: 1 }), STREAM_FRAMES[2]!, STREAM_FRAMES[3]!],
+        // Found by the fifth review: a named frame with no data.
+        "stream-named-no-data": [STREAM_FRAMES[0]!, STREAM_FRAMES[2]!, "event: message_delta\ndata:\n\n", STREAM_FRAMES[3]!],
+        // Comment lines and a keep-alive with no name and no data are passed over, as before.
+        "stream-with-comments": [": keep-alive\n\n", STREAM_FRAMES[0]!, ": another comment\n\n", `event: ping\ndata: {"type":"ping"}\n\n`, ...STREAM_FRAMES.slice(1)],
       };
       const frames =
         thirdReview[mode] ? thirdReview[mode]
@@ -160,6 +177,7 @@ function standInProvider() {
     const s = typeof body.system === "string" ? body.system : "";
     if (s === "count-fail") return c.json({ type: "error", error: { type: "api_error", message: "stand-in count failure" } }, 500);
     if (s === "count-garbage") return c.json({ input_tokens: "many" });
+    if (s === "count-echo-after-backslash") return c.body(`{"input_tokens":42,"note":"\\${c.req.header("x-api-key") ?? ""}"}`, 200, { "content-type": "application/json" });
     if (s === "count-echo-key" || s === "count-echo-key-401") {
       const escaped = (c.req.header("x-api-key") ?? "").replace(/-/g, "\\u002d");
       return c.body(`{"input_tokens":42,"note":"echo ${escaped}"}`, s === "count-echo-key" ? 200 : 401, { "content-type": "application/json" });
@@ -1013,6 +1031,88 @@ describe("holds: found by the third review, and kept fixed", () => {
     expect(payload.headers_not_forwarded).not.toContain("x-builder-step");
     expect(payload.headers_not_forwarded).not.toContain("x-api-key");
     expect(JSON.stringify(await listEvents(pool, id))).not.toContain("secret-value-1");
+  });
+});
+
+describe("holds: found by the fifth review, and kept fixed", () => {
+  /** The project's whole event log exactly as the database holds it, as text. */
+  const logAsStored = async (id: string) => String((await pool.query("select coalesce(string_agg(payload::text, ' '), '') as t from events where project_id = $1", [id])).rows[0].t);
+  const keptWith = async (id: string, reason: string) => {
+    const kept = await waitForEvents(id, "hold.kept", 1);
+    expect(kept).toHaveLength(1);
+    expect((kept[0]!.payload as { reason: string }).reason).toContain(reason);
+    expect(await listEvents(pool, id, "hold.settled")).toHaveLength(0);
+    expect((await listHolds(pool, id))[0]).toMatchObject({ state: "open", actual_usd: null });
+  };
+
+  it("what goes back and what is stored is judged once more as text: one backslash in front of the key does not carry it through", async () => {
+    // The suite's key begins with "t", so "\\" + key is valid JSON that reads as a tab and "est-...".
+    for (const [mode, status] of [["echo-key-after-backslash-500", 500], ["echo-key-after-backslash-200", 200]] as const) {
+      const { id, token } = await newProject(5);
+      const res = await call(token, plain(mode));
+      expect(res.status).toBe(status);
+      expect(await res.text()).not.toContain(REAL_KEY);
+      await new Promise((r) => setTimeout(r, 30));
+      expect(await logAsStored(id)).not.toContain(REAL_KEY);
+      expect(await listEvents(pool, id, status === 200 ? "hold.settled" : "hold.kept")).toHaveLength(1);
+    }
+    const { id, token } = await newProject(5);
+    const res = await call(token, { model: "claude-opus-5-5", messages: [], system: "count-echo-after-backslash" }, "/v1/messages/count_tokens");
+    expect(await res.text()).not.toContain(REAL_KEY);
+    expect(await logAsStored(id)).not.toContain(REAL_KEY);
+  });
+
+  it("a backslash in front of a u or an x of the key is undone like one in front of any other character", async () => {
+    const UX_KEY = "sk-ant-api03-Aux9-example-xu";
+    const g = await listen(createGateway({ pool, modelApiKey: UX_KEY, upstreamUrl, profiles: PROFILES, onFault: (m) => faults.push(m) }));
+    const plainSpelling = (t: string) => t.replace(/\\/g, "");
+    try {
+      for (const mode of ["echo-key-backslash-ux-text", "echo-key-backslash-ux-json", "echo-key-backslash-ux-header"]) {
+        const { id, token } = await newProject(5);
+        const res = await callAt(g.url, token, plain(mode));
+        res.headers.forEach((v) => expect(plainSpelling(v)).not.toContain(UX_KEY));
+        const text = await res.text();
+        expect(plainSpelling(text)).not.toContain(UX_KEY);
+        await new Promise((r) => setTimeout(r, 30));
+        expect(plainSpelling(await logAsStored(id))).not.toContain(UX_KEY);
+      }
+    } finally {
+      g.server.close();
+    }
+  });
+
+  it("an answer with 30,000 backslashes in a row and no key in it goes back as it was read", async () => {
+    const { token } = await newProject(5);
+    const text = await (await call(token, plain("backslash-run"))).text();
+    expect(text).toContain("\\".repeat(30_000));
+    expect(text).not.toContain("[redacted]");
+  });
+
+  it("an answer holding a character the database refuses still gets its ending written down", async () => {
+    const { id, token } = await newProject(5);
+    expect((await call(token, plain("nul-500"))).status).toBe(500);
+    await keptWith(id, "server error");
+    expect(await logAsStored(id)).toContain("[NUL]");
+  });
+
+  it("a served model named like a built-in word has no price, and an answer too large to search is not passed on", async () => {
+    const a = await newProject(5);
+    expect((await call(a.token, plain("served-constructor"))).status).toBe(200);
+    await keptWith(a.id, "no price");
+    const b = await newProject(5);
+    const res = await call(b.token, plain("huge-200"));
+    expect(res.status).toBe(502);
+    expect((await res.text()).length).toBeLessThan(1_000);
+    await keptWith(b.id, "larger than the gateway reads");
+  });
+
+  it("a named stream frame with no data keeps the hold; comment lines and keep-alives do not", async () => {
+    const a = await newProject(5);
+    await (await call(a.token, streamed("stream-named-no-data"))).text();
+    await keptWith(a.id, "usage figures that could be read");
+    const b = await newProject(5);
+    await (await call(b.token, streamed("stream-with-comments"))).text();
+    expect(await waitForEvents(b.id, "hold.settled", 1)).toHaveLength(1);
   });
 });
 

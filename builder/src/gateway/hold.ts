@@ -165,7 +165,7 @@ export interface HoldArithmetic {
 /** The hold for a request whose prompt has been counted. `guardRequest` must have passed first. */
 export function computeHold(body: MeteredRequest, countedPromptTokens: number, profile: ProfileLimits, priceTableDate: string): HoldArithmetic {
   const model = String(body.model);
-  const base = PRICES[model];
+  const base = Object.hasOwn(PRICES, model) ? PRICES[model] : undefined;
   if (!base) throw new Error(`No price for model "${model}"`);
   const maxTokens = body.max_tokens as number;
   const margin = Math.ceil(countedPromptTokens * COUNT_MARGIN.fraction) + COUNT_MARGIN.tokens;

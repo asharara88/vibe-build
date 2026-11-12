@@ -28,7 +28,7 @@ import { PRICE_TABLE_DATE, PRICES } from "./prices.js";
 
 export interface GatewayOptions {
   pool: pg.Pool;
-  /** The real model key. Never logged, never returned. */
+  /** The real model key. The gateway's aim is that it is not logged and not returned; what is and is not covered is in the evidence file for package 1.2. */
   modelApiKey: string;
   /** Where to forward. Default: Anthropic. Tests point this at a stand-in. */
   upstreamUrl?: string;
@@ -77,6 +77,8 @@ function rejectedBeforeWork(status: number, text: string): boolean {
 const UNESCAPE_ROUNDS = 16;
 /** Deeper than any answer the provider documents; a value nested further is cut off, not walked. */
 const MAX_DEPTH = 200;
+/** An answer body longer than this is not searched: it is withheld, and on a metered call its hold is kept. */
+const MAX_BODY_CHARS = 8_000_000;
 const WITHHELD_BODY = JSON.stringify({ type: "error", error: { type: "api_error", message: "The gateway withheld the provider's answer body: it could not be checked." } });
 const MINUTE = 60_000;
 const DEFAULT_TIME_LIMIT = { plain: 10 * MINUTE, stream: 60 * MINUTE };
@@ -97,7 +99,7 @@ const errorBody = (type: string, message: string): ErrorBody => ({ type: "error"
 export function createGateway(opts: GatewayOptions) {
   const upstream = (opts.upstreamUrl ?? "https://api.anthropic.com").replace(/\/$/, "");
   const allowed = new Set(opts.allowedModels ?? Object.keys(PRICES));
-  for (const m of allowed) if (!PRICES[m]) throw new Error(`Model "${m}" has no price in the price table and cannot be allowed.`);
+  for (const m of allowed) if (!Object.hasOwn(PRICES, m)) throw new Error(`Model "${m}" has no price in the price table and cannot be allowed.`);
   const fetchImpl = opts.fetchImpl ?? fetch;
   const fault = opts.onFault ?? ((m: string, d: unknown) => console.error(`[gateway fault] ${m}`, d));
   const profiles = opts.profiles ?? DEFAULT_PROFILES;
@@ -107,31 +109,36 @@ export function createGateway(opts: GatewayOptions) {
   const allowedBetas = new Set(opts.allowedBetas ?? []);
   const key = opts.modelApiKey;
   /**
-   * Whether a text carries the key behind backslash escapes (\u002d for "-", \/ for "/", and so on),
-   * however many times over. Other encodings (base64, percent-encoding) are not looked for.
+   * Whether a text carries the key behind backslash escapes, however many times over: \uXXXX,
+   * \xXX, or a backslash before any character (so "\u" and "\x" not followed by a number too).
+   * Other forms (base64, percent-encoding, HTML entities, other backslash forms) are not looked for.
    */
   const hidesKey = (text: string): boolean => {
     if (!key || !text.includes("\\")) return false;
     let t = text;
     for (let i = 0; i < UNESCAPE_ROUNDS; i++) {
-      const next = t
-        .replace(/\\u([0-9a-fA-F]{4})/g, (_m, h: string) => String.fromCharCode(parseInt(h, 16)))
-        .replace(/\\x([0-9a-fA-F]{2})/g, (_m, h: string) => String.fromCharCode(parseInt(h, 16)))
-        .replace(/\\([^ux])/g, "$1");
+      // One pass, the longest form first, so that "\u002d" is a "-" and "\ux" is "ux".
+      const next = t.replace(/\\u([0-9a-fA-F]{4})|\\x([0-9a-fA-F]{2})|\\([\s\S])/g, (_m, u: string | undefined, x: string | undefined, c: string | undefined) =>
+        u !== undefined ? String.fromCharCode(parseInt(u, 16)) : x !== undefined ? String.fromCharCode(parseInt(x, 16)) : (c ?? ""),
+      );
       if (next.includes(key)) return true;
       if (next === t) return false;
       t = next;
     }
     return true; // still changing after that many rounds: not a text to pass on
   };
+  /** Whether a text, exactly as it would be sent or stored, carries the key: literally, or behind those escapes. */
+  const carriesKey = (text: string): boolean => !!key && (text.includes(key) || hidesKey(text));
   /**
-   * The real key must never be stored or relayed, even if something upstream echoes it back.
-   * The literal spelling is cut out; a text that carries it behind escapes is withheld whole.
+   * The real key is kept out of what is stored and relayed, even if something upstream echoes it
+   * back. The literal spelling is cut out; a text that carries it behind escapes is withheld whole.
+   * A text is also judged as it will be written into JSON: a tab written as "\t" in front of
+   * "est..." spells "test...", so a key that begins with such a letter could reappear there.
    */
   const redact = (text: string): string => {
     if (!key) return text;
     const cut = text.includes(key) ? text.split(key).join("[redacted]") : text;
-    return hidesKey(cut) ? "[redacted]" : cut;
+    return hidesKey(cut) || carriesKey(JSON.stringify(cut)) ? "[redacted]" : cut;
   };
   /**
    * The same, for anything about to be stored or passed back: every string inside a parsed
@@ -145,12 +152,18 @@ export function createGateway(opts: GatewayOptions) {
     return value;
   };
   /**
-   * A whole answer body about to go back to the caller. A body that is JSON is judged as the
-   * caller will read it, after parsing: if any text or name inside carries the key, the cleaned
-   * value is written out again; otherwise the provider's bytes go back untouched.
+   * A whole answer body about to go back to the caller. A body that is JSON is judged twice, as
+   * raw text and as parsed: only if both are clean does the text the gateway read go back as it
+   * is; otherwise the cleaned parsed value is written out. Whatever is about to be returned is
+   * then judged once more as text, and withheld if the key is still found in it.
    */
   const safeBody = (raw: string): string => {
     if (!key) return raw;
+    if (raw.length > MAX_BODY_CHARS) return WITHHELD_BODY;
+    const out = cleanBody(raw);
+    return carriesKey(out) ? WITHHELD_BODY : out;
+  };
+  const cleanBody = (raw: string): string => {
     try {
       let parsed: unknown;
       try {
@@ -169,7 +182,23 @@ export function createGateway(opts: GatewayOptions) {
       return WITHHELD_BODY;
     }
   };
-  /** Response headers passed back to the caller: never one that carries the key, in any letter case. */
+  /**
+   * What is about to be written to the event log: cleaned, with any NUL character (which the
+   * database's JSON type refuses) made visible, and then judged as the text that will be stored.
+   * If the key is still found in that text, only the fallback is stored.
+   */
+  const storable = (fields: Record<string, unknown>, fallback: Record<string, unknown>): Record<string, unknown> => {
+    const noNul = (v: unknown, depth = 0): unknown => {
+      if (typeof v === "string") return v.includes("\u0000") ? v.split("\u0000").join("[NUL]") : v;
+      if (depth > MAX_DEPTH + 2) return v;
+      if (Array.isArray(v)) return v.map((x) => noNul(x, depth + 1));
+      if (v !== null && typeof v === "object") return Object.fromEntries(Object.entries(v).map(([k, x]) => [noNul(k) as string, noNul(x, depth + 1)]));
+      return v;
+    };
+    const cleaned = noNul(scrub(fields)) as Record<string, unknown>;
+    return carriesKey(JSON.stringify(cleaned)) ? { ...fallback, withheld: "the rest of this record carried the model key and was not stored" } : cleaned;
+  };
+  /** Response headers passed back to the caller: none that carries the key, in any letter case. */
   const safeHeaders = (h: Headers): Headers => {
     const out = copyHeaders(h);
     const lower = key.toLowerCase();
@@ -252,7 +281,7 @@ export function createGateway(opts: GatewayOptions) {
         await appendEvent(opts.pool, project.id, "gateway.error", { path, error: errorSummary(err) }, step);
         return c.json(errorBody("api_error", "The gateway could not reach the model provider."), 502);
       }
-      await appendEvent(opts.pool, project.id, "gateway.passthrough", scrub({ path, status: res.status, ...(droppedHeaders.length ? { headers_not_forwarded: droppedHeaders } : {}) }) as Record<string, unknown>, step);
+      await appendEvent(opts.pool, project.id, "gateway.passthrough", storable({ path, status: res.status, ...(droppedHeaders.length ? { headers_not_forwarded: droppedHeaders } : {}) }, { path, status: res.status }), step);
       return new Response(safeBody(await res.text().catch(() => "")), { status: res.status, headers: safeHeaders(res.headers) });
     }
 
@@ -318,8 +347,9 @@ export function createGateway(opts: GatewayOptions) {
     // 4: forward. Exactly one ending is recorded for the hold.
     let ended = false;
     const callFields = (usage: Usage, status: number, servedModel: string, extra: Record<string, unknown> = {}) => {
-      const priced = PRICES[servedModel] ? servedModel : requestedModel;
-      const fields = scrub({
+      const priced = Object.hasOwn(PRICES, servedModel) ? servedModel : requestedModel;
+      const fields = storable(
+        {
         model: requestedModel,
         served_model: servedModel || null,
         priced_as: priced,
@@ -330,7 +360,9 @@ export function createGateway(opts: GatewayOptions) {
         duration_ms: Date.now() - started,
         ...(droppedHeaders.length ? { headers_not_forwarded: droppedHeaders } : {}),
         ...extra,
-      }) as Record<string, unknown>;
+      },
+        { model: requestedModel, priced_as: priced, path, status, stream, usage },
+      );
       return { priced, fields };
     };
     /** The call finished and its usage was read: settle the hold to the actual cost. */
@@ -340,7 +372,7 @@ export function createGateway(opts: GatewayOptions) {
       const { priced, fields } = callFields(usage, status, servedModel, extra);
       const cost = costUsd(priced, usage);
       try {
-        if (servedModel && servedModel !== requestedModel && !PRICES[servedModel]) {
+        if (servedModel && servedModel !== requestedModel && !Object.hasOwn(PRICES, servedModel)) {
           // Answered by a model the price table does not know: its cost would be a guess.
           await keepHold(opts.pool, { projectId: project.id, holdId, step, reason: "the answer came from a model that has no price in the gateway's table", seen: fields });
           return;
@@ -492,6 +524,11 @@ export function createGateway(opts: GatewayOptions) {
       return c.json(errorBody("api_error", "The model provider's answer could not be read to the end."), 502);
     }
     stopTimer();
+    if (text.length > MAX_BODY_CHARS) {
+      // Far larger than any answer the request could have asked for: not searched, not passed on, not settled.
+      await keep("the answer was larger than the gateway reads", emptyUsage(), res.status, "");
+      return c.json(errorBody("api_error", "The model provider's answer was larger than the gateway passes on."), 502);
+    }
     let usage: Usage | null = null;
     let servedModel = "";
     try {
@@ -577,7 +614,8 @@ export function readFrame(frame: string, acc: Usage): { usage: Usage; model?: st
   if (names.includes("error")) return { usage: acc, kind: "error" };
   if (names.length > 1) return { usage: acc, kind: "unreadable" };
   const named = names[0];
-  if (!data) return { usage: acc };
+  // A named frame always carries data. A frame with neither (a comment, a keep-alive) is passed over.
+  if (!data) return named !== undefined ? { usage: acc, kind: "unreadable" } : { usage: acc };
   try {
     const ev = JSON.parse(data) as { type?: unknown; message?: { usage?: unknown; model?: unknown } | null; usage?: unknown };
     // The provider names each frame after the type inside it. A frame whose name and type

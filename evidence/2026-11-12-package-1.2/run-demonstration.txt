@@ -4,16 +4,16 @@ Prices used: Claude Opus 5.5 input $4, one-hour cache write $8, output $20 per m
 == B1. A hold is opened before every forwarded call and settled to the actual cost ==
   call 1: HTTP 200
   call 2: HTTP 200
-  event hold.opened: hold #124652 for $0.125600
+  event hold.opened: hold #125208 for $0.125600
       prompt counted 10000 tokens + margin 700 = 10700 at $8 per million (one-hour cache write) = $0.085600
       max_tokens 2000 at $20 per million = $0.040000; fast-mode factor 1; both parts include the factor
   event model.call: status 200, billed 10000 input and 1000 output tokens, actual cost $0.060000
-  event hold.settled: hold #124652 of $0.125600 settled at $0.060000; $0.065600 returned to the budget
-  event hold.opened: hold #124653 for $0.125600
+  event hold.settled: hold #125208 of $0.125600 settled at $0.060000; $0.065600 returned to the budget
+  event hold.opened: hold #125209 for $0.125600
       prompt counted 10000 tokens + margin 700 = 10700 at $8 per million (one-hour cache write) = $0.085600
       max_tokens 2000 at $20 per million = $0.040000; fast-mode factor 1; both parts include the factor
   event model.call: status 200, billed 10000 input and 1000 output tokens, actual cost $0.060000
-  event hold.settled: hold #124653 of $0.125600 settled at $0.060000; $0.065600 returned to the budget
+  event hold.settled: hold #125209 of $0.125600 settled at $0.060000; $0.065600 returned to the budget
   budget afterwards: cap $1.000000 | spent $0.120000 | open holds $0.000000 (0) | spent + open holds = $0.120000
   actual cost never above the hold: yes
 
@@ -23,11 +23,11 @@ Prices used: Claude Opus 5.5 input $4, one-hour cache write $8, output $20 per m
   call 2: HTTP 402 (budget_reached)
   message shown: "This project has reached its budget of $0.15 (spent $0.06, with $0.00 held for work in progress or awaiting reconciliation; this call needed up to $0.13). The gateway will forward nothing more until the budget is raised."
   calls that reached the provider during call 2: 0
-  event hold.opened: hold #124654 for $0.125600
+  event hold.opened: hold #125210 for $0.125600
       prompt counted 10000 tokens + margin 700 = 10700 at $8 per million (one-hour cache write) = $0.085600
       max_tokens 2000 at $20 per million = $0.040000; fast-mode factor 1; both parts include the factor
   event model.call: status 200, billed 10000 input and 1000 output tokens, actual cost $0.060000
-  event hold.settled: hold #124654 of $0.125600 settled at $0.060000; $0.065600 returned to the budget
+  event hold.settled: hold #125210 of $0.125600 settled at $0.060000; $0.065600 returned to the budget
   event gateway.refused: reason budget_reached; spent $0.060000 + open holds $0.000000 + this hold $0.125600 > cap $0.150000
   holds in the database for this project: 1 (one, from call 1; none for the refused call)
 
@@ -41,24 +41,24 @@ Prices used: Claude Opus 5.5 input $4, one-hour cache write $8, output $20 per m
 == B4. The hold covers the long-prompt rate and fast mode when either could apply (amendment c) ==
   (1) Claude Haiku 5.5, prompt counted at 99,900 tokens, just under the 100,000 threshold:
   call: HTTP 200
-  event hold.opened: hold #124655 for $0.107595
+  event hold.opened: hold #125211 for $0.107595
       prompt counted 99900 tokens + margin 5195 = 105095 at $1 per million (one-hour cache write, long-prompt price) = $0.105095
       max_tokens 1000 at $2.5 per million = $0.002500; fast-mode factor 1; both parts include the factor
   event model.call: status 200, billed 99900 input and 500 output tokens, actual cost $0.010240
-  event hold.settled: hold #124655 of $0.107595 settled at $0.010240; $0.097355 returned to the budget
+  event hold.settled: hold #125211 of $0.107595 settled at $0.010240; $0.097355 returned to the budget
   the same model with a prompt counted at 1,000 tokens, for comparison:
-  event hold.opened: hold #124656 for $0.000750
+  event hold.opened: hold #125212 for $0.000750
       prompt counted 1000 tokens + margin 250 = 1250 at $0.2 per million (one-hour cache write) = $0.000250
       max_tokens 1000 at $0.5 per million = $0.000500; fast-mode factor 1; both parts include the factor
   event model.call: status 200, billed 1000 input and 500 output tokens, actual cost $0.000350
-  event hold.settled: hold #124656 of $0.000750 settled at $0.000350; $0.000400 returned to the budget
+  event hold.settled: hold #125212 of $0.000750 settled at $0.000350; $0.000400 returned to the budget
   (2) Claude Opus 5.5 on a profile that allows fast mode (the request does not ask for it):
   call: HTTP 200
-  event hold.opened: hold #124657 for $0.251200
+  event hold.opened: hold #125213 for $0.251200
       prompt counted 10000 tokens + margin 700 = 10700 at $8 per million (one-hour cache write) = $0.171200
       max_tokens 2000 at $20 per million = $0.080000; fast-mode factor 2 (the profile allows it); both parts include the factor
   event model.call: status 200, billed 10000 input and 1000 output tokens, actual cost $0.060000
-  event hold.settled: hold #124657 of $0.251200 settled at $0.060000; $0.191200 returned to the budget
+  event hold.settled: hold #125213 of $0.251200 settled at $0.060000; $0.191200 returned to the budget
 
 == B5. A hold past its deadline is kept, not released ==
   this gateway cuts a call off after 0.2 seconds and gives its hold a deadline 0.2 seconds later; the stand-in does not answer in time
@@ -66,11 +66,11 @@ Prices used: Claude Opus 5.5 input $4, one-hour cache write $8, output $20 per m
   budget after the cut-off: cap $0.200000 | spent $0.000000 | open holds $0.125600 (1) | spent + open holds = $0.125600
   holds marked expired once the deadline had passed: 1
   the hold's row: state open, amount $0.125600, expired true, unreconciled true, actual cost not known
-  event hold.opened: hold #124658 for $0.125600
+  event hold.opened: hold #125214 for $0.125600
       prompt counted 10000 tokens + margin 700 = 10700 at $8 per million (one-hour cache write) = $0.085600
       max_tokens 2000 at $20 per million = $0.040000; fast-mode factor 1; both parts include the factor
-  event hold.kept: hold #124658 of $0.125600 kept open; reason: the call reached its time limit
-  event hold.expired: hold #124658 of $0.125600; kept true, unreconciled true, still open true
+  event hold.kept: hold #125214 of $0.125600 kept open; reason: the call reached its time limit
+  event hold.expired: hold #125214 of $0.125600; kept true, unreconciled true, still open true
   budget after expiry: cap $0.200000 | spent $0.000000 | open holds $0.125600 (1) | spent + open holds = $0.125600
   a further call, to show the expired hold still counts: HTTP 402
 
@@ -79,11 +79,11 @@ Prices used: Claude Opus 5.5 input $4, one-hour cache write $8, output $20 per m
   budget with the first gateway stopped: cap $0.200000 | spent $0.000000 | open holds $0.125600 (1) | spent + open holds = $0.125600
   a second gateway, gw_demo_second, starts on the same database and looks for open holds
   the hold's row: state open, amount $0.125600, opened by gw_demo_first
-  event hold.opened: hold #124659 for $0.125600
+  event hold.opened: hold #125215 for $0.125600
       prompt counted 10000 tokens + margin 700 = 10700 at $8 per million (one-hour cache write) = $0.085600
       max_tokens 2000 at $20 per million = $0.040000; fast-mode factor 1; both parts include the factor
-  event hold.kept: hold #124659 of $0.125600 kept open; reason: the caller disconnected before the answer arrived
-  event hold.found_at_startup: hold #124659 of $0.125600, opened by gw_demo_first, found by gw_demo_second; kept true, still open true
+  event hold.kept: hold #125215 of $0.125600 kept open; reason: the caller disconnected before the answer arrived
+  event hold.found_at_startup: hold #125215 of $0.125600, opened by gw_demo_first, found by gw_demo_second; kept true, still open true
   budget after the second gateway started: cap $0.200000 | spent $0.000000 | open holds $0.125600 (1) | spent + open holds = $0.125600
   spent + open holds the same before and after: yes
   a call through the second gateway, to show the hold still counts: HTTP 402

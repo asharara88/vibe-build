@@ -55,6 +55,12 @@ $ npx vitest run --reporter=verbose   (the whole suite; same tests as npm test)
  ✓ test/gateway.test.ts > holds: found by the third review, and kept fixed > the breakdown of output tokens that the provider documents does not stop a call being settled
  ✓ test/gateway.test.ts > holds: found by the third review, and kept fixed > an event the gateway did not write cannot make the budget unreadable or smaller
  ✓ test/gateway.test.ts > holds: found by the third review, and kept fixed > writes down the names of the headers it did not pass on, never their values
+ ✓ test/gateway.test.ts > holds: found by the fifth review, and kept fixed > what goes back and what is stored is judged once more as text: one backslash in front of the key does not carry it through
+ ✓ test/gateway.test.ts > holds: found by the fifth review, and kept fixed > a backslash in front of a u or an x of the key is undone like one in front of any other character
+ ✓ test/gateway.test.ts > holds: found by the fifth review, and kept fixed > an answer with 30,000 backslashes in a row and no key in it goes back as it was read
+ ✓ test/gateway.test.ts > holds: found by the fifth review, and kept fixed > an answer holding a character the database refuses still gets its ending written down
+ ✓ test/gateway.test.ts > holds: found by the fifth review, and kept fixed > a served model named like a built-in word has no price, and an answer too large to search is not passed on
+ ✓ test/gateway.test.ts > holds: found by the fifth review, and kept fixed > a named stream frame with no data keeps the hold; comment lines and keep-alives do not
  ✓ test/gateway.test.ts > holds: what a hold cannot bound is refused before anything is forwarded > no max_tokens, or more than the profile's ceiling
  ✓ test/gateway.test.ts > holds: what a hold cannot bound is refused before anything is forwarded > routing that changes the price of every token
  ✓ test/gateway.test.ts > holds: what a hold cannot bound is refused before anything is forwarded > tools the provider runs itself, and tool servers
@@ -88,5 +94,5 @@ $ npx vitest run --reporter=verbose   (the whole suite; same tests as npm test)
  ✓ test/app-spec.test.ts > app spec > refuses a choice field with no choices
  ✓ test/app-spec.test.ts > app spec > refuses more than five core actions
  Test Files  5 passed (5)
-      Tests  85 passed (85)
+      Tests  91 passed (91)
 exit code: 0
