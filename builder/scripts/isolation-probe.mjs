@@ -199,6 +199,8 @@ export function countOtherSockets(text) {
  */
 export function planAttempts(s, extraListeners = []) {
   const plan = [];
+  // An IPv6 address is written in brackets before its port ("[::1]:3128"), so that the table can tell it apart.
+  const hostPort = (host, port) => (host.includes(":") ? `[${host}]:${port}` : `${host}:${port}`);
   const add = (id, group, toward, what, target, how, op) => plan.push({ id, group: GROUPS[group], toward, what, target, how, op });
   const ex = s.exampleAddress;
 
@@ -224,10 +226,10 @@ export function planAttempts(s, extraListeners = []) {
   add("C7", "C", "host", "the project's database", `127.0.0.1:${s.projectDbPort}`, "TCP connection, opened and closed", { type: "tcp", host: "127.0.0.1", port: s.projectDbPort });
   add("C8", "C", "host", "the project's egress proxy", `127.0.0.1:${s.egressPort}`, "TCP connection, opened and closed", { type: "tcp", host: "127.0.0.1", port: s.egressPort });
   if (s.sessionProxy)
-    add("C9", "C", "host", "the cloud session's proxy", `${s.sessionProxy.host}:${s.sessionProxy.port}`, "TCP connection, opened and closed", { type: "tcp", host: s.sessionProxy.host, port: s.sessionProxy.port });
+    add("C9", "C", "host", "the cloud session's proxy", hostPort(s.sessionProxy.host, s.sessionProxy.port), "TCP connection, opened and closed", { type: "tcp", host: s.sessionProxy.host, port: s.sessionProxy.port });
   for (const l of extraListeners) {
     const host = l.address === "0.0.0.0" || l.address === "::" ? "127.0.0.1" : l.address;
-    add(`X${l.port}`, "C", "host", "another listening port, seen inside the container", `${host}:${l.port}`, "TCP connection, opened and closed", { type: "tcp", host, port: l.port });
+    add(`X${l.port}`, "C", "host", "another listening port, seen inside the container", hostPort(host, l.port), "TCP connection, opened and closed", { type: "tcp", host, port: l.port });
   }
   // G: the machine as a container on Docker's default network sees it, through that network's gateway
   // address, on every port the harness read as listening on the machine. Each port once; its listening
@@ -259,7 +261,7 @@ export function planAttempts(s, extraListeners = []) {
 
   if (s.sessionProxy) {
     const sp = s.sessionProxy;
-    const via = `CONNECT through the cloud session's proxy (${sp.host}:${sp.port})`;
+    const via = `CONNECT through the cloud session's proxy (${hostPort(sp.host, sp.port)})`;
     add("F1", "F", "session-proxy", "a host the egress list allows", "registry.npmjs.org:443", via, { type: "connect", proxy: sp, target: "registry.npmjs.org:443" });
     add("F2", "F", "session-proxy", "a host the egress list refuses", "github.com:443", via, { type: "connect", proxy: sp, target: "github.com:443" });
     add("F3", "F", "session-proxy", "another host the egress list refuses", "example.com:443", via, { type: "connect", proxy: sp, target: "example.com:443" });

@@ -435,6 +435,32 @@ describe("isolation probe: reading what it prints (unit)", () => {
     expect(renderTable([column]).split("\n").slice(2).map((l) => l.split(" ")[0])).toEqual(["A1", "C5", "X2024", "G2024", "E1", "F1"]);
   });
 
+  it("marks attempts aimed at the container's own loopback address however the session proxy is written: 127.0.0.1, localhost or [::1]", () => {
+    const marked = (sessionProxy: string) => {
+      const plan = planAttempts(parseSettings(JSON.stringify({ ...SETTINGS, sessionProxy })));
+      const column = { label: "own", report: parseProbeOutput([]), ownLoopback: true };
+      return plan
+        .filter((a) => a.id === "C9" || a.id === "F1")
+        .map((a) => `${a.id} ${a.target} [${a.how}]: ${columnCell(column, { ...a, result: "refused", code: "ECONNREFUSED", detail: "" })}`);
+    };
+    expect(marked("127.0.0.1:3999")).toEqual([
+      "C9 127.0.0.1:3999 [TCP connection, opened and closed]: refused (ECONNREFUSED), at its own loopback address",
+      "F1 registry.npmjs.org:443 [CONNECT through the cloud session's proxy (127.0.0.1:3999)]: refused (ECONNREFUSED), at its own loopback address",
+    ]);
+    expect(marked("localhost:3999")).toEqual([
+      "C9 localhost:3999 [TCP connection, opened and closed]: refused (ECONNREFUSED), at its own loopback address",
+      "F1 registry.npmjs.org:443 [CONNECT through the cloud session's proxy (localhost:3999)]: refused (ECONNREFUSED), at its own loopback address",
+    ]);
+    // An IPv6 address is written in brackets before its port.
+    expect(marked("[::1]:3999")).toEqual([
+      "C9 [::1]:3999 [TCP connection, opened and closed]: refused (ECONNREFUSED), at its own loopback address",
+      "F1 registry.npmjs.org:443 [CONNECT through the cloud session's proxy ([::1]:3999)]: refused (ECONNREFUSED), at its own loopback address",
+    ]);
+    // A name that only starts like "localhost", or an address that only ends in 127, is not marked.
+    expect(marked("localhost.example:3999").map((l) => l.endsWith("at its own loopback address"))).toEqual([false, false]);
+    expect(marked("10.0.0.127:3999").map((l) => l.endsWith("at its own loopback address"))).toEqual([false, false]);
+  });
+
   it("when containers give an attempt different targets (B2 and B3 can), the row says so and each cell gives its own target and description", () => {
     // Made-up addresses from the documentation ranges: one container looked example.com up, the other used the address given.
     const lookedUp = parseProbeOutput([

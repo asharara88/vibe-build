@@ -150,8 +150,11 @@ export interface Column {
   ownLoopback?: boolean;
 }
 
-/** An attempt aimed at a 127.x.x.x address, as its target or as the proxy it goes through. */
-const AT_LOOPBACK = /(^|[\s(])127\.\d{1,3}\.\d{1,3}\.\d{1,3}:\d+/;
+/**
+ * An attempt aimed at a loopback address, as its target or as the proxy it goes through: 127.x.x.x,
+ * "localhost", or ::1 (written "[::1]" before its port, as the probe writes it, or without the brackets).
+ */
+const AT_LOOPBACK = /(^|[\s(])(127\.\d{1,3}\.\d{1,3}\.\d{1,3}|localhost|\[::1\]|::1):\d+/i;
 
 /** A row of the table: an attempt's id, and its target and description where every container that made it agrees. */
 export interface Row {
