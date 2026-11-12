@@ -9,7 +9,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { promisify } from "node:util";
 import { describe, expect, it, onTestFinished } from "vitest";
-import { BODY_READ_MS, classifyError, countOtherSockets, parseListeners, parseSettings, planAttempts, runAttempt, type PlannedAttempt } from "../scripts/isolation-probe.mjs";
+import { BODY_READ_MS, classifyError, countOtherSockets, parseAbstractUnix, parseListeners, parseSettings, parseUdpBound, planAttempts, runAttempt, type PlannedAttempt } from "../scripts/isolation-probe.mjs";
 import { ANSWER_WORDING, cell, columnCell, gotAnswer, parseProbeOutput, readMachineSide, RESULT, renderMarkdownTable, renderTable, sessionProxyHostPort, summarise, type ProbeAttempt } from "../src/sandbox/isolation.js";
 import { createSandbox, dockerEnv, sandbox } from "../src/sandbox/manager.js";
 
@@ -77,6 +77,29 @@ describe("isolation probe: its own settings and words (unit)", () => {
     expect(parseListeners("")).toEqual([]);
   });
 
+  it("lists UDP sockets with no remote end and abstract Unix sockets (made-up samples in the kernel's format)", () => {
+    const udp = [
+      "   sl  local_address rem_address   st tx_queue rx_queue tr tm->when retrnsmt   uid  timeout inode ref pointer drops",
+      "  101: 00000000:0044 00000000:0000 07 00000000:00000000 00:00000000 00000000     0        0 11 2 0000000000000000 0",
+      "  102: 0100007F:0035 00000000:0000 07 00000000:00000000 00:00000000 00000000     0        0 12 2 0000000000000000 0",
+      "  103: 020200C0:A1B2 08080808:0035 01 00000000:00000000 00:00000000 00000000     0        0 13 2 0000000000000000 0",
+    ].join("\n");
+    expect(parseUdpBound(udp)).toEqual([
+      { address: "0.0.0.0", port: 68 },
+      { address: "127.0.0.1", port: 53 },
+    ]);
+    const unix = [
+      "Num       RefCount Protocol Flags    Type St Inode Path",
+      "0000000000000000: 00000002 00000000 00010000 0001 01 21 @/made-up/shim.sock",
+      "0000000000000000: 00000002 00000000 00010000 0001 01 22 /run/made-up.sock",
+      "0000000000000000: 00000003 00000000 00000000 0001 03 23",
+      "0000000000000000: 00000002 00000000 00010000 0001 01 24 @/made-up/shim.sock",
+    ].join("\n");
+    expect(parseAbstractUnix(unix)).toEqual(["@/made-up/shim.sock"]);
+    expect(parseUdpBound("")).toEqual([]);
+    expect(parseAbstractUnix("")).toEqual([]);
+  });
+
   it("plans every attempt once, aims host attempts at the loopback address, and tries the session proxy only when given", () => {
     const withProxy = planAttempts(parseSettings(JSON.stringify(SETTINGS)), [{ address: "0.0.0.0", port: 2024 }]);
     const ids = withProxy.map((a) => a.id);
@@ -93,6 +116,11 @@ describe("isolation probe: its own settings and words (unit)", () => {
     expect(without.some((a) => a.id === "C9" || a.id.startsWith("F") || a.toward === "session-proxy")).toBe(false);
     // One extra listener, C9, and F1 to F4 fewer.
     expect(without.length).toBe(withProxy.length - 1 - 1 - 4);
+    // B2 and B3 name the address as example.com's only once the probe has looked it up itself.
+    expect(withProxy.find((a) => a.id === "B2")?.what).toBe("the address given for example.com (not checked), HTTP port");
+    const looked = planAttempts({ ...parseSettings(JSON.stringify(SETTINGS)), exampleAddress: "192.0.2.10", exampleAddressLookedUp: true });
+    expect(looked.find((a) => a.id === "B3")?.what).toBe("example.com's address, plain HTTP");
+    expect(looked.find((a) => a.id === "B3")?.target).toBe("192.0.2.10:80");
   });
 
   it("group G: one TCP attempt per port listening on the machine, at the gateway address of Docker's default network, with the address each port listens on as read on the machine", () => {

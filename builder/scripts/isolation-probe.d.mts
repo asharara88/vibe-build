@@ -9,6 +9,8 @@ export interface ProbeSettings {
   gatewayPort: number;
   builderDbPort: number;
   exampleAddress: string;
+  /** True once the probe looked example.com's address up itself; false while it is only the address given. */
+  exampleAddressLookedUp: boolean;
   timeoutMs: number;
   /** The gateway address of Docker's default network, read on the machine; null for no G attempts. */
   bridgeGateway: string | null;
@@ -34,6 +36,8 @@ export const GROUPS: Record<"A" | "B" | "C" | "D" | "E" | "F" | "G", string>;
 export function parseSettings(text: string | undefined): ProbeSettings;
 export function classifyError(code: string, context?: "connection" | "lookup"): string;
 export function parseListeners(text: string | undefined, family?: 4 | 6): { address: string; port: number }[];
+export function parseUdpBound(text: string | undefined, family?: 4 | 6): { address: string; port: number }[];
+export function parseAbstractUnix(text: string | undefined): string[];
 export function countOtherSockets(text: string | undefined): number;
 export function planAttempts(s: ProbeSettings, extraListeners?: { address: string; port: number }[]): PlannedAttempt[];
 export function runAttempt(a: PlannedAttempt, s: ProbeSettings, sessionCert: string | null): Promise<{ result: string; code: string | null; detail: string }>;

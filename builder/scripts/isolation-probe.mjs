@@ -97,6 +97,8 @@ export function parseSettings(text) {
     gatewayPort: port("gatewayPort"),
     builderDbPort: port("builderDbPort"),
     exampleAddress,
+    // Set by the probe once it has looked example.com up itself; until then the address is only the one given.
+    exampleAddressLookedUp: false,
     timeoutMs,
     bridgeGateway,
     machineListeners,
@@ -137,28 +139,51 @@ export function classifyError(code, context = "connection") {
   return "error";
 }
 
-/** Listening TCP sockets in /proc/net/tcp or /proc/net/tcp6 text: [{address, port}]. */
-export function parseListeners(text, family = 4) {
+/** An address as /proc/net writes it (hex), in plain form. */
+function decodeAddress(addrHex, family) {
+  // Four bytes, least significant first.
+  if (family === 4 && addrHex.length === 8) return [6, 4, 2, 0].map((i) => parseInt(addrHex.slice(i, i + 2), 16)).join(".");
+  return /^0+$/.test(addrHex) ? "::" : addrHex === "00000000000000000000000001000000" ? "::1" : "ipv6";
+}
+
+/** The sockets in /proc/net/tcp, tcp6, udp or udp6 text whose state and remote end pass `keep`: [{address, port}]. */
+function parseSockets(text, family, keep) {
   const out = [];
   for (const line of (text ?? "").split("\n").slice(1)) {
     const f = line.trim().split(/\s+/);
-    if (f.length < 4 || f[3] !== "0A") continue; // 0A: listening
+    if (f.length < 4 || !keep(f[3], f[2] ?? "")) continue;
     const [addrHex, portHex] = (f[1] ?? "").split(":");
     if (!addrHex || !portHex) continue;
-    const port = parseInt(portHex, 16);
-    let address;
-    if (family === 4 && addrHex.length === 8) {
-      // Four bytes, least significant first.
-      address = [6, 4, 2, 0].map((i) => parseInt(addrHex.slice(i, i + 2), 16)).join(".");
-    } else {
-      address = /^0+$/.test(addrHex) ? "::" : addrHex === "00000000000000000000000001000000" ? "::1" : "ipv6";
-    }
-    out.push({ address, port });
+    out.push({ address: decodeAddress(addrHex, family), port: parseInt(portHex, 16) });
   }
   return out;
 }
 
-/** The number of sockets in /proc/net/tcp text that are not listening (connections open on the network the container shares). */
+/** Listening TCP sockets in /proc/net/tcp or /proc/net/tcp6 text: [{address, port}]. */
+export function parseListeners(text, family = 4) {
+  return parseSockets(text, family, (state) => state === "0A"); // 0A: listening
+}
+
+/** UDP sockets with no remote end (those that wait for anyone's packets) in /proc/net/udp or udp6 text: [{address, port}]. */
+export function parseUdpBound(text, family = 4) {
+  return parseSockets(text, family, (_state, remote) => /^0+:0000$/.test(remote));
+}
+
+/**
+ * The names of abstract Unix sockets in /proc/net/unix text: those whose name starts with "@". They belong to
+ * the network the container shares, not to its files. Listed only; the probe never connects to one.
+ */
+export function parseAbstractUnix(text) {
+  const names = new Set();
+  for (const line of (text ?? "").split("\n").slice(1)) {
+    const f = line.trim().split(/\s+/);
+    const name = f.slice(7).join(" ");
+    if (name.startsWith("@")) names.add(name.slice(0, 80));
+  }
+  return [...names].sort();
+}
+
+/** The number of TCP sockets in /proc/net/tcp text that are not listening, in any state (open, closing, or waiting after closing). */
 export function countOtherSockets(text) {
   return (text ?? "").split("\n").slice(1).filter((l) => {
     const f = l.trim().split(/\s+/);
@@ -182,8 +207,10 @@ export function planAttempts(s, extraListeners = []) {
   add("A5", "A", "outside", "another host the egress list refuses, plain HTTP", "github.com:80", "HTTP GET /, sent directly, no proxy", { type: "http", host: "github.com", port: 80, path: "/" });
 
   add("B1", "B", "outside", "a public address, HTTPS port", "1.1.1.1:443", "TCP connection, opened and closed", { type: "tcp", host: "1.1.1.1", port: 443 });
-  add("B2", "B", "outside", "example.com's address, HTTP port", `${ex}:80`, "TCP connection, opened and closed", { type: "tcp", host: ex, port: 80 });
-  add("B3", "B", "outside", "example.com's address, plain HTTP", `${ex}:80`, "HTTP GET / with the name example.com, no proxy", { type: "http", host: ex, port: 80, path: "/", hostHeader: "example.com" });
+  // The address is example.com's only if the probe looked it up itself; otherwise it is the one given, unchecked.
+  const exWhat = s.exampleAddressLookedUp ? "example.com's address" : "the address given for example.com (not checked)";
+  add("B2", "B", "outside", `${exWhat}, HTTP port`, `${ex}:80`, "TCP connection, opened and closed", { type: "tcp", host: ex, port: 80 });
+  add("B3", "B", "outside", `${exWhat}, plain HTTP`, `${ex}:80`, "HTTP GET / with the name example.com, no proxy", { type: "http", host: ex, port: 80, path: "/", hostHeader: "example.com" });
   add("B4", "B", "outside", "the cloud's machine-information address (link-local)", "169.254.169.254:80", "HTTP GET /, no extra headers, no proxy", { type: "http", host: "169.254.169.254", port: 80, path: "/" });
 
   add("C1", "C", "outside", "an outside address, port 22 (remote login)", "1.1.1.1:22", "TCP connection, opened and closed", { type: "tcp", host: "1.1.1.1", port: 22 });
@@ -500,7 +527,13 @@ async function main() {
   print({ kind: "info", name: "network interfaces", value: ifaces || "none" });
   print({ kind: "info", name: "name servers in /etc/resolv.conf", value: resolv || "none" });
   print({ kind: "info", name: "listening TCP ports seen in /proc/net", value: listeners.map((l) => `${l.address}:${l.port}`).sort().join(", ") || "none" });
-  print({ kind: "info", name: "other TCP connections seen in /proc/net/tcp", value: String(countOtherSockets(tcp4)) });
+  print({ kind: "info", name: "other TCP sockets seen, in any state (/proc/net/tcp)", value: String(countOtherSockets(tcp4)) });
+  const udp = [...parseUdpBound(readOr("/proc/net/udp"), 4), ...parseUdpBound(readOr("/proc/net/udp6"), 6)];
+  print({ kind: "info", name: "UDP sockets with no remote end, seen in /proc/net/udp", value: udp.map((l) => `${l.address}:${l.port}`).sort().join(", ") || "none" });
+  const abstract = parseAbstractUnix(readOr("/proc/net/unix"));
+  print({ kind: "info", name: "abstract Unix sockets seen in /proc/net/unix (listed only, not connected to)", value: abstract.slice(0, 20).join(", ") + (abstract.length > 20 ? `, and ${abstract.length - 20} more` : "") || "none" });
+  const dockerSockets = ["/var/run/docker.sock", "/run/docker.sock"].filter((p) => existsSync(p));
+  print({ kind: "info", name: "Docker's socket inside (/var/run/docker.sock, /run/docker.sock)", value: dockerSockets.join(", ") || "absent" });
   // Names only, never values: the app's container holds its database password and sign-in secret.
   print({ kind: "info", name: "settings that name a proxy or a certificate (names only)", value: Object.keys(process.env).filter((k) => /proxy|cert|_ca_/i.test(k)).sort().join(", ") || "none" });
   print({ kind: "info", name: "a copy of the session certificate inside", value: sessionCert ?? "none" });
@@ -508,7 +541,7 @@ async function main() {
   const found = await withLimit(s.timeoutMs, (finish) =>
     dns.lookup("example.com", { family: 4 }, (err, address) => finish(err ? { code: codeOf(err) } : { address })),
   ).then((r) => (r.result === "timed out" ? { code: "TIMEOUT" } : r));
-  if (found.address) s = { ...s, exampleAddress: found.address };
+  if (found.address) s = { ...s, exampleAddress: found.address, exampleAddressLookedUp: true };
   print({
     kind: "info",
     name: "example.com's address used by B2 and B3",
