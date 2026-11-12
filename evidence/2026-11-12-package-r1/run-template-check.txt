@@ -30,6 +30,10 @@ lightningcss-linux-x64-musl@1.33.0 | MPL-2.0
 lightningcss@1.33.0 | MPL-2.0
 spdx-exceptions@2.5.0 | CC-BY-3.0
 spdx-ranges@2.1.1 | (MIT AND CC-BY-3.0)
-Licence report (every dependency) written to builder/licences.csv
+Licence report (every dependency) written to templates/next/licences.csv
 exit code: 0
 Packages the licence tool reads with the script's exclusion list as it now is: 261 of which 87 have a name beginning with @
+
+# The gating command with another version number in the exclusion list (caniuse-lite@1.0.30001822), to show the exception is tied to the version:
+Package "caniuse-lite@1.0.30001823" is licensed under "CC-BY-4.0" which is not permitted by the --onlyAllow flag. Exiting.
+exit code: 1
