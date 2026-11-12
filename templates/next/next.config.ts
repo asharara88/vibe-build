@@ -10,7 +10,8 @@ const nextConfig: NextConfig = {
   // and this template defines none.
   serverExternalPackages: ["pg"],
   // The image library sharp is deliberately not installed (its parts carry LGPL; owner's decision of
-  // 12 Nov 2026), so Next.js must never try to optimise images with it.
+  // 12 Nov 2026). This turns off Next.js's image optimiser route, the one place that cannot work
+  // without it. See README for what else behaves differently.
   images: { unoptimized: true },
 };
 

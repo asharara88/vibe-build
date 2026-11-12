@@ -1,7 +1,7 @@
 Template copied from <repository>/templates/next to the project workspace.
 Compose project builder_demo_template: db, egress, app. Secrets written to the sandbox's secrets folder only.
 Building the app image inside Docker (development profile: build steps use the session proxy)...
-Image built in 33 s.
+Image built in 29 s.
 Creating the tables (drizzle-kit push) and the three sample users (seed)...
   created: employee@example.test (employee)
   created: manager@example.test (manager)
@@ -19,5 +19,5 @@ Screenshots, taken by a browser as a person would see the pages:
   wrong password message: The email or password is not right. Check both and try again.
   phone width 390: page scroll width 390 (no sideways scrolling when 390)
 
-Whole run: 52 s.
+Whole run: 46 s.
 Containers, network, volume and image removed.

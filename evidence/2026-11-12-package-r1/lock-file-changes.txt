@@ -1,3 +1,4 @@
+Compared: templates/next/package-lock.json before the change (commit 2c9cd7f) and after it.
 Entries in the lock file before: 432. After: 405.
 
 Removed:
@@ -31,9 +32,11 @@ Removed:
    @img/sharp-win32-x64 | 0.35.5 | Apache-2.0 AND LGPL-3.0-or-later
 
 Added:
-   vendor/no-sharp | 0.0.0-removed | None 
+   vendor/no-sharp | 0.0.0-removed | UNLICENSED
 
-Changed version or licence:
-['node_modules/sharp']
+Changed, among the entries present in both:
+   (the template's own entry): its dependency list gains sharp -> file:./vendor/no-sharp, and the overrides entry is added
+   semver | dev: None -> True; devOptional: True -> None
+   sharp | version: 0.35.5 -> None; resolved: https://registry.npmjs.org/sharp/-/sharp-0.35.5.tgz -> vendor/no-sharp; integrity: sha512-Ywn4OnzGukp7CDMrp08RQ50YKmuwG47brZgIVPTvBaaAfQlRlygrRqSrxdCiL9M+LlzLBiJ68IR1QqvzHyjC7g== -> None; license: Apache-2.0 -> None; optional: True -> None; link: None -> True
 
 Entries whose licence mentions LGPL, before: 14 After: 0
