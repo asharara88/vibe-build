@@ -97,7 +97,7 @@ One row per attempt, one column per container (`attempts-table.md`, written by t
 Groups: A, without the proxy, by name; B, without the proxy, by address; C, on other ports, and services on the host; D, by name lookup; E, through the project's egress proxy (the intended route); F, through the cloud session's proxy, going round the project's egress proxy. F was added to the plan's list to see whether the project's egress proxy can be gone round.
 
 **Who answered.** An answer is not the same as reaching the target: a filter on the way can answer. Each answer's own words, as the probe recorded them (`run-live.txt`):
-- A2 (301 to `https://registry.npmjs.org/-/ping`), A1 and E2 in the tools container (200): the answer named its server as `cloudflare`, the registry's own front. **The registry itself answered.**
+- A2 (301 to `https://registry.npmjs.org/-/ping`), A1 and E2 in the tools container (200): the answer named its server as `cloudflare`, and carried none of the cloud filter's marks. *Inferred from the server name*: **the registry's own service answered** (it is served through Cloudflare).
 - F4 in the tools container (200): the answer named its server as `github.com`. **GitHub itself answered.**
 - A5 (301 to `https://github.com/`): no server name, and none of the cloud filter's marks. *Inferred, not shown*: GitHub's own redirect.
 - B3 (403): `x-deny-reason: host_not_allowed`, "Host not in allowlist: example.com. Add this host to your network egress settings to allow access." **The cloud session's filter.**
@@ -106,8 +106,8 @@ Groups: A, without the proxy, by name; B, without the proxy, by address; C, on o
 - E4 (405): "agent-proxy relay: this proxy only accepts HTTPS CONNECT tunnels…". The project's egress proxy let the request through and passed it on to the cloud session's proxy, which refused plain HTTP. **On this profile the egress proxy's plain-HTTP route does not work.** It fails closed, so this is not a risk.
 - F3 (403): "request blocked: no rule or allowlist entry allows host "example.com"". **The cloud session's proxy.**
 - B1 and B2 (connected) while C1 to C4 were refused at once: *inferred, not shown*: the cloud machine's network accepts connections on ports 80 and 443 itself and then applies its own list, as B3 and B4 show. Nothing shows that a packet reached 1.1.1.1 or 93.184.215.14.
-- D5 and D6: a question sent straight to 1.1.1.1 was answered for the allowed name and "not found" for `example.com`, a name that exists on the public internet. *Inferred, not shown*: the cloud machine's network answers name questions itself, by its own list.
-- The project's egress proxy logged ten decisions: E1 to E5, from the app and tools containers. None of the A, B, C, D or F attempts passed through it, so it has no record of them.
+- D5 and D6: a question sent straight to 1.1.1.1 was answered for the allowed name and "not found" for `example.com`, a name that exists on the public internet (general knowledge, not checked here). *Inferred, not shown*: the cloud machine's network answers name questions itself, by its own list.
+- The project's egress proxy logged ten decisions: E1 to E5, from the app and tools containers. None of the A, B, D or F attempts was sent to it, and C8 only opened and closed a connection to it, so it has no record of them.
 
 ## What is not isolated on the development profile
 
@@ -141,7 +141,7 @@ The run showed the following.
    - requests by address were refused by its allowlist (B3) or as a private address (B4);
    - ports other than 80 and 443 were refused (C1 to C4).
 
-   These rules belong to the cloud environment this work runs in. The builder does not set them and cannot rely on them. On another machine they would be different or absent.
+   These rules belong to the cloud environment this work runs in. The builder does not set them and cannot rely on them. On another machine they may be different or absent.
 5. **The tools container holds a copy of the cloud session's certificate** (`/certs/session-ca.crt`). On this profile the template's build stage copies it in, and the tools image is that stage (known gap 2). With it, the tools container's HTTPS attempts were trusted (A1, E2, F4). The app container holds no copy and is given no proxy setting, so its HTTPS attempts failed the certificate check (A1, E2, F4: "certificate not trusted"). **That is not a safeguard.** A program can choose not to check certificates (not tried), and plain HTTP worked without any certificate (A2, A5).
 6. **Name lookups.** The containers' name servers answered for allowed names, including a question sent straight to an outside server (D1, D5). Internal-looking names were not found (D3, D4).
 
@@ -160,7 +160,7 @@ It has only the loopback interface, sees no listening port, and sees no copy of 
 ## The comparison container (Docker's default network)
 
 It is not a project container. It was added because known gap 1 and design note 2.5 say a container on Docker's default network "has no internet at all". As measured today, that is no longer accurate as written:
-- **What it reached:** allowed hosts on ports 80 and 443, through the cloud session's own filter. The registry answered plain HTTP (A2) and GitHub's address redirected (A5). Allowed names were looked up (D1, D5). Its HTTPS failed the certificate check (A1), as on 11 November (`docs/ENVIRONMENT-CHECK.md`, "self-signed certificate in certificate chain").
+- **What it reached:** allowed hosts on ports 80 and 443, through the cloud session's own filter. The registry answered plain HTTP (A2) and a redirect came back from `github.com` (A5). Allowed names were looked up (D1, D5). Its HTTPS failed the certificate check (A1), as on 11 November (`docs/ENVIRONMENT-CHECK.md`, "self-signed certificate in certificate chain").
 - **What it could not reach:** any service on the machine's loopback address (C5 to C9: refused), the cloud session's proxy among them.
 
 So a container off the host's network was still not cut off from the internet here, but it was cut off from the builder's own services and the cloud session's. Whether a development profile without the host's network would work for the project's containers was not tried; it is a question for the owner and an engineer (known gap 60). Design note 2.5 is not changed by this package.
@@ -169,7 +169,7 @@ So a container off the host's network was still not cut off from the internet he
 
 Design note 2.5 describes the server profile, and the sandbox manager writes it (`builder/src/sandbox/manager.ts`, `composeDocument`, profile `server`):
 - **One internal network per project, with no route out.** The app, tools and database containers are attached only to it.
-- **The egress proxy is the only way out.** It is attached to that network and to an outside one. It allows exactly the model gateway and the stack's package registry, refuses everything else, and logs every decision. It connects out directly, with no session proxy.
+- **The egress proxy is the only way out.** It is attached to that network and to an outside one, and connects out directly, with no session proxy. The design note says it allows exactly the model gateway and the stack's package registry; the sandbox manager allows the hosts the builder gives it. It refuses everything else and logs every decision.
 - **The engine container has no network.**
 - **Every container has the same hardening as here.**
 
@@ -183,7 +183,7 @@ It has not been run. **The server profile's isolation is designed, not shown.** 
 
 - **The server profile** (package 0.6b).
 - **The database and egress proxy containers were not probed.** By their Compose settings they share the host's network. *Inferred, not tested:* they would see what the app container saw.
-- **Where the probe ran.** The app container ran the probe in place of the app's server, as its image's user, not as root. Every capability is dropped in all of these containers, including the one needed for raw network packets (`NET_RAW`); raw packets were not tried.
+- **Where the probe ran.** The app container ran the probe in place of the app's server, as its image's user, not as root. Every capability is dropped in every container probed, including the one needed for raw network packets (`NET_RAW`); raw packets were not tried.
 - **What was not tried:**
   - UDP other than name lookups, ICMP (ping), and IPv6;
   - turning certificate checks off;
