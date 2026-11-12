@@ -46,7 +46,8 @@ export function costUsd(model: string, u: Usage): number | null {
     perM(u.cache_read_input_tokens, p.cache_read) +
     perM(u.output_tokens, p.output);
   if (u.speed === "fast") c *= FAST_MODE_FACTOR;
-  return Math.round(c * 1e6) / 1e6;
+  // Rounded up to the next millionth of a dollar, as holds are: a cost is never under-recorded.
+  return Math.ceil(c * 1e6 - 1e-6) / 1e6;
 }
 
 /**
@@ -90,9 +91,29 @@ export function usageIsReadable(part: unknown, require: ReadonlyArray<(typeof US
   const cc = u["cache_creation"];
   if (cc !== undefined && cc !== null) {
     if (typeof cc !== "object" || Array.isArray(cc)) return false;
-    for (const v of Object.values(cc as Record<string, unknown>)) if (v !== undefined && v !== null && !isCount(v)) return false;
+    let members = 0;
+    for (const v of Object.values(cc as Record<string, unknown>)) {
+      if (v === undefined || v === null) continue;
+      if (!isCount(v)) return false;
+      members += v;
+    }
+    // The itemised cache writes must add up to the total given beside them, where one is given.
+    const total = u["cache_creation_input_tokens"];
+    if (typeof total === "number" && members !== total) return false;
+    if ((total === undefined || total === null) && members > 0) return false;
   }
+  // Only the two speeds the price table knows.
   const speed = u["speed"];
-  if (speed !== undefined && speed !== null && typeof speed !== "string") return false;
+  if (speed !== undefined && speed !== null && speed !== "standard" && speed !== "fast") return false;
+  // Anything that says the call was billed outside the token rates the hold was worked out from.
+  const stu = u["server_tool_use"];
+  if (stu !== undefined && stu !== null) {
+    if (typeof stu !== "object" || Array.isArray(stu)) return false;
+    for (const v of Object.values(stu as Record<string, unknown>)) if (v !== 0 && v !== null && v !== undefined) return false;
+  }
+  const tier = u["service_tier"];
+  if (tier !== undefined && tier !== null && tier !== "standard") return false;
+  const geo = u["inference_geo"];
+  if (geo !== undefined && geo !== null && geo !== "global" && geo !== "not_available") return false;
   return true;
 }

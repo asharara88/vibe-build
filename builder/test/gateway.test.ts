@@ -6,9 +6,9 @@ import { createGateway, normalisePath, startHoldKeeper } from "../src/gateway/ap
 import { costUsd, emptyUsage } from "../src/gateway/cost.js";
 import { COUNT_MARGIN, computeHold, DEFAULT_PROFILES, guardRequest, type ProfileLimits } from "../src/gateway/hold.js";
 import { listEvents } from "../src/store/events.js";
-import { expireHolds, getBudget, listHolds } from "../src/store/holds.js";
+import { expireHolds, getBudget, listHolds, openHold, settleHold } from "../src/store/holds.js";
 import { createProject, getSpend, issueProjectToken } from "../src/store/projects.js";
-import { testPool, uniqueId } from "./helpers.js";
+import { TEST_DB_URL, testPool, uniqueId } from "./helpers.js";
 
 const REAL_KEY = "test-real-key-never-leaves-the-gateway";
 let pool: pg.Pool;
@@ -30,7 +30,9 @@ const PROFILES: Record<string, ProfileLimits> = {
 
 // One plain call on Opus 5.5. The stand-in counts the prompt as 42 tokens and bills 42.
 const PLAIN_USAGE = { input_tokens: 30, output_tokens: 300, cache_creation_input_tokens: 4, cache_read_input_tokens: 8 };
-const PLAIN_COST = (30 * 4 + 4 * 5 + 8 * 0.2 + 300 * 20) / 1e6;
+/** Costs and holds are rounded up to the next millionth of a dollar. */
+const up6 = (usd: number) => Math.ceil(usd * 1e6 - 1e-6) / 1e6;
+const PLAIN_COST = up6((30 * 4 + 4 * 5 + 8 * 0.2 + 300 * 20) / 1e6);
 const PLAIN_MAX_TOKENS = 400;
 const margin = (n: number) => Math.ceil(n * COUNT_MARGIN.fraction) + COUNT_MARGIN.tokens;
 /** The hold for the plain call: (42 + margin) at the one-hour cache-write rate, plus max_tokens at the output rate. */
@@ -65,6 +67,14 @@ function standInProvider() {
     if (mode === "fail-408") return c.json({ type: "error", error: { type: "timeout_error", message: "stand-in timeout" } }, 408);
     if (mode === "fail-400-other") return c.text("<html>Bad Request from something in between</html>", 400);
     if (mode === "fail-429") return c.json({ type: "error", error: { type: "rate_limit_error", message: "stand-in rate limit" } }, 429);
+    if (mode === "odd-speed") return ok({ ...PLAIN_USAGE, speed: "turbo" });
+    if (mode === "cache-mismatch") return ok({ ...PLAIN_USAGE, cache_creation: { ephemeral_1h_input_tokens: 1_000_000 } });
+    if (mode === "server-tool-usage") return ok({ ...PLAIN_USAGE, server_tool_use: { web_search_requests: 5 } });
+    if (mode === "priority-tier") return ok({ ...PLAIN_USAGE, service_tier: "priority" });
+    if (mode === "zero-usage") return ok({ input_tokens: 0, output_tokens: 0 });
+    if (mode === "echo-key-model") return ok(PLAIN_USAGE, `model-${c.req.header("x-api-key")}`);
+    if (mode === "echo-key-header") return c.json({ id: "msg_test", type: "message", model: body.model, content: [], usage: PLAIN_USAGE }, 200, { "x-echo": c.req.header("x-api-key") ?? "" });
+    if (mode === "echo-key-escaped-500") return c.body(`{"type":"error","error":{"type":"api_error","message":"echo ${(c.req.header("x-api-key") ?? "").replace(/-/g, "\\u002d")}"}}`, 500, { "content-type": "application/json" });
     if (mode === "echo-key-500") return c.json({ type: "error", error: { type: "api_error", message: `stand-in echo of ${c.req.header("x-api-key")}` } }, 500);
     if (mode === "fail-500") return c.json({ type: "error", error: { type: "api_error", message: "stand-in failure" } }, 500);
     if (mode === "fail-400") return c.json({ type: "error", error: { type: "invalid_request_error", message: "stand-in rejection" } }, 400);
@@ -74,7 +84,16 @@ function standInProvider() {
     if (mode === "no-usage") return c.json({ id: "msg_test", type: "message", model: body.model, content: [{ type: "text", text: "hello" }] });
     if (body.stream) {
       const slow = mode === "slow-stream";
-      const frames = mode === "stream-no-usage" ? [STREAM_FRAMES[1]!, STREAM_FRAMES[3]!] : STREAM_FRAMES;
+      const errorFrame = `event: error\ndata: ${JSON.stringify({ type: "error", error: { type: "overloaded_error", message: "stand-in" } })}\n\n`;
+      const secondStart = `event: message_start\ndata: ${JSON.stringify({ type: "message_start", message: { model: "claude-sonnet-5-5", usage: { input_tokens: 30, output_tokens: 1 } } })}\n\n`;
+      const fallingDelta = `event: message_delta\ndata: ${JSON.stringify({ type: "message_delta", usage: { output_tokens: 3 } })}\n\n`;
+      const frames =
+        mode === "stream-no-usage" ? [STREAM_FRAMES[1]!, STREAM_FRAMES[3]!]
+        : mode === "stream-no-stop" ? STREAM_FRAMES.slice(0, 3)
+        : mode === "stream-error-event" ? [...STREAM_FRAMES.slice(0, 3), errorFrame]
+        : mode === "stream-two-starts" ? [STREAM_FRAMES[0]!, secondStart, ...STREAM_FRAMES.slice(1)]
+        : mode === "stream-falling-output" ? [...STREAM_FRAMES.slice(0, 3), fallingDelta, STREAM_FRAMES[3]!]
+        : STREAM_FRAMES;
       const stream = new ReadableStream<Uint8Array>({
         async start(ctrl) {
           for (const f of frames) {
@@ -191,7 +210,7 @@ describe("model gateway: key and metering", () => {
     const p = (await listEvents(pool, id, "model.call"))[0]!.payload as { usage: { speed: string; cache_creation_1h_tokens: number }; cost_usd: number };
     expect(p.usage.speed).toBe("fast");
     expect(p.usage.cache_creation_1h_tokens).toBe(4);
-    near(p.cost_usd, 2 * ((30 * 4 + 4 * 8 + 8 * 0.2 + 300 * 20) / 1e6));
+    near(p.cost_usd, up6(2 * ((30 * 4 + 4 * 8 + 8 * 0.2 + 300 * 20) / 1e6)));
   });
 
   it("prices by the model that served the answer when it differs from the one requested", async () => {
@@ -609,6 +628,135 @@ describe("holds: found by review, and kept fixed", () => {
     const hold = (await listHolds(pool, id))[0]!;
     await expect(pool.query("update holds set state = 'settled', closed_at = now(), actual_usd = 'NaN' where id = $1", [hold.id])).rejects.toThrow(/holds_actual_is_a_number/);
     await expect(pool.query("update holds set state = 'settled', closed_at = now(), actual_usd = -1 where id = $1", [hold.id])).rejects.toThrow(/holds_actual_is_a_number/);
+  });
+});
+
+describe("holds: found by the second review, and kept fixed", () => {
+  const keptOnly = async (id: string, reasonPart: string) => {
+    const kept = await waitForEvents(id, "hold.kept", 1);
+    expect(kept.length).toBeGreaterThanOrEqual(1);
+    expect((kept[0]!.payload as { reason: string }).reason).toContain(reasonPart);
+    expect(await listEvents(pool, id, "hold.settled")).toHaveLength(0);
+    expect(await listEvents(pool, id, "model.call")).toHaveLength(0);
+    const holds = await listHolds(pool, id);
+    expect(holds[0]).toMatchObject({ state: "open", actual_usd: null });
+    const b = await getBudget(pool, id);
+    expect(b.spent).toBe(0);
+    near(b.openHolds, Number(holds[0]!.amount_usd));
+  };
+
+  it("a stream is settled only when the provider's end-of-message marker was seen and no error event was", async () => {
+    for (const [mode, reason] of [["stream-no-stop", "end-of-message marker"], ["stream-error-event", "error inside the stream"]] as const) {
+      const { id, token } = await newProject(5);
+      const res = await call(token, streamed(mode));
+      await res.text();
+      await keptOnly(id, reason);
+    }
+  });
+
+  it("a stream whose figures cannot both be right keeps its hold: two starts, or a running total that falls", async () => {
+    for (const mode of ["stream-two-starts", "stream-falling-output"]) {
+      const { id, token } = await newProject(5);
+      const res = await call(token, streamed(mode));
+      await res.text();
+      await keptOnly(id, "usage figures that could be read");
+    }
+  });
+
+  it("usage that points to a charge outside the token rates, or cannot be right, keeps the hold", async () => {
+    for (const mode of ["odd-speed", "cache-mismatch", "server-tool-usage", "priority-tier", "zero-usage"]) {
+      const { id, token } = await newProject(5);
+      expect((await call(token, plain(mode))).status).toBe(200);
+      await keptOnly(id, "usage could not be read");
+    }
+  });
+
+  it("the lock holds whatever the database's default isolation level: 30 calls at once, room for one hold", async () => {
+    const strictPool = new (await import("pg")).default.Pool({ connectionString: TEST_DB_URL, options: "-c default_transaction_isolation=repeatable\\ read", max: 20 });
+    const a = await listen(createGateway({ pool: strictPool, modelApiKey: REAL_KEY, upstreamUrl, profiles: PROFILES, gatewayId: "gw_test_rr_a", onFault: (m) => faults.push(m) }));
+    const b = await listen(createGateway({ pool: strictPool, modelApiKey: REAL_KEY, upstreamUrl, profiles: PROFILES, gatewayId: "gw_test_rr_b", onFault: (m) => faults.push(m) }));
+    try {
+      expect((await strictPool.query("show default_transaction_isolation")).rows[0]).toEqual({ default_transaction_isolation: "repeatable read" });
+      const { id, token } = await newProject(PLAIN_HOLD * 1.5);
+      const results = await Promise.all(Array.from({ length: 30 }, (_, i) => callAt(i % 2 ? a.url : b.url, token, plain("slow-wait"))));
+      expect(results.filter((r) => r.status === 200)).toHaveLength(1);
+      expect(results.filter((r) => r.status === 402)).toHaveLength(29);
+      expect(await listEvents(pool, id, "hold.opened")).toHaveLength(1);
+    } finally {
+      a.server.close();
+      b.server.close();
+      await strictPool.end();
+    }
+  });
+
+  it("the store refuses to settle at an amount that is not a real, non-negative number, and does not settle a kept hold", async () => {
+    const { id, token } = await newProject(5);
+    expect((await call(token, plain("no-usage"))).status).toBe(200); // leaves a kept, open hold
+    const hold = (await listHolds(pool, id))[0]!;
+    const r = await settleHold(pool, { projectId: id, holdId: hold.id, step: null, actualUsd: 0.001, call: {} });
+    expect(r.settled).toBe(false);
+    const fresh = await newProject(5);
+    const opened = await openHold(pool, { projectId: fresh.id, step: null, amountUsd: 0.01, deadline: new Date(Date.now() + 60_000), gateway: "gw_test_store", arithmetic: {}, path: "/v1/messages" });
+    expect(opened.ok).toBe(true);
+    if (!opened.ok) return;
+    for (const bad of [Number.NaN, Number.POSITIVE_INFINITY, -1, 1e8]) {
+      expect((await settleHold(pool, { projectId: fresh.id, holdId: opened.hold.id, step: null, actualUsd: bad, call: {} })).settled).toBe(false);
+    }
+    expect((await listHolds(pool, fresh.id))[0]).toMatchObject({ state: "open", actual_usd: null });
+    expect(await listEvents(pool, fresh.id, "model.call")).toHaveLength(0);
+    near((await getBudget(pool, fresh.id)).openHolds, 0.01);
+  });
+
+  it("the budget does not count as spent a call whose hold is open, or a cost that is not a real amount", async () => {
+    const { id } = await newProject(5);
+    const opened = await openHold(pool, { projectId: id, step: null, amountUsd: 0.01, deadline: new Date(Date.now() + 60_000), gateway: "gw_test_store", arithmetic: {}, path: "/v1/messages" });
+    if (!opened.ok) throw new Error("hold not opened");
+    await pool.query("insert into events(project_id, kind, payload) values ($1, 'model.call', $2), ($1, 'model.call', $3)", [id, JSON.stringify({ cost_usd: -3.99998 }), JSON.stringify({ cost_usd: 0.5, hold_id: Number(opened.hold.id) })]);
+    const b = await getBudget(pool, id);
+    expect(b.spent).toBe(0);
+    near(b.openHolds, 0.01);
+  });
+
+  it("forwards a fixed list of headers and nothing after a question mark in the address", async () => {
+    let seen: Record<string, string> = {};
+    const spy: typeof fetch = (input, init) => {
+      if (String(input).endsWith("/v1/messages")) seen = Object.fromEntries(new Headers(init?.headers).entries());
+      return fetch(input, init);
+    };
+    const g = await listen(createGateway({ pool, modelApiKey: REAL_KEY, upstreamUrl, profiles: PROFILES, fetchImpl: spy, onFault: (m) => faults.push(m) }));
+    try {
+      const { id, token } = await newProject(5);
+      const res = await callAt(g.url, token, plain(), "/v1/messages", { cookie: "a=b", "x-anything": "1", "anthropic-foo": "bar", "x-forwarded-for": "10.0.0.1", "proxy-authorization": "Basic xyz" });
+      expect(res.status).toBe(200);
+      const allowed = ["accept", "anthropic-beta", "anthropic-version", "content-type", "user-agent", "x-api-key"];
+      for (const name of Object.keys(seen)) expect(allowed).toContain(name);
+      for (const name of ["cookie", "x-anything", "anthropic-foo", "x-forwarded-for", "proxy-authorization"]) expect(seen[name]).toBeUndefined();
+      expect(seen["x-api-key"]).toBe(REAL_KEY);
+      const before = forwarded;
+      const q = await callAt(g.url, token, plain(), "/v1/messages?beta=true&service_tier=priority");
+      expect(q.status).toBe(400);
+      expect(forwarded).toBe(before);
+      expect(((await listEvents(pool, id, "gateway.refused")).at(-1)!.payload as { reason: string }).reason).toBe("query_not_allowed");
+    } finally {
+      g.server.close();
+    }
+  });
+
+  it("keeps the key out of the log and out of what is passed back, wherever an answer echoes it", async () => {
+    for (const mode of ["echo-key-model", "echo-key-header", "echo-key-escaped-500"]) {
+      const { id, token } = await newProject(5);
+      const res = await call(token, plain(mode));
+      res.headers.forEach((v) => expect(v).not.toContain(REAL_KEY));
+      expect(await res.text()).not.toContain(REAL_KEY);
+      await new Promise((r) => setTimeout(r, 30));
+      expect(JSON.stringify(await listEvents(pool, id))).not.toContain(REAL_KEY);
+    }
+  });
+
+  it("gives a project with an unknown or odd profile name no limits by accident", async () => {
+    const { id, token } = await newProject(5, "constructor");
+    expect((await call(token, plain())).status).toBe(400);
+    expect(((await listEvents(pool, id, "gateway.refused"))[0]!.payload as { reason: string }).reason).toBe("profile_unknown");
   });
 });
 

@@ -83,6 +83,8 @@ const METERED_PATH = "/v1/messages";
 const PASSTHROUGH_PATHS = new Set(["/v1/messages/count_tokens"]);
 
 const STRIP = new Set(["host", "connection", "content-length", "transfer-encoding", "keep-alive", "x-api-key", "authorization"]);
+/** The request headers the gateway passes to the provider. `anthropic-beta` is checked against its own list first. */
+const FORWARDED_HEADERS = ["content-type", "accept", "anthropic-version", "anthropic-beta", "user-agent"];
 
 type ErrorBody = { type: "error"; error: { type: string; message: string } };
 const errorBody = (type: string, message: string): ErrorBody => ({ type: "error", error: { type, message } });
@@ -100,6 +102,19 @@ export function createGateway(opts: GatewayOptions) {
   const allowedBetas = new Set(opts.allowedBetas ?? []);
   /** The real key must never be stored or relayed, even if something upstream echoes it back. */
   const redact = (text: string) => (opts.modelApiKey && text.includes(opts.modelApiKey) ? text.split(opts.modelApiKey).join("[redacted]") : text);
+  /** The same, for anything about to be stored: every string inside a parsed value, keys included. */
+  const scrub = (value: unknown): unknown => {
+    if (typeof value === "string") return redact(value);
+    if (Array.isArray(value)) return value.map(scrub);
+    if (value !== null && typeof value === "object") return Object.fromEntries(Object.entries(value).map(([k, v]) => [redact(k), scrub(v)]));
+    return value;
+  };
+  /** Response headers passed back to the caller: never one that carries the key. */
+  const safeHeaders = (h: Headers): Headers => {
+    const out = copyHeaders(h);
+    for (const [k, v] of [...out.entries()]) if (opts.modelApiKey && (v.includes(opts.modelApiKey) || k.includes(opts.modelApiKey))) out.delete(k);
+    return out;
+  };
   const app = new Hono();
 
   app.get("/healthz", (c) => c.json({ ok: true }));
@@ -140,16 +155,27 @@ export function createGateway(opts: GatewayOptions) {
       return c.json(errorBody("invalid_request_error", `The model "${requestedModel}" is not one the gateway may forward.`), 400);
     }
 
+    // Only these request headers go to the provider; everything else the caller sent stays here.
     const headers = new Headers();
-    c.req.raw.headers.forEach((v, k) => {
-      const key = k.toLowerCase();
-      if (!STRIP.has(key) && !key.startsWith("x-builder-")) headers.set(k, v);
-    });
+    for (const name of FORWARDED_HEADERS) {
+      const v = c.req.header(name);
+      if (v !== undefined) headers.set(name, v);
+    }
     headers.set("x-api-key", opts.modelApiKey);
+    if (url.search) {
+      await appendEvent(opts.pool, project.id, "gateway.refused", { reason: "query_not_allowed", path }, step);
+      return c.json(errorBody("invalid_request_error", "The gateway does not forward anything after a \"?\" in the address: it could switch on options the gateway has not checked."), 400);
+    }
     // What is forwarded is the body as the gateway read it, written out again, never the raw
     // bytes: a body with a repeated key cannot show one value to the gateway and another to the provider.
     const forwardedBody = metered ? JSON.stringify(body) : rawBody;
-    const forward = (signal?: AbortSignal) => fetchImpl(upstream + path + url.search, { method: "POST", headers, body: forwardedBody, redirect: "manual", signal });
+    const forward = (signal?: AbortSignal) => fetchImpl(upstream + path, { method: "POST", headers, body: forwardedBody, redirect: "manual", signal });
+
+    const badBetas = betasNotAllowed(c.req.header("anthropic-beta"), allowedBetas);
+    if (badBetas.length > 0) {
+      await appendEvent(opts.pool, project.id, "gateway.refused", { reason: "beta_not_allowed", path, model: requestedModel, betas: badBetas.slice(0, 20) }, step);
+      return c.json(errorBody("invalid_request_error", `The request switches on beta features the gateway does not forward (${badBetas.slice(0, 5).join(", ")}). A beta feature can change what a call costs.`), 400);
+    }
 
     if (passthrough) {
       let res: Response;
@@ -160,7 +186,7 @@ export function createGateway(opts: GatewayOptions) {
         return c.json(errorBody("api_error", "The gateway could not reach the model provider."), 502);
       }
       await appendEvent(opts.pool, project.id, "gateway.passthrough", { path, status: res.status }, step);
-      return relay(res);
+      return new Response(redact(await res.text().catch(() => "")), { status: res.status, headers: safeHeaders(res.headers) });
     }
 
     // Metered. 1: refuse what a hold cannot bound.
@@ -170,14 +196,10 @@ export function createGateway(opts: GatewayOptions) {
       await appendEvent(opts.pool, project.id, "gateway.refused", { reason, path, model: requestedModel, ...detail }, step);
       return c.json(errorBody(type, message), status);
     };
-    const profile = profiles[project.profile];
+    const profile = Object.hasOwn(profiles, project.profile) ? profiles[project.profile] : undefined;
     if (!profile) return refuse(400, "invalid_request_error", "profile_unknown", `This project's profile "${project.profile}" has no limits set in the gateway.`, { profile: project.profile });
     const guard = guardRequest(body, profile);
     if (guard) return refuse(400, "invalid_request_error", guard.reason, guard.message, guard.detail);
-    const badBetas = betasNotAllowed(c.req.header("anthropic-beta"), allowedBetas);
-    if (badBetas.length > 0) {
-      return refuse(400, "invalid_request_error", "beta_not_allowed", `The request switches on beta features the gateway does not forward (${badBetas.slice(0, 5).join(", ")}). A beta feature can change what a call costs.`, { betas: badBetas.slice(0, 20) });
-    }
 
     // 2: count the prompt with the provider's own counting call. No count, no call.
     let counted: number;
@@ -230,7 +252,8 @@ export function createGateway(opts: GatewayOptions) {
     let ended = false;
     const callFields = (usage: Usage, status: number, servedModel: string, extra: Record<string, unknown> = {}) => {
       const priced = PRICES[servedModel] ? servedModel : requestedModel;
-      return { priced, fields: { model: requestedModel, served_model: servedModel || null, priced_as: priced, path, status, stream, usage, duration_ms: Date.now() - started, ...extra } };
+      const fields = scrub({ model: requestedModel, served_model: servedModel || null, priced_as: priced, path, status, stream, usage, duration_ms: Date.now() - started, ...extra }) as Record<string, unknown>;
+      return { priced, fields };
     };
     /** The call finished and its usage was read: settle the hold to the actual cost. */
     const settle = async (usage: Usage, status: number, servedModel: string, extra: Record<string, unknown> = {}) => {
@@ -301,7 +324,7 @@ export function createGateway(opts: GatewayOptions) {
       } else {
         await keep(res.status >= 500 ? "the provider answered with a server error" : "an error answer that is not one of the provider's own rejections before work", emptyUsage(), res.status, "", { upstream_error: safeJson(text) });
       }
-      return new Response(text, { status: res.status, headers: copyHeaders(res.headers) });
+      return new Response(text, { status: res.status, headers: safeHeaders(res.headers) });
     }
 
     const contentType = res.headers.get("content-type") ?? "";
@@ -312,6 +335,9 @@ export function createGateway(opts: GatewayOptions) {
       let sawInput = false;
       let sawOutput = false;
       let sawUnreadable = false; // a usage block that could not be trusted: the whole call counts as unread
+      let sawStop = false; // the provider's own end-of-message marker
+      let sawError = false; // an error event inside the stream
+      let lastOutput = 0;
       let buffer = "";
       const decoder = new TextDecoder();
       const consume = (text: string) => {
@@ -323,8 +349,17 @@ export function createGateway(opts: GatewayOptions) {
           const r = readFrame(frame, usage);
           usage = r.usage;
           if (r.model) servedModel = r.model;
-          if (r.kind === "message_start") sawInput = true;
-          if (r.kind === "message_delta") sawOutput = true;
+          if (r.kind === "message_start") {
+            if (sawInput) sawUnreadable = true; // a second start: which one is the bill is not known
+            sawInput = true;
+          }
+          if (r.kind === "message_delta") {
+            if (r.usage.output_tokens < lastOutput) sawUnreadable = true; // a running total does not fall
+            lastOutput = r.usage.output_tokens;
+            sawOutput = true;
+          }
+          if (r.kind === "message_stop") sawStop = true;
+          if (r.kind === "error") sawError = true;
           if (r.kind === "unreadable") sawUnreadable = true;
         }
       };
@@ -347,7 +382,9 @@ export function createGateway(opts: GatewayOptions) {
               stopTimer();
               if (buffer.trim()) consume("\n\n");
               if (limit.signal.aborted) await keep("the call reached its time limit", usage, res.status, servedModel);
-              else if (sawInput && sawOutput && !sawUnreadable) await settle(usage, res.status, servedModel);
+              else if (sawError) await keep("the provider reported an error inside the stream", usage, res.status, servedModel);
+              else if (!sawStop) await keep("the stream ended without the provider's end-of-message marker, so its figures may be partial", usage, res.status, servedModel);
+              else if (sawInput && sawOutput && !sawUnreadable && usage.input_tokens + usage.cache_creation_input_tokens + usage.cache_read_input_tokens > 0) await settle(usage, res.status, servedModel);
               else await keep("the stream ended without usage figures that could be read", usage, res.status, servedModel);
               ctrl.close();
               return;
@@ -366,7 +403,7 @@ export function createGateway(opts: GatewayOptions) {
           await keep("the client cancelled part-way", usage, res.status, servedModel);
         },
       });
-      return new Response(out, { status: res.status, headers: copyHeaders(res.headers) });
+      return new Response(out, { status: res.status, headers: safeHeaders(res.headers) });
     }
 
     let text: string;
@@ -383,13 +420,17 @@ export function createGateway(opts: GatewayOptions) {
     try {
       const j = JSON.parse(text) as { usage?: unknown; model?: string };
       servedModel = typeof j.model === "string" ? j.model : "";
-      if (usageIsReadable(j.usage, ["input_tokens", "output_tokens"])) usage = mergeUsage(emptyUsage(), j.usage);
+      if (usageIsReadable(j.usage, ["input_tokens", "output_tokens"])) {
+        const u = mergeUsage(emptyUsage(), j.usage);
+        // An answer that says no prompt tokens at all were used is not a bill that can be trusted.
+        if (u.input_tokens + u.cache_creation_input_tokens + u.cache_read_input_tokens > 0) usage = u;
+      }
     } catch {
       /* not JSON: usage stays unread */
     }
     if (usage) await settle(usage, res.status, servedModel);
     else await keep("the answer succeeded but its usage could not be read", emptyUsage(), res.status, servedModel);
-    return new Response(text, { status: res.status, headers: copyHeaders(res.headers) });
+    return new Response(redact(text), { status: res.status, headers: safeHeaders(res.headers) });
   });
 
   return app;
@@ -421,10 +462,6 @@ function copyHeaders(h: Headers): Headers {
   return out;
 }
 
-function relay(res: Response): Response {
-  return new Response(res.body, { status: res.status, headers: copyHeaders(res.headers) });
-}
-
 function safeJson(text: string): unknown {
   try {
     return JSON.parse(text);
@@ -449,7 +486,7 @@ function frameEnd(buffer: string): number {
 }
 
 /** Read usage (and the served model) from one SSE frame. message_start carries input usage; message_delta carries output. */
-export function readFrame(frame: string, acc: Usage): { usage: Usage; model?: string; kind?: "message_start" | "message_delta" | "unreadable" } {
+export function readFrame(frame: string, acc: Usage): { usage: Usage; model?: string; kind?: "message_start" | "message_delta" | "message_stop" | "error" | "unreadable" } {
   const data = frame
     .split(/\r?\n/)
     .filter((l) => l.startsWith("data:"))
@@ -464,6 +501,8 @@ export function readFrame(frame: string, acc: Usage): { usage: Usage; model?: st
     if (ev.type === "message_start" && ev.message) return { usage: acc, model: ev.message.model, kind: "unreadable" };
     if (ev.type === "message_delta" && usageIsReadable(ev.usage, ["output_tokens"])) return { usage: mergeUsage(acc, ev.usage), kind: "message_delta" };
     if (ev.type === "message_delta" && ev.usage !== undefined) return { usage: acc, kind: "unreadable" };
+    if (ev.type === "message_stop") return { usage: acc, kind: "message_stop" };
+    if (ev.type === "error") return { usage: acc, kind: "error" };
   } catch {
     /* not JSON; ignore */
   }

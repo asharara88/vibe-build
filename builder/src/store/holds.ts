@@ -61,7 +61,9 @@ async function event(q: Queryable, projectId: string, kind: string, payload: Rec
 async function inTransaction<T>(pool: pg.Pool, projectId: string, fn: (c: pg.PoolClient) => Promise<T>): Promise<T> {
   const client = await pool.connect();
   try {
-    await client.query("begin");
+    // "Read committed" is stated, not left to the database's default: under a stricter default a
+    // transaction would keep reading the budget as it stood before it waited for the lock.
+    await client.query("begin isolation level read committed");
     // The lock that makes check-and-hold one step: every budget decision for a project waits here.
     await client.query("select id from projects where id = $1 for update", [projectId]);
     const out = await fn(client);
@@ -138,7 +140,7 @@ export async function settleHold(
     if (!hold) throw new Error(`Hold ${p.holdId} does not exist for project ${p.projectId}`);
     if (hold.state !== "open") throw new Error(`Hold ${p.holdId} is already ${hold.state}`);
     const amountUsd = Number(hold.amount_usd);
-    if (!Number.isFinite(p.actualUsd) || p.actualUsd < 0) {
+    if (!Number.isFinite(p.actualUsd) || p.actualUsd < 0 || p.actualUsd >= 1e8) {
       // A cost that is not a real, non-negative number is not a cost that was read.
       await c.query("update holds set kept_reason = coalesce(kept_reason, $2) where id = $1", [p.holdId, "the cost worked out from the answer was not a valid amount"]);
       await event(c, p.projectId, "hold.kept", { hold_id: Number(hold.id), amount_usd: amountUsd, reason: "the cost worked out from the answer was not a valid amount", seen: p.call }, p.step);
