@@ -11,7 +11,7 @@ import { chownSync, cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readd
 import { tmpdir } from "node:os";
 import { dirname, join, relative, resolve } from "node:path";
 import { promisify } from "node:util";
-import { afterAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { EngineEvent } from "../src/engine/interface.js";
 import { git, initProjectRepo, resetToLastCommit, workspaceChanges, type ProjectRepo } from "../src/engine/project-repo.js";
 import {
@@ -289,6 +289,8 @@ describe("scripted engine: the class, against a stand-in runner (no container, n
     writeFileSync(join(repo.workTree, "certs", "session-ca.crt"), "made-up certificate\n");
     await initProjectRepo(repo, "Template copy");
   });
+
+  afterEach(() => rmSync(dir, { recursive: true, force: true }));
 
   it("a step that runs: name scripted, its events, zero usage, turns = files written, and a commit labelled [scripted] by the scripted engine", async () => {
     const r = new StandInRunner(repo.workTree, (s) => applierLines(s));
