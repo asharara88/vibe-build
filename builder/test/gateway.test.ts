@@ -85,6 +85,15 @@ function standInProvider() {
     if (mode === "thinking-details") return ok({ ...PLAIN_USAGE, output_tokens_details: { thinking_tokens: 120 } });
     if (mode === "thinking-details-over") return ok({ ...PLAIN_USAGE, output_tokens_details: { thinking_tokens: 9_999 } });
     if (mode === "model-not-text") return c.json({ id: "msg_test", type: "message", model: ["claude-haiku-5-5"], content: [], usage: PLAIN_USAGE });
+    const k = c.req.header("x-api-key") ?? "";
+    // The same name twice in one object: a JSON reader keeps the second and drops the first.
+    if (mode === "echo-key-shadowed-500") return c.body(`{"type":"error","error":{"type":"api_error","message":"bad key ${k}","message":"nothing here"}}`, 500, { "content-type": "application/json" });
+    if (mode === "echo-key-shadowed-escaped-500") return c.body(`{"type":"error","error":{"type":"api_error","message":"bad key ${escapedKey}","message":"nothing here"}}`, 500, { "content-type": "application/json" });
+    if (mode === "echo-key-shadowed-200") return c.body(`{"id":"msg_test","type":"message","model":"${body.model}","note":"${k}","note":"x","content":[],"usage":${JSON.stringify(PLAIN_USAGE)}}`, 200, { "content-type": "application/json" });
+    if (mode === "many-backslashes") return c.body(`{"id":"msg_test","type":"message","model":"${body.model}","content":[{"type":"text","text":"${"\\".repeat(80)}"}],  "usage":${JSON.stringify(PLAIN_USAGE)}}`, 200, { "content-type": "application/json" });
+    if (mode === "deep-500") return c.body(`{"type":"error","error":${"[".repeat(20_000)}${"]".repeat(20_000)}}`, 500, { "content-type": "application/json" });
+    if (mode === "model-missing") return c.json({ id: "msg_test", type: "message", content: [], usage: PLAIN_USAGE });
+    if (mode === "model-empty") return c.json({ id: "msg_test", type: "message", model: "", content: [], usage: PLAIN_USAGE });
     if (mode === "echo-key-escaped-500") return c.body(`{"type":"error","error":{"type":"api_error","message":"echo ${(c.req.header("x-api-key") ?? "").replace(/-/g, "\\u002d")}"}}`, 500, { "content-type": "application/json" });
     if (mode === "echo-key-500") return c.json({ type: "error", error: { type: "api_error", message: `stand-in echo of ${c.req.header("x-api-key")}` } }, 500);
     if (mode === "fail-500") return c.json({ type: "error", error: { type: "api_error", message: "stand-in failure" } }, 500);
@@ -112,6 +121,16 @@ function standInProvider() {
         ],
         "stream-model-not-text": [start(["claude-haiku-5-5"], { input_tokens: 1000, output_tokens: 1 }), STREAM_FRAMES[2]!, STREAM_FRAMES[3]!],
         "stream-start-not-json": ["event: message_start\ndata: {broken\n\n", STREAM_FRAMES[0]!, STREAM_FRAMES[2]!, STREAM_FRAMES[3]!],
+        // Found by the fourth review.
+        "stream-fast-taken-back": [start("claude-sonnet-5-5", { input_tokens: 1000, output_tokens: 1, speed: "fast" }), delta({ output_tokens: 200, speed: "standard" }), STREAM_FRAMES[3]!],
+        // A dearer figure behind a "blank line" made of LF then CR LF, which the gateway does not take as the end of a frame.
+        "stream-hidden-frame": [STREAM_FRAMES[0]!, `event: message_delta\ndata: ${JSON.stringify({ type: "message_delta", usage: { output_tokens: 10 } })}\n\r\nevent: message_delta\ndata: ${JSON.stringify({ type: "message_delta", usage: { output_tokens: 5000 } })}\n\n`, STREAM_FRAMES[3]!],
+        "stream-hidden-frame-cr": [STREAM_FRAMES[0]!, `event: message_delta\ndata: ${JSON.stringify({ type: "message_delta", usage: { output_tokens: 10 } })}\r\revent: message_delta\rdata: ${JSON.stringify({ type: "message_delta", usage: { output_tokens: 5000 } })}\n\n`, STREAM_FRAMES[3]!],
+        "stream-unnamed-broken": [STREAM_FRAMES[0]!, STREAM_FRAMES[2]!, `data: {"type":"message_delta","usage":{"output_tokens":5000\n\n`, STREAM_FRAMES[3]!],
+        "stream-two-names": [...STREAM_FRAMES.slice(0, 3), `event: ping\nevent: error\ndata: {"type":"ping"}\n\n`, STREAM_FRAMES[3]!],
+        "stream-name-and-type-differ": [STREAM_FRAMES[0]!, STREAM_FRAMES[2]!, `event: message_delta\ndata: {"type":"ping","usage":{"output_tokens":5000}}\n\n`, STREAM_FRAMES[3]!],
+        "stream-start-without-message": [`event: message_start\ndata: {"type":"message_start","message":null}\n\n`, ...STREAM_FRAMES],
+        "stream-model-empty": [start("", { input_tokens: 1000, output_tokens: 1 }), STREAM_FRAMES[2]!, STREAM_FRAMES[3]!],
       };
       const frames =
         thirdReview[mode] ? thirdReview[mode]
@@ -860,6 +879,63 @@ describe("holds: found by the third review, and kept fixed", () => {
     const { token } = await newProject(5);
     const res = await call(token, plain("fail-400-other"));
     expect(await res.text()).toBe("<html>Bad Request from something in between</html>");
+    // Also a JSON answer with odd spacing and a long run of backslashes in it.
+    const many = await (await call(token, plain("many-backslashes"))).text();
+    expect(many).toContain("\\".repeat(80));
+    expect(many).toContain(`}],  "usage":`);
+  });
+
+  it("the key in a member that a JSON reader would drop (the same name twice) is not passed back either", async () => {
+    // Undo backslash escapes the way any reader of the raw text could.
+    const loose = (t: string) => t.replace(/\\u([0-9a-fA-F]{4})/g, (_m, h: string) => String.fromCharCode(parseInt(h, 16)));
+    for (const [mode, status] of [["echo-key-shadowed-500", 500], ["echo-key-shadowed-escaped-500", 500], ["echo-key-shadowed-200", 200]] as const) {
+      const { id, token } = await newProject(5);
+      const res = await call(token, plain(mode));
+      expect(res.status).toBe(status);
+      const text = await res.text();
+      expect(text).not.toContain(REAL_KEY);
+      expect(loose(text)).not.toContain(REAL_KEY);
+      expectNoKey(text, REAL_KEY);
+      JSON.parse(text); // still JSON
+      await new Promise((r) => setTimeout(r, 30));
+      const log = JSON.stringify(await listEvents(pool, id));
+      expect(loose(log)).not.toContain(REAL_KEY);
+    }
+  });
+
+  it("an answer nested too deeply to check is withheld, and its hold is kept with a note in the log", async () => {
+    const { id, token } = await newProject(5);
+    const res = await call(token, plain("deep-500"));
+    expect(res.status).toBe(500);
+    const text = await res.text();
+    expect(text.length).toBeLessThan(5_000);
+    await keptOnly(id, "server error");
+  });
+
+  it("an answer that does not name the model that served it keeps its hold", async () => {
+    for (const mode of ["model-missing", "model-empty"]) {
+      const { id, token } = await newProject(5);
+      expect((await call(token, plain(mode))).status).toBe(200);
+      await keptOnly(id, "usage could not be read");
+    }
+  });
+
+  it("a stream that is not framed the way the provider frames it keeps its hold", async () => {
+    for (const [mode, reason] of [
+      ["stream-fast-taken-back", "usage figures that could be read"],
+      ["stream-hidden-frame", "usage figures that could be read"],
+      ["stream-hidden-frame-cr", "usage figures that could be read"],
+      ["stream-unnamed-broken", "usage figures that could be read"],
+      ["stream-two-names", "error inside the stream"],
+      ["stream-name-and-type-differ", "usage figures that could be read"],
+      ["stream-start-without-message", "usage figures that could be read"],
+      ["stream-model-empty", "usage figures that could be read"],
+    ] as const) {
+      const { id, token } = await newProject(5);
+      const res = await call(token, streamed(mode));
+      await res.text();
+      await keptOnly(id, reason);
+    }
   });
 
   it("a response header named after the key is not passed back, whatever the letter case of the key", async () => {

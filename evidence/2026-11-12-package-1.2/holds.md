@@ -7,17 +7,17 @@
 | Done means (plan, as amended 12 Nov) | "Proof rows B1 to B6 of design note 7.2, and only those, each shown from the event log against a stand-in provider." What finishes this package is also a question to the owner (`docs/STATUS.md`), so it is **not marked tested** on this evidence alone |
 | Run on | The development machine (a cloud session), directly on the host: the builder's own gateway code, a local PostgreSQL database, and a **stand-in provider** in the same process. No real provider was called, no key exists, nothing was spent. No generated code and no engine ran |
 | What a stand-in can and cannot show | It shows what the gateway does with the answers it is given. It shows nothing about how the real provider counts, bills or fails (plan section 8, rule 3) |
-| State | **Built, not tested.** Independent reviews, each by a fresh reviewer told to break the cap, are set out below with their answers: of `ebbcca5`, of `15586fa` and of `1fb2c87`. In the last, the cap held under every attack run and rows B1 to B6 were shown; its one blocking finding was about the key, not the cap. Which commit each review read, and whether the latest answers have been read again, is in the pull request's description |
+| State | **Built, not tested.** Independent reviews, each by a fresh reviewer told to break the cap, are set out below with their answers: of `ebbcca5`, of `15586fa`, of `1fb2c87` and of `cedaced`. In the last two, the cap held under every attack run and rows B1 to B6 were shown; their blocking findings were about the key and the records, not the cap. Which commit each review read, and whether the latest answers have been read again, is in the pull request's description |
 
 ## What was built
 
 - **A holds table in the database** (`builder/src/store/migrations/003_holds.sql`) and the functions that open, settle, keep, expire and find holds (`builder/src/store/holds.ts`). Every change to a hold made by the gateway is also written to the append-only event log.
 - **The worst-case amount of a hold** (`builder/src/gateway/hold.ts`): the prompt as counted by the provider's own counting call, plus a margin, at the dearest input rate that could apply; the request's `max_tokens` at the dearest output rate that could apply; doubled where fast mode could apply.
 - **Check-and-hold as one step** (`builder/src/gateway/app.ts`): the budget equation, spent plus open holds plus this hold against the cap, is checked and the hold is written inside one database transaction that locks the project's row. The gateway's old in-memory reservations and its estimate from the last three calls are gone.
-- **Two ways out of the equation, and no others:** a hold is settled to the actual cost when the call ended with usage figures that were read and could be trusted (every count a whole number that is not negative, no list of separate attempts, and no field the meter does not know); or it is settled at nothing when the provider's own error, in the provider's own error shape, says the request was turned away before any work. A streamed answer counts as read only if the provider's end-of-message marker arrived, no error event did, and no figure fell from one frame to the next. Every other ending leaves the hold open at its full amount: a server error, any other error answer, a redirect, a stream cut part-way, the caller going away, an answer with no usage or with usage that cannot be trusted, an answer from a model with no price, the time limit, a database error while settling.
+- **Two ways out of the equation, and no others:** a hold is settled to the actual cost when the call ended with usage figures that were read and could be trusted (every count a whole number that is not negative, no list of separate attempts, no field the meter does not know, and the model that served it named as text); or it is settled at nothing when the provider's own error, in the provider's own error shape, says the request was turned away before any work. A streamed answer counts as read only if the provider's end-of-message marker arrived, no error event did, no figure fell from one frame to the next, and every frame was framed as the provider frames it (one name, JSON data, the name matching the type inside). Every other ending leaves the hold open at its full amount: a server error, any other error answer, a redirect, a stream cut part-way, the caller going away, an answer with no usage or with usage that cannot be trusted, an answer from a model with no price, the time limit, a database error while settling.
 - **Refusals for what a hold cannot bound** (the "known limits" of design note 5.5): a prompt that cannot be counted; `max_tokens` missing or above the profile's ceiling; `inference_geo` other than the default; tools the provider runs itself, and tool servers; fast mode where the profile does not allow it or the model has no listed fast-mode price; **any request field outside a fixed list, and any beta feature not on the gateway's list** (added after the review).
 - **On a metered call the body is forwarded as the gateway read it**, written out again, never the raw bytes; only a fixed list of request headers is passed on, and nothing after a "?" in the address. The token-counting pass-through, which costs nothing, still forwards the caller's body as sent.
-- **The real key is kept out of what the gateway stores and passes back** in the places an answer could echo it: everything written to the event log for a call is searched after parsing; response headers carrying it in a name or a value, in any letter case, are dropped; error bodies, the pass-through's body and a plain answer's body are cleaned. A body that is JSON is judged as the caller will read it, after parsing, so a spelling of the key with backslash escapes is found too; a body that is not JSON and carries such a spelling is withheld whole. A body that does not carry the key goes back byte for byte. **Not covered:** the body of a streamed answer is passed to the caller as it comes; and a key written in some other encoding (base64, percent-encoding) is not looked for anywhere.
+- **The real key is kept out of what the gateway stores and passes back** in the places an answer could echo it: everything written to the event log for a call is searched after parsing; response headers carrying it in a name or a value, in any letter case, are dropped; error bodies, the pass-through's body and a plain answer's body are cleaned. A body that is JSON is judged twice, as its raw text and as a JavaScript JSON reader reads it after parsing, so a spelling of the key with backslash escapes is found too, and so is a key in a member that such a reader would drop because its name is repeated. If either reading finds anything, the cleaned parsed value is written out again in place of the provider's bytes; a body that is not JSON and carries an escaped spelling is withheld whole. A body in which neither reading finds anything goes back byte for byte, with one exception: a text whose backslash escapes are still coming undone after 16 rounds (65,536 backslashes in a row, or a long chain of escaped escapes) is treated as if it carried the key. **Not covered:** the body of a streamed answer is passed to the caller as it comes; and a key written in some other form is not looked for anywhere: base64, percent-encoding, HTML entities, or backslash forms other than `\uXXXX`, `\xXX` and a backslash before a character.
 
 ## The six proof rows
 
@@ -41,16 +41,16 @@ Prices used: Claude Opus 5.5 input $4, one-hour cache write $8, output $20 per m
 == B1. A hold is opened before every forwarded call and settled to the actual cost ==
   call 1: HTTP 200
   call 2: HTTP 200
-  event hold.opened: hold #124125 for $0.125600
+  event hold.opened: hold #124652 for $0.125600
       prompt counted 10000 tokens + margin 700 = 10700 at $8 per million (one-hour cache write) = $0.085600
       max_tokens 2000 at $20 per million = $0.040000; fast-mode factor 1; both parts include the factor
   event model.call: status 200, billed 10000 input and 1000 output tokens, actual cost $0.060000
-  event hold.settled: hold #124125 of $0.125600 settled at $0.060000; $0.065600 returned to the budget
-  event hold.opened: hold #124126 for $0.125600
+  event hold.settled: hold #124652 of $0.125600 settled at $0.060000; $0.065600 returned to the budget
+  event hold.opened: hold #124653 for $0.125600
       prompt counted 10000 tokens + margin 700 = 10700 at $8 per million (one-hour cache write) = $0.085600
       max_tokens 2000 at $20 per million = $0.040000; fast-mode factor 1; both parts include the factor
   event model.call: status 200, billed 10000 input and 1000 output tokens, actual cost $0.060000
-  event hold.settled: hold #124126 of $0.125600 settled at $0.060000; $0.065600 returned to the budget
+  event hold.settled: hold #124653 of $0.125600 settled at $0.060000; $0.065600 returned to the budget
   budget afterwards: cap $1.000000 | spent $0.120000 | open holds $0.000000 (0) | spent + open holds = $0.120000
   actual cost never above the hold: yes
 
@@ -60,11 +60,11 @@ Prices used: Claude Opus 5.5 input $4, one-hour cache write $8, output $20 per m
   call 2: HTTP 402 (budget_reached)
   message shown: "This project has reached its budget of $0.15 (spent $0.06, with $0.00 held for work in progress or awaiting reconciliation; this call needed up to $0.13). The gateway will forward nothing more until the budget is raised."
   calls that reached the provider during call 2: 0
-  event hold.opened: hold #124127 for $0.125600
+  event hold.opened: hold #124654 for $0.125600
       prompt counted 10000 tokens + margin 700 = 10700 at $8 per million (one-hour cache write) = $0.085600
       max_tokens 2000 at $20 per million = $0.040000; fast-mode factor 1; both parts include the factor
   event model.call: status 200, billed 10000 input and 1000 output tokens, actual cost $0.060000
-  event hold.settled: hold #124127 of $0.125600 settled at $0.060000; $0.065600 returned to the budget
+  event hold.settled: hold #124654 of $0.125600 settled at $0.060000; $0.065600 returned to the budget
   event gateway.refused: reason budget_reached; spent $0.060000 + open holds $0.000000 + this hold $0.125600 > cap $0.150000
   holds in the database for this project: 1 (one, from call 1; none for the refused call)
 
@@ -78,24 +78,24 @@ Prices used: Claude Opus 5.5 input $4, one-hour cache write $8, output $20 per m
 == B4. The hold covers the long-prompt rate and fast mode when either could apply (amendment c) ==
   (1) Claude Haiku 5.5, prompt counted at 99,900 tokens, just under the 100,000 threshold:
   call: HTTP 200
-  event hold.opened: hold #124128 for $0.107595
+  event hold.opened: hold #124655 for $0.107595
       prompt counted 99900 tokens + margin 5195 = 105095 at $1 per million (one-hour cache write, long-prompt price) = $0.105095
       max_tokens 1000 at $2.5 per million = $0.002500; fast-mode factor 1; both parts include the factor
   event model.call: status 200, billed 99900 input and 500 output tokens, actual cost $0.010240
-  event hold.settled: hold #124128 of $0.107595 settled at $0.010240; $0.097355 returned to the budget
+  event hold.settled: hold #124655 of $0.107595 settled at $0.010240; $0.097355 returned to the budget
   the same model with a prompt counted at 1,000 tokens, for comparison:
-  event hold.opened: hold #124129 for $0.000750
+  event hold.opened: hold #124656 for $0.000750
       prompt counted 1000 tokens + margin 250 = 1250 at $0.2 per million (one-hour cache write) = $0.000250
       max_tokens 1000 at $0.5 per million = $0.000500; fast-mode factor 1; both parts include the factor
   event model.call: status 200, billed 1000 input and 500 output tokens, actual cost $0.000350
-  event hold.settled: hold #124129 of $0.000750 settled at $0.000350; $0.000400 returned to the budget
+  event hold.settled: hold #124656 of $0.000750 settled at $0.000350; $0.000400 returned to the budget
   (2) Claude Opus 5.5 on a profile that allows fast mode (the request does not ask for it):
   call: HTTP 200
-  event hold.opened: hold #124130 for $0.251200
+  event hold.opened: hold #124657 for $0.251200
       prompt counted 10000 tokens + margin 700 = 10700 at $8 per million (one-hour cache write) = $0.171200
       max_tokens 2000 at $20 per million = $0.080000; fast-mode factor 2 (the profile allows it); both parts include the factor
   event model.call: status 200, billed 10000 input and 1000 output tokens, actual cost $0.060000
-  event hold.settled: hold #124130 of $0.251200 settled at $0.060000; $0.191200 returned to the budget
+  event hold.settled: hold #124657 of $0.251200 settled at $0.060000; $0.191200 returned to the budget
 
 == B5. A hold past its deadline is kept, not released ==
   this gateway cuts a call off after 0.2 seconds and gives its hold a deadline 0.2 seconds later; the stand-in does not answer in time
@@ -103,11 +103,11 @@ Prices used: Claude Opus 5.5 input $4, one-hour cache write $8, output $20 per m
   budget after the cut-off: cap $0.200000 | spent $0.000000 | open holds $0.125600 (1) | spent + open holds = $0.125600
   holds marked expired once the deadline had passed: 1
   the hold's row: state open, amount $0.125600, expired true, unreconciled true, actual cost not known
-  event hold.opened: hold #124131 for $0.125600
+  event hold.opened: hold #124658 for $0.125600
       prompt counted 10000 tokens + margin 700 = 10700 at $8 per million (one-hour cache write) = $0.085600
       max_tokens 2000 at $20 per million = $0.040000; fast-mode factor 1; both parts include the factor
-  event hold.kept: hold #124131 of $0.125600 kept open; reason: the call reached its time limit
-  event hold.expired: hold #124131 of $0.125600; kept true, unreconciled true, still open true
+  event hold.kept: hold #124658 of $0.125600 kept open; reason: the call reached its time limit
+  event hold.expired: hold #124658 of $0.125600; kept true, unreconciled true, still open true
   budget after expiry: cap $0.200000 | spent $0.000000 | open holds $0.125600 (1) | spent + open holds = $0.125600
   a further call, to show the expired hold still counts: HTTP 402
 
@@ -116,11 +116,11 @@ Prices used: Claude Opus 5.5 input $4, one-hour cache write $8, output $20 per m
   budget with the first gateway stopped: cap $0.200000 | spent $0.000000 | open holds $0.125600 (1) | spent + open holds = $0.125600
   a second gateway, gw_demo_second, starts on the same database and looks for open holds
   the hold's row: state open, amount $0.125600, opened by gw_demo_first
-  event hold.opened: hold #124132 for $0.125600
+  event hold.opened: hold #124659 for $0.125600
       prompt counted 10000 tokens + margin 700 = 10700 at $8 per million (one-hour cache write) = $0.085600
       max_tokens 2000 at $20 per million = $0.040000; fast-mode factor 1; both parts include the factor
-  event hold.kept: hold #124132 of $0.125600 kept open; reason: the caller disconnected before the answer arrived
-  event hold.found_at_startup: hold #124132 of $0.125600, opened by gw_demo_first, found by gw_demo_second; kept true, still open true
+  event hold.kept: hold #124659 of $0.125600 kept open; reason: the caller disconnected before the answer arrived
+  event hold.found_at_startup: hold #124659 of $0.125600, opened by gw_demo_first, found by gw_demo_second; kept true, still open true
   budget after the second gateway started: cap $0.200000 | spent $0.000000 | open holds $0.125600 (1) | spent + open holds = $0.125600
   spent + open holds the same before and after: yes
   a call through the second gateway, to show the hold still counts: HTTP 402
@@ -178,6 +178,10 @@ $ npx vitest run --reporter=verbose   (the whole suite; same tests as npm test)
  ✓ test/gateway.test.ts > holds: found by the third review, and kept fixed > a body that spells the key with escapes is cleaned before the caller gets it, as the caller would read it
  ✓ test/gateway.test.ts > holds: found by the third review, and kept fixed > the same holds on the token-counting pass-through, for a good answer and for an error
  ✓ test/gateway.test.ts > holds: found by the third review, and kept fixed > an answer that does not carry the key goes back byte for byte
+ ✓ test/gateway.test.ts > holds: found by the third review, and kept fixed > the key in a member that a JSON reader would drop (the same name twice) is not passed back either
+ ✓ test/gateway.test.ts > holds: found by the third review, and kept fixed > an answer nested too deeply to check is withheld, and its hold is kept with a note in the log
+ ✓ test/gateway.test.ts > holds: found by the third review, and kept fixed > an answer that does not name the model that served it keeps its hold
+ ✓ test/gateway.test.ts > holds: found by the third review, and kept fixed > a stream that is not framed the way the provider frames it keeps its hold
  ✓ test/gateway.test.ts > holds: found by the third review, and kept fixed > a response header named after the key is not passed back, whatever the letter case of the key
  ✓ test/gateway.test.ts > holds: found by the third review, and kept fixed > a stream whose figures contradict each other, or whose model is not a name, keeps its hold
  ✓ test/gateway.test.ts > holds: found by the third review, and kept fixed > usage with a field the meter does not know, or a model that is not a name, keeps the hold
@@ -217,7 +221,7 @@ $ npx vitest run --reporter=verbose   (the whole suite; same tests as npm test)
  ✓ test/app-spec.test.ts > app spec > refuses a choice field with no choices
  ✓ test/app-spec.test.ts > app spec > refuses more than five core actions
  Test Files  5 passed (5)
-      Tests  81 passed (81)
+      Tests  85 passed (85)
 exit code: 0
 ```
 
@@ -304,6 +308,22 @@ A third fresh reviewer, told to break the cap, went through the second review's 
 | 7 | An assumption to record: beta features and anything after "?" fail loudly, but other headers are dropped silently, which package 2.2 will meet | No | The names, never the values, of headers not passed on are now written into the call's event. Tested. Recorded in known gap 45 |
 
 Also reported and left as it is: reading the budget takes longer as a project's calls grow, inside the project lock (the reviewer measured about 37 ms at 20,000 settled calls and about 145 ms at 100,000). Recorded in known gap 45.
+
+## The fourth review (commit `cedaced`) and what was done
+
+A fourth fresh reviewer read only the changes made after the third review, and attacked each. **The cap held:** it found no way to exceed it or to release money on a guess against a provider that keeps to its documented format. Findings 2 to 7 of the third review: done as stated (375 hand-written events against the budget view with no error, no under-count and no over-count against the stated rule; 42 streams; the list of usage fields compared with the provider's live reference, nothing documented missing). **Finding 1, the key in a body: not done**, and the fix for it had opened a new hole.
+
+| # | Finding | Blocking | Done |
+| --- | --- | --- | --- |
+| F1 | **Introduced by the previous fix.** A JSON body was judged only after parsing. A JSON reader keeps the second of two members with the same name and drops the first; with nothing found in the parsed value, the provider's raw bytes went back, the dropped member included. So the key in its plain spelling, in a repeated member, reached the caller, where the commit before had cut it. 240 of the reviewer's 1,008 bodies leaked this way; the event log stayed clean in all | Yes | The raw bytes go back only if the raw text is clean as well as the parsed value; otherwise the cleaned value is written out. Tested for a plain and an escaped spelling in a repeated member, on an error answer and a good one; the tests fail on `cedaced` |
+| F2 | Record sentences made false by F1, and "goes back byte for byte" was absolute though a text with 32 backslashes in a row was replaced | Yes (records) | The sentences above now say what is done and name the exception, which is moved from 6 rounds to 16 (65,536 backslashes in a row). A body with 80 in a row is tested to come back byte for byte |
+| F3 | A stream framed otherwise than the provider frames it could be settled at the lower of two figures: a frame behind a "blank line" of LF then CR LF, or of CR alone; an unnamed frame with broken JSON; two names in one frame; a name that disagrees with the type inside; a start frame with no message | No | Each now keeps the hold: lines end as the event-stream format allows, a frame has at most one name, its data must be JSON, and its name must match its type. Tested, eight cases, with fast mode taken back among them |
+| F4 | A model given as empty text was accepted; on a plain answer a missing model was priced as the model asked for | No | An answer must name the model that served it, as text that is not empty, or its hold is kept. Tested |
+| F5 | A body nested about 5,000 levels deep made the gateway fail: the caller got a bare error, no note was written for the kept hold, and the call's timer was left running | No | Nothing is walked deeper than 200 levels; a body that cannot be written out again is withheld; the timer is stopped first. Tested with 20,000 levels: the hold is kept with its note |
+| F6 | The earlier view was "shown failing" with no output saved; a comment in the new migration said "made safe" | No | Output saved in `run-earlier-view.txt`; the comment reworded |
+| F7 | Row 4 of the third review read as if every unknown usage field keeps the hold | No | Said exactly here: an unknown field at the top of the usage block, or an unknown kind of cache write, keeps the hold. An unknown member inside the breakdown of output tokens is accepted if it is a count no larger than the output total; an unknown member inside the provider-run tools block is accepted only at zero |
+
+Left as they are and recorded in known gap 45: a repeated name inside a usage block or a frame is read as a JSON reader reads it, the last one winning, so a provider that sent two different figures under one name would be settled on the second; a body that carries the key is written out again whole, which can change how a very long number is written; two events with costs near the largest number the database holds stop the budget view, which then refuses everything for that project; a cost that is not a number is not counted; header names are the caller's own text and are logged as sent.
 
 ## What this does not show
 

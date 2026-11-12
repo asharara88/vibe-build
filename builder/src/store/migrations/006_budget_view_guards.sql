@@ -1,4 +1,4 @@
--- The budget view, made safe against events it did not expect (package 1.2, third review).
+-- The budget view, guarded against events it did not expect (package 1.2, third review).
 -- The gateway only ever writes a model.call event with a whole-number hold id of the same
 -- project. An event written any other way must not make the budget unreadable, and must not
 -- make "spent" smaller:
