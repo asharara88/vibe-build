@@ -20,7 +20,7 @@ A *branch* is a named line of work in the repository; a *commit* is one saved st
 | --- | --- |
 | **Accepted by the owner (in `main`)** | The handover, the project rules, the specification, the design note as first approved, the Task 0 documents |
 | **Tested** | Packages 0.1, 0.2, 1.1 and W4, all documents; package 0.4, the licence rule; and package 0.3, the role guard of the template. Thirteen of seventeen findings are open (`docs/reviews/2026-11-11-pull-request-2.md`); the four closed are two about documents, one about the licence check and one about the template's role guard. None about the builder's own running system (the gateway, the sandbox, the engine) is closed |
-| **Built, not tested** | The baseline code. R1, merged into the integration branch on 12 Nov. Package 1.2, on a branch |
+| **Built, not tested** | The baseline code. R1, merged into the integration branch on 12 Nov. Packages 0.5 and 1.2, each on its own branch |
 | **Waiting on the owner** | The questions below |
 
 ## Progress under the plan
