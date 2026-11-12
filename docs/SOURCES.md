@@ -98,6 +98,20 @@ Docker's documentation (docs.docker.com) could not be read from the session that
 
 Assumed, not measured: that the Docker client reads `DOCKER_TLS` as a request to connect to the daemon with TLS. The sandbox passes it on to Docker with the other settings that name the daemon (`DOCKER_HOST`, `DOCKER_TLS_VERIFY`, `DOCKER_CERT_PATH`). A reviewer of `bbe0857` found the name in the Docker client program (`docs/reviews/2026-11-12-package-0.5.md`); what it does was not tried. Items 7 to 10 were added, and items 4 and 6 corrected, by the follow-up after the merge of pull request #17 (commit `df1af8b`), on the same Docker and Compose versions.
 
+## Read and measured on 12 November 2026 for package 2.1, the scripted engine (Docker 29.9.2, Docker Compose v5.6.1, git 2.43.0)
+
+The template in this branch has no installed packages, so drizzle-kit's types were read in its published package: `npm pack drizzle-kit@0.31.11` into an empty scratch folder outside the repository, unpacked, read, and not installed or run. Docker's and git's documentation were not read: the behaviours below were measured on this machine.
+
+| Fact | Source |
+| --- | --- |
+| drizzle-kit 0.31.11's configuration accepts a list of schema files: `schema?: string \| string[];`, with the comment "You can have as many separate schema files as you want and define paths to them using glob or array of globs syntax." Its licence field is MIT | The published package [drizzle-kit 0.31.11](https://www.npmjs.com/package/drizzle-kit/v/0.31.11), `index.d.ts` lines 34-35 and 119, and `package.json`. The comment points to `https://orm.drizzle.team/kit-docs/config-reference#schema`, which was not opened |
+| `drizzle-kit push` accepted that list at run time: with `schema: ["./src/db/schema.ts", "./src/db/app-schema.ts"]` it created the `leave_request` table in the tools container | Measured: `evidence/2026-11-12-package-2.1/run-live.txt`, section 5 |
+| A bind mount in the short form (`-v source:target`) whose source does not exist makes Docker create the source on the host as an empty folder owned by root (`docker run --rm -v <scratch>/missing:/m:ro alpine:3.20 true` left `<scratch>/missing`, a folder owned by root) | Measured on this machine. So the sandbox refuses a missing source before a run, and the engine service uses the long form with `create_host_path: false` |
+| A container started with `network_mode: none` has the loopback interface only, a name lookup fails (`EAI_AGAIN`), and a connection to a port listening on the host's loopback address is refused (`ECONNREFUSED`) | Measured: `evidence/2026-11-12-package-2.1/run-live.txt`, sections 3 and 5 |
+| Docker places `/.dockerenv` in a container even with a read-only root; the applier uses it as one of its "am I in the engine container" tests | Measured: the live test "inside the engine container" in `builder/test/scripted-engine.test.ts` |
+| git run as root with `--git-dir` and `--work-tree` given on the command line did not refuse a work tree owned by another user (uid 1000): no `safe.directory` setting was needed | Measured on this machine with git 2.43.0, in a scratch folder |
+| With `--untracked-files=all`, `git status --ignored` lists each ignored file one by one, not only its folder | Measured on this machine with git 2.43.0 |
+
 ## Product documentation read on 12 November 2026 for the owner's own set-up; nothing in the repository relies on it
 
 | Fact | Source |
