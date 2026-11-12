@@ -1,97 +1,116 @@
 # Status
 
-Read this first in every session, then `docs/BUILD-PLAN.md` section 3. This file is rewritten each session, not added to; older versions are in `docs/log/`.
+Read this first in every session, then `docs/BUILD-PLAN.md` section 3. This file is rewritten each session, not added to. The version before the first rewrite is in `docs/log/`.
 
-**As of:** 12 November 2026, after two reviews by an independent assistant, supplied by the owner (of commits `e0e22e6` and `689da67`). The owner's own approval of the corrections is not yet recorded. Nothing here is a time estimate.
+**As of:** 12 November 2026, after the owner's licence approval and two reports from fresh reviewer agents. Nothing here is a time estimate.
+
+## Words used here
+
+A *branch* is a named line of work in the repository; a *commit* is one saved step on it; a *pull request* is a proposed set of changes that can be read before it is merged. The *integration branch* `claude/stage-1` is where tested work is gathered; `main` is changed only by the owner. A *container* is a sealed box in which a program runs. A *stack* is the set of tools an app is written with (the first candidate is TypeScript with Next.js, a web framework; the second is Django, a Python web framework). A *licence* is the permission that comes with software someone else wrote; *LGPL* and *MPL* are licences that carry duties when the software is passed on. A *licence code* (L9, L10, L11) is the plan's name for one licence condition. A *waiver* is the owner's recorded decision that no stack comparison will be made. A *checkpoint* is one of the plan's five meeting points with the owner (0 to 4). A *hold* is money set aside before a model call; to *reconcile* a hold is for the owner to record what the call really cost. A *stand-in* is a fake provider used for tests, which costs nothing. A *proof row* is one line of the design note's table of things that must be shown.
 
 ## One-line state
 
-The design note is approved subject to corrections, which are in it. **No safeguard is shown yet.** Code exists on the integration branch `claude/stage-1` (a *branch* is a named line of work in the repository) as an **unapproved starting baseline**, and the product code has not changed since it was declared a baseline, so every finding about how the running system behaves remains open. The baseline holds: a model gateway, meant to be the one door to the AI model, with a spend cap of an earlier kind that is to be rebuilt; an egress proxy, which filters the requests sent through it but is not yet the only way out of a project's containers (a *container* is a sealed box in which a program runs; on the development machine the containers share the machine's own network); a sandbox manager, which creates a project's containers; an app spec, the machine-readable brief; an event log, the record; and a TypeScript house template, the starter a generated app begins from. The builder's own code has 38 passing tests; the template has screenshots, not tests. No app can be built. No real model call has been made; the month's model spend is $0.00 (no key exists).
+**No safeguard is shown on the integration branch.** The code there is an unapproved starting baseline, unchanged since it was declared one: a model gateway meant to be the one door to the AI model, with a spend cap of an earlier kind that is to be rebuilt; an egress proxy that filters the requests sent through it but is not yet the only way out of a project's containers (on the development machine the containers share the machine's own network); a sandbox manager; an app spec; an event log; and a TypeScript house template. Its 38 tests were run on 12 November and passed; the template has screenshots, not tests. No app can be built. No real model call has been made.
+
+**The design note:** the owner approved it on 11 November subject to three corrections, which are in it, and approved five amendments through the build plan. Changes made since are listed at the end of its section 5.5; some of them await the owner and are not approved.
 
 ## Three states, per the plan
 
 | State | What is in it |
 | --- | --- |
-| **Accepted by the owner (in `main`)** | The handover, the project rules, the specification, the design note as first approved, and the Task 0 documents. Everything since is on `claude/stage-1` and not accepted |
-| **Tested** | See the progress table. Document packages only. No code package is tested, and no finding about how the running system behaves is closed |
-| **Built, not tested** | The baseline code in `builder/` and `templates/next/`. The owner's findings on it, seventeen in all, are in the findings register `docs/reviews/2026-11-11-pull-request-2.md` |
-| **Licences** | On 12 Nov the owner approved, by name and on conditions, the development packages (the `lightningcss` family, `spdx-exceptions`, `spdx-ranges`) and `caniuse-lite` (`docs/DECISIONS.md`). `psycopg` is not approved. L9 and L11 become true only when the licence checks also pass. The builder's check now passes on the branch of package 0.4a (not yet reviewed or merged). The template's cannot pass: it carries LGPL packages nobody had reported (question 1) |
-| **Parked, waiting on the owner** | The second stack (L10 or a waiver); the first real model call (the key, at checkpoint 1); the demo candidate; the demo server |
+| **Accepted by the owner (in `main`)** | The handover, the project rules, the specification, the design note as first approved, the Task 0 documents |
+| **Tested** | Packages 0.2 and W4 (documents). No code package is tested. No finding about how the running system behaves is closed: sixteen of seventeen are open (`docs/reviews/2026-11-11-pull-request-2.md`) |
+| **Built, not tested** | The baseline code. Packages 0.1 and 1.1 (reopened). The `builder/` half of package 0.4, on a branch |
+| **Waiting on the owner** | The questions below |
 
 ## Progress under the plan
 
-A *pull request* is a proposed set of changes that can be read before it is merged. The review record for the four document packages, with the commit each review read, is in `docs/reviews/2026-11-12-integration-e0e22e6.md`.
+| Package | State |
+| --- | --- |
+| 0.1 `docs/STATUS.md` rewritten | **Reopened 12 Nov; built, not tested.** Two reviews in a row found statements that contradicted each other. This file is the third version. It is tested only when an independent reviewer has read its final commit and found none |
+| 0.2 Evidence claims narrowed | Tested 11 Nov; the merged text re-read 12 Nov, no finding |
+| 1.1 Design note 5.5 amended | **Reopened 12 Nov; built, not tested.** Its "Done means" is met to the letter; review found the hold could still fall short of a call's cost (known gap 41). Tested only when an independent reviewer has read the final commit |
+| W4 Arabic wording list | Tested 11 Nov; re-read 12 Nov, list and counts confirmed |
+| 0.4 One licence rule | **Parked** (needs L9 and L11). Its `builder/` half was built on 12 Nov on a branch (pull request #9) **before its dependencies were met**, which was Claude Code's error (known gap 42). It is not merged. An independent reviewer found two blocking defects in it; they are being corrected on that branch. Question 2 below |
 
-| Package | State | Where |
+The review record, with the commit each review read, is `docs/reviews/2026-11-12-integration-e0e22e6.md`. Pull request #7 holds these corrections; it is merged only when the commit reviewed is the commit merged.
+
+## The licence codes today
+
+| Code | State | Why |
 | --- | --- | --- |
-| 0.1 `docs/STATUS.md` rewritten | **Reopened 12 Nov.** A re-check of the merged text found statements that contradicted each other, so its "Done means" was not met. Rewritten as this file. Built, not tested, until an independent reviewer has read this file's final commit | Pull request #3, then this file |
-| 0.2 Evidence claims narrowed | Tested 11 Nov; the re-check of the merged text on 12 Nov found nothing | Pull request #4 |
-| 1.1 Design note 5.5 amended | **Reopened 12 Nov.** Its "Done means" was met to the letter, but the re-check found a defect inside amendment (c) (the output part of the hold ignored the long-prompt rate) and changes not listed among the amendments. Corrected in the design note. Built, not tested, until an independent reviewer has read the final commit | Pull request #5, then design note 5.2, 5.5, 7.2 |
-| W4 Arabic wording list | Tested 11 Nov; the re-check confirmed the list and counts, and found one overstated sentence outside its "Done means", corrected | Pull request #6 |
-| 0.4a One licence rule, `builder/` | **Built 12 Nov, not tested** until an independent reviewer has read its final commit. The check passes on `builder/` and fails when a test package outside the rule is added | `evidence/2026-11-12-package-0.4a/licence-rule.md` |
-| 0.4b One licence rule, `templates/next/` | **Parked on the owner** (question 1): the new rule found LGPL packages in the template | Known gap 40 |
+| L9 (`builder/`) | **True since 12 Nov** | The owner approved the named development packages (`docs/DECISIONS.md`), and the licence check committed for `builder/` passes (`evidence/2026-11-12-licence-checks-as-committed/checks.md`). That check still has a weaker rule for development tools; package 0.4 replaces it |
+| L11 (`templates/next/`) | **Not true** | `caniuse-lite` is approved, but the template also carries LGPL packages that nobody had recorded (known gap 40), so its check fails. Question 1 |
+| L10 (second stack) | **Not true** | `psycopg` is not approved. Question 4 |
 
-What every other package waits for, taken from the plan's "Depends on" column. A *licence code* (L9, L10, L11) is the plan's name for one licence decision.
+## What each package waits for
+
+The packages that could come next; later ones are in the plan, section 7.
 
 | Package | Depends on | Not yet met |
 | --- | --- | --- |
-| 0.3 role guard | L11 | L11: `caniuse-lite` is approved, but the template also carries LGPL packages (question 1), so its check cannot pass yet |
-| 0.4 one licence rule | L9 and L11 | Split on 12 Nov (`docs/DECISIONS.md`): 0.4a for `builder/` is built; 0.4b for the template waits on question 1 |
-| 0.5 set-up in a tools container | L9 and L11 | L9: 0.4a tested and merged. L11: question 1 |
-| 0.6a isolation checks | 0.5 | 0.5 |
-| 1.2 holds in the database (proof rows B1 to B6) | 1.1, L9 | 1.1 tested again; L9 (0.4a tested and merged); and known gap 35 needs an engineer's judgement |
-| 1.3; 1.5 | 1.2 | 1.2 |
-| 1.4 failure tests | 1.2, 1.3 | Both |
-| 2.1 scripted engine; W1 web shell; W3 analyst instructions | L9 | L9 (0.4a tested and merged) |
+| 2.1 scripted engine; W1 web shell; W3 analyst instructions | L9 | **Nothing. These can start** once pull request #7 is merged |
+| 1.2 holds in the database (proof rows B1 to B6) | 1.1, L9 | 1.1 tested again |
+| 1.3 | 1.2 | 1.2 |
+| 1.4 failure tests | 1.2, 1.3 | Both. It also builds the part flagged for an engineer (known gap 35) |
+| 1.5 unreconciled list | 1.2 | 1.2; and it is taken after 1.4, because its proof row needs 1.4's cases |
 | 2.2 engine adapter, against a stand-in | 2.1, 1.2 | Both |
-| 2.3 first real model call | 2.2, 1.4, 0.5, 0.6a, Key, L11 | All |
 | 3.1 acceptance store and runner; W2 harness | 2.1 | 2.1 |
+| 0.3 role guard | L11 | L11 |
+| 0.4 one licence rule; 0.5 set-up in a tools container | L9 and L11 | L11 |
+| 0.6a isolation checks | 0.5 | 0.5 |
 | 3.2 exporter | 3.1, L11 | Both |
+| 2.3 first real model call | 2.2, 1.4, 0.5, 0.6a, Key, L11 | All |
 | S1a second template | L10 | L10 |
 | S1b second stack, live | S1a, 2.3, 3.1, 3.2, Key | All |
-| 0.6b; M8; gate item 5 on a clean machine | A demo server, among others | Server |
+| 0.6b; M8 | A demo server, among others | Server |
 | C1, C2 | The demo candidate, among others | Candidate |
 
 ## Waiting on the owner
 
-One decision at a time, in order. Each choice has a recommendation and its reason, except question 7, which is a question of fact. A *licence* is the permission that comes with software someone else wrote; the project's rule is permissive licences only, unless the owner names an exception in writing.
+One decision at a time, in this order. Each has a recommendation and its reason, except question 9, which is a question of fact.
 
-**1. [L11] The template carries an image library under LGPL, found on 12 Nov.** Next.js, the web framework the template uses, installs `sharp`, an image-processing library, as an optional extra. Its packages `@img/sharp-libvips-*` are LGPL-3.0-or-later, a licence outside the permitted list, and two are among the packages a generated app would carry. The earlier check missed them (known gap 40). Your approval of 12 Nov does not cover them. The template does not process images today.
-- (a) **Remove `sharp` from the template (package R1).** Recommended. Reason: nothing in the template needs it, and it keeps LGPL out of every generated app. Not yet shown: that it can be removed cleanly; R1 would show it or report back.
-- (b) Approve the `sharp` packages by name for generated apps, with a written LGPL approach required before any customer delivery.
-- (c) Give up the Next.js stack; only Django would remain, which itself needs `psycopg` (LGPL).
+**1. [L11] The template carries an image library under LGPL.** Next.js installs `sharp`, an image-processing library, as an optional extra. Its packages `@img/sharp-libvips-*` are LGPL-3.0-or-later, outside the permitted list. Three are installed on this machine and none is a development-only package; another machine installs differently named ones. No exporter exists, so whether a generated app would carry them is not shown; nothing today prevents it. The owner's approval of 12 Nov does not cover them. The template does not process images.
+- (a) **Remove `sharp` from the template (package R1).** Recommended. Reason: nothing in the template needs it, and it keeps LGPL out of generated apps. Not yet shown: that it can be removed cleanly, since it comes with Next.js and not from the template's own list; R1 would show it or report back.
+- (b) Approve the `sharp` packages by name for generated apps, with a written LGPL approach before any customer delivery. The approval would have to cover every machine's package names. The LGPL text has not been read in this project.
+- (c) Give up the Next.js stack. Only Django would remain, and it needs `psycopg`, also LGPL.
 
-**2. [L10 or a waiver] The second stack.** A *stack* is the set of tools an app is written with; the second candidate is Django, a Python web framework, whose database driver `psycopg` is LGPL-3.0. A *waiver* is your recorded decision that no comparison will be made. An earlier version of this file said LGPL lets an app use the driver "as a separate package and stay proprietary"; installing it separately does not by itself show the licence is met, and the LGPL text has not been read in this project.
-- (a) **Approve `psycopg` by name for the comparison only, with a written LGPL approach required before any customer delivery.** Recommended. Reason: the stack choice should then rest on a measurement.
-- (b) Record a waiver naming the TypeScript stack: no comparison, and packages S1a and S1b are not done.
+**2. The licence check for `builder/`, built early.** May the `builder/` half of package 0.4 be merged once its review is clean, although the plan gives 0.4 both L9 and L11 as dependencies and L11 is not true?
+- (a) **Yes: treat 0.4 as two halves, each with its own code.** Recommended. Reason: it replaces a weaker check with a stricter one for `builder/` and touches nothing in the template.
+- (b) No: keep it unmerged until L11 is true.
 
-**3. Make the repository private?** Today anyone with the link can read the design, the evidence and the gap list.
-- (a) **Yes, now; then confirm this session can still reach it.** Recommended. Reason: nothing in it is meant for the public, and it costs nothing.
-- (b) Leave it public for now.
+**3. The variable `VIBEBUILD_KEY`,** which the owner added to the "Default" cloud environment on 12 Nov. It has not been read or used. The builder reads `BUILDER_MODEL_API_KEY`, and the plan creates the model key at checkpoint 1.
+- (a) **Remove it for now; add it at checkpoint 1 as `BUILDER_MODEL_API_KEY` on the "vibe-build" environment, with a monthly limit set in the provider's console first.** Recommended. Reason: nothing in the queue needs a key, and "Default" is shared by all the owner's projects.
+- (b) Leave it; it stays unused until checkpoint 1.
+- (c) A real model call before checkpoint 1. The owner's to decide; advised against until the cap is rebuilt.
 
-**4. An expired hold: kept open, or settled?** A *hold* is money set aside before a model call. If a call never reports back and its hold passes its deadline:
-- (a) **Keep it open at its full amount until you reconcile it.** Recommended. Reason: it matches your package 1.5 ("a hold is closed only by a recorded owner action"). The design note now says this.
-- (b) Settle it at its full amount automatically, as the first design did: charged for good, no action by you. Neither choice releases any money.
+**4. [L10 or a waiver] The second stack.** Django's database driver `psycopg` is LGPL-3.0.
+- (a) Approve `psycopg` by name for the comparison only, with a written LGPL approach before any customer delivery.
+- (b) Record a waiver naming one stack: no comparison.
+- (c) **Decide after question 1.** Recommended. Reason: the answer to question 1 changes what a comparison would compare, and the LGPL text should be read first.
 
-**5. [Candidate] The demo candidate:** (a) **D3, the commission leak report** (recommended: you can judge every number yourself; it shows rules 8 and 9); (b) D1, the inspection tracker; (c) D2, the cylinder tracking.
+**5. Make the repository private?** (a) **Yes, now; then confirm this session can still reach it.** Recommended: nothing in it is meant for the public, and it costs nothing. (b) Leave it as it is. Whether it is public today was not re-checked on 12 Nov.
 
-**6. The reviewing engineer: who?** When is already decided: at checkpoint 2 (the plan's second meeting point with you), and again before the demo.
-- (a) **Name someone you already trust, now.** Recommended. Reason: one design point already needs an engineer's judgement (known gap 35), before package 1.2.
-- (b) Name them when the checkpoint 2 pack is ready.
+**6. An expired hold: kept open, or settled?** If a call never reports back and its hold passes its deadline: (a) **keep it open at its full amount until the owner reconciles it** (recommended: it matches package 1.5, "a hold is closed only by a recorded owner action"; the design note is written this way); (b) settle it at its full amount automatically, as the decision recorded on 11 Nov says. Neither releases any money. Until answered, the 11 Nov decision stands on record and the note differs from it.
 
-**7. Did the Claude app show you a page titled "builder: preview test"** during the first session? (a) Yes; (b) No; (c) Not sure.
+**7. [Candidate] The demo candidate:** (a) **D3, the commission leak report** (recommended: the owner can judge every number himself); (b) D1, the inspection tracker; (c) D2, the cylinder tracking.
 
-**8. [Server] A demo server**, when you are ready to spend; not needed until package 0.6b and the demo. Prices read on 11 Nov 2026 (`docs/OPEN-DECISIONS.md` item 5): (a) **Hetzner CPX32, €30.49 per month excl. VAT, no UAE location** (recommended: lowest verified price; the server holds made-up data only); (b) Oracle Cloud in Dubai, price to be read in a browser; (c) AWS in the UAE, price to be read in a browser; (d) DigitalOcean, $48.00 per month, no UAE. The chosen option's price is read again on the day you approve.
+**8. The reviewing engineer: who?** When is decided: at checkpoint 2 and again before the demo. (a) **Name someone now** (recommended: known gaps 35, 39 and 41 hold points for an engineer, and one for a lawyer); (b) name them when the checkpoint 2 pack is ready.
 
-The model key is not asked for yet. It is created at checkpoint 1, with the spending limits ($100 a month and $20 a project proposed). There is no basis yet to advance to real-model calls.
+**9. Did the Claude app show a page titled "builder: preview test"** in the first session? (a) Yes; (b) No; (c) Not sure.
+
+**10. [Server] A demo server**, when ready to spend; not needed before package 0.6b. Prices read on 11 Nov 2026 (`docs/OPEN-DECISIONS.md` item 5): (a) **Hetzner CPX32, €30.49 per month excl. VAT, no UAE location** (recommended: lowest verified price; made-up data only); (b) Oracle Cloud in Dubai; (c) AWS in the UAE; (d) DigitalOcean, $48.00 per month, no UAE. Prices for (b) and (c) could not be read. The chosen price is read again on the day of approval.
+
+**Yours to confirm, in your own time.** These are recorded as Claude Code's readings or work, not as your decisions: (i) that "a0 approved" meant option (a), covers the eleven `lightningcss` build-package names listed in `docs/DECISIONS.md`, and holds across version upgrades while each licence is unchanged; (ii) the corrections made in answer to the two reviews you passed on, including the edit to your plan's package 1.2 and the assignment of proof rows B1 to B14 (B7 asks more than the plan's wording for 1.3; 1.5 is taken after 1.4); (iii) building the proposal of known gap 35 if no engineer is named by then; (iv) what "absent from what a customer receives" means for a development package that an exported app's own list names (known gap 39); (v) the two suggested Arabic wording changes in `docs/arabic-wording-list.md`.
 
 ## Money
 
 | Meter | Figure |
 | --- | --- |
-| Model key spend this month | $0.00. No key exists; no real model call has been made |
-| Monthly limit; per-project cap | Not yet set (proposed $100 and $20) |
+| Model spend this month | $0.00. No real model call has been made |
+| The model key | Not set up under the plan. A variable named `VIBEBUILD_KEY` exists on the owner's "Default" cloud environment since 12 Nov (question 3); unread and unused |
+| Monthly limit; per-project cap | Not yet set ($100 and $20 proposed); decided at checkpoint 1 |
 
 ## What the next session does
 
-Follow `docs/BUILD-PLAN.md` section 3. A licence code is true only when the named packages are approved in `docs/DECISIONS.md` **and** the licence check passes for that component. The approval is recorded (12 Nov). First: an independent reviewer reads the head of pull request #7 (tracking corrections), then of package 0.4a; each is merged only when the commit reviewed is the commit merged. With 0.4a merged, L9 is true: 2.1, W1 and W3 can start, and 1.2 once package 1.1 is tested again and known gap 35 has an engineer's answer. Everything that needs L11 waits on question 1. Development machine: `CLAUDE.md`, Commands.
+Follow `docs/BUILD-PLAN.md` section 3; development machine set-up is in `CLAUDE.md`, Commands. In order: (1) have an independent reviewer read the head of pull request #7 and merge it only if the commit read is the commit merged; that also decides whether packages 0.1 and 1.1 are tested again. (2) With L9 true, start the first package whose dependencies are met: 2.1, then W1 and W3; 1.2 once 1.1 is tested. (3) Leave pull request #9 unmerged until the owner answers question 2. (4) Start nothing that needs L11, L10, the key, the candidate or the server.
