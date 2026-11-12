@@ -83,6 +83,12 @@ Not read: the LGPL-3.0 text, the CC-BY-3.0 text, the Mozilla MPL FAQ and the Cre
 | --- | --- |
 | A request opts in to fast mode by setting `speed: "fast"`; the answer's usage then reports `speed: "fast"`. "Fast mode is available on Claude Fable 5.2, Claude Mythos 5.2, and Claude Opus 5.5"; it is in research preview or deprecated on two older Opus models | [Fast mode](https://platform.claude.com/docs/en/build-with-claude/fast-mode) |
 
+## Verified 12 November 2026, against the live page (the fields of a usage block)
+
+| Fact | Source |
+| --- | --- |
+| The usage block of a message lists these fields and no others: `cache_creation` (with `ephemeral_1h_input_tokens` and `ephemeral_5m_input_tokens`), `cache_creation_input_tokens`, `cache_read_input_tokens`, `inference_geo`, `input_tokens`, `output_tokens`, `output_tokens_details` (with `thinking_tokens`), `server_tool_use` (with `web_fetch_requests` and `web_search_requests`), `service_tier` ("standard", "priority" or "batch") and `speed` ("standard" or "fast"). Of the breakdown of output tokens it says: "`output_tokens` remains the inclusive, authoritative total used for billing. This object provides a read-only decomposition for observability". The usage in a stream's `message_delta` lists a subset of the same fields. Used by `builder/src/gateway/cost.ts` for the list of fields the meter accepts | [Messages API reference](https://platform.claude.com/docs/en/api/messages.md), sections "Usage" and "Message Delta Usage" |
+
 ## Product documentation read on 12 November 2026 for the owner's own set-up; nothing in the repository relies on it
 
 | Fact | Source |

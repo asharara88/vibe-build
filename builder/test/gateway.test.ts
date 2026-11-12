@@ -74,6 +74,17 @@ function standInProvider() {
     if (mode === "zero-usage") return ok({ input_tokens: 0, output_tokens: 0 });
     if (mode === "echo-key-model") return ok(PLAIN_USAGE, `model-${c.req.header("x-api-key")}`);
     if (mode === "echo-key-header") return c.json({ id: "msg_test", type: "message", model: body.model, content: [], usage: PLAIN_USAGE }, 200, { "x-echo": c.req.header("x-api-key") ?? "" });
+    const escapedKey = (c.req.header("x-api-key") ?? "").replace(/-/g, "\\u002d");
+    if (mode === "echo-key-escaped-400") return c.body(`{"type":"error","error":{"type":"invalid_request_error","message":"echo ${escapedKey}"}}`, 400, { "content-type": "application/json" });
+    if (mode === "echo-key-escaped-200") return c.body(`{"id":"msg_test","type":"message","model":"${body.model}","content":[{"type":"text","text":"echo ${escapedKey}"}],"usage":${JSON.stringify(PLAIN_USAGE)}}`, 200, { "content-type": "application/json" });
+    if (mode === "echo-key-escaped-twice") return c.json({ type: "error", error: { type: "api_error", message: `inner {"note":"${escapedKey}"}` } }, 500);
+    if (mode === "echo-key-escaped-not-json") return c.text(`<html>broken ${escapedKey}</html>`, 500);
+    if (mode === "echo-key-header-name") return c.json({ id: "msg_test", type: "message", model: body.model, content: [], usage: PLAIN_USAGE }, 200, { [c.req.header("x-api-key") ?? "x-none"]: "1" });
+    if (mode === "unknown-usage-field") return ok({ ...PLAIN_USAGE, premium_tokens: 1_000_000 });
+    if (mode === "unknown-cache-member") return ok({ ...PLAIN_USAGE, cache_creation: { ephemeral_24h_input_tokens: 4 } });
+    if (mode === "thinking-details") return ok({ ...PLAIN_USAGE, output_tokens_details: { thinking_tokens: 120 } });
+    if (mode === "thinking-details-over") return ok({ ...PLAIN_USAGE, output_tokens_details: { thinking_tokens: 9_999 } });
+    if (mode === "model-not-text") return c.json({ id: "msg_test", type: "message", model: ["claude-haiku-5-5"], content: [], usage: PLAIN_USAGE });
     if (mode === "echo-key-escaped-500") return c.body(`{"type":"error","error":{"type":"api_error","message":"echo ${(c.req.header("x-api-key") ?? "").replace(/-/g, "\\u002d")}"}}`, 500, { "content-type": "application/json" });
     if (mode === "echo-key-500") return c.json({ type: "error", error: { type: "api_error", message: `stand-in echo of ${c.req.header("x-api-key")}` } }, 500);
     if (mode === "fail-500") return c.json({ type: "error", error: { type: "api_error", message: "stand-in failure" } }, 500);
@@ -87,8 +98,24 @@ function standInProvider() {
       const errorFrame = `event: error\ndata: ${JSON.stringify({ type: "error", error: { type: "overloaded_error", message: "stand-in" } })}\n\n`;
       const secondStart = `event: message_start\ndata: ${JSON.stringify({ type: "message_start", message: { model: "claude-sonnet-5-5", usage: { input_tokens: 30, output_tokens: 1 } } })}\n\n`;
       const fallingDelta = `event: message_delta\ndata: ${JSON.stringify({ type: "message_delta", usage: { output_tokens: 3 } })}\n\n`;
+      const start = (model: unknown, usage: unknown) => `event: message_start\ndata: ${JSON.stringify({ type: "message_start", message: { model, usage } })}\n\n`;
+      const delta = (usage: unknown) => `event: message_delta\ndata: ${JSON.stringify({ type: "message_delta", usage })}\n\n`;
+      const thirdReview: Record<string, string[]> = {
+        // A frame named "error" whose data is not the provider's error object, then a normal end.
+        "stream-error-name": [...STREAM_FRAMES.slice(0, 3), "event: error\ndata: something went wrong\n\n", STREAM_FRAMES[3]!],
+        "stream-falling-input": [STREAM_FRAMES[0]!, delta({ input_tokens: 1, output_tokens: 200 }), STREAM_FRAMES[3]!],
+        "stream-start-high-output": [start("claude-sonnet-5-5", { input_tokens: 1000, output_tokens: 9000 }), delta({ output_tokens: 200 }), STREAM_FRAMES[3]!],
+        "stream-cache-item-falls": [
+          start("claude-sonnet-5-5", { input_tokens: 1000, cache_creation_input_tokens: 1000, cache_creation: { ephemeral_1h_input_tokens: 1000 }, output_tokens: 1 }),
+          delta({ output_tokens: 200, cache_creation_input_tokens: 1000, cache_creation: { ephemeral_1h_input_tokens: 0, ephemeral_5m_input_tokens: 1000 } }),
+          STREAM_FRAMES[3]!,
+        ],
+        "stream-model-not-text": [start(["claude-haiku-5-5"], { input_tokens: 1000, output_tokens: 1 }), STREAM_FRAMES[2]!, STREAM_FRAMES[3]!],
+        "stream-start-not-json": ["event: message_start\ndata: {broken\n\n", STREAM_FRAMES[0]!, STREAM_FRAMES[2]!, STREAM_FRAMES[3]!],
+      };
       const frames =
-        mode === "stream-no-usage" ? [STREAM_FRAMES[1]!, STREAM_FRAMES[3]!]
+        thirdReview[mode] ? thirdReview[mode]
+        : mode === "stream-no-usage" ? [STREAM_FRAMES[1]!, STREAM_FRAMES[3]!]
         : mode === "stream-no-stop" ? STREAM_FRAMES.slice(0, 3)
         : mode === "stream-error-event" ? [...STREAM_FRAMES.slice(0, 3), errorFrame]
         : mode === "stream-two-starts" ? [STREAM_FRAMES[0]!, secondStart, ...STREAM_FRAMES.slice(1)]
@@ -114,6 +141,10 @@ function standInProvider() {
     const s = typeof body.system === "string" ? body.system : "";
     if (s === "count-fail") return c.json({ type: "error", error: { type: "api_error", message: "stand-in count failure" } }, 500);
     if (s === "count-garbage") return c.json({ input_tokens: "many" });
+    if (s === "count-echo-key" || s === "count-echo-key-401") {
+      const escaped = (c.req.header("x-api-key") ?? "").replace(/-/g, "\\u002d");
+      return c.body(`{"input_tokens":42,"note":"echo ${escaped}"}`, s === "count-echo-key" ? 200 : 401, { "content-type": "application/json" });
+    }
     const m = /^count:(\d+)$/.exec(s);
     return c.json({ input_tokens: m ? Number(m[1]) : 42 });
   });
@@ -747,7 +778,10 @@ describe("holds: found by the second review, and kept fixed", () => {
       const { id, token } = await newProject(5);
       const res = await call(token, plain(mode));
       res.headers.forEach((v) => expect(v).not.toContain(REAL_KEY));
-      expect(await res.text()).not.toContain(REAL_KEY);
+      const text = await res.text();
+      expect(text).not.toContain(REAL_KEY);
+      // Read as the caller would read it, too: a JSON body is parsed before it is looked at.
+      expect(JSON.stringify(JSON.parse(text))).not.toContain(REAL_KEY);
       await new Promise((r) => setTimeout(r, 30));
       expect(JSON.stringify(await listEvents(pool, id))).not.toContain(REAL_KEY);
     }
@@ -757,6 +791,152 @@ describe("holds: found by the second review, and kept fixed", () => {
     const { id, token } = await newProject(5, "constructor");
     expect((await call(token, plain())).status).toBe(400);
     expect(((await listEvents(pool, id, "gateway.refused"))[0]!.payload as { reason: string }).reason).toBe("profile_unknown");
+  });
+});
+
+describe("holds: found by the third review, and kept fixed", () => {
+  const keptOnly = async (id: string, reason: string) => {
+    const kept = await waitForEvents(id, "hold.kept", 1);
+    expect(kept).toHaveLength(1);
+    expect((kept[0]!.payload as { reason: string }).reason).toContain(reason);
+    expect(await listEvents(pool, id, "hold.settled")).toHaveLength(0);
+    expect(await listEvents(pool, id, "model.call")).toHaveLength(0);
+    const holds = await listHolds(pool, id);
+    expect(holds[0]).toMatchObject({ state: "open", actual_usd: null });
+    const b = await getBudget(pool, id);
+    expect(b.spent).toBe(0);
+    near(b.openHolds, Number(holds[0]!.amount_usd));
+  };
+  /** Every text and name inside a parsed value, however deep. */
+  const texts = (v: unknown): string[] => (typeof v === "string" ? [v] : Array.isArray(v) ? v.flatMap(texts) : v !== null && typeof v === "object" ? Object.entries(v).flatMap(([k, x]) => [k, ...texts(x)]) : []);
+  /** The caller must not find the key in a body, read as text or read as JSON, parsed as often as it parses. */
+  const expectNoKey = (body: string, key: string) => {
+    expect(body).not.toContain(key);
+    let layer: unknown = body;
+    for (let i = 0; i < 4 && typeof layer === "string"; i++) {
+      try {
+        layer = JSON.parse(layer);
+      } catch {
+        break;
+      }
+    }
+    for (const t of texts(layer)) {
+      expect(t).not.toContain(key);
+      // A text inside may itself be JSON in part: undo one more layer of backslash escapes.
+      expect(t.replace(/\\u([0-9a-fA-F]{4})/g, (_m, h: string) => String.fromCharCode(parseInt(h, 16)))).not.toContain(key);
+    }
+  };
+
+  it("a body that spells the key with escapes is cleaned before the caller gets it, as the caller would read it", async () => {
+    const statuses: Record<string, number> = { "echo-key-escaped-500": 500, "echo-key-escaped-400": 400, "echo-key-escaped-200": 200, "echo-key-escaped-twice": 500, "echo-key-escaped-not-json": 500 };
+    for (const [mode, status] of Object.entries(statuses)) {
+      const { id, token } = await newProject(5);
+      const res = await call(token, plain(mode));
+      expect(res.status).toBe(status);
+      const text = await res.text();
+      expectNoKey(text, REAL_KEY);
+      // A JSON answer stays JSON, with the rest of it intact.
+      if (mode !== "echo-key-escaped-not-json") expect(JSON.stringify(JSON.parse(text))).toContain("[redacted]");
+      await new Promise((r) => setTimeout(r, 30));
+      const log = JSON.stringify(await listEvents(pool, id));
+      expectNoKey(log, REAL_KEY);
+      expect(log).not.toContain("\\\\u002d"); // nor the escaped spelling, which decodes to it
+    }
+  });
+
+  it("the same holds on the token-counting pass-through, for a good answer and for an error", async () => {
+    for (const [system, status] of [["count-echo-key", 200], ["count-echo-key-401", 401]] as const) {
+      const { id, token } = await newProject(5);
+      const res = await call(token, { model: "claude-opus-5-5", messages: [], system }, "/v1/messages/count_tokens");
+      expect(res.status).toBe(status);
+      const text = await res.text();
+      expectNoKey(text, REAL_KEY);
+      expect((JSON.parse(text) as { input_tokens: number }).input_tokens).toBe(42);
+      expectNoKey(JSON.stringify(await listEvents(pool, id)), REAL_KEY);
+    }
+  });
+
+  it("an answer that does not carry the key goes back byte for byte", async () => {
+    const { token } = await newProject(5);
+    const res = await call(token, plain("fail-400-other"));
+    expect(await res.text()).toBe("<html>Bad Request from something in between</html>");
+  });
+
+  it("a response header named after the key is not passed back, whatever the letter case of the key", async () => {
+    const CAPS_KEY = "Test-Real-KEY-With-Capitals";
+    const g = await listen(createGateway({ pool, modelApiKey: CAPS_KEY, upstreamUrl, profiles: PROFILES, onFault: (m) => faults.push(m) }));
+    try {
+      const { token } = await newProject(5);
+      const res = await callAt(g.url, token, plain("echo-key-header-name"));
+      expect(res.status).toBe(200);
+      res.headers.forEach((v, k) => {
+        expect(k.toLowerCase()).not.toContain(CAPS_KEY.toLowerCase());
+        expect(v.toLowerCase()).not.toContain(CAPS_KEY.toLowerCase());
+      });
+    } finally {
+      g.server.close();
+    }
+  });
+
+  it("a stream whose figures contradict each other, or whose model is not a name, keeps its hold", async () => {
+    for (const [mode, reason] of [
+      ["stream-error-name", "error inside the stream"],
+      ["stream-falling-input", "usage figures that could be read"],
+      ["stream-start-high-output", "usage figures that could be read"],
+      ["stream-cache-item-falls", "usage figures that could be read"],
+      ["stream-model-not-text", "usage figures that could be read"],
+      ["stream-start-not-json", "usage figures that could be read"],
+    ] as const) {
+      const { id, token } = await newProject(5);
+      const res = await call(token, streamed(mode));
+      await res.text();
+      await keptOnly(id, reason);
+    }
+  });
+
+  it("usage with a field the meter does not know, or a model that is not a name, keeps the hold", async () => {
+    for (const mode of ["unknown-usage-field", "unknown-cache-member", "thinking-details-over", "model-not-text"]) {
+      const { id, token } = await newProject(5);
+      expect((await call(token, plain(mode))).status).toBe(200);
+      await keptOnly(id, "usage could not be read");
+    }
+  });
+
+  it("the breakdown of output tokens that the provider documents does not stop a call being settled", async () => {
+    const { id, token } = await newProject(5);
+    expect((await call(token, plain("thinking-details"))).status).toBe(200);
+    expect(await listEvents(pool, id, "hold.settled")).toHaveLength(1);
+    near((await getBudget(pool, id)).spent, PLAIN_COST);
+  });
+
+  it("an event the gateway did not write cannot make the budget unreadable or smaller", async () => {
+    const { id } = await newProject(5);
+    const other = await newProject(5);
+    const mine = await openHold(pool, { projectId: id, step: null, amountUsd: 0.01, deadline: new Date(Date.now() + 60_000), gateway: "gw_test_store", arithmetic: {}, path: "/v1/messages" });
+    const theirs = await openHold(pool, { projectId: other.id, step: null, amountUsd: 0.02, deadline: new Date(Date.now() + 60_000), gateway: "gw_test_store", arithmetic: {}, path: "/v1/messages" });
+    if (!mine.ok || !theirs.ok) throw new Error("hold not opened");
+    const add = (payload: string) => pool.query("insert into events(project_id, kind, payload) values ($1, 'model.call', $2::jsonb)", [id, payload]);
+    await add('{"cost_usd": 0.25, "hold_id": 12.5}'); // not a whole number: counted, and the view still reads
+    await add('{"cost_usd": 0.25, "hold_id": 1e30}'); // far too large to be an id: the same
+    await add('{"cost_usd": 0.25, "hold_id": 999999999999}'); // names a hold that does not exist: counted
+    await add(`{"cost_usd": 0.25, "hold_id": ${Number(theirs.hold.id)}}`); // another project's open hold: counted here
+    await add(`{"cost_usd": 0.25, "hold_id": "${Number(mine.hold.id)}"}`); // the id as text: counted, and the hold too
+    await add(`{"cost_usd": 0.5, "hold_id": ${Number(mine.hold.id)}}`); // this project's own open hold: the hold is counted, not the cost
+    const b = await getBudget(pool, id);
+    near(b.spent, 1.25);
+    near(b.openHolds, 0.01);
+    near((await getBudget(pool, other.id)).openHolds, 0.02);
+    expect((await getBudget(pool, other.id)).spent).toBe(0);
+  });
+
+  it("writes down the names of the headers it did not pass on, never their values", async () => {
+    const { id, token } = await newProject(5);
+    expect((await call(token, plain(), "/v1/messages", { "x-stainless-lang": "js", "idempotency-key": "secret-value-1", "x-builder-step": "s1" })).status).toBe(200);
+    const payload = (await listEvents(pool, id, "model.call"))[0]!.payload as { headers_not_forwarded: string[] };
+    expect(payload.headers_not_forwarded).toEqual(expect.arrayContaining(["x-stainless-lang", "idempotency-key"]));
+    expect(payload.headers_not_forwarded).not.toContain("x-builder-step");
+    expect(payload.headers_not_forwarded).not.toContain("x-api-key");
+    expect(JSON.stringify(await listEvents(pool, id))).not.toContain("secret-value-1");
   });
 });
 

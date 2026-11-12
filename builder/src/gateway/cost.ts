@@ -66,7 +66,25 @@ export function mergeUsage(acc: Usage, part: ProviderUsage): Usage {
 }
 
 const USAGE_NUMBER_FIELDS = ["input_tokens", "output_tokens", "cache_creation_input_tokens", "cache_read_input_tokens"] as const;
+/** The counts the meter accumulates over a stream. None of them falls from one frame to the next. */
+export const USAGE_COUNTS = [...USAGE_NUMBER_FIELDS, "cache_creation_1h_tokens"] as const;
 const isCount = (v: unknown): v is number => typeof v === "number" && Number.isInteger(v) && v >= 0;
+/**
+ * Every field the provider's reference lists for a usage block (docs/SOURCES.md, read 12 Nov 2026),
+ * plus `iterations`, which is refused below. A field that is not on this list and carries a value
+ * means the bill has a part the meter does not know how to price: the usage is not read.
+ */
+const KNOWN_USAGE_FIELDS = new Set<string>([
+  ...USAGE_NUMBER_FIELDS,
+  "cache_creation",
+  "inference_geo",
+  "iterations",
+  "output_tokens_details",
+  "server_tool_use",
+  "service_tier",
+  "speed",
+]);
+const KNOWN_CACHE_CREATION_FIELDS = new Set<string>(["ephemeral_5m_input_tokens", "ephemeral_1h_input_tokens"]);
 
 /**
  * Whether a usage block from the provider can be trusted as a bill: every count the meter
@@ -74,12 +92,14 @@ const isCount = (v: unknown): v is number => typeof v === "number" && Number.isI
  * where a number belongs, a negative count, a fraction) means the usage was NOT read, and the
  * caller keeps the hold. `require` names the counts that must be present.
  * A usage block that itemises several attempts (`iterations`) is also not read: its top-level
- * figures do not cover everything that was billed.
+ * figures do not cover everything that was billed. Nor is one that carries a field the meter
+ * does not know.
  */
 export function usageIsReadable(part: unknown, require: ReadonlyArray<(typeof USAGE_NUMBER_FIELDS)[number]>): part is ProviderUsage {
   if (part === null || typeof part !== "object" || Array.isArray(part)) return false;
   const u = part as Record<string, unknown>;
   if (u["iterations"] !== undefined && u["iterations"] !== null) return false;
+  for (const [name, v] of Object.entries(u)) if (!KNOWN_USAGE_FIELDS.has(name) && v !== undefined && v !== null) return false;
   for (const f of USAGE_NUMBER_FIELDS) {
     const v = u[f];
     if (v === undefined || v === null) {
@@ -92,8 +112,10 @@ export function usageIsReadable(part: unknown, require: ReadonlyArray<(typeof US
   if (cc !== undefined && cc !== null) {
     if (typeof cc !== "object" || Array.isArray(cc)) return false;
     let members = 0;
-    for (const v of Object.values(cc as Record<string, unknown>)) {
+    for (const [name, v] of Object.entries(cc as Record<string, unknown>)) {
       if (v === undefined || v === null) continue;
+      // A kind of cache write the price table has no rate for.
+      if (!KNOWN_CACHE_CREATION_FIELDS.has(name)) return false;
       if (!isCount(v)) return false;
       members += v;
     }
@@ -101,6 +123,18 @@ export function usageIsReadable(part: unknown, require: ReadonlyArray<(typeof US
     const total = u["cache_creation_input_tokens"];
     if (typeof total === "number" && members !== total) return false;
     if ((total === undefined || total === null) && members > 0) return false;
+  }
+  // The breakdown of output tokens is for information: the reference says output_tokens stays the
+  // inclusive total that is billed. It must still be made of counts, none above that total.
+  const otd = u["output_tokens_details"];
+  if (otd !== undefined && otd !== null) {
+    if (typeof otd !== "object" || Array.isArray(otd)) return false;
+    const out = u["output_tokens"];
+    for (const v of Object.values(otd as Record<string, unknown>)) {
+      if (v === undefined || v === null) continue;
+      if (!isCount(v)) return false;
+      if (typeof out === "number" && v > out) return false;
+    }
   }
   // Only the two speeds the price table knows.
   const speed = u["speed"];

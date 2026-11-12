@@ -22,7 +22,7 @@ import type pg from "pg";
 import { appendEvent } from "../store/events.js";
 import { expireHolds, keepHold, openHold, recoverHolds, settleHold } from "../store/holds.js";
 import { projectForToken, type Project } from "../store/projects.js";
-import { costUsd, emptyUsage, mergeUsage, usageIsReadable, type Usage } from "./cost.js";
+import { costUsd, emptyUsage, mergeUsage, USAGE_COUNTS, usageIsReadable, type Usage } from "./cost.js";
 import { betasNotAllowed, computeHold, countRequestBody, DEFAULT_PROFILES, guardRequest, type MeteredRequest, type ProfileLimits } from "./hold.js";
 import { PRICE_TABLE_DATE, PRICES } from "./prices.js";
 
@@ -100,8 +100,34 @@ export function createGateway(opts: GatewayOptions) {
   const timeLimit = opts.callTimeLimitMs ?? DEFAULT_TIME_LIMIT;
   const deadlineMargin = opts.holdDeadlineMarginMs ?? DEFAULT_DEADLINE_MARGIN;
   const allowedBetas = new Set(opts.allowedBetas ?? []);
-  /** The real key must never be stored or relayed, even if something upstream echoes it back. */
-  const redact = (text: string) => (opts.modelApiKey && text.includes(opts.modelApiKey) ? text.split(opts.modelApiKey).join("[redacted]") : text);
+  const key = opts.modelApiKey;
+  /**
+   * Whether a text carries the key behind backslash escapes (\u002d for "-", \/ for "/", and so on),
+   * however many times over. Other encodings (base64, percent-encoding) are not looked for.
+   */
+  const hidesKey = (text: string): boolean => {
+    if (!key || !text.includes("\\")) return false;
+    let t = text;
+    for (let i = 0; i < 6; i++) {
+      const next = t
+        .replace(/\\u([0-9a-fA-F]{4})/g, (_m, h: string) => String.fromCharCode(parseInt(h, 16)))
+        .replace(/\\x([0-9a-fA-F]{2})/g, (_m, h: string) => String.fromCharCode(parseInt(h, 16)))
+        .replace(/\\([^ux])/g, "$1");
+      if (next.includes(key)) return true;
+      if (next === t) return false;
+      t = next;
+    }
+    return true; // still changing after six rounds: not a text to pass on
+  };
+  /**
+   * The real key must never be stored or relayed, even if something upstream echoes it back.
+   * The literal spelling is cut out; a text that carries it behind escapes is withheld whole.
+   */
+  const redact = (text: string): string => {
+    if (!key) return text;
+    const cut = text.includes(key) ? text.split(key).join("[redacted]") : text;
+    return hidesKey(cut) ? "[redacted]" : cut;
+  };
   /** The same, for anything about to be stored: every string inside a parsed value, keys included. */
   const scrub = (value: unknown): unknown => {
     if (typeof value === "string") return redact(value);
@@ -109,10 +135,27 @@ export function createGateway(opts: GatewayOptions) {
     if (value !== null && typeof value === "object") return Object.fromEntries(Object.entries(value).map(([k, v]) => [redact(k), scrub(v)]));
     return value;
   };
-  /** Response headers passed back to the caller: never one that carries the key. */
+  /**
+   * A whole answer body about to go back to the caller. A body that is JSON is judged as the
+   * caller will read it, after parsing: if any text or name inside carries the key, the cleaned
+   * value is written out again; otherwise the provider's bytes go back untouched.
+   */
+  const safeBody = (raw: string): string => {
+    if (!key) return raw;
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      return redact(raw);
+    }
+    const cleaned = scrub(parsed);
+    return JSON.stringify(cleaned) === JSON.stringify(parsed) ? raw : JSON.stringify(cleaned);
+  };
+  /** Response headers passed back to the caller: never one that carries the key, in any letter case. */
   const safeHeaders = (h: Headers): Headers => {
     const out = copyHeaders(h);
-    for (const [k, v] of [...out.entries()]) if (opts.modelApiKey && (v.includes(opts.modelApiKey) || k.includes(opts.modelApiKey))) out.delete(k);
+    const lower = key.toLowerCase();
+    for (const [k, v] of [...out.entries()]) if (key && (v.toLowerCase().includes(lower) || k.toLowerCase().includes(lower) || hidesKey(v))) out.delete(k);
     return out;
   };
   const app = new Hono();
@@ -162,6 +205,11 @@ export function createGateway(opts: GatewayOptions) {
       if (v !== undefined) headers.set(name, v);
     }
     headers.set("x-api-key", opts.modelApiKey);
+    // The names (never the values) of what the caller sent and the gateway did not pass on, for the log.
+    const droppedHeaders = [...c.req.raw.headers.keys()]
+      .map((k) => k.toLowerCase())
+      .filter((k) => !FORWARDED_HEADERS.includes(k) && !STRIP.has(k) && k !== "x-builder-step")
+      .slice(0, 30);
     if (url.search) {
       await appendEvent(opts.pool, project.id, "gateway.refused", { reason: "query_not_allowed", path }, step);
       return c.json(errorBody("invalid_request_error", "The gateway does not forward anything after a \"?\" in the address: it could switch on options the gateway has not checked."), 400);
@@ -185,8 +233,8 @@ export function createGateway(opts: GatewayOptions) {
         await appendEvent(opts.pool, project.id, "gateway.error", { path, error: errorSummary(err) }, step);
         return c.json(errorBody("api_error", "The gateway could not reach the model provider."), 502);
       }
-      await appendEvent(opts.pool, project.id, "gateway.passthrough", { path, status: res.status }, step);
-      return new Response(redact(await res.text().catch(() => "")), { status: res.status, headers: safeHeaders(res.headers) });
+      await appendEvent(opts.pool, project.id, "gateway.passthrough", scrub({ path, status: res.status, ...(droppedHeaders.length ? { headers_not_forwarded: droppedHeaders } : {}) }) as Record<string, unknown>, step);
+      return new Response(safeBody(await res.text().catch(() => "")), { status: res.status, headers: safeHeaders(res.headers) });
     }
 
     // Metered. 1: refuse what a hold cannot bound.
@@ -252,7 +300,18 @@ export function createGateway(opts: GatewayOptions) {
     let ended = false;
     const callFields = (usage: Usage, status: number, servedModel: string, extra: Record<string, unknown> = {}) => {
       const priced = PRICES[servedModel] ? servedModel : requestedModel;
-      const fields = scrub({ model: requestedModel, served_model: servedModel || null, priced_as: priced, path, status, stream, usage, duration_ms: Date.now() - started, ...extra }) as Record<string, unknown>;
+      const fields = scrub({
+        model: requestedModel,
+        served_model: servedModel || null,
+        priced_as: priced,
+        path,
+        status,
+        stream,
+        usage,
+        duration_ms: Date.now() - started,
+        ...(droppedHeaders.length ? { headers_not_forwarded: droppedHeaders } : {}),
+        ...extra,
+      }) as Record<string, unknown>;
       return { priced, fields };
     };
     /** The call finished and its usage was read: settle the hold to the actual cost. */
@@ -316,7 +375,7 @@ export function createGateway(opts: GatewayOptions) {
       return c.json(errorBody("api_error", "The model provider answered with a redirect, which the gateway does not follow."), 502);
     }
     if (!res.ok) {
-      const text = redact(await res.text().catch(() => ""));
+      const text = safeBody(await res.text().catch(() => ""));
       stopTimer();
       if (rejectedBeforeWork(res.status, text)) {
         // The provider's own error says it turned the request away before doing any work.
@@ -337,7 +396,6 @@ export function createGateway(opts: GatewayOptions) {
       let sawUnreadable = false; // a usage block that could not be trusted: the whole call counts as unread
       let sawStop = false; // the provider's own end-of-message marker
       let sawError = false; // an error event inside the stream
-      let lastOutput = 0;
       let buffer = "";
       const decoder = new TextDecoder();
       const consume = (text: string) => {
@@ -347,17 +405,16 @@ export function createGateway(opts: GatewayOptions) {
           const frame = buffer.slice(0, idx.valueOf());
           buffer = buffer.slice(idx + (buffer.startsWith("\r\n", idx) ? 4 : 2));
           const r = readFrame(frame, usage);
+          // A figure the provider has given does not later fall, and fast mode is not taken back:
+          // if either happens, which figure is the bill is not known.
+          if (USAGE_COUNTS.some((f) => r.usage[f] < usage[f]) || (usage.speed === "fast" && r.usage.speed !== "fast")) sawUnreadable = true;
           usage = r.usage;
           if (r.model) servedModel = r.model;
           if (r.kind === "message_start") {
             if (sawInput) sawUnreadable = true; // a second start: which one is the bill is not known
             sawInput = true;
           }
-          if (r.kind === "message_delta") {
-            if (r.usage.output_tokens < lastOutput) sawUnreadable = true; // a running total does not fall
-            lastOutput = r.usage.output_tokens;
-            sawOutput = true;
-          }
+          if (r.kind === "message_delta") sawOutput = true;
           if (r.kind === "message_stop") sawStop = true;
           if (r.kind === "error") sawError = true;
           if (r.kind === "unreadable") sawUnreadable = true;
@@ -418,9 +475,10 @@ export function createGateway(opts: GatewayOptions) {
     let usage: Usage | null = null;
     let servedModel = "";
     try {
-      const j = JSON.parse(text) as { usage?: unknown; model?: string };
+      const j = JSON.parse(text) as { usage?: unknown; model?: unknown };
       servedModel = typeof j.model === "string" ? j.model : "";
-      if (usageIsReadable(j.usage, ["input_tokens", "output_tokens"])) {
+      // A model given as anything but text is not a model name: the answer is not priced on it.
+      if ((j.model === undefined || j.model === null || typeof j.model === "string") && usageIsReadable(j.usage, ["input_tokens", "output_tokens"])) {
         const u = mergeUsage(emptyUsage(), j.usage);
         // An answer that says no prompt tokens at all were used is not a bill that can be trusted.
         if (u.input_tokens + u.cache_creation_input_tokens + u.cache_read_input_tokens > 0) usage = u;
@@ -430,7 +488,7 @@ export function createGateway(opts: GatewayOptions) {
     }
     if (usage) await settle(usage, res.status, servedModel);
     else await keep("the answer succeeded but its usage could not be read", emptyUsage(), res.status, servedModel);
-    return new Response(redact(text), { status: res.status, headers: safeHeaders(res.headers) });
+    return new Response(safeBody(text), { status: res.status, headers: safeHeaders(res.headers) });
   });
 
   return app;
@@ -487,24 +545,31 @@ function frameEnd(buffer: string): number {
 
 /** Read usage (and the served model) from one SSE frame. message_start carries input usage; message_delta carries output. */
 export function readFrame(frame: string, acc: Usage): { usage: Usage; model?: string; kind?: "message_start" | "message_delta" | "message_stop" | "error" | "unreadable" } {
-  const data = frame
-    .split(/\r?\n/)
+  const lines = frame.split(/\r?\n/);
+  const data = lines
     .filter((l) => l.startsWith("data:"))
     .map((l) => l.slice(5).trim())
     .join("\n");
+  // The frame's own name, where it has one. A frame named "error" is an error whatever its data says.
+  const named = lines.find((l) => l.startsWith("event:"))?.slice(6).trim();
+  if (named === "error") return { usage: acc, kind: "error" };
   if (!data) return { usage: acc };
   try {
-    const ev = JSON.parse(data) as { type?: string; message?: { usage?: unknown; model?: string }; usage?: unknown };
-    if (ev.type === "message_start" && ev.message && usageIsReadable(ev.message.usage, ["input_tokens"])) {
-      return { usage: mergeUsage(acc, ev.message.usage), model: ev.message.model, kind: "message_start" };
+    const ev = JSON.parse(data) as { type?: string; message?: { usage?: unknown; model?: unknown }; usage?: unknown };
+    if (ev.type === "message_start" && ev.message) {
+      // The model must be given as text: anything else is not a name the price table can be asked about.
+      if (typeof ev.message.model === "string" && usageIsReadable(ev.message.usage, ["input_tokens"])) {
+        return { usage: mergeUsage(acc, ev.message.usage), model: ev.message.model, kind: "message_start" };
+      }
+      return { usage: acc, model: typeof ev.message.model === "string" ? ev.message.model : undefined, kind: "unreadable" };
     }
-    if (ev.type === "message_start" && ev.message) return { usage: acc, model: ev.message.model, kind: "unreadable" };
     if (ev.type === "message_delta" && usageIsReadable(ev.usage, ["output_tokens"])) return { usage: mergeUsage(acc, ev.usage), kind: "message_delta" };
     if (ev.type === "message_delta" && ev.usage !== undefined) return { usage: acc, kind: "unreadable" };
     if (ev.type === "message_stop") return { usage: acc, kind: "message_stop" };
     if (ev.type === "error") return { usage: acc, kind: "error" };
   } catch {
-    /* not JSON; ignore */
+    // Not JSON. In a frame that is named as one of the frames usage is read from, that is a figure lost.
+    if (named === "message_start" || named === "message_delta") return { usage: acc, kind: "unreadable" };
   }
   return { usage: acc };
 }
