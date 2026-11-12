@@ -26,11 +26,12 @@
 //   {"kind":"end","attempts":n}
 //   {"kind":"error","reason":...}                    (exit 1)
 import dns from "node:dns";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import http from "node:http";
 import https from "node:https";
 import net from "node:net";
 import os from "node:os";
+import { join } from "node:path";
 import tls from "node:tls";
 import { pathToFileURL } from "node:url";
 
@@ -183,6 +184,33 @@ export function parseAbstractUnix(text) {
     if (name.startsWith("@")) names.add(name.slice(0, 80));
   }
   return [...names].sort();
+}
+
+/** The names of the info lines about network interfaces. */
+export const INTERFACES_UP = "network interfaces that are up and running, with their addresses (as Node lists them)";
+export const INTERFACES_ALL = "every network interface in /sys/class/net, up or down (name and state only)";
+
+/**
+ * Every network interface in `dir` (the kernel's /sys/class/net), up or down, with its state as the kernel
+ * gives it ("up", "down", or "unknown", which the loopback interface has). Node's own list leaves out an
+ * interface that is not up and running, such as Docker's bridge while no container is attached to it.
+ * Read only; the addresses of an interface that is down are not listed.
+ */
+export function listInterfaces(dir = "/sys/class/net") {
+  let names;
+  try {
+    names = readdirSync(dir).sort();
+  } catch (e) {
+    return `could not be read (${codeOf(e)})`;
+  }
+  const state = (n) => {
+    try {
+      return readFileSync(join(dir, n, "operstate"), "utf8").trim() || "state not given";
+    } catch {
+      return "state not given";
+    }
+  };
+  return names.map((n) => `${n} (${state(n)})`).join(", ") || "none";
 }
 
 /** The number of TCP sockets in /proc/net/tcp text that are not listening, in any state (open, closing, or waiting after closing). */
@@ -565,7 +593,8 @@ async function main() {
   const listeners = [...parseListeners(tcp4, 4), ...parseListeners(readOr("/proc/net/tcp6"), 6)];
   const sessionCert = SESSION_CERT_PATHS.find((p) => existsSync(p)) ?? null;
   print({ kind: "info", name: "user id", value: String(process.getuid?.() ?? "unknown") });
-  print({ kind: "info", name: "network interfaces", value: ifaces || "none" });
+  print({ kind: "info", name: INTERFACES_UP, value: ifaces || "none" });
+  print({ kind: "info", name: INTERFACES_ALL, value: listInterfaces() });
   print({ kind: "info", name: "name servers in /etc/resolv.conf", value: resolv || "none" });
   print({ kind: "info", name: "listening TCP ports seen in /proc/net", value: listeners.map((l) => `${l.address}:${l.port}`).sort().join(", ") || "none" });
   print({ kind: "info", name: "other TCP sockets seen, in any state (/proc/net/tcp)", value: String(countOtherSockets(tcp4)) });

@@ -9,7 +9,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { promisify } from "node:util";
 import { describe, expect, it, onTestFinished } from "vitest";
-import { BODY_READ_MS, classifyError, countOtherSockets, parseAbstractUnix, parseListeners, parseSettings, parseUdpBound, planAttempts, runAttempt, type PlannedAttempt } from "../scripts/isolation-probe.mjs";
+import { BODY_READ_MS, classifyError, countOtherSockets, INTERFACES_ALL, INTERFACES_UP, listInterfaces, parseAbstractUnix, parseListeners, parseSettings, parseUdpBound, planAttempts, runAttempt, type PlannedAttempt } from "../scripts/isolation-probe.mjs";
 import { ANSWER_WORDING, cell, columnCell, DIFFERS_BY_CONTAINER, gotAnswer, parseProbeOutput, readMachineSide, RESULT, renderMarkdownTable, renderTable, sessionProxyHostPort, summarise, type ProbeAttempt } from "../src/sandbox/isolation.js";
 import { createSandbox, dockerEnv, sandbox, type Sandbox } from "../src/sandbox/manager.js";
 
@@ -98,6 +98,20 @@ describe("isolation probe: its own settings and words (unit)", () => {
     expect(parseAbstractUnix(unix)).toEqual(["@/made-up/shim.sock"]);
     expect(parseUdpBound("")).toEqual([]);
     expect(parseAbstractUnix("")).toEqual([]);
+  });
+
+  it("lists every network interface in a /sys/class/net folder, up or down, with its state (made-up folder)", () => {
+    const dir = mkdtempSync(join(tmpdir(), "builder-isolation-net-"));
+    onTestFinished(() => rmSync(dir, { recursive: true, force: true }));
+    for (const [name, state] of [["lo", "unknown"], ["eth0", "up"], ["docker0", "down"], ["made-up0", null]] as const) {
+      mkdirSync(join(dir, name));
+      if (state) writeFileSync(join(dir, name, "operstate"), `${state}\n`);
+    }
+    expect(listInterfaces(dir)).toBe("docker0 (down), eth0 (up), lo (unknown), made-up0 (state not given)");
+    const empty = join(dir, "docker0", "empty");
+    mkdirSync(empty);
+    expect(listInterfaces(empty)).toBe("none");
+    expect(listInterfaces(join(dir, "not-there"))).toBe("could not be read (ENOENT)");
   });
 
   it("plans every attempt once, aims host attempts at the loopback address, and tries the session proxy only when given", () => {
@@ -538,7 +552,9 @@ describe("isolation probe: live, the engine container (development profile)", ()
     // Nothing listens inside a container with no network, so the probe adds no attempt of its own.
     expect(report.attempts.map((a) => a.id)).toEqual(planAttempts(parseSettings(settings)).map((a) => a.id));
     expect(report.attempts.filter((a) => a.id.startsWith("G")).length).toBeGreaterThan(0);
-    expect(report.info.find((i) => i.name === "network interfaces")?.value).toMatch(/^lo \([^;]*\)$/);
+    expect(report.info.find((i) => i.name === INTERFACES_UP)?.value).toMatch(/^lo \([^;]*\)$/);
+    // Every interface the kernel lists inside, up or down: only the loopback interface.
+    expect(report.info.find((i) => i.name === INTERFACES_ALL)?.value).toMatch(/^lo \([^,]*\)$/);
     expect(report.info.find((i) => i.name === "a copy of the session certificate inside")?.value).toBe("none");
     const left = await run("docker", ["ps", "-a", "--filter", `name=${sb.projectName}-isolation-engine`, "--format", "{{.Names}}"], { env: dockerEnv(sb) });
     expect(left.stdout.trim()).toBe("");
