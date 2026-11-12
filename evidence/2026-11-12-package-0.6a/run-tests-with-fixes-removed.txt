@@ -1,5 +1,5 @@
-# Controls: each new unit test of package 0.6a's review rounds, run once with its fix removed. Controls 1 to 4 (first review): commit 325ecd2, 12 Nov 2026 20:40 UTC; controls 5 and 6 (second review): commit cf5d41f, below. From builder/
-# Each test is expected to FAIL here. For each: the one change made for the run, the command, its output; then the file is restored with `git checkout` and checked unchanged.
+# Controls: unit tests of package 0.6a's review rounds, each run once with its fix removed, from builder/. The tests with a control here: (1) the tunnel, first review finding 8; (2) the held body, finding 10; (3) what counts as an answer, finding 11, as in the first round; (4) the proxy that closes; (5) the server that accepts and never answers, second review; (6) the proxy that answers 200 and then says nothing, second review; (7) group G; (8) UDP and abstract sockets; (9) the interface folder; (10) the 64-listener refusal; (11) the loopback spellings; (12) the targets that differ; (13) the secure connection opened, sent directly, and (14) inside the tunnel: the third review's two cases, in the tests of controls 5 and 6; (15) the result words of finding 11 (classifyError); (16) B2 and B3's wording (planAttempts); (17) the own-loopback mark in the table; (18) what counts as an answer, as reworked in the second round. That is every unit test the review rounds added or reworked (found by comparing builder/test/isolation.test.ts at f57b0d8, the commit the first review read, with the commit of controls 7 to 18); one more was only renamed ('reads a complete run'), and the other unit tests are unchanged since f57b0d8. The live engine test is not a unit test; its control is run-test-live-control-engine-on-host-network.txt. Controls 1 to 4 (first review): commit 325ecd2, 12 Nov 2026 20:40 UTC; controls 5 and 6 (second review): commit cf5d41f, 21:27 UTC; controls 7 to 18 (third review): commit 45aae14, 21:59 UTC, where the probe and the harness are as at cf5d41f and the tests have the third review's two cases. All eighteen failed.
+# Each test is expected to FAIL here. For each: what was removed, the change as `git diff`, the command, its output and exit code; then the file is restored with `git checkout` and checked unchanged.
 
 ####################################################################################################
 # 1. Review finding 8, the tunnel: the old line `agent: false` put back in httpsTunnelAttempt (builder/scripts/isolation-probe.mjs).
@@ -427,3 +427,763 @@ AssertionError: expected { …(5) } to deeply equal { …(5) }
 
 exit code: 1
 # Restored with `git checkout -- scripts/isolation-probe.mjs`; `git diff --stat -- builder` afterwards: empty (the file is as committed)
+
+
+####################################################################################################
+# Third review round of package 0.6a: controls 7 to 18, at commit 45aae14, 12 Nov 2026 21:59 UTC, from builder/, with TMPDIR set to a scratch folder. The probe and the harness are as at cf5d41f (git diff cf5d41f 45aae14 -- builder/scripts builder/src templates is empty); the tests are those of 45aae14. Controls 7 to 12 and 15 to 18 are the review rounds' new or reworked unit tests that had no control; 13 and 14 are the third review's two new cases. Each change was made in the committed file, run once with the one test it guards selected (-t), and undone with git checkout; then git diff --stat -- builder was empty and the worktree clean.
+
+####################################################################################################
+# 7. Group G (first review, findings 1, 3 and 9), test "group G: one TCP attempt per port ...". Removed: the G block of planAttempts (builder/scripts/isolation-probe.mjs), so that no G attempt is planned, as before the fix.
+# Run 12 Nov 2026 21:59 UTC.
+# The change, as `git diff`:
+diff --git a/builder/scripts/isolation-probe.mjs b/builder/scripts/isolation-probe.mjs
+index d89cb42..cca6d15 100644
+--- a/builder/scripts/isolation-probe.mjs
++++ b/builder/scripts/isolation-probe.mjs
+@@ -262,19 +262,6 @@ export function planAttempts(s, extraListeners = []) {
+     const host = l.address === "0.0.0.0" || l.address === "::" ? "127.0.0.1" : l.address;
+     add(`X${l.port}`, "C", "host", "another listening port, seen inside the container", hostPort(host, l.port), "TCP connection, opened and closed", { type: "tcp", host, port: l.port });
+   }
+-  // G: the machine as a container on Docker's default network sees it, through that network's gateway
+-  // address, on every port the harness read as listening on the machine. Each port once; its listening
+-  // addresses, as read on the machine, are in the attempt's description.
+-  if (s.bridgeGateway) {
+-    const byPort = new Map();
+-    for (const l of s.machineListeners) byPort.set(l.port, [...(byPort.get(l.port) ?? []), l.address]);
+-    for (const [p, addresses] of [...byPort].sort((x, y) => x[0] - y[0])) {
+-      const where = addresses
+-        .map((a) => (a === "0.0.0.0" || a === "::" ? `${a} (every address)` : a === "127.0.0.1" || a === "::1" ? `${a} (loopback only)` : a))
+-        .join(" and ");
+-      add(`G${p}`, "G", "host", `port ${p}, listening on the machine at ${where}, as read on the machine`, `${s.bridgeGateway}:${p}`, "TCP connection, opened and closed; nothing sent", { type: "tcp", host: s.bridgeGateway, port: p });
+-    }
+-  }
+ 
+   add("D1", "D", "lookup", "an outside name the egress list allows", "registry.npmjs.org", "lookup with the container's own resolver", { type: "lookup", name: "registry.npmjs.org" });
+   add("D2", "D", "lookup", "an outside name the egress list refuses", "example.com", "lookup with the container's own resolver", { type: "lookup", name: "example.com" });
+# $ npx vitest run test/isolation.test.ts -t "group G: one TCP attempt per port"
+
+ RUN  v5.1.0 <checkout>/builder
+
+ ❯ test/isolation.test.ts (21 tests | 1 failed | 20 skipped) 13ms
+   ❯ isolation probe: its own settings and words (unit) (7)
+     × group G: one TCP attempt per port listening on the machine, at the gateway address of Docker's default network, with the address each port listens on as read on the machine 11ms
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 20 skipped (21)
+   Start at  21:59:33
+   Duration  252ms (transform 46%, import 38%, tests 11%, worker 5%)
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/isolation.test.ts > isolation probe: its own settings and words (unit) > group G: one TCP attempt per port listening on the machine, at the gateway address of Docker's default network, with the address each port listens on as read on the machine
+AssertionError: expected [] to deeply equal [ [ 'G2024', …(2) ], …(2) ]
+
+- Expected
++ Received
+
+- [
+-   [
+-     "G2024",
+-     "172.17.0.1:2024",
+-     {
+-       "host": "172.17.0.1",
+-       "port": 2024,
+-       "type": "tcp",
+-     },
+-   ],
+-   [
+-     "G5432",
+-     "172.17.0.1:5432",
+-     {
+-       "host": "172.17.0.1",
+-       "port": 5432,
+-       "type": "tcp",
+-     },
+-   ],
+-   [
+-     "G45887",
+-     "172.17.0.1:45887",
+-     {
+-       "host": "172.17.0.1",
+-       "port": 45887,
+-       "type": "tcp",
+-     },
+-   ],
+- ]
++ []
+
+ ❯ test/isolation.test.ts:145:50
+    143|     const s = parseSettings(JSON.stringify({ ...SETTINGS, bridgeGatewa…
+    144|     const g = planAttempts(s).filter((a) => a.id.startsWith("G"));
+    145|     expect(g.map((a) => [a.id, a.target, a.op])).toEqual([
+       |                                                  ^
+    146|       ["G2024", "172.17.0.1:2024", { type: "tcp", host: "172.17.0.1", …
+    147|       ["G5432", "172.17.0.1:5432", { type: "tcp", host: "172.17.0.1", …
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+exit code: 1
+# Restored with `git checkout -- scripts/isolation-probe.mjs`; `git diff --stat -- builder` afterwards: empty (the file is as committed)
+
+####################################################################################################
+# 8. UDP sockets and abstract Unix sockets listed (first review, note), test "lists UDP sockets with no remote end and abstract Unix sockets". Removed: what parseUdpBound and parseAbstractUnix list (builder/scripts/isolation-probe.mjs); each lists nothing, as before the fix, when neither kind was listed.
+# Run 12 Nov 2026 21:59 UTC.
+# The change, as `git diff`:
+diff --git a/builder/scripts/isolation-probe.mjs b/builder/scripts/isolation-probe.mjs
+index d89cb42..71b1123 100644
+--- a/builder/scripts/isolation-probe.mjs
++++ b/builder/scripts/isolation-probe.mjs
+@@ -172,7 +172,7 @@ export function parseListeners(text, family = 4) {
+ 
+ /** UDP sockets with no remote end (those that wait for anyone's packets) in /proc/net/udp or udp6 text: [{address, port}]. */
+ export function parseUdpBound(text, family = 4) {
+-  return parseSockets(text, family, (_state, remote) => /^0+:0000$/.test(remote));
++  return [];
+ }
+ 
+ /**
+@@ -180,13 +180,7 @@ export function parseUdpBound(text, family = 4) {
+  * the network the container shares, not to its files. Listed only; the probe never connects to one.
+  */
+ export function parseAbstractUnix(text) {
+-  const names = new Set();
+-  for (const line of (text ?? "").split("\n").slice(1)) {
+-    const f = line.trim().split(/\s+/);
+-    const name = f.slice(7).join(" ");
+-    if (name.startsWith("@")) names.add(name.slice(0, 80));
+-  }
+-  return [...names].sort();
++  return [];
+ }
+ 
+ /** The names of the info lines about network interfaces. */
+# $ npx vitest run test/isolation.test.ts -t "lists UDP sockets with no remote end"
+
+ RUN  v5.1.0 <checkout>/builder
+
+ ❯ test/isolation.test.ts (21 tests | 1 failed | 20 skipped) 16ms
+   ❯ isolation probe: its own settings and words (unit) (7)
+     × lists UDP sockets with no remote end and abstract Unix sockets (made-up samples in the kernel's format) 14ms
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 20 skipped (21)
+   Start at  21:59:40
+   Duration  244ms (transform 46%, import 37%, tests 13%, worker 3%)
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/isolation.test.ts > isolation probe: its own settings and words (unit) > lists UDP sockets with no remote end and abstract Unix sockets (made-up samples in the kernel's format)
+AssertionError: expected [] to deeply equal [ …(2) ]
+
+- Expected
++ Received
+
+- [
+-   {
+-     "address": "0.0.0.0",
+-     "port": 68,
+-   },
+-   {
+-     "address": "127.0.0.1",
+-     "port": 53,
+-   },
+- ]
++ []
+
+ ❯ test/isolation.test.ts:88:32
+     86|       "  103: 020200C0:A1B2 08080808:0035 01 00000000:00000000 00:0000…
+     87|     ].join("\n");
+     88|     expect(parseUdpBound(udp)).toEqual([
+       |                                ^
+     89|       { address: "0.0.0.0", port: 68 },
+     90|       { address: "127.0.0.1", port: 53 },
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+exit code: 1
+# Restored with `git checkout -- scripts/isolation-probe.mjs`; `git diff --stat -- builder` afterwards: empty (the file is as committed)
+
+####################################################################################################
+# 9. The interface folder (second review, note 8), test "lists every network interface in a /sys/class/net folder, up or down". Removed: the listing of interfaces that are down; listInterfaces (builder/scripts/isolation-probe.mjs) leaves out every interface whose state is "down", as Node's own list leaves out interfaces that are not up (the defect the note named).
+# Run 12 Nov 2026 21:59 UTC.
+# The change, as `git diff`:
+diff --git a/builder/scripts/isolation-probe.mjs b/builder/scripts/isolation-probe.mjs
+index d89cb42..797f99f 100644
+--- a/builder/scripts/isolation-probe.mjs
++++ b/builder/scripts/isolation-probe.mjs
+@@ -213,7 +213,7 @@ export function listInterfaces(dir = "/sys/class/net") {
+       return "state not given";
+     }
+   };
+-  return names.map((n) => `${n} (${state(n)})`).join(", ") || "none";
++  return names.filter((n) => state(n) !== "down").map((n) => `${n} (${state(n)})`).join(", ") || "none";
+ }
+ 
+ /** The number of TCP sockets in /proc/net/tcp text that are not listening, in any state (open, closing, or waiting after closing). */
+# $ npx vitest run test/isolation.test.ts -t "lists every network interface in a /sys/class/net folder"
+
+ RUN  v5.1.0 <checkout>/builder
+
+ ❯ test/isolation.test.ts (21 tests | 1 failed | 20 skipped) 14ms
+   ❯ isolation probe: its own settings and words (unit) (7)
+     × lists every network interface in a /sys/class/net folder, up or down, with its state (made-up folder) 12ms
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 20 skipped (21)
+   Start at  21:59:41
+   Duration  264ms (transform 51%, import 35%, tests 11%, worker 3%)
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/isolation.test.ts > isolation probe: its own settings and words (unit) > lists every network interface in a /sys/class/net folder, up or down, with its state (made-up folder)
+AssertionError: expected 'eth0 (up), lo (unknown), made-up0 (st…' to be 'docker0 (down), eth0 (up), lo (unknow…' // Object.is equality
+
+Expected: "docker0 (down), eth0 (up), lo (unknown), made-up0 (state not given)"
+Received: "eth0 (up), lo (unknown), made-up0 (state not given)"
+
+ ❯ test/isolation.test.ts:111:33
+    109|       if (state) writeFileSync(join(dir, name, "operstate"), `${state}…
+    110|     }
+    111|     expect(listInterfaces(dir)).toBe("docker0 (down), eth0 (up), lo (u…
+       |                                 ^
+    112|     const empty = join(dir, "docker0", "empty");
+    113|     mkdirSync(empty);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+exit code: 1
+# Restored with `git checkout -- scripts/isolation-probe.mjs`; `git diff --stat -- builder` afterwards: empty (the file is as committed)
+
+####################################################################################################
+# 10. The 64-listener refusal (second review, note 11), test "the harness passes the machine's listening sockets to the probe, and refuses plainly ...". Removed: the refusal in machineListenersFrom (builder/src/sandbox/isolation.ts), so that the harness passes however many listening sockets it reads, as before the fix.
+# Run 12 Nov 2026 21:59 UTC.
+# The change, as `git diff`:
+diff --git a/builder/src/sandbox/isolation.ts b/builder/src/sandbox/isolation.ts
+index 8b812c6..97d284a 100644
+--- a/builder/src/sandbox/isolation.ts
++++ b/builder/src/sandbox/isolation.ts
+@@ -219,10 +219,6 @@ export function renderMarkdownTable(columns: Column[]): string {
+ export function machineListenersFrom(tcp4: string, tcp6: string): string[] {
+   const listeners = [...parseListeners(tcp4, 4), ...parseListeners(tcp6, 6)];
+   const all = [...new Set(listeners.map((l) => `${l.address}:${l.port}`))].sort();
+-  if (all.length > MAX_MACHINE_LISTENERS)
+-    throw new Error(
+-      `The machine has ${all.length} listening TCP sockets; the isolation probe takes at most ${MAX_MACHINE_LISTENERS} for group G. The check stops here rather than leave ${all.length - MAX_MACHINE_LISTENERS} of them out without saying so.`,
+-    );
+   return all;
+ }
+ 
+# $ npx vitest run test/isolation.test.ts -t "refuses plainly when there are more than the probe takes"
+
+ RUN  v5.1.0 <checkout>/builder
+
+ ❯ test/isolation.test.ts (21 tests | 1 failed | 20 skipped) 21ms
+   ❯ isolation probe: reading what it prints (unit) (8)
+     × the harness passes the machine's listening sockets to the probe, and refuses plainly when there are more than the probe takes (64) 19ms
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 20 skipped (21)
+   Start at  21:59:42
+   Duration  244ms (transform 41%, import 39%, tests 17%, worker 3%)
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/isolation.test.ts > isolation probe: reading what it prints (unit) > the harness passes the machine's listening sockets to the probe, and refuses plainly when there are more than the probe takes (64)
+AssertionError: expected [Function] to throw an error
+
+- Expected:
+null
+
++ Received:
+undefined
+
+ ❯ test/isolation.test.ts:419:76
+    417|     expect(machineListenersFrom(`${tcp(2)}\n${tcp(2).split("\n").slice…
+    418|     // One more than the probe takes: the harness refuses, saying how …
+    419|     expect(() => machineListenersFrom(tcp(MAX_MACHINE_LISTENERS + 1), …
+       |                                                                            ^
+    420|       "The machine has 65 listening TCP sockets; the isolation probe t…
+    421|     );
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+exit code: 1
+# Restored with `git checkout -- src/sandbox/isolation.ts`; `git diff --stat -- builder` afterwards: empty (the file is as committed)
+
+####################################################################################################
+# 11. The loopback spellings (second review, note 10), test "marks attempts aimed at the container's own loopback address however the session proxy is written". Removed: both parts of the fix, as at 4fdc308, before it: AT_LOOPBACK knows 127.x.x.x only (builder/src/sandbox/isolation.ts), and the probe writes an IPv6 address without brackets before its port (builder/scripts/isolation-probe.mjs).
+# Run 12 Nov 2026 21:59 UTC.
+# The change, as `git diff`:
+diff --git a/builder/scripts/isolation-probe.mjs b/builder/scripts/isolation-probe.mjs
+index d89cb42..114c9ba 100644
+--- a/builder/scripts/isolation-probe.mjs
++++ b/builder/scripts/isolation-probe.mjs
+@@ -231,7 +231,7 @@ export function countOtherSockets(text) {
+ export function planAttempts(s, extraListeners = []) {
+   const plan = [];
+   // An IPv6 address is written in brackets before its port ("[::1]:3128"), so that the table can tell it apart.
+-  const hostPort = (host, port) => (host.includes(":") ? `[${host}]:${port}` : `${host}:${port}`);
++  const hostPort = (host, port) => `${host}:${port}`;
+   const add = (id, group, toward, what, target, how, op) => plan.push({ id, group: GROUPS[group], toward, what, target, how, op });
+   const ex = s.exampleAddress;
+ 
+diff --git a/builder/src/sandbox/isolation.ts b/builder/src/sandbox/isolation.ts
+index 8b812c6..fcea5bf 100644
+--- a/builder/src/sandbox/isolation.ts
++++ b/builder/src/sandbox/isolation.ts
+@@ -154,7 +154,7 @@ export interface Column {
+  * An attempt aimed at a loopback address, as its target or as the proxy it goes through: 127.x.x.x,
+  * "localhost", or ::1 (written "[::1]" before its port, as the probe writes it, or without the brackets).
+  */
+-const AT_LOOPBACK = /(^|[\s(])(127\.\d{1,3}\.\d{1,3}\.\d{1,3}|localhost|\[::1\]|::1):\d+/i;
++const AT_LOOPBACK = /(^|[\s(])127\.\d{1,3}\.\d{1,3}\.\d{1,3}:\d+/;
+ 
+ /** A row of the table: an attempt's id, and its target and description where every container that made it agrees. */
+ export interface Row {
+# $ npx vitest run test/isolation.test.ts -t "however the session proxy is written"
+
+ RUN  v5.1.0 <checkout>/builder
+
+ ❯ test/isolation.test.ts (21 tests | 1 failed | 20 skipped) 16ms
+   ❯ isolation probe: reading what it prints (unit) (8)
+     × marks attempts aimed at the container's own loopback address however the session proxy is written: 127.0.0.1, localhost or [::1] 14ms
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 20 skipped (21)
+   Start at  21:59:43
+   Duration  311ms (transform 60%, import 30%, tests 9%, worker 2%)
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/isolation.test.ts > isolation probe: reading what it prints (unit) > marks attempts aimed at the container's own loopback address however the session proxy is written: 127.0.0.1, localhost or [::1]
+AssertionError: expected [ …(2) ] to deeply equal [ …(2) ]
+
+- Expected
++ Received
+
+  [
+-   "C9 localhost:3999 [TCP connection, opened and closed]: refused (ECONNREFUSED), at its own loopback address",
+-   "F1 registry.npmjs.org:443 [CONNECT through the cloud session's proxy (localhost:3999)]: refused (ECONNREFUSED), at its own loopback address",
++   "C9 localhost:3999 [TCP connection, opened and closed]: refused (ECONNREFUSED)",
++   "F1 registry.npmjs.org:443 [CONNECT through the cloud session's proxy (localhost:3999)]: refused (ECONNREFUSED)",
+  ]
+
+ ❯ test/isolation.test.ts:542:38
+    540|       "F1 registry.npmjs.org:443 [CONNECT through the cloud session's …
+    541|     ]);
+    542|     expect(marked("localhost:3999")).toEqual([
+       |                                      ^
+    543|       "C9 localhost:3999 [TCP connection, opened and closed]: refused …
+    544|       "F1 registry.npmjs.org:443 [CONNECT through the cloud session's …
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+exit code: 1
+# Restored with `git checkout -- scripts/isolation-probe.mjs src/sandbox/isolation.ts`; `git diff --stat -- builder` afterwards: empty (the file is as committed)
+
+####################################################################################################
+# 12. The targets that differ (second review, note 3), test "when containers give an attempt different targets (B2 and B3 can) ...". Removed: the comparison of the containers' targets in rows() (builder/src/sandbox/isolation.ts); a row never differs, so it takes the first container's target and description, as before the fix.
+# Run 12 Nov 2026 21:59 UTC.
+# The change, as `git diff`:
+diff --git a/builder/src/sandbox/isolation.ts b/builder/src/sandbox/isolation.ts
+index 8b812c6..7c1d83f 100644
+--- a/builder/src/sandbox/isolation.ts
++++ b/builder/src/sandbox/isolation.ts
+@@ -188,7 +188,7 @@ function rows(columns: Column[]): Row[] {
+   const out: Row[] = [];
+   for (const [id, made] of byId) {
+     const first = made[0]!;
+-    const differs = made.some((a) => a.target !== first.target || a.what !== first.what);
++    const differs = false;
+     out.push(differs ? { id, target: DIFFERS_BY_CONTAINER, what: DIFFERS_BY_CONTAINER, differs } : { id, target: first.target, what: first.what, differs });
+   }
+   return out.sort((x, y) => order(x.id) - order(y.id));
+# $ npx vitest run test/isolation.test.ts -t "when containers give an attempt different targets"
+
+ RUN  v5.1.0 <checkout>/builder
+
+ ❯ test/isolation.test.ts (21 tests | 1 failed | 20 skipped) 13ms
+   ❯ isolation probe: reading what it prints (unit) (8)
+     × when containers give an attempt different targets (B2 and B3 can), the row says so and each cell gives its own target and description 11ms
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 20 skipped (21)
+   Start at  21:59:44
+   Duration  234ms (transform 48%, import 37%, tests 11%, worker 3%)
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/isolation.test.ts > isolation probe: reading what it prints (unit) > when containers give an attempt different targets (B2 and B3 can), the row says so and each cell gives its own target and description
+AssertionError: expected [ …(2) ] to deeply equal [ …(2) ]
+
+- Expected
++ Received
+
+  [
+    "| B1 | 198.51.100.1:443 | a public address, HTTPS port | connected | connected |",
+-   "| B2 | differs by container: see each cell | differs by container: see each cell | connected; this container: 192.0.2.10:80, example.com's address, HTTP port | refused (ECONNREFUSED); this container: 203.0.113.14:80, the address given for example.com (not checked), HTTP port |",
++   "| B2 | 192.0.2.10:80 | example.com's address, HTTP port | connected | refused (ECONNREFUSED) |",
+  ]
+
+ ❯ test/isolation.test.ts:572:63
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+exit code: 1
+# Restored with `git checkout -- src/sandbox/isolation.ts`; `git diff --stat -- builder` afterwards: empty (the file is as committed)
+
+####################################################################################################
+# 13. The secure connection opened, sent directly (third review, code-and-run note 1), the new case in test "a server that accepts the connection and never answers ...". Removed: the step in httpAttempt that, once the secure connection opens, makes the limit's detail "the secure connection opened; no HTTP status came" (builder/scripts/isolation-probe.mjs, line 426 at cf5d41f).
+# Run 12 Nov 2026 21:59 UTC.
+# The change, as `git diff`:
+diff --git a/builder/scripts/isolation-probe.mjs b/builder/scripts/isolation-probe.mjs
+index d89cb42..892eb59 100644
+--- a/builder/scripts/isolation-probe.mjs
++++ b/builder/scripts/isolation-probe.mjs
+@@ -423,7 +423,6 @@ function httpAttempt(op, ms, secure, sessionCert) {
+     cleanup(() => req.destroy());
+     req.on("socket", (sock) => {
+       whenOpen(sock, () => openedThenSilent(atLimit, ms, secure ? "the connection opened; the secure handshake did not finish" : "the connection opened; no HTTP status came"));
+-      if (secure) sock.once("secureConnect", () => openedThenSilent(atLimit, ms, "the secure connection opened; no HTTP status came"));
+     });
+     req.on("error", (e) => finish({ result: classifyError(codeOf(e)), code: codeOf(e), detail: "" }));
+     req.end();
+# $ npx vitest run test/isolation.test.ts -t "accepts the connection and never answers"
+
+ RUN  v5.1.0 <checkout>/builder
+
+ ❯ test/isolation.test.ts (21 tests | 1 failed | 20 skipped) 2237ms
+   ❯ isolation probe: its attempts, against made-up servers on the loopback address (unit) (5)
+     × a server that accepts the connection and never answers: 'connected, then no answer within the limit', counted as an answer, not 'timed out'; over HTTPS, the detail says whether the secure handshake finished 2235ms
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 20 skipped (21)
+   Start at  21:59:44
+   Duration  2.44s (tests 96%, transform 2%, import 2%)
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/isolation.test.ts > isolation probe: its attempts, against made-up servers on the loopback address (unit) > a server that accepts the connection and never answers: 'connected, then no answer within the limit', counted as an answer, not 'timed out'; over HTTPS, the detail says whether the secure handshake finished
+AssertionError: expected { http: { …(4) }, …(4) } to deeply equal { http: { …(4) }, …(4) }
+
+- Expected
++ Received
+
+@@ -24,10 +24,10 @@
+      "result": "connected, then no answer within the limit",
+    },
+    "https, the handshake finished": {
+      "code": "TIMEOUT_AFTER_CONNECT",
+      "counted": true,
+-     "detail": "the secure connection opened; no HTTP status came within the time limit (1000 ms)",
++     "detail": "the connection opened; the secure handshake did not finish within the time limit (1000 ms)",
+      "handshakes": 1,
+      "result": "connected, then no answer within the limit",
+    },
+  }
+
+ ❯ test/isolation.test.ts:339:18
+    337|     seen["https, the handshake finished"] = { ...r, counted: gotAnswer…
+    338|     const opened = (detail: string, ms = 300) => ({ result: OPENED_THE…
+    339|     expect(seen).toEqual({
+       |                  ^
+    340|       http: opened("the connection opened; no HTTP status came"),
+    341|       https: opened("the connection opened; the secure handshake did n…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+exit code: 1
+# Restored with `git checkout -- scripts/isolation-probe.mjs`; `git diff --stat -- builder` afterwards: empty (the file is as committed)
+
+####################################################################################################
+# 14. The secure connection opened inside the tunnel (third review, code-and-run note 1), the new case in test "a proxy that answers 200 to a CONNECT and then says nothing ...". Removed: the step in httpsTunnelAttempt that, once the secure connection inside the tunnel opens, says so in the limit's detail (builder/scripts/isolation-probe.mjs, lines 506 to 508 at cf5d41f).
+# Run 12 Nov 2026 21:59 UTC.
+# The change, as `git diff`:
+diff --git a/builder/scripts/isolation-probe.mjs b/builder/scripts/isolation-probe.mjs
+index d89cb42..bf0cfea 100644
+--- a/builder/scripts/isolation-probe.mjs
++++ b/builder/scripts/isolation-probe.mjs
+@@ -503,9 +503,6 @@ function httpsTunnelAttempt(op, ms, sessionCert) {
+           ...trust(sessionCert),
+           createConnection: () => {
+             const inside = tls.connect({ socket, servername: op.host, ...trust(sessionCert) });
+-            inside.once("secureConnect", () =>
+-              openedThenSilent(atLimit, ms, "the proxy answered 200 to the CONNECT and the secure connection inside the tunnel opened; no HTTP status came"),
+-            );
+             return inside;
+           },
+           headers: { host: op.host, "user-agent": "isolation-probe", connection: "close" },
+# $ npx vitest run test/isolation.test.ts -t "answers 200 to a CONNECT and then says nothing"
+
+ RUN  v5.1.0 <checkout>/builder
+
+ ❯ test/isolation.test.ts (21 tests | 1 failed | 20 skipped) 1342ms
+   ❯ isolation probe: its attempts, against made-up servers on the loopback address (unit) (5)
+     × a proxy that answers 200 to a CONNECT and then says nothing: the tunnel attempt is 'connected, then no answer within the limit', with the proxy's 200 in its detail, and, where the secure connection inside the tunnel opened, that too 1340ms
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 20 skipped (21)
+   Start at  21:59:47
+   Duration  1.57s (tests 92%, transform 4%, import 3%)
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/isolation.test.ts > isolation probe: its attempts, against made-up servers on the loopback address (unit) > a proxy that answers 200 to a CONNECT and then says nothing: the tunnel attempt is 'connected, then no answer within the limit', with the proxy's 200 in its detail, and, where the secure connection inside the tunnel opened, that too
+AssertionError: expected { …(6) } to deeply equal { …(6) }
+
+- Expected
++ Received
+
+@@ -2,9 +2,9 @@
+    "code": "TIMEOUT_AFTER_CONNECT",
+    "connects": [
+      "CONNECT localhost:443 HTTP/1.1",
+    ],
+    "counted": true,
+-   "detail": "the proxy answered 200 to the CONNECT and the secure connection inside the tunnel opened; no HTTP status came within the time limit (1000 ms)",
++   "detail": "the proxy answered 200 to the CONNECT; nothing came back inside the tunnel within the time limit (1000 ms)",
+    "handshakes": 1,
+    "result": "connected, then no answer within the limit",
+  }
+
+ ❯ test/isolation.test.ts:393:113
+    391|       silent.certFile,
+    392|     );
+    393|     expect({ connects: joined, ...inside, counted: gotAnswer(inside.re…
+       |                                                                                                                 ^
+    394|       connects: ["CONNECT localhost:443 HTTP/1.1"],
+    395|       result: OPENED_THEN_SILENT,
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+exit code: 1
+# Restored with `git checkout -- scripts/isolation-probe.mjs`; `git diff --stat -- builder` afterwards: empty (the file is as committed)
+
+####################################################################################################
+# 15. The new result words (first review, finding 11), test "names each failure by its error code ...", reworked in that round. Removed: the two words added then to classifyError (builder/scripts/isolation-probe.mjs), "not an HTTP answer" and "secure connection failed"; those codes are "error" again, as before the fix.
+# Run 12 Nov 2026 21:59 UTC.
+# The change, as `git diff`:
+diff --git a/builder/scripts/isolation-probe.mjs b/builder/scripts/isolation-probe.mjs
+index d89cb42..05c05e3 100644
+--- a/builder/scripts/isolation-probe.mjs
++++ b/builder/scripts/isolation-probe.mjs
+@@ -125,8 +125,6 @@ export function classifyError(code, context = "connection") {
+   if (code === "EAI_AGAIN") return "no name server answered";
+   if (["ENETUNREACH", "EHOSTUNREACH", "EADDRNOTAVAIL"].includes(code)) return "network unreachable";
+   if (["ECONNRESET", "EPIPE", "ECONNABORTED"].includes(code)) return "connection reset";
+-  // An answer that is not HTTP: Node's HTTP reader could not parse what came back on an open connection.
+-  if (code.startsWith("HPE_")) return "not an HTTP answer";
+   if (
+     [
+       "SELF_SIGNED_CERT_IN_CHAIN",
+@@ -140,8 +138,6 @@ export function classifyError(code, context = "connection") {
+     ].includes(code)
+   )
+     return "certificate not trusted";
+-  // A secure (TLS) connection that failed after the TCP connection opened, for a reason other than the certificate.
+-  if (code === "EPROTO" || code.startsWith("ERR_SSL_") || code.startsWith("ERR_TLS_")) return "secure connection failed";
+   return "error";
+ }
+ 
+# $ npx vitest run test/isolation.test.ts -t "names each failure by its error code"
+
+ RUN  v5.1.0 <checkout>/builder
+
+ ❯ test/isolation.test.ts (21 tests | 1 failed | 20 skipped) 11ms
+   ❯ isolation probe: its own settings and words (unit) (7)
+     × names each failure by its error code, and every name it can give is one the report accepts 10ms
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 20 skipped (21)
+   Start at  21:59:50
+   Duration  239ms (import 46%, transform 42%, tests 9%, worker 3%)
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/isolation.test.ts > isolation probe: its own settings and words (unit) > names each failure by its error code, and every name it can give is one the report accepts
+AssertionError: expected 'error' to be 'secure connection failed' // Object.is equality
+
+Expected: "secure connection failed"
+Received: "error"
+
+ ❯ test/isolation.test.ts:53:37
+     51|     expect(classifyError("SELF_SIGNED_CERT_IN_CHAIN")).toBe("certifica…
+     52|     expect(classifyError("ECONNRESET")).toBe("connection reset");
+     53|     expect(classifyError("EPROTO")).toBe("secure connection failed");
+       |                                     ^
+     54|     expect(classifyError("ERR_SSL_WRONG_VERSION_NUMBER")).toBe("secure…
+     55|     expect(classifyError("HPE_INVALID_CONSTANT")).toBe("not an HTTP an…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+exit code: 1
+# Restored with `git checkout -- scripts/isolation-probe.mjs`; `git diff --stat -- builder` afterwards: empty (the file is as committed)
+
+####################################################################################################
+# 16. B2 and B3's wording (first review, note), test "plans every attempt once ...", reworked in that round. Removed: the choice of wording in planAttempts (builder/scripts/isolation-probe.mjs); B2 and B3 are always "example.com's address", as before the fix, even when the address is only the one given.
+# Run 12 Nov 2026 21:59 UTC.
+# The change, as `git diff`:
+diff --git a/builder/scripts/isolation-probe.mjs b/builder/scripts/isolation-probe.mjs
+index d89cb42..6bede93 100644
+--- a/builder/scripts/isolation-probe.mjs
++++ b/builder/scripts/isolation-probe.mjs
+@@ -243,7 +243,7 @@ export function planAttempts(s, extraListeners = []) {
+ 
+   add("B1", "B", "outside", "a public address, HTTPS port", "1.1.1.1:443", "TCP connection, opened and closed", { type: "tcp", host: "1.1.1.1", port: 443 });
+   // The address is example.com's only if the probe looked it up itself; otherwise it is the one given, unchecked.
+-  const exWhat = s.exampleAddressLookedUp ? "example.com's address" : "the address given for example.com (not checked)";
++  const exWhat = "example.com's address";
+   add("B2", "B", "outside", `${exWhat}, HTTP port`, `${ex}:80`, "TCP connection, opened and closed", { type: "tcp", host: ex, port: 80 });
+   add("B3", "B", "outside", `${exWhat}, plain HTTP`, `${ex}:80`, "HTTP GET / with the name example.com, no proxy", { type: "http", host: ex, port: 80, path: "/", hostHeader: "example.com" });
+   add("B4", "B", "outside", "the cloud's machine-information address (link-local)", "169.254.169.254:80", "HTTP GET /, no extra headers, no proxy", { type: "http", host: "169.254.169.254", port: 80, path: "/" });
+# $ npx vitest run test/isolation.test.ts -t "plans every attempt once"
+
+ RUN  v5.1.0 <checkout>/builder
+
+ ❯ test/isolation.test.ts (21 tests | 1 failed | 20 skipped) 19ms
+   ❯ isolation probe: its own settings and words (unit) (7)
+     × plans every attempt once, aims host attempts at the loopback address, and tries the session proxy only when given 17ms
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 20 skipped (21)
+   Start at  21:59:50
+   Duration  251ms (transform 48%, import 35%, tests 14%, worker 3%)
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/isolation.test.ts > isolation probe: its own settings and words (unit) > plans every attempt once, aims host attempts at the loopback address, and tries the session proxy only when given
+AssertionError: expected 'example.com\'s address, HTTP port' to be 'the address given for example.com (no…' // Object.is equality
+
+Expected: "the address given for example.com (not checked), HTTP port"
+Received: "example.com's address, HTTP port"
+
+ ❯ test/isolation.test.ts:135:56
+    133|     expect(without.length).toBe(withProxy.length - 1 - 1 - 4);
+    134|     // B2 and B3 name the address as example.com's only once the probe…
+    135|     expect(withProxy.find((a) => a.id === "B2")?.what).toBe("the addre…
+       |                                                        ^
+    136|     const looked = planAttempts({ ...parseSettings(JSON.stringify(SETT…
+    137|     expect(looked.find((a) => a.id === "B3")?.what).toBe("example.com'…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+exit code: 1
+# Restored with `git checkout -- scripts/isolation-probe.mjs`; `git diff --stat -- builder` afterwards: empty (the file is as committed)
+
+####################################################################################################
+# 17. The own-loopback mark (first review, findings 1 and 3), test "draws one row per attempt in the probe's order and one column per container ...", reworked in that round. Removed: the mark in columnCell (builder/src/sandbox/isolation.ts); no cell says "at its own loopback address", as before the fix.
+# Run 12 Nov 2026 21:59 UTC.
+# The change, as `git diff`:
+diff --git a/builder/src/sandbox/isolation.ts b/builder/src/sandbox/isolation.ts
+index 8b812c6..bd4e601 100644
+--- a/builder/src/sandbox/isolation.ts
++++ b/builder/src/sandbox/isolation.ts
+@@ -175,7 +175,6 @@ export const DIFFERS_BY_CONTAINER = "differs by container: see each cell";
+  */
+ export function columnCell(c: Column, a: ProbeAttempt | undefined, row?: Row): string {
+   let text = cell(a);
+-  if (a && c.ownLoopback && AT_LOOPBACK.test(`${a.target} ${a.how}`)) text = `${text}, at its own loopback address`;
+   if (a && row?.differs) text = `${text}; this container: ${a.target}, ${a.what}`;
+   return text;
+ }
+# $ npx vitest run test/isolation.test.ts -t "draws one row per attempt in the probe's order"
+
+ RUN  v5.1.0 <checkout>/builder
+
+ ❯ test/isolation.test.ts (21 tests | 1 failed | 20 skipped) 15ms
+   ❯ isolation probe: reading what it prints (unit) (8)
+     × draws one row per attempt in the probe's order and one column per container, 'not tried' where a container did not make it 13ms
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 20 skipped (21)
+   Start at  21:59:51
+   Duration  259ms (transform 51%, import 35%, tests 11%, worker 3%)
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/isolation.test.ts > isolation probe: reading what it prints (unit) > draws one row per attempt in the probe's order and one column per container, 'not tried' where a container did not make it
+AssertionError: expected [ 'C5: refused (ECONNREFUSED)', …(5) ] to deeply equal [ …(6) ]
+
+- Expected
++ Received
+
+  [
+-   "C5: refused (ECONNREFUSED), at its own loopback address",
+-   "E1: refused (ECONNREFUSED), at its own loopback address",
+-   "F1: refused (ECONNREFUSED), at its own loopback address",
++   "C5: refused (ECONNREFUSED)",
++   "E1: refused (ECONNREFUSED)",
++   "F1: refused (ECONNREFUSED)",
+    "G2024: connected",
+-   "X2024: refused (ECONNREFUSED), at its own loopback address",
++   "X2024: refused (ECONNREFUSED)",
+    "A1: refused (ECONNREFUSED)",
+  ]
+
+ ❯ test/isolation.test.ts:518:74
+    516|     ]);
+    517|     const column = { label: "own", report: own, ownLoopback: true };
+    518|     expect(own.attempts.map((a) => `${a.id}: ${columnCell(column, a)}`…
+       |                                                                          ^
+    519|       "C5: refused (ECONNREFUSED), at its own loopback address",
+    520|       "E1: refused (ECONNREFUSED), at its own loopback address",
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+exit code: 1
+# Restored with `git checkout -- src/sandbox/isolation.ts`; `git diff --stat -- builder` afterwards: empty (the file is as committed)
+
+####################################################################################################
+# 18. What counts as an answer, as reworked in the second review (finding 1: the new result counted, and the whole result matched), test "... (review finding 11)". Removed: the second round's change to gotAnswer (builder/src/sandbox/isolation.ts); its pattern is as at 325ecd2, without the new word and without the end anchor. (Control 3 above removed the first round's fix from the same test.)
+# Run 12 Nov 2026 21:59 UTC.
+# The change, as `git diff`:
+diff --git a/builder/src/sandbox/isolation.ts b/builder/src/sandbox/isolation.ts
+index 8b812c6..55591f6 100644
+--- a/builder/src/sandbox/isolation.ts
++++ b/builder/src/sandbox/isolation.ts
+@@ -58,7 +58,7 @@ export const ANSWER_WORDING = "a connection opened, an HTTP status, a proxy's an
+  * (and the report lists it as a problem, RESULT).
+  */
+ export function gotAnswer(result: string): boolean {
+-  return /^(connected|connected, then no answer within the limit|HTTP \d{3}|proxy answered \d{3}|found \d+ address(es)?|certificate not trusted|secure connection failed|connection reset|proxy closed without an answer|not an HTTP answer)$/.test(result);
++  return /^(connected|HTTP \d{3}|proxy answered \d{3}|found \d+ address|certificate not trusted|secure connection failed|connection reset|proxy closed without an answer|not an HTTP answer)/.test(result);
+ }
+ 
+ const str = (v: unknown) => typeof v === "string";
+# $ npx vitest run test/isolation.test.ts -t "review finding 11"
+
+ RUN  v5.1.0 <checkout>/builder
+
+ ❯ test/isolation.test.ts (21 tests | 1 failed | 20 skipped) 12ms
+   ❯ isolation probe: reading what it prints (unit) (8)
+     × an answer (a connection opened, an HTTP status, a proxy's answer, or an address found) is told apart from a failure; every result given only after a connection opened is an answer (review finding 11) 10ms
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 20 skipped (21)
+   Start at  21:59:52
+   Duration  248ms (transform 46%, import 41%, tests 10%, worker 3%)
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/isolation.test.ts > isolation probe: reading what it prints (unit) > an answer (a connection opened, an HTTP status, a proxy's answer, or an address found) is told apart from a failure; every result given only after a connection opened is an answer (review finding 11)
+AssertionError: connected maybe: expected true to be false // Object.is equality
+
+- Expected
++ Received
+
+- false
++ true
+
+ ❯ test/isolation.test.ts:453:31
+    451|     // "Timed out" is given only when no connection opened. A word the…
+    452|     for (const r of ["refused", "timed out", "name not found", "no nam…
+    453|       expect(gotAnswer(r), r).toBe(false);
+       |                               ^
+    454|     // Every word either way is one the report accepts.
+    455|     for (const r of afterAConnection) expect(r).toMatch(RESULT);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+exit code: 1
+# Restored with `git checkout -- src/sandbox/isolation.ts`; `git diff --stat -- builder` afterwards: empty (the file is as committed)
