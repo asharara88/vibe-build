@@ -188,12 +188,48 @@ function readDisk(): { found: OnDisk[]; problems: string[] } {
     // A linked folder is not walked into: it is either the component's own, checked file by file, or a problem.
     if (!isLink && existsSync(path.join(p, "node_modules"))) visit(path.join(p, "node_modules"));
   };
+  // npm installs nothing under a name that begins with a dot, but a folder put there by hand can
+  // still be loaded by name. Such folders hold tool caches; a package.json in one that names a
+  // package is a problem. (.bin holds only links to programs inside packages already read.)
+  const hidden = (p: string, depth: number): void => {
+    if (depth > 12) return;
+    for (const e of readdirSync(p, { withFileTypes: true })) {
+      const full = path.join(p, e.name);
+      if (e.isDirectory()) hidden(full, depth + 1);
+      else if (e.name === "package.json") {
+        let named = true; // unreadable counts as named: it cannot be shown to be harmless
+        try {
+          const pj = JSON.parse(readFileSync(full, "utf8")) as { name?: unknown } | null;
+          named = pj !== null && typeof pj === "object" && typeof pj.name === "string" && pj.name !== "";
+        } catch {
+          /* stays true */
+        }
+        if (named) problems.push(`${rel(full)} is a package inside a hidden folder, where neither this check nor the licence tool reads licences.`);
+      }
+    }
+  };
   const visit = (nm: string): void => {
     for (const e of readdirSync(nm, { withFileTypes: true })) {
-      if (e.name.startsWith(".")) continue;
+      const full = path.join(nm, e.name);
+      if (e.name.startsWith(".")) {
+        if (e.name !== ".bin" && lstatSync(full).isDirectory()) hidden(full, 0);
+        else if (e.name !== ".bin" && lstatSync(full).isSymbolicLink()) problems.push(`${rel(full)} is a hidden link.`);
+        continue;
+      }
       if (e.name.startsWith("@")) {
-        for (const sub of readdirSync(path.join(nm, e.name), { withFileTypes: true })) if (!sub.name.startsWith(".")) packageFolder(path.join(nm, e.name, sub.name));
-      } else packageFolder(path.join(nm, e.name));
+        // A scope folder that is itself a link would put every package under it outside the component.
+        if (lstatSync(full).isSymbolicLink()) {
+          problems.push(`${rel(full)} is a link, so the packages under it are not inside this component.`);
+          continue;
+        }
+        for (const sub of readdirSync(full, { withFileTypes: true })) {
+          if (sub.name.startsWith(".")) {
+            const subFull = path.join(full, sub.name);
+            if (lstatSync(subFull).isDirectory()) hidden(subFull, 0);
+            else if (lstatSync(subFull).isSymbolicLink()) problems.push(`${rel(subFull)} is a hidden link.`);
+          } else packageFolder(path.join(full, sub.name));
+        }
+      } else packageFolder(full);
     }
   };
   if (existsSync(path.join(dir, "node_modules"))) visit(path.join(dir, "node_modules"));

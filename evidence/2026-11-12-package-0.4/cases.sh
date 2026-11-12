@@ -2,6 +2,8 @@
 # Demonstration for package 0.4, template half: the same cases through the template's licence
 # check as it was on the integration branch before this package ("old") and as it is now ("new").
 # Each case is a copy of templates/next with one thing changed. Nothing in the repository is changed.
+# Arguments: a scratch folder; templates/next with its packages installed; the earlier script;
+# the lock file from before sharp was removed; and, optionally, templates/next as it was at 892fa52.
 set -uo pipefail
 S="$1"; T="$2"; OLD="$3"; OLDLOCK="$4"
 copy() { # copy the template; node_modules by hard links (only new files are ever added to it)
@@ -47,11 +49,23 @@ node -e 'const fs=require("fs"),f=process.argv[1]+"/package-lock.json",l=JSON.pa
 echo "G. The approved package caniuse-lite at another version (1.0.30001824), same licence"; d=$(copy G)
 rm -rf "$d/node_modules/caniuse-lite"; cp -a "$T/node_modules/caniuse-lite" "$d/node_modules/caniuse-lite"
 node -e 'const fs=require("fs"),d=process.argv[1];let f=d+"/node_modules/caniuse-lite/package.json",p=JSON.parse(fs.readFileSync(f,"utf8"));p.version="1.0.30001824";fs.writeFileSync(f,JSON.stringify(p));f=d+"/package-lock.json";const l=JSON.parse(fs.readFileSync(f,"utf8"));l.packages["node_modules/caniuse-lite"].version="1.0.30001824";fs.writeFileSync(f,JSON.stringify(l,null,2)+"\n")' "$d"; run "$d"
-echo "I. A folder nested inside another package calls itself by the stand-in's name and version (sharp@0.0.0-removed) and declares LGPL-3.0-or-later"; d=$(copy I)
-mkdir -p "$d/node_modules/fake-host/node_modules/sharp"
-echo '{"name":"fake-host","version":"1.0.0","license":"MIT"}' > "$d/node_modules/fake-host/package.json"
-echo '{"name":"sharp","version":"0.0.0-removed","license":"LGPL-3.0-or-later"}' > "$d/node_modules/fake-host/node_modules/sharp/package.json"
-node -e 'const fs=require("fs"),d=process.argv[1];let f=d+"/package.json",p=JSON.parse(fs.readFileSync(f,"utf8"));p.dependencies["fake-host"]="1.0.0";fs.writeFileSync(f,JSON.stringify(p,null,2)+"\n");f=d+"/package-lock.json";const l=JSON.parse(fs.readFileSync(f,"utf8"));l.packages["node_modules/fake-host"]={version:"1.0.0",resolved:"https://registry.npmjs.org/fake-host/-/fake-host-1.0.0.tgz",license:"MIT"};l.packages["node_modules/fake-host/node_modules/sharp"]={version:"0.0.0-removed",resolved:"https://registry.npmjs.org/sharp/-/sharp-0.0.0-removed.tgz",license:"LGPL-3.0-or-later"};fs.writeFileSync(f,JSON.stringify(l,null,2)+"\n")' "$d"; run "$d" 6
+echo "I. A folder nested inside the installed package next calls itself by the stand-in's name and version (sharp@0.0.0-removed) and declares LGPL-3.0-or-later. Nothing else is changed; the lock file does not list it."; d=$(copy I)
+mkdir -p "$d/node_modules/next/node_modules/sharp"
+echo '{"name":"sharp","version":"0.0.0-removed","license":"LGPL-3.0-or-later"}' > "$d/node_modules/next/node_modules/sharp/package.json"
+run "$d" 6
+if [ -n "${5:-}" ]; then
+  # The whole template as it was at commit 892fa52 (the fifth argument: a folder holding that
+  # commit's templates/next), with the same installed packages and the same forged folder.
+  d2="$S/demo04/I-at-892fa52"; mkdir -p "$d2"
+  (cd "$5" && tar cf - .) | (cd "$d2" && tar xf -)
+  cp -al "$T/node_modules" "$d2/node_modules"
+  mkdir -p "$d2/node_modules/next/node_modules/sharp"
+  echo '{"name":"sharp","version":"0.0.0-removed","license":"LGPL-3.0-or-later"}' > "$d2/node_modules/next/node_modules/sharp/package.json"
+  n=$(cd "$d2" && bash scripts/check-licences.sh 2>&1); oc=$?
+  echo "   the template's check as it was at commit 892fa52, before the review: exit code $oc ($([ $oc -eq 0 ] && echo PASSES || echo fails))"
+  echo "$n" | tail -1 | sed 's/^/      /'
+  echo
+fi
 echo "H. The lock file as it was before the image library sharp was removed (the installed packages unchanged)."
 echo "   Only the new rule is run here, without the separate lock-file check that keeps sharp out:"; d=$(copy H); cp "$OLDLOCK" "$d/package-lock.json"
 n=$(cd "$d" && npx tsx scripts/licence/check.ts 2>&1); echo "   new rule:  exit code $? "; echo "$n" | grep -E "^PROBLEM|^  .* \| .* \| " | grep -v "approved 20\|| installed" | sed 's/^/      /'

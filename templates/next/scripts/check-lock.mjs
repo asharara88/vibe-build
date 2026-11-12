@@ -9,8 +9,9 @@
 //
 // Usage: node scripts/check-lock.mjs [path to package-lock.json]
 import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 
-const lockPath = process.argv[2] ?? new URL("../package-lock.json", import.meta.url).pathname;
+const lockPath = process.argv[2] ?? fileURLToPath(new URL("../package-lock.json", import.meta.url));
 const packages = JSON.parse(readFileSync(lockPath, "utf8")).packages ?? {};
 const problems = [];
 // A lock file that lists nothing has not been checked: that is a failure, not a pass.

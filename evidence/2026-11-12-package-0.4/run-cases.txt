@@ -41,12 +41,16 @@ G. The approved package caniuse-lite at another version (1.0.30001824), same lic
         caniuse-lite@1.0.30001824 | CC-BY-4.0 | caniuse-lite is entered at version 1.0.30001823 only; this version has not been looked at
       PROBLEM: THIRD-PARTY-NOTICES.md is missing or out of date. Run the check with --write and commit the result.
 
-I. A folder nested inside another package calls itself by the stand-in's name and version (sharp@0.0.0-removed) and declares LGPL-3.0-or-later
+I. A folder nested inside the installed package next calls itself by the stand-in's name and version (sharp@0.0.0-removed) and declares LGPL-3.0-or-later. Nothing else is changed; the lock file does not list it.
    old check: exit code 1 (fails)
-      PROBLEMS: 1
-        sharp is listed as a real package (0.0.0-removed). Only the link to vendor/no-sharp is allowed.
+      Package "sharp@0.0.0-removed" is licensed under "LGPL-3.0-or-later" which is not permitted by the --onlyAllow flag. Exiting.
    new rule:  exit code 1 (fails)
-      PROBLEMS: 1
+      PROBLEM: node_modules/next/node_modules/sharp calls itself sharp and is not the component's own folder for that name.
+      PROBLEM: node_modules/next/node_modules/sharp is installed and is not in the lock file, so where it came from is not recorded.
+      PROBLEM: sharp@0.0.0-removed is installed in more than one folder with different licence declarations (node_modules/next/node_modules/sharp, node_modules/sharp); the licence tool reports only one of them.
+
+   the template's check as it was at commit 892fa52, before the review: exit code 0 (PASSES)
+      RESULT: PASSED
 
 H. The lock file as it was before the image library sharp was removed (the installed packages unchanged).
    Only the new rule is run here, without the separate lock-file check that keeps sharp out:

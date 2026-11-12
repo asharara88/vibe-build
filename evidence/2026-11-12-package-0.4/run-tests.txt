@@ -39,6 +39,7 @@ $ npx vitest run --reporter=verbose   (in builder/; the whole suite)
  ✓ test/licence-rule.test.ts > the real check, run against a folder with a test package added > fails when two folders call themselves the same package and version but declare different licences
  ✓ test/licence-rule.test.ts > the real check, run against a folder with a test package added > fails on a folder holding a package under another name that the lock file does not record
  ✓ test/licence-rule.test.ts > the real check, run against a folder with a test package added > fails on a package folder with no name, an unreadable package.json, or the component's own name
+ ✓ test/licence-rule.test.ts > the real check, run against a folder with a test package added > fails on a package put in a hidden folder, and on a scope folder that is a link
  ✓ test/licence-rule.test.ts > the real check, run against a folder with a test package added > fails on an optional or peer dependency that is neither installed nor in the lock file
  ✓ test/licence-rule.test.ts > the real check, run against a folder with a test package added > fails on a lock file that lists no packages, or cannot be read
  ✓ test/licence-rule.test.ts > the real check, run against a folder with a test package added > fails on a local package the rule does not name, whether a folder or a link
@@ -88,5 +89,5 @@ $ npx vitest run --reporter=verbose   (in builder/; the whole suite)
  ✓ test/app-spec.test.ts > app spec > refuses a choice field with no choices
  ✓ test/app-spec.test.ts > app spec > refuses more than five core actions
  Test Files  6 passed (6)
-      Tests  85 passed (85)
+      Tests  86 passed (86)
 exit code: 0

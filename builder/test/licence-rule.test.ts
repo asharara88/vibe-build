@@ -434,6 +434,33 @@ describe("the real check, run against a folder with a test package added", () =>
     for (const d of [a, b]) expect(run(d).code).toBe(1);
   });
 
+  it("fails on a package put in a hidden folder, and on a scope folder that is a link", () => {
+    // npm installs nothing under a dot-name, but Node would load a package from there by name.
+    for (const [i, where] of [[".hidden", "node_modules", "fake-gpl"], [".fake-gpl"], ["@zz", ".x"]].entries()) {
+      const dir = fixture(`hidden-${i}`, { "fake-mit": "" }, {}, { "fake-mit": "MIT" });
+      const p = path.join(dir, "node_modules", ...where);
+      mkdirSync(p, { recursive: true });
+      writeFileSync(path.join(p, "package.json"), JSON.stringify({ name: "fake-gpl", version: "1.0.0", license: "GPL-3.0-only" }));
+      const r = run(dir);
+      expect(r.code).toBe(1);
+      expect(r.out).toContain("is a package inside a hidden folder");
+    }
+    // A tool's cache with a package.json that names nothing is left alone.
+    const cache = fixture("hidden-cache", { "fake-mit": "" }, {}, { "fake-mit": "MIT" });
+    mkdirSync(path.join(cache, "node_modules", ".vite", "deps"), { recursive: true });
+    writeFileSync(path.join(cache, "node_modules", ".vite", "deps", "package.json"), JSON.stringify({ type: "module" }));
+    expect(run(cache).code).toBe(0);
+    const scope = fixture("scope-link", { "fake-mit": "" }, {}, { "fake-mit": "MIT" });
+    const outside = path.join(tmp, "outside-scope");
+    mkdirSync(path.join(outside, "pkg"), { recursive: true });
+    writeFileSync(path.join(outside, "pkg", "package.json"), JSON.stringify({ name: "@zz/pkg", version: "1.0.0", license: "MIT" }));
+    symlinkSync(outside, path.join(scope, "node_modules", "@zz"));
+    addToLock(scope, "node_modules/@zz/pkg", { version: "1.0.0", resolved: "https://registry.npmjs.org/@zz/pkg/-/pkg-1.0.0.tgz", license: "MIT" });
+    const rs = run(scope);
+    expect(rs.code).toBe(1);
+    expect(rs.out).toContain("node_modules/@zz is a link");
+  });
+
   it("fails on an optional or peer dependency that is neither installed nor in the lock file", () => {
     const dir = fixture("optional-unknown", { "fake-mit": "" }, {}, { "fake-mit": "MIT" });
     const pj = JSON.parse(readFileSync(path.join(dir, "package.json"), "utf8")) as Record<string, unknown>;
