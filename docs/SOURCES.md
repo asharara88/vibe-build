@@ -57,6 +57,18 @@ Every outside fact this project relies on, with the link and the date it was che
 | Python packages for the Django candidate, from PyPI on 11 Nov 2026: Django 6.1.3 latest, 5.2.x LTS line; psycopg 3.3.8 **LGPL-3.0-only**; gunicorn 27.0.0 MIT; whitenoise 6.12.0 MIT | [PyPI JSON](https://pypi.org/pypi/psycopg/json) and the same for each package |
 | PostgreSQL mirror tags show REL_18_7 (9 Nov 2026) ahead of the 18.6 release listed on postgresql.org | [PostgreSQL mirror](https://github.com/postgres/postgres) |
 
+## Read on 12 November 2026 from files installed on the development machine
+
+| Fact | Source |
+| --- | --- |
+| Installed versions and licence expressions: `lightningcss` 1.33.0 MPL-2.0; `lightningcss-linux-x64-gnu` 1.33.0 MPL-2.0; `lightningcss-linux-x64-musl` 1.33.0 MPL-2.0 (in `builder/` only); `spdx-exceptions` 2.5.0 CC-BY-3.0; `spdx-ranges` 2.1.1 (MIT AND CC-BY-3.0); `caniuse-lite` 1.0.30001823 CC-BY-4.0 | Each package's `package.json` under `builder/node_modules/` and `templates/next/node_modules/` |
+| CC-BY-4.0 section 3(a)(1): on sharing, keep the creators' identification, a copyright notice, a notice referring to the licence, a notice referring to the disclaimer of warranties and a link to the material where practicable; say whether the material was modified; say it is under this licence with the text or a link. Section 3(a)(2): in any reasonable manner | `templates/next/node_modules/caniuse-lite/LICENSE` |
+| MPL-2.0 sections 3.1 to 3.4: duties on distributing covered files in source or executable form; a larger work may be under other terms if the covered files still meet the licence; licence notices are not removed | `templates/next/node_modules/lightningcss/LICENSE` |
+| The SPDX data in `spdx-exceptions` and `spdx-ranges` is copyright the Linux Foundation and its contributors under CC-BY-3.0; the authors of `spdx-ranges` license their own work under MIT | The two packages' `README.md` files |
+| Claude Code documentation, read by a sub-agent on 12 Nov 2026 and not run on the owner's computer: install with `curl -fsSL https://claude.ai/install.sh \| bash`; `claude --chrome` needs the Claude in Chrome extension and a claude.ai sign-in; `claude remote-control` and `/remote-control`; `claude --teleport` | [Quickstart](https://code.claude.com/docs/en/quickstart.md); [Chrome](https://code.claude.com/docs/en/chrome.md); [Remote Control](https://code.claude.com/docs/en/remote-control.md); [Claude Code on the web](https://code.claude.com/docs/en/claude-code-on-the-web.md) |
+
+Not read: the LGPL-3.0 text, the CC-BY-3.0 text, the Mozilla MPL FAQ and the Creative Commons website. The session's network list refused those sites on 12 Nov 2026.
+
 ## From the handover, checked on 10 November 2026 and not re-checked today
 
 | Fact | Source |

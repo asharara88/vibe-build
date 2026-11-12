@@ -4,7 +4,7 @@
 | --- | --- |
 | File | `docs/BUILD-PLAN.md` |
 | Written | 11 November 2026, for the owner, Ahmed Sharara. Fifth version, with the owner's four rounds of amendments of the same day |
-| Amended | 12 November 2026, on the owner's instruction after his review of commit `e0e22e6`: package 1.2's "Done means" now names the exact proof rows that finish it (B1 to B6). Nothing else in the plan was changed |
+| Amended | 12 November 2026, in answer to an independent assistant's review of commit `e0e22e6`, supplied by the owner (the owner's own approval of this amendment is not yet recorded): package 1.2's "Done means" now names the exact proof rows that finish it (B1 to B6). Nothing else in the plan was changed |
 | Starting point | Branch `claude/walking-skeleton` at commit `6fca006`. Its code is an **unapproved starting baseline**: built, partly tested, not accepted by the owner |
 | Authority | This is the owner's standing instruction for long-running work. It replaces "do one task, then stop". The hard rules in `CLAUDE.md` and `HANDOVER.md` section 11 are unchanged and win over anything written here |
 

@@ -401,7 +401,7 @@ Each project has a cap in dollars, set when the project is created, with a defau
 | 12 Nov 2026 | The output part of the hold uses the long-prompt output rate where one could apply; the Input row and 5.2 now state the same test | A fresh reviewer found the Output row said only "the output rate", which would hold too little for Claude Haiku 5.5 over the threshold | Correction within amendment (c) |
 | 12 Nov 2026 | Step 5 says that where the fault and the freeze are recorded during a database failure is not yet designed, with a proposal | A fresh reviewer found the note had the gateway writing to the database at the moment the database refuses writes | Open design point; needs an engineer's judgement (gap 35) |
 | 12 Nov 2026 | 5.2 states what the pricing page says about the long-prompt rate and fast mode, and marks the one remaining assumption | The earlier sentence said the fast-mode factor "can only over-count", which was an assumption stated as fact | Correction |
-| 12 Nov 2026 | The budget rows of the proof table in 7.2 split into B1 to B14, each with one package | The owner's finding 2 of 12 November | On the owner's instruction; the assignment is his to change. B14 asks one thing more than the plan's wording for package 1.5: that the frozen project of B10 runs again after reconciliation |
+| 12 Nov 2026 | The budget rows of the proof table in 7.2 split into B1 to B14, each with one package | Finding 2 of the independent assistant's review supplied by the owner on 12 November | In answer to that review; the assignment is the owner's to approve or change. B14 asks one thing more than the plan's wording for package 1.5: that the frozen project of B10 runs again after reconciliation |
 
 ---
 
@@ -488,7 +488,7 @@ The thinnest path from a fixed brief to a running app with one acceptance check 
 | B13 | 1.4 | The two invariants hold throughout | For each of B8 to B12, a trace of recorded spend plus open holds at every step: never above the approved cap, never below what the provider was owed; no settled call costs more than its hold |
 | B14 | 1.5 | Unreconciled holds are closed only by the owner's recorded action | The unreconciled list shown with one example of each kind (interrupted, unreadable, expired, unsaveable); one reconciliation recorded with the actual cost and its evidence, after which the actual cost is what is charged and the frozen project of B10 runs again (amendment e, second half) |
 
-*Amendment to this table, 12 November 2026, on the owner's instruction:* the eight budget rows of the earlier table were split into B1 to B14 and each given one package, because package 1.2's "Done means" pointed at rows that belonged to packages depending on 1.2. Nothing was removed: every claim in the earlier rows is in a B row.
+*Amendment to this table, 12 November 2026, in answer to an independent assistant's review supplied by the owner:* the eight budget rows of the earlier table were split into B1 to B14 and each given one package, because package 1.2's "Done means" pointed at rows that belonged to packages depending on 1.2. Nothing was removed: every claim in the earlier rows is in a B row.
 
 ### 7.3 What it does not prove
 

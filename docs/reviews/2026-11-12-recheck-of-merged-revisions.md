@@ -2,7 +2,7 @@
 
 | | |
 | --- | --- |
-| Why | The owner's finding 3 of 12 November 2026: the recorded reviews of pull requests #3 to #6 covered earlier commits than the ones merged |
+| Why | Finding 3 of the independent assistant's review supplied by the owner on 12 November 2026: the recorded reviews of pull requests #3 to #6 covered earlier commits than the ones merged |
 | Reviewer | A fresh reviewer agent that did not write the documents and did not see the author's conversation. Read-only; everything read by commit hash at `claude/stage-1` commit `e0e22e6` |
 | What it read | For each package, the difference between the reviewed commit and the merged commit, and the final text |
 | This file | The reviewer's findings, condensed from its report without changing their sense. Line numbers are those of the files at `e0e22e6` |
