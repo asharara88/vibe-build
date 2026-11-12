@@ -17,7 +17,8 @@ Y = from-env-file-filled
 Z = literal-${MADE_UP_NAME}
 
 == 4. Profiles: naming a service starts it; a one-off run is removed only by 'down' with both the profile and --remove-orphans
-dry run of "up -d tools": lines saying Started: 1
+'up -d tools', without --profile, the service being under the profile 'tools' only: containers running: 1
+then '--profile tools down --remove-orphans': containers left: 0
 a one-off run, then 'docker compose down': containers left: 1
 a one-off run, then 'docker compose down --remove-orphans': containers left: 1
 a one-off run, then 'docker compose --profile tools down': containers left: 1
@@ -27,5 +28,31 @@ a one-off run, then 'docker compose --profile tools down --remove-orphans': cont
 buildx /usr/libexec/docker/cli-plugins/docker-buildx
 compose /usr/libexec/docker/cli-plugins/docker-compose
 
-== 6. drizzle-kit 0.31.11 loads a .env file by itself (read in the published package)
-bin.cjs lines that load dotenv/config: 1
+== 6. drizzle-kit 0.31.11 loads a .env file by itself when it starts (read in the published package)
+bin.cjs: where require_main is defined, and the module it is:
+616:var require_main = __commonJS({
+617-  "../node_modules/.pnpm/dotenv@16.5.0/node_modules/dotenv/lib/main.js"(exports2, module2) {
+bin.cjs lines that call dotenv's config(), require_main().config(: 1
+the call, with the two lines before it:
+91604-// ../node_modules/.pnpm/dotenv@16.5.0/node_modules/dotenv/config.js
+91605-(function() {
+91606:  require_main().config(
+
+== 7. 'docker context use' records the choice as currentContext in config.json under DOCKER_CONFIG; DOCKER_HOST is used over it
+config.json under DOCKER_CONFIG after 'docker context use measure05-made-up': "currentContext": "measure05-made-up"
+context Docker uses, DOCKER_HOST not set: measure05-made-up
+context Docker uses, DOCKER_HOST set (to the default socket): default
+context Docker uses, DOCKER_CONTEXT=default: default
+after 'docker context use default' and 'docker context rm': config.json lines naming the made-up context: 0; made-up contexts left: 0
+
+== 8. cliPluginsExtraDirs in the client's config.json adds a plugin folder
+config.json naming the stub's folder in cliPluginsExtraDirs: plugins found named measurestub: 1; 'docker measurestub' prints: made-up stub plugin ran
+empty client configuration: plugins found named measurestub: 0
+
+== 9. The template's .dockerignore keeps .env and .env.local out of the build context, and keeps .env.example
+files in the scratch context: .dockerignore .env .env.example .env.local Dockerfile made-up-app-file.txt
+files that reached the image: .dockerignore .env.example Dockerfile made-up-app-file.txt
+
+== 10. HTTP_PROXY, like HTTPS_PROXY (item 1), reaches RUN steps when not declared, and is then not in the image history
+build step output lines saying the proxy was seen (not declared): 1
+not declared: history lines holding the made-up proxy: 0
