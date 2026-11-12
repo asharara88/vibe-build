@@ -48,7 +48,33 @@ export const COUNT_MARGIN = { fraction: 0.05, tokens: 200 };
  * caller itself executes. Everything else is refused. The list is an assumption to be checked
  * against what the engine actually sends, in package 2.2.
  */
-const CLIENT_EXECUTED_TOOL_PREFIXES = ["bash_", "text_editor_"];
+const CLIENT_EXECUTED_TOOL_TYPE = /^(bash|text_editor)_\d{8}$/;
+
+/**
+ * The only top-level request fields the gateway forwards. A field outside this list is refused,
+ * because the hold is worked out from these fields alone: an unknown field could add prompt
+ * content the count never saw (a stored conversation, a container), bring in other models
+ * (fallbacks), or change what is billed (service tier, server-side context handling).
+ * To be widened only with a reason, when package 2.2 shows what the engine really sends.
+ */
+export const FORWARDED_FIELDS = new Set([
+  "model",
+  "messages",
+  "system",
+  "max_tokens",
+  "stream",
+  "temperature",
+  "top_p",
+  "top_k",
+  "stop_sequences",
+  "metadata",
+  "tools",
+  "tool_choice",
+  "thinking",
+  "speed",
+  "inference_geo",
+  "mcp_servers",
+]);
 
 export interface MeteredRequest {
   model?: unknown;
@@ -66,6 +92,14 @@ export type Refusal = { reason: string; message: string; detail?: Record<string,
 /** Checks that do not need the token count. Returns a refusal, or null when the request may go on. */
 export function guardRequest(body: MeteredRequest, profile: ProfileLimits): Refusal | null {
   const model = typeof body.model === "string" ? body.model : "";
+  const unknown = Object.keys(body).filter((k) => !FORWARDED_FIELDS.has(k));
+  if (unknown.length > 0) {
+    return {
+      reason: "field_not_allowed",
+      message: `The request carries ${unknown.length === 1 ? "a field" : "fields"} the gateway does not forward (${unknown.slice(0, 5).join(", ")}). The most a call can cost is worked out from a fixed list of fields; anything else could change the price or add prompt content that was not counted.`,
+      detail: { fields: unknown.slice(0, 20) },
+    };
+  }
   if (typeof body.max_tokens !== "number" || !Number.isInteger(body.max_tokens) || body.max_tokens <= 0) {
     return { reason: "max_tokens_missing", message: "The request does not state max_tokens as a whole number above zero, so the most it could cost cannot be worked out." };
   }
@@ -98,7 +132,7 @@ export function guardRequest(body: MeteredRequest, profile: ProfileLimits): Refu
     for (const t of body.tools as Array<Record<string, unknown> | null>) {
       const type = t && typeof t === "object" ? t["type"] : undefined;
       if (type === undefined || type === null || type === "custom") continue;
-      if (typeof type === "string" && CLIENT_EXECUTED_TOOL_PREFIXES.some((p) => type.startsWith(p))) continue;
+      if (typeof type === "string" && CLIENT_EXECUTED_TOOL_TYPE.test(type)) continue;
       return {
         reason: "server_tool_not_allowed",
         message: `The request includes a tool of type "${String(type)}". Tools the provider runs itself can be billed on top of tokens, so the gateway does not forward them.`,
@@ -143,9 +177,11 @@ export function computeHold(body: MeteredRequest, countedPromptTokens: number, p
   const fastAsked = body.speed === "fast";
   const fast = fastAsked || (profile.allowFastMode && FAST_MODE_PRICED.has(model));
   const factor = fast ? FAST_MODE_FACTOR : 1;
+  // A hold is rounded up to the next millionth of a dollar, never down.
   const round6 = (n: number) => Math.round(n * 1e6) / 1e6;
-  const inputPart = round6((held * price.cache_write_1h * factor) / 1_000_000);
-  const outputPart = round6((maxTokens * price.output * factor) / 1_000_000);
+  const up6 = (n: number) => Math.ceil(n * 1e6 - 1e-6) / 1e6;
+  const inputPart = up6((held * price.cache_write_1h * factor) / 1_000_000);
+  const outputPart = up6((maxTokens * price.output * factor) / 1_000_000);
   return {
     model,
     counted_prompt_tokens: countedPromptTokens,
@@ -173,4 +209,17 @@ export function countRequestBody(body: MeteredRequest): Record<string, unknown> 
     if (body[k] !== undefined) out[k] = body[k];
   }
   return out;
+}
+
+/**
+ * Beta features are switched on by the `anthropic-beta` request header and can change what a
+ * call costs. The gateway forwards a request only if every value in that header is on its list
+ * (GatewayOptions.allowedBetas; empty by default). Returns the values that are not allowed.
+ */
+export function betasNotAllowed(header: string | undefined | null, allowed: ReadonlySet<string>): string[] {
+  if (!header) return [];
+  return header
+    .split(",")
+    .map((v) => v.trim())
+    .filter((v) => v.length > 0 && !allowed.has(v));
 }

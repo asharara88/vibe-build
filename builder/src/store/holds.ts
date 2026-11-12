@@ -5,8 +5,9 @@
  *     spent + open holds + this call's hold <= cap
  * The check and the insert of the hold run in ONE transaction that locks the project's row, so
  * two calls arriving together are judged one after the other, whatever gateway process they
- * came through. A hold leaves the equation in one way only in this package: it is settled to
- * the actual cost of a call whose usage was read. Every other ending keeps it open.
+ * came through. A hold leaves the equation in one way only in this package: it is settled, to
+ * the actual cost of a call whose usage was read, or at nothing when the provider's own error
+ * says the request was turned away before any work. Every other ending keeps it open.
  */
 import type pg from "pg";
 
@@ -26,6 +27,7 @@ export interface Hold {
   expired: boolean;
   unreconciled: boolean;
   kept_reason: string | null;
+  seen_at_startup: boolean;
   gateway: string;
   opened_at: Date;
   deadline_at: Date;
@@ -136,6 +138,17 @@ export async function settleHold(
     if (!hold) throw new Error(`Hold ${p.holdId} does not exist for project ${p.projectId}`);
     if (hold.state !== "open") throw new Error(`Hold ${p.holdId} is already ${hold.state}`);
     const amountUsd = Number(hold.amount_usd);
+    if (!Number.isFinite(p.actualUsd) || p.actualUsd < 0) {
+      // A cost that is not a real, non-negative number is not a cost that was read.
+      await c.query("update holds set kept_reason = coalesce(kept_reason, $2) where id = $1", [p.holdId, "the cost worked out from the answer was not a valid amount"]);
+      await event(c, p.projectId, "hold.kept", { hold_id: Number(hold.id), amount_usd: amountUsd, reason: "the cost worked out from the answer was not a valid amount", seen: p.call }, p.step);
+      return { settled: false, exceeded: false, amountUsd };
+    }
+    if (hold.kept_reason !== null && !hold.expired && !hold.unreconciled) {
+      // Already kept for a reason: only the owner's recorded action closes it (package 1.5).
+      await event(c, p.projectId, "hold.kept", { hold_id: Number(hold.id), amount_usd: amountUsd, reason: `already kept: ${hold.kept_reason}`, seen: { ...p.call, cost_usd_as_read: p.actualUsd } }, p.step);
+      return { settled: false, exceeded: false, amountUsd };
+    }
     if (hold.expired || hold.unreconciled) {
       // An expired or unreconciled hold is closed only by the owner's recorded action. An answer
       // that arrives afterwards is written down for him, and the hold stays open at its full amount.
@@ -188,10 +201,10 @@ export async function keepHold(
   });
 }
 
-async function expireHoldsIn(c: Queryable, projectId: string | null, now: Date): Promise<Hold[]> {
+async function expireHoldsIn(c: Queryable, projectId: string, now: Date): Promise<Hold[]> {
   const r = await c.query<Hold>(
     `update holds set expired = true, unreconciled = true
-      where state = 'open' and not expired and deadline_at <= $1 and ($2::text is null or project_id = $2)
+      where state = 'open' and not expired and deadline_at <= $1 and project_id = $2
       returning *`,
     [now, projectId],
   );
@@ -212,18 +225,18 @@ async function expireHoldsIn(c: Queryable, projectId: string | null, now: Date):
  * amount and stays open: nothing is released.
  */
 export async function expireHolds(pool: pg.Pool, now: Date = new Date()): Promise<Hold[]> {
-  const client = await pool.connect();
-  try {
-    await client.query("begin");
-    const rows = await expireHoldsIn(client, null, now);
-    await client.query("commit");
-    return rows;
-  } catch (err) {
-    await client.query("rollback").catch(() => undefined);
-    throw err;
-  } finally {
-    client.release();
+  // One project at a time, each under that project's lock, in the same order every budget
+  // decision takes its locks (project first, then its holds). A sweep across all projects in
+  // one statement could deadlock with a call being admitted.
+  const due = await pool.query<{ project_id: string }>(
+    "select distinct project_id from holds where state = 'open' and not expired and deadline_at <= $1 order by project_id",
+    [now],
+  );
+  const out: Hold[] = [];
+  for (const row of due.rows) {
+    out.push(...(await inTransaction(pool, row.project_id, (c) => expireHoldsIn(c, row.project_id, now))));
   }
+  return out;
 }
 
 /**
@@ -232,18 +245,26 @@ export async function expireHolds(pool: pg.Pool, now: Date = new Date()): Promis
  * its full amount and still counts as an open hold; a `hold.found_at_startup` event says so.
  * Holds past their deadline are marked expired by the same rule as at any other time.
  */
-export async function recoverHolds(pool: pg.Pool, gateway: string, now: Date = new Date()): Promise<{ found: Hold[]; expired: Hold[] }> {
+export async function recoverHolds(pool: pg.Pool, gateway: string, now: Date = new Date()): Promise<{ found: Hold[]; newlyNoted: number; expired: Hold[] }> {
   const expired = await expireHolds(pool, now);
-  const r = await pool.query<Hold>("select * from holds where state = 'open' and gateway <> $1 order by id", [gateway]);
+  const r = await pool.query<Hold>("select * from holds where state = 'open' and gateway <> $1 order by project_id, id", [gateway]);
+  let newlyNoted = 0;
   for (const h of r.rows) {
-    await pool.query("insert into events(project_id, kind, step, payload) values ($1, $2, $3, $4)", [
-      h.project_id,
-      "hold.found_at_startup",
-      h.step,
-      JSON.stringify({ hold_id: Number(h.id), amount_usd: Number(h.amount_usd), opened_by: h.gateway, found_by: gateway, kept: true, still_open: true, expired: h.expired }),
-    ]);
+    if (h.seen_at_startup) continue; // noted at an earlier start; it is still open and still counts
+    await inTransaction(pool, h.project_id, async (c) => {
+      const u = await c.query("update holds set seen_at_startup = true where id = $1 and state = 'open' and not seen_at_startup", [h.id]);
+      if (u.rowCount !== 1) return;
+      newlyNoted++;
+      await event(
+        c,
+        h.project_id,
+        "hold.found_at_startup",
+        { hold_id: Number(h.id), amount_usd: Number(h.amount_usd), opened_by: h.gateway, found_by: gateway, kept: true, still_open: true, expired: h.expired },
+        h.step,
+      );
+    });
   }
-  return { found: r.rows, expired };
+  return { found: r.rows, newlyNoted, expired };
 }
 
 export async function listHolds(pool: pg.Pool, projectId: string): Promise<Hold[]> {

@@ -27,6 +27,17 @@ $ npx vitest run --reporter=verbose   (the whole suite; same tests as npm test)
  ✓ test/gateway.test.ts > holds: proof rows B1 to B6 of the design note > B4 (2): on a profile that allows fast mode, a model with a fast-mode price is held at twice the standard rates
  ✓ test/gateway.test.ts > holds: proof rows B1 to B6 of the design note > B5: a hold past its deadline is kept at its full amount, marked expired and unreconciled, and still counts
  ✓ test/gateway.test.ts > holds: proof rows B1 to B6 of the design note > B6: holds are database rows: a gateway that starts finds the hold an earlier one left open, and keeps it
+ ✓ test/gateway.test.ts > holds: found by review, and kept fixed > a usage block with one field that is not a count releases nothing: text, a negative number, a fraction
+ ✓ test/gateway.test.ts > holds: found by review, and kept fixed > a usage block that itemises several attempts is not taken as the whole bill
+ ✓ test/gateway.test.ts > holds: found by review, and kept fixed > an answer from a model with no price keeps the hold
+ ✓ test/gateway.test.ts > holds: found by review, and kept fixed > an error answer settles at nothing only when it is the provider's own rejection before work
+ ✓ test/gateway.test.ts > holds: found by review, and kept fixed > refuses request fields outside its list, and beta features it was not told to allow
+ ✓ test/gateway.test.ts > holds: found by review, and kept fixed > forwards the body as it read it: a repeated key cannot show the gateway one value and the provider another
+ ✓ test/gateway.test.ts > holds: found by review, and kept fixed > never stores or relays the real key, even when the provider's error echoes it
+ ✓ test/gateway.test.ts > holds: found by review, and kept fixed > a bill above the hold is charged in full, recorded as a breach, and raises a fault
+ ✓ test/gateway.test.ts > holds: found by review, and kept fixed > a streamed call that reaches the time limit keeps its hold
+ ✓ test/gateway.test.ts > holds: found by review, and kept fixed > marking overdue holds while calls are being admitted does not deadlock
+ ✓ test/gateway.test.ts > holds: found by review, and kept fixed > refuses a cost that is not a real, non-negative amount at the database as well
  ✓ test/gateway.test.ts > holds: what a hold cannot bound is refused before anything is forwarded > no max_tokens, or more than the profile's ceiling
  ✓ test/gateway.test.ts > holds: what a hold cannot bound is refused before anything is forwarded > routing that changes the price of every token
  ✓ test/gateway.test.ts > holds: what a hold cannot bound is refused before anything is forwarded > tools the provider runs itself, and tool servers
@@ -55,5 +66,5 @@ $ npx vitest run --reporter=verbose   (the whole suite; same tests as npm test)
  ✓ test/app-spec.test.ts > app spec > refuses a choice field with no choices
  ✓ test/app-spec.test.ts > app spec > refuses more than five core actions
  Test Files  5 passed (5)
-      Tests  52 passed (52)
+      Tests  63 passed (63)
 exit code: 0

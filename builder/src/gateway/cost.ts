@@ -63,3 +63,36 @@ export function mergeUsage(acc: Usage, part: ProviderUsage): Usage {
     speed: part.speed === "fast" ? "fast" : part.speed ? "standard" : acc.speed,
   };
 }
+
+const USAGE_NUMBER_FIELDS = ["input_tokens", "output_tokens", "cache_creation_input_tokens", "cache_read_input_tokens"] as const;
+const isCount = (v: unknown): v is number => typeof v === "number" && Number.isInteger(v) && v >= 0;
+
+/**
+ * Whether a usage block from the provider can be trusted as a bill: every count the meter
+ * uses is present as a whole number that is not negative, or absent. Anything else (text
+ * where a number belongs, a negative count, a fraction) means the usage was NOT read, and the
+ * caller keeps the hold. `require` names the counts that must be present.
+ * A usage block that itemises several attempts (`iterations`) is also not read: its top-level
+ * figures do not cover everything that was billed.
+ */
+export function usageIsReadable(part: unknown, require: ReadonlyArray<(typeof USAGE_NUMBER_FIELDS)[number]>): part is ProviderUsage {
+  if (part === null || typeof part !== "object" || Array.isArray(part)) return false;
+  const u = part as Record<string, unknown>;
+  if (u["iterations"] !== undefined && u["iterations"] !== null) return false;
+  for (const f of USAGE_NUMBER_FIELDS) {
+    const v = u[f];
+    if (v === undefined || v === null) {
+      if (require.includes(f)) return false;
+      continue;
+    }
+    if (!isCount(v)) return false;
+  }
+  const cc = u["cache_creation"];
+  if (cc !== undefined && cc !== null) {
+    if (typeof cc !== "object" || Array.isArray(cc)) return false;
+    for (const v of Object.values(cc as Record<string, unknown>)) if (v !== undefined && v !== null && !isCount(v)) return false;
+  }
+  const speed = u["speed"];
+  if (speed !== undefined && speed !== null && typeof speed !== "string") return false;
+  return true;
+}

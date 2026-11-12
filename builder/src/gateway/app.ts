@@ -7,8 +7,10 @@
  *   checks the budget equation in one locked database transaction:
  *       spent + open holds + this call's hold <= cap.
  *   If it does not fit, nothing is forwarded.
- * - When the call ends with usage it can read, the hold is settled to the actual cost. Any
- *   other ending keeps the hold open at its full amount: money is never released on a guess.
+ * - A hold is settled in two cases only: the call ended with usage figures that could be read
+ *   and trusted (settled to the actual cost), or the provider's own error says it turned the
+ *   request away before doing any work (settled at nothing). Any other ending keeps the hold
+ *   open at its full amount: money is never released on a guess.
  * - Refuses what a hold cannot bound: a prompt that cannot be counted, a model with no price,
  *   more output than the profile allows, routing or tools that are billed outside the token rates.
  *
@@ -20,8 +22,8 @@ import type pg from "pg";
 import { appendEvent } from "../store/events.js";
 import { expireHolds, keepHold, openHold, recoverHolds, settleHold } from "../store/holds.js";
 import { projectForToken, type Project } from "../store/projects.js";
-import { costUsd, emptyUsage, mergeUsage, type ProviderUsage, type Usage } from "./cost.js";
-import { computeHold, countRequestBody, DEFAULT_PROFILES, guardRequest, type MeteredRequest, type ProfileLimits } from "./hold.js";
+import { costUsd, emptyUsage, mergeUsage, usageIsReadable, type Usage } from "./cost.js";
+import { betasNotAllowed, computeHold, countRequestBody, DEFAULT_PROFILES, guardRequest, type MeteredRequest, type ProfileLimits } from "./hold.js";
 import { PRICE_TABLE_DATE, PRICES } from "./prices.js";
 
 export interface GatewayOptions {
@@ -43,6 +45,32 @@ export interface GatewayOptions {
   callTimeLimitMs?: { plain: number; stream: number };
   /** Added to the time limit to give a hold its deadline, in milliseconds. */
   holdDeadlineMarginMs?: { plain: number; stream: number };
+  /** Values of the `anthropic-beta` header the gateway forwards. Default: none. */
+  allowedBetas?: string[];
+}
+
+/**
+ * The provider's own error types for a request it turned away before doing any work, with the
+ * status each comes with. Only such an answer, in the provider's own error shape, settles a
+ * hold at nothing. Any other error keeps the hold: a status code alone is not proof.
+ */
+const REJECTED_BEFORE_WORK: Record<number, string[]> = {
+  400: ["invalid_request_error"],
+  401: ["authentication_error"],
+  403: ["permission_error"],
+  404: ["not_found_error"],
+  413: ["request_too_large"],
+  429: ["rate_limit_error"],
+};
+function rejectedBeforeWork(status: number, text: string): boolean {
+  const types = REJECTED_BEFORE_WORK[status];
+  if (!types) return false;
+  try {
+    const j = JSON.parse(text) as { type?: unknown; error?: { type?: unknown } };
+    return j.type === "error" && typeof j.error?.type === "string" && types.includes(j.error.type);
+  } catch {
+    return false;
+  }
 }
 
 const MINUTE = 60_000;
@@ -69,6 +97,9 @@ export function createGateway(opts: GatewayOptions) {
   const gatewayId = opts.gatewayId ?? `gw_${randomBytes(6).toString("hex")}`;
   const timeLimit = opts.callTimeLimitMs ?? DEFAULT_TIME_LIMIT;
   const deadlineMargin = opts.holdDeadlineMarginMs ?? DEFAULT_DEADLINE_MARGIN;
+  const allowedBetas = new Set(opts.allowedBetas ?? []);
+  /** The real key must never be stored or relayed, even if something upstream echoes it back. */
+  const redact = (text: string) => (opts.modelApiKey && text.includes(opts.modelApiKey) ? text.split(opts.modelApiKey).join("[redacted]") : text);
   const app = new Hono();
 
   app.get("/healthz", (c) => c.json({ ok: true }));
@@ -115,7 +146,10 @@ export function createGateway(opts: GatewayOptions) {
       if (!STRIP.has(key) && !key.startsWith("x-builder-")) headers.set(k, v);
     });
     headers.set("x-api-key", opts.modelApiKey);
-    const forward = (signal?: AbortSignal) => fetchImpl(upstream + path + url.search, { method: "POST", headers, body: rawBody, redirect: "manual", signal });
+    // What is forwarded is the body as the gateway read it, written out again, never the raw
+    // bytes: a body with a repeated key cannot show one value to the gateway and another to the provider.
+    const forwardedBody = metered ? JSON.stringify(body) : rawBody;
+    const forward = (signal?: AbortSignal) => fetchImpl(upstream + path + url.search, { method: "POST", headers, body: forwardedBody, redirect: "manual", signal });
 
     if (passthrough) {
       let res: Response;
@@ -140,6 +174,10 @@ export function createGateway(opts: GatewayOptions) {
     if (!profile) return refuse(400, "invalid_request_error", "profile_unknown", `This project's profile "${project.profile}" has no limits set in the gateway.`, { profile: project.profile });
     const guard = guardRequest(body, profile);
     if (guard) return refuse(400, "invalid_request_error", guard.reason, guard.message, guard.detail);
+    const badBetas = betasNotAllowed(c.req.header("anthropic-beta"), allowedBetas);
+    if (badBetas.length > 0) {
+      return refuse(400, "invalid_request_error", "beta_not_allowed", `The request switches on beta features the gateway does not forward (${badBetas.slice(0, 5).join(", ")}). A beta feature can change what a call costs.`, { betas: badBetas.slice(0, 20) });
+    }
 
     // 2: count the prompt with the provider's own counting call. No count, no call.
     let counted: number;
@@ -165,7 +203,8 @@ export function createGateway(opts: GatewayOptions) {
     // 3: work out the hold and check the budget equation, in one locked transaction.
     const arithmetic = computeHold(body, counted, profile, PRICE_TABLE_DATE);
     const limitMs = stream ? timeLimit.stream : timeLimit.plain;
-    const deadline = new Date(started + limitMs + (stream ? deadlineMargin.stream : deadlineMargin.plain));
+    // Counted from now, when the hold is about to open, so the margin is not eaten by the counting call.
+    const deadline = new Date(Date.now() + limitMs + (stream ? deadlineMargin.stream : deadlineMargin.plain));
     const opened = await openHold(opts.pool, {
       projectId: project.id,
       step,
@@ -198,9 +237,14 @@ export function createGateway(opts: GatewayOptions) {
       if (ended) return;
       ended = true;
       const { priced, fields } = callFields(usage, status, servedModel, extra);
-      const cost = costUsd(priced, usage) ?? 0;
+      const cost = costUsd(priced, usage);
       try {
-        const r = await settleHold(opts.pool, { projectId: project.id, holdId, step, actualUsd: cost, call: fields });
+        if (servedModel && servedModel !== requestedModel && !PRICES[servedModel]) {
+          // Answered by a model the price table does not know: its cost would be a guess.
+          await keepHold(opts.pool, { projectId: project.id, holdId, step, reason: "the answer came from a model that has no price in the gateway's table", seen: fields });
+          return;
+        }
+        const r = await settleHold(opts.pool, { projectId: project.id, holdId, step, actualUsd: cost ?? Number.NaN, call: fields });
         if (r.exceeded) fault("A settled call cost more than its hold.", { project: project.id, hold: holdId, hold_usd: r.amountUsd, actual_usd: cost });
       } catch (err) {
         // The hold stays open in the database at its full amount: nothing was released.
@@ -249,13 +293,13 @@ export function createGateway(opts: GatewayOptions) {
       return c.json(errorBody("api_error", "The model provider answered with a redirect, which the gateway does not follow."), 502);
     }
     if (!res.ok) {
-      const text = await res.text().catch(() => "");
+      const text = redact(await res.text().catch(() => ""));
       stopTimer();
-      if (res.status >= 400 && res.status < 500) {
-        // The provider rejected the request before doing any work: nothing was billed.
+      if (rejectedBeforeWork(res.status, text)) {
+        // The provider's own error says it turned the request away before doing any work.
         await settle(emptyUsage(), res.status, "", { upstream_error: safeJson(text), rejected_before_work: true });
       } else {
-        await keep("the provider answered with a server error", emptyUsage(), res.status, "", { upstream_error: safeJson(text) });
+        await keep(res.status >= 500 ? "the provider answered with a server error" : "an error answer that is not one of the provider's own rejections before work", emptyUsage(), res.status, "", { upstream_error: safeJson(text) });
       }
       return new Response(text, { status: res.status, headers: copyHeaders(res.headers) });
     }
@@ -267,6 +311,7 @@ export function createGateway(opts: GatewayOptions) {
       let servedModel = "";
       let sawInput = false;
       let sawOutput = false;
+      let sawUnreadable = false; // a usage block that could not be trusted: the whole call counts as unread
       let buffer = "";
       const decoder = new TextDecoder();
       const consume = (text: string) => {
@@ -280,6 +325,7 @@ export function createGateway(opts: GatewayOptions) {
           if (r.model) servedModel = r.model;
           if (r.kind === "message_start") sawInput = true;
           if (r.kind === "message_delta") sawOutput = true;
+          if (r.kind === "unreadable") sawUnreadable = true;
         }
       };
       // Pull from the provider ourselves so that every ending is seen: a clean end, a provider
@@ -301,7 +347,7 @@ export function createGateway(opts: GatewayOptions) {
               stopTimer();
               if (buffer.trim()) consume("\n\n");
               if (limit.signal.aborted) await keep("the call reached its time limit", usage, res.status, servedModel);
-              else if (sawInput && sawOutput) await settle(usage, res.status, servedModel);
+              else if (sawInput && sawOutput && !sawUnreadable) await settle(usage, res.status, servedModel);
               else await keep("the stream ended without usage figures that could be read", usage, res.status, servedModel);
               ctrl.close();
               return;
@@ -310,7 +356,7 @@ export function createGateway(opts: GatewayOptions) {
             ctrl.enqueue(value);
           } catch (err) {
             stopTimer();
-            await keep("the provider's stream failed part-way", usage, res.status, servedModel, { error: errorSummary(err) });
+            await keep(limit.signal.aborted ? "the call reached its time limit" : "the provider's stream failed part-way", usage, res.status, servedModel, { error: errorSummary(err) });
             ctrl.error(err);
           }
         },
@@ -335,9 +381,9 @@ export function createGateway(opts: GatewayOptions) {
     let usage: Usage | null = null;
     let servedModel = "";
     try {
-      const j = JSON.parse(text) as { usage?: ProviderUsage; model?: string };
+      const j = JSON.parse(text) as { usage?: unknown; model?: string };
       servedModel = typeof j.model === "string" ? j.model : "";
-      if (j.usage && typeof j.usage.input_tokens === "number" && typeof j.usage.output_tokens === "number") usage = mergeUsage(emptyUsage(), j.usage);
+      if (usageIsReadable(j.usage, ["input_tokens", "output_tokens"])) usage = mergeUsage(emptyUsage(), j.usage);
     } catch {
       /* not JSON: usage stays unread */
     }
@@ -403,7 +449,7 @@ function frameEnd(buffer: string): number {
 }
 
 /** Read usage (and the served model) from one SSE frame. message_start carries input usage; message_delta carries output. */
-export function readFrame(frame: string, acc: Usage): { usage: Usage; model?: string; kind?: "message_start" | "message_delta" } {
+export function readFrame(frame: string, acc: Usage): { usage: Usage; model?: string; kind?: "message_start" | "message_delta" | "unreadable" } {
   const data = frame
     .split(/\r?\n/)
     .filter((l) => l.startsWith("data:"))
@@ -411,12 +457,13 @@ export function readFrame(frame: string, acc: Usage): { usage: Usage; model?: st
     .join("\n");
   if (!data) return { usage: acc };
   try {
-    const ev = JSON.parse(data) as { type?: string; message?: { usage?: ProviderUsage; model?: string }; usage?: ProviderUsage };
-    if (ev.type === "message_start" && ev.message?.usage && typeof ev.message.usage.input_tokens === "number") {
+    const ev = JSON.parse(data) as { type?: string; message?: { usage?: unknown; model?: string }; usage?: unknown };
+    if (ev.type === "message_start" && ev.message && usageIsReadable(ev.message.usage, ["input_tokens"])) {
       return { usage: mergeUsage(acc, ev.message.usage), model: ev.message.model, kind: "message_start" };
     }
-    if (ev.type === "message_start" && ev.message) return { usage: acc, model: ev.message.model };
-    if (ev.type === "message_delta" && ev.usage && typeof ev.usage.output_tokens === "number") return { usage: mergeUsage(acc, ev.usage), kind: "message_delta" };
+    if (ev.type === "message_start" && ev.message) return { usage: acc, model: ev.message.model, kind: "unreadable" };
+    if (ev.type === "message_delta" && usageIsReadable(ev.usage, ["output_tokens"])) return { usage: mergeUsage(acc, ev.usage), kind: "message_delta" };
+    if (ev.type === "message_delta" && ev.usage !== undefined) return { usage: acc, kind: "unreadable" };
   } catch {
     /* not JSON; ignore */
   }

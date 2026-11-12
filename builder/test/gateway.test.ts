@@ -20,6 +20,8 @@ const seenKeys: string[] = [];
 const faults: string[] = [];
 /** How many metered calls reached the stand-in provider. A refused call must not move it. */
 let forwarded = 0;
+/** The last metered request body the stand-in received, as text. */
+let lastForwardedBody = "";
 
 const PROFILES: Record<string, ProfileLimits> = {
   ...DEFAULT_PROFILES,
@@ -51,8 +53,19 @@ function standInProvider() {
   app.post("/v1/messages", async (c) => {
     forwarded++;
     seenKeys.push(c.req.header("x-api-key") ?? "(none)");
-    const body = (await c.req.json()) as { model: string; stream?: boolean; max_tokens?: number; metadata?: { test?: string } };
+    lastForwardedBody = await c.req.text();
+    const body = JSON.parse(lastForwardedBody) as { model: string; stream?: boolean; max_tokens?: number; metadata?: { test?: string } };
     const mode = body.metadata?.test ?? "";
+    const ok = (usage: unknown, model: string = body.model) => c.json({ id: "msg_test", type: "message", model, content: [{ type: "text", text: "hello" }], usage });
+    if (mode === "bad-usage") return ok({ ...PLAIN_USAGE, cache_read_input_tokens: "lots" });
+    if (mode === "negative-usage") return ok({ ...PLAIN_USAGE, input_tokens: -1_000_000 });
+    if (mode === "fraction-usage") return ok({ ...PLAIN_USAGE, output_tokens: 12.5 });
+    if (mode === "iterations") return ok({ ...PLAIN_USAGE, iterations: [{ type: "message", input_tokens: 30, output_tokens: 300 }] });
+    if (mode === "served-unknown") return ok(PLAIN_USAGE, "claude-opus-4-8");
+    if (mode === "fail-408") return c.json({ type: "error", error: { type: "timeout_error", message: "stand-in timeout" } }, 408);
+    if (mode === "fail-400-other") return c.text("<html>Bad Request from something in between</html>", 400);
+    if (mode === "fail-429") return c.json({ type: "error", error: { type: "rate_limit_error", message: "stand-in rate limit" } }, 429);
+    if (mode === "echo-key-500") return c.json({ type: "error", error: { type: "api_error", message: `stand-in echo of ${c.req.header("x-api-key")}` } }, 500);
     if (mode === "fail-500") return c.json({ type: "error", error: { type: "api_error", message: "stand-in failure" } }, 500);
     if (mode === "fail-400") return c.json({ type: "error", error: { type: "invalid_request_error", message: "stand-in rejection" } }, 400);
     if (mode === "redirect") return c.redirect("http://127.0.0.1:9/elsewhere", 307);
@@ -396,7 +409,7 @@ describe("holds: proof rows B1 to B6 of the design note", () => {
       expect(res.status).toBe(502); // cut off at the time limit
       const before = await getBudget(pool, id);
       near(before.openHolds, PLAIN_HOLD);
-      expect(await expireHolds(pool, new Date(Date.now() - 60_000))).toEqual([]); // not yet past its deadline
+      expect((await expireHolds(pool, new Date(Date.now() - 60_000))).filter((h) => h.project_id === id)).toEqual([]); // not yet past its deadline
       await new Promise((r) => setTimeout(r, 300));
       const expired = (await expireHolds(pool)).filter((h) => h.project_id === id);
       expect(expired).toHaveLength(1);
@@ -432,6 +445,8 @@ describe("holds: proof rows B1 to B6 of the design note", () => {
     const keeper = await startHoldKeeper(pool, "gw_test_restarted");
     keeper.stop();
     expect(keeper.found).toBeGreaterThanOrEqual(1);
+    // A further start finds the same hold still open and does not write the event again.
+    (await startHoldKeeper(pool, "gw_test_restarted_again")).stop();
     const found = await listEvents(pool, id, "hold.found_at_startup");
     expect(found).toHaveLength(1);
     expect(found[0]!.payload).toMatchObject({ opened_by: "gw_test_first", found_by: "gw_test_restarted", kept: true, still_open: true });
@@ -447,6 +462,153 @@ describe("holds: proof rows B1 to B6 of the design note", () => {
     } finally {
       restarted.server.close();
     }
+  });
+});
+
+describe("holds: found by review, and kept fixed", () => {
+  const keptOpen = async (id: string, reasonPart: string) => {
+    const kept = await waitForEvents(id, "hold.kept", 1);
+    expect(kept.length).toBeGreaterThanOrEqual(1);
+    expect((kept[0]!.payload as { reason: string }).reason).toContain(reasonPart);
+    expect(await listEvents(pool, id, "hold.settled")).toHaveLength(0);
+    expect(await listEvents(pool, id, "model.call")).toHaveLength(0);
+    const b = await getBudget(pool, id);
+    near(b.openHolds, PLAIN_HOLD);
+    expect(b.spent).toBe(0);
+    expect((await listHolds(pool, id))[0]).toMatchObject({ state: "open", actual_usd: null });
+  };
+
+  it("a usage block with one field that is not a count releases nothing: text, a negative number, a fraction", async () => {
+    for (const mode of ["bad-usage", "negative-usage", "fraction-usage"]) {
+      const { id, token } = await newProject(PLAIN_HOLD * 1.5);
+      expect((await call(token, plain(mode))).status).toBe(200);
+      await keptOpen(id, "usage could not be read");
+      expect((await call(token, plain())).status).toBe(402); // the hold still counts: a second call does not fit
+    }
+  });
+
+  it("a usage block that itemises several attempts is not taken as the whole bill", async () => {
+    const { id, token } = await newProject(5);
+    expect((await call(token, plain("iterations"))).status).toBe(200);
+    await keptOpen(id, "usage could not be read");
+  });
+
+  it("an answer from a model with no price keeps the hold", async () => {
+    const { id, token } = await newProject(5);
+    expect((await call(token, plain("served-unknown"))).status).toBe(200);
+    await keptOpen(id, "no price");
+  });
+
+  it("an error answer settles at nothing only when it is the provider's own rejection before work", async () => {
+    const rejected = await newProject(5);
+    expect((await call(rejected.token, plain("fail-429"))).status).toBe(429);
+    expect((await listEvents(pool, rejected.id, "model.call"))[0]!.payload).toMatchObject({ status: 429, cost_usd: 0, rejected_before_work: true });
+    expect((await getBudget(pool, rejected.id)).openHolds).toBe(0);
+    for (const mode of ["fail-408", "fail-400-other"]) {
+      const { id, token } = await newProject(5);
+      await call(token, plain(mode));
+      await keptOpen(id, "not one of the provider's own rejections");
+    }
+  });
+
+  it("refuses request fields outside its list, and beta features it was not told to allow", async () => {
+    for (const extra of [{ thread: { type: "continue" } }, { fallbacks: [{ model: "claude-haiku-5-5" }] }, { service_tier: "priority" }, { container: "c_1" }, { context_management: {} }, { output_config: {} }]) {
+      const { id, token } = await newProject(5);
+      const before = forwarded;
+      expect((await call(token, plain(undefined, extra))).status).toBe(400);
+      expect(forwarded).toBe(before);
+      expect(((await listEvents(pool, id, "gateway.refused"))[0]!.payload as { reason: string }).reason).toBe("field_not_allowed");
+      expect(await listHolds(pool, id)).toHaveLength(0);
+    }
+    const { id, token } = await newProject(5);
+    const before = forwarded;
+    expect((await call(token, plain(), "/v1/messages", { "anthropic-beta": "some-beta-2026-01-01" })).status).toBe(400);
+    expect(forwarded).toBe(before);
+    expect(((await listEvents(pool, id, "gateway.refused"))[0]!.payload as { reason: string }).reason).toBe("beta_not_allowed");
+    const lenient = await listen(createGateway({ pool, modelApiKey: REAL_KEY, upstreamUrl, profiles: PROFILES, allowedBetas: ["some-beta-2026-01-01"], onFault: (m) => faults.push(m) }));
+    try {
+      expect((await callAt(lenient.url, token, plain(), "/v1/messages", { "anthropic-beta": "some-beta-2026-01-01" })).status).toBe(200);
+      expect((await callAt(lenient.url, token, plain(), "/v1/messages", { "anthropic-beta": "some-beta-2026-01-01, another-beta" })).status).toBe(400);
+    } finally {
+      lenient.server.close();
+    }
+  });
+
+  it("forwards the body as it read it: a repeated key cannot show the gateway one value and the provider another", async () => {
+    const { id, token } = await newProject(5);
+    const raw = `{"model":"claude-opus-5-5","max_tokens":128000,"max_tokens":${PLAIN_MAX_TOKENS},"messages":[{"role":"user","content":"a long prompt the count would never see"}],"messages":[]}`;
+    const res = await fetch(gatewayUrl + "/v1/messages", { method: "POST", headers: { "content-type": "application/json", "x-api-key": token }, body: raw });
+    expect(res.status).toBe(200);
+    expect(lastForwardedBody).not.toContain("128000");
+    expect(lastForwardedBody).not.toContain("a long prompt");
+    expect(JSON.parse(lastForwardedBody)).toMatchObject({ max_tokens: PLAIN_MAX_TOKENS, messages: [] });
+    expect((await listEvents(pool, id, "hold.opened"))[0]!.payload).toMatchObject({ arithmetic: { max_tokens: PLAIN_MAX_TOKENS } });
+  });
+
+  it("never stores or relays the real key, even when the provider's error echoes it", async () => {
+    const { id, token } = await newProject(5);
+    const res = await call(token, plain("echo-key-500"));
+    expect(res.status).toBe(500);
+    expect(await res.text()).not.toContain(REAL_KEY);
+    expect(JSON.stringify(await listEvents(pool, id))).not.toContain(REAL_KEY);
+    expect(JSON.stringify(await listEvents(pool, id))).toContain("[redacted]");
+  });
+
+  it("a bill above the hold is charged in full, recorded as a breach, and raises a fault", async () => {
+    // The stand-in serves fast mode although the request did not ask and the profile does not allow it.
+    const breaches: string[] = [];
+    const g = await listen(createGateway({ pool, modelApiKey: REAL_KEY, upstreamUrl, profiles: PROFILES, onFault: (m) => breaches.push(m) }));
+    try {
+      const { id, token } = await newProject(5);
+      const res = await callAt(g.url, token, { ...plain("fast-1h"), max_tokens: 300 });
+      expect(res.status).toBe(200);
+      const exceeded = await listEvents(pool, id, "hold.exceeded");
+      expect(exceeded).toHaveLength(1);
+      const p = exceeded[0]!.payload as { amount_usd: number; actual_usd: number };
+      expect(p.actual_usd).toBeGreaterThan(p.amount_usd);
+      near((await getBudget(pool, id)).spent, p.actual_usd); // the truth is what is charged
+      expect(breaches.some((m) => m.includes("cost more than its hold"))).toBe(true);
+    } finally {
+      g.server.close();
+    }
+  });
+
+  it("a streamed call that reaches the time limit keeps its hold", async () => {
+    const quick = await listen(createGateway({ pool, modelApiKey: REAL_KEY, upstreamUrl, profiles: PROFILES, callTimeLimitMs: { plain: 200, stream: 200 }, holdDeadlineMarginMs: { plain: 100, stream: 100 }, onFault: (m) => faults.push(m) }));
+    try {
+      const { id, token } = await newProject(5);
+      const res = await callAt(quick.url, token, streamed("slow-stream"));
+      await res.text().catch(() => "");
+      const kept = await waitForEvents(id, "hold.kept", 1);
+      expect((kept[0]!.payload as { reason: string }).reason).toContain("time limit");
+      expect(await listEvents(pool, id, "hold.settled")).toHaveLength(0);
+      expect((await listHolds(pool, id))[0]!.state).toBe("open");
+    } finally {
+      quick.server.close();
+    }
+  });
+
+  it("marking overdue holds while calls are being admitted does not deadlock", async () => {
+    const quick = await listen(createGateway({ pool, modelApiKey: REAL_KEY, upstreamUrl, profiles: PROFILES, callTimeLimitMs: { plain: 60, stream: 60 }, holdDeadlineMarginMs: { plain: 1, stream: 1 }, onFault: (m) => faults.push(m) }));
+    try {
+      const projects = await Promise.all(Array.from({ length: 10 }, () => newProject(5)));
+      await Promise.all(projects.map((p) => callAt(quick.url, p.token, plain("very-slow")))); // each leaves an overdue hold
+      await new Promise((r) => setTimeout(r, 80));
+      for (let round = 0; round < 3; round++) {
+        const results = await Promise.all([expireHolds(pool), ...projects.map((p) => call(p.token, plain())), expireHolds(pool)]);
+        for (const r of results.slice(1, -1)) expect((r as Response).status).toBe(200);
+      }
+    } finally {
+      quick.server.close();
+    }
+  });
+
+  it("refuses a cost that is not a real, non-negative amount at the database as well", async () => {
+    const { id, token } = await newProject(5);
+    expect((await call(token, plain("no-usage"))).status).toBe(200);
+    const hold = (await listHolds(pool, id))[0]!;
+    await expect(pool.query("update holds set state = 'settled', closed_at = now(), actual_usd = 'NaN' where id = $1", [hold.id])).rejects.toThrow(/holds_actual_is_a_number/);
+    await expect(pool.query("update holds set state = 'settled', closed_at = now(), actual_usd = -1 where id = $1", [hold.id])).rejects.toThrow(/holds_actual_is_a_number/);
   });
 });
 
@@ -469,6 +631,7 @@ describe("holds: what a hold cannot bound is refused before anything is forwarde
   });
   it("tools the provider runs itself, and tool servers", async () => {
     await refusedWith(plain(undefined, { tools: [{ type: "web_search_20260209", name: "web_search" }] }), "server_tool_not_allowed");
+    await refusedWith(plain(undefined, { tools: [{ type: "bash_code_execution_made_up", name: "x" }] }), "server_tool_not_allowed");
     await refusedWith(plain(undefined, { mcp_servers: [{ type: "url", url: "https://example.invalid", name: "x" }] }), "server_tool_not_allowed");
   });
   it("fast mode where the profile does not allow it, or the model has no fast-mode price", async () => {
