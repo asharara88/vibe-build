@@ -15,7 +15,7 @@ AR = ROOT / "templates/next/messages/ar.json"
 OUT = ROOT / "docs/arabic-wording-list.md"
 
 # Wording changes suggested by review, for the owner to accept or reject. They are not applied to the
-# template here: the template is under the L11 licence gate and this package is a document only.
+# template here: they wait on the owner.
 SUGGESTED = [
     ("app.sample_banner", "بيانات تجريبية. كل ما تراه هنا مُختلَق.", "بيانات تجريبية. كل ما تراه هنا غير حقيقي. (or: وهمي)",
      "\"مُختلَق\" carries the sense of a falsehood (fabricated, made up as a lie). \"غير حقيقي\" (not real) is the most neutral; \"وهمي\" is the common word for dummy data but is also used for fake things. The owner's call."),
@@ -61,7 +61,7 @@ def main():
     for k in missing_en:
         L.append(f"| `{k}` | **missing** | {ar[k]} |")
     L += ["", "## Suggested changes, for the owner to accept or reject", "",
-          "Found by fresh reviewers on 11 and 12 November 2026. Not yet applied: the template's files are under the licence gate L11 of the build plan, and this package is a document only. Once the owner accepts a suggestion and L11 is true, the change is made in `templates/next/messages/ar.json` and this list is regenerated.",
+          "Found by fresh reviewers on 11 and 12 November 2026. Not yet applied: this package is a document only, and the suggestions wait on the owner. (The template's files were under the licence gate L11 of the build plan, which is true since 12 Nov 2026.) Once the owner accepts a suggestion, the change is made in `templates/next/messages/ar.json` and this list is regenerated.",
           "", "| Key | Current Arabic | Suggested Arabic | Why |", "| --- | --- | --- | --- |"]
     for key, cur, new, why in SUGGESTED:
         live = ar.get(key, "")

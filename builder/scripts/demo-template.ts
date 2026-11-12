@@ -2,7 +2,8 @@
  * Evidence run for a house template: copy it into a project sandbox, build its image, start the
  * database and the app, create the tables and the sample users, take screenshots, remove everything.
  *
- * Usage (from builder/): npx tsx scripts/demo-template.ts <templateDir> <outDir>
+ * Usage (from builder/): npx tsx scripts/demo-template.ts <templateDir> <outDir> [--guard]
+ * With --guard, the role guard is also tried by each kind of visitor (package 0.3).
  * Development profile only. Schema push and seeding run from this machine against the project's
  * database because the run-time image carries no development tools (docs/KNOWN-GAPS.md, gap 29).
  */
@@ -76,6 +77,17 @@ try {
   log("Screenshots, taken by a browser as a person would see the pages:");
   const shots = await run("node", ["--import", "tsx", "scripts/screenshot.ts", appUrl, outDir, samplePassword], { cwd: resolve(import.meta.dirname, ".."), timeout: 300_000 });
   log(shots.stdout.trim().split("\n").map((l) => "  " + l).join("\n"));
+  if (process.argv.includes("--guard")) {
+    log("");
+    log("The role guard, tried by each kind of visitor (scripts/guard-checks.ts):");
+    try {
+      const g = await run("node", ["--import", "tsx", "scripts/guard-checks.ts", appUrl, join(outDir, "guard"), samplePassword], { cwd: resolve(import.meta.dirname, ".."), timeout: 300_000 });
+      log(g.stdout.trim().split("\n").map((l) => "  " + l).join("\n"));
+    } catch (err) {
+      log(((err as { stdout?: string }).stdout ?? "").trim().split("\n").map((l) => "  " + l).join("\n"));
+      throw new Error("the role guard checks did not all pass");
+    }
+  }
   log("");
   log(`Whole run: ${Math.round((Date.now() - t0) / 1000)} s.`);
 } catch (err) {

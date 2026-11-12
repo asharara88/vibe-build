@@ -1,0 +1,52 @@
+$ npm test   (in templates/next/)
+# Subtest: who is asking
+    ok 1 - nobody, when there is no session
+    ok 2 - a user with the role employee
+    ok 3 - a user with the role manager
+    ok 4 - a user with the role hr_admin
+    ok 5 - an account with no role this app recognises is not given the lowest role
+ok 1 - who is asking
+# Subtest: may they: a page, action or route for HR admins only
+    ok 1 - employee: refused, role not allowed
+    ok 2 - manager: refused, role not allowed
+    ok 3 - HR admin: allowed, and the user is handed on
+    ok 4 - no recognised role: refused, even where every role is allowed
+    ok 5 - nobody: refused, not signed in
+ok 2 - may they: a page, action or route for HR admins only
+# Subtest: may they: the list of roles itself
+    ok 1 - an empty list allows nobody
+    ok 2 - every recognised role is allowed where the list is every role
+    ok 3 - a name on the list that is not a role lets nobody in under it
+ok 3 - may they: the list of roles itself
+# Subtest: the guard check on this template
+    ok 1 - passes, and lists every page, action and route with its guard
+ok 4 - the guard check on this template
+# Subtest: a page without a guard fails the check
+    ok 1 - a plain page component
+    ok 2 - a page that calls something else, or keeps the guard in a variable first
+    ok 3 - a guard of the same name that does not come from the guards' own file
+    ok 4 - a page in the older pages folder, which is not checked and so not allowed
+ok 5 - a page without a guard fails the check
+# Subtest: a data route without a guard fails the check
+    ok 1 - a plain handler, as a function or as a constant
+    ok 2 - one guarded method beside one that is not
+    ok 3 - handlers exported together or passed on from another file
+    ok 4 - passes when every method has its guard, with settings beside them
+ok 6 - a data route without a guard fails the check
+# Subtest: a form action without a guard fails the check
+    ok 1 - a plain action in a file marked "use server"
+    ok 2 - a function marked "use server" inside a page or a component
+    ok 3 - the same, for a function written with an arrow, and for one inside an event handler
+    ok 4 - passes when the action is written with its guard
+ok 7 - a form action without a guard fails the check
+# Subtest: a check that read nothing has not passed
+    ok 1 - fails on a folder with no app in it
+ok 8 - a check that read nothing has not passed
+# tests 27
+# suites 8
+# pass 27
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+exit code: 0

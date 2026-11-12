@@ -29,7 +29,7 @@ export const user = pgTable("user", {
   emailVerified: boolean("email_verified").notNull().default(false),
   image: text("image"),
   /** Rule 5: every screen checks this before showing anything. Set by an admin, never by the user. */
-  role: text("role").notNull().default("employee"),
+  role: text("role").notNull().default("none"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });

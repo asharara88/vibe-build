@@ -1,8 +1,4 @@
-import { setRequestLocale } from "next-intl/server";
+import { publicPage } from "@/lib/roles";
 import { SignInForm } from "./SignInForm";
 
-export default async function SignInPage({ params }: { params: Promise<{ locale: string }> }) {
-  const { locale } = await params;
-  setRequestLocale(locale);
-  return <SignInForm />;
-}
+export default publicPage("the sign-in form: it must be reachable before anyone is signed in", () => <SignInForm />);
