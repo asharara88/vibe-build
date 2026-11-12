@@ -780,7 +780,7 @@ describe("scripted engine: live, in the engine container (development profile)",
     expect(await projectContainers()).toBe("");
   }, 120_000);
 
-  it("the applier's refusals, in the engine container: a wrong fingerprint for a replace (nothing written, though the entry before it was sound), an add over an existing file, a path outside the workspace, a path through a link; and a copy of the applier outside /engine refuses to start", async () => {
+  it("the applier's refusals, in the engine container: a wrong fingerprint for a replace (nothing written, though the entry before it was sound), an add over an existing file, a path outside the workspace, a path through a link; and the applier does not start outside /engine or without a workspace", async () => {
     const applier = (stepId: string) => inEngine(["node", "/engine/apply.mjs", "--example", "test-refusals", "--step", stepId, "--protected", JSON.stringify(PROTECTED)], protectedMounts());
     // A link in the workspace, planted on this machine for the test: it points out of the workspace.
     symlinkSync("/tmp", join(workspace, "linked"));
@@ -805,10 +805,21 @@ describe("scripted engine: live, in the engine container (development profile)",
     // None of them wrote anything.
     expect(await workspaceChanges(repo)).toEqual(CLEAN);
     expect(existsSync(join(workspace, "notes"))).toBe(false);
-    // The applier's own guard: anywhere but /engine, it does not start. (The guard's /.dockerenv test,
-    // which is what stops it on the machine that hosts the builder, is not run there: hard rule 9.)
+    // The applier's own guard (it needs /.dockerenv, /workspace and to be run from /engine). Run from
+    // anywhere but /engine, it does not start; nor in a container with no workspace mounted. Its
+    // /.dockerenv test cannot fail in any container, and is not run on this machine (hard rule 9).
+    const refusal = JSON.stringify({ kind: "error", reason: "apply.mjs runs only inside the project's engine container" });
     const copy = await inEngine(["sh", "-c", "cp /engine/apply.mjs /tmp/apply.mjs && node /tmp/apply.mjs --example example-1 --step 01-data --protected '[]'"]);
-    expect(copy).toEqual({ code: 1, lines: [JSON.stringify({ kind: "error", reason: "apply.mjs runs only inside the project's engine container" })] });
+    expect(copy).toEqual({ code: 1, lines: [refusal] });
+    const noWorkspace = await run(
+      "docker",
+      ["run", "--rm", "--network", "none", "--user", "node", "--read-only", "--cap-drop", "ALL", "-v", `${sets}:/engine:ro`, "node:22-alpine", "node", "/engine/apply.mjs", "--example", "example-1", "--step", "01-data", "--protected", "[]"],
+      { env: dockerEnv(sb) },
+    ).then(
+      (r) => ({ code: 0, out: r.stdout.trim() }),
+      (e: { code?: number; stdout?: string }) => ({ code: e.code, out: (e.stdout ?? "").trim() }),
+    );
+    expect(noWorkspace).toEqual({ code: 1, out: refusal });
     expect(await workspaceChanges(repo)).toEqual(CLEAN);
     expect(await projectContainers()).toBe("");
   }, 120_000);
