@@ -1,5 +1,5 @@
 import { execFile, spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { promisify } from "node:util";
@@ -105,12 +105,77 @@ describe("sandbox manager: compose documents", () => {
       const sb = createSandbox({ ...base, profile: "server", dir, app: { buildContext: join(dir, "workspace"), port: 3100 } }, "sample-only-password");
       expect(JSON.parse(readFileSync(join(dir, "docker-client", "config.json"), "utf8"))).toEqual({ cliPluginsExtraDirs: ["/made-up/plugins"] });
       expect(() => dockerEnv(sb)).not.toThrow();
-      await expect(async () => sandbox.up(sb, ["tools"])).rejects.toThrow(/not started with up/);
+      // Called without await inside a function: a refusal thrown before the promise would fail here.
+      await expect(sandbox.up(sb, ["tools"])).rejects.toThrow(/not started with up/);
       writeFileSync(join(userDir, "config.json"), JSON.stringify({ currentContext: "made-up-context" }));
-      expect(() => dockerEnv(sb)).toThrow(/context/);
+      expect(() => dockerEnv(sb)).toThrow(/docker context use default`, or set DOCKER_HOST/);
     } finally {
       if (saved === undefined) delete process.env.DOCKER_CONFIG;
       else process.env.DOCKER_CONFIG = saved;
+    }
+  });
+
+  it("package 0.5: a context chosen in the configuration is accepted when DOCKER_HOST is set; DOCKER_CONTEXT=default is accepted, any other DOCKER_CONTEXT refused", () => {
+    const saved = { DOCKER_CONFIG: process.env.DOCKER_CONFIG, DOCKER_HOST: process.env.DOCKER_HOST, DOCKER_CONTEXT: process.env.DOCKER_CONTEXT };
+    const userDir = mkdtempSync(join(tmpdir(), "builder-user-docker-"));
+    const dir = mkdtempSync(join(tmpdir(), "builder-sb-"));
+    try {
+      process.env.DOCKER_CONFIG = userDir;
+      delete process.env.DOCKER_HOST;
+      delete process.env.DOCKER_CONTEXT;
+      // Made-up values only. dockerEnv reads them; nothing here talks to a daemon.
+      writeFileSync(join(userDir, "config.json"), JSON.stringify({ currentContext: "made-up-context" }));
+      const sb = createSandbox({ ...base, profile: "server", dir }, "sample-only-password");
+      expect(() => dockerEnv(sb)).toThrow(/context/);
+      process.env.DOCKER_HOST = "tcp://made-up-daemon.invalid:2375";
+      expect(dockerEnv(sb).DOCKER_HOST).toBe("tcp://made-up-daemon.invalid:2375");
+      delete process.env.DOCKER_HOST;
+      writeFileSync(join(userDir, "config.json"), "{}");
+      process.env.DOCKER_CONTEXT = "default";
+      expect(() => dockerEnv(sb)).not.toThrow();
+      expect(dockerEnv(sb).DOCKER_CONTEXT).toBeUndefined();
+      process.env.DOCKER_CONTEXT = "made-up-context";
+      expect(() => dockerEnv(sb)).toThrow(/DOCKER_CONTEXT/);
+    } finally {
+      for (const [k, v] of Object.entries(saved)) {
+        if (v === undefined) delete process.env[k];
+        else process.env[k] = v;
+      }
+      rmSync(userDir, { recursive: true, force: true });
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("package 0.5: a plugin link to a folder that has since gone is replaced, or removed, without error", () => {
+    const saved = process.env.DOCKER_CONFIG;
+    const first = mkdtempSync(join(tmpdir(), "builder-user-docker-"));
+    const second = mkdtempSync(join(tmpdir(), "builder-user-docker-"));
+    const dir = mkdtempSync(join(tmpdir(), "builder-sb-"));
+    const spec: SandboxSpec = { ...base, profile: "server", dir };
+    const link = join(dir, "docker-client", "cli-plugins");
+    try {
+      mkdirSync(join(first, "cli-plugins"));
+      process.env.DOCKER_CONFIG = first;
+      createSandbox(spec, "sample-only-password");
+      expect(readlinkSync(link)).toBe(join(first, "cli-plugins"));
+      // The folder the link points to goes: the link is now dangling.
+      rmSync(first, { recursive: true, force: true });
+      expect(existsSync(link)).toBe(false);
+      expect(lstatSync(link).isSymbolicLink()).toBe(true);
+      mkdirSync(join(second, "cli-plugins"));
+      process.env.DOCKER_CONFIG = second;
+      expect(() => createSandbox(spec, "sample-only-password")).not.toThrow();
+      expect(readlinkSync(link)).toBe(join(second, "cli-plugins"));
+      // Dangling again, and this time there is no plugin folder to link to: the link is removed.
+      rmSync(second, { recursive: true, force: true });
+      expect(() => createSandbox(spec, "sample-only-password")).not.toThrow();
+      expect(() => lstatSync(link)).toThrow();
+    } finally {
+      if (saved === undefined) delete process.env.DOCKER_CONFIG;
+      else process.env.DOCKER_CONFIG = saved;
+      rmSync(first, { recursive: true, force: true });
+      rmSync(second, { recursive: true, force: true });
+      rmSync(dir, { recursive: true, force: true });
     }
   });
 

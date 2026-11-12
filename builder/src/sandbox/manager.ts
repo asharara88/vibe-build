@@ -336,7 +336,8 @@ export const DOCKER_DAEMON_SETTINGS = ["DOCKER_HOST", "DOCKER_TLS", "DOCKER_TLS_
  * it (proxies, registry sign-ins) is read or used.
  */
 export function userDockerClient(): { dir: string; pluginDirs: string[]; context: string | null } {
-  const dir = process.env.DOCKER_CONFIG ?? join(process.env.HOME ?? homedir(), ".docker");
+  // An empty DOCKER_CONFIG is treated as not set.
+  const dir = process.env.DOCKER_CONFIG || join(process.env.HOME ?? homedir(), ".docker");
   let pluginDirs: string[] = [];
   let context: string | null = null;
   try {
@@ -351,19 +352,28 @@ export function userDockerClient(): { dir: string; pluginDirs: string[]; context
 
 /**
  * The environment every Docker command of a sandbox runs with: PATH, HOME, the settings that name the
- * Docker daemon, and DOCKER_CONFIG pointed at the project's own, empty Docker client folder. Nothing
- * else of the builder's process is there for Compose to copy into a container. The client folder is
- * the project's own because Docker's client configuration can itself add settings to every container
- * (its `proxies` entry adds proxy settings). The user's plugin folder is linked into it, and the
- * extra plugin folders the user's configuration names are copied into its configuration, so that
- * `docker compose` and `docker buildx` are still found. Registry sign-ins in the user's configuration
- * are not used (known gap 5). A Docker context is refused, whether chosen with DOCKER_CONTEXT or in the
- * user's configuration: the daemon is the one DOCKER_HOST names, or the default one, for every command.
+ * Docker daemon, and DOCKER_CONFIG pointed at the project's own Docker client folder, which holds only
+ * where to find plugins. Nothing else of the builder's process is there for Compose to copy into a
+ * container. The client folder is the project's own because Docker's client configuration can itself
+ * add settings to every container (its `proxies` entry adds proxy settings). The user's plugin folder is
+ * linked into it, and the extra plugin folders the user's configuration names are copied into its
+ * configuration, so that `docker compose` and `docker buildx` are still found. Registry sign-ins in the
+ * user's configuration are not used (known gap 5).
+ * The sandbox's commands reach the daemon DOCKER_HOST names, or the default one. So that the user's own
+ * Docker commands reach the same daemon, these are refused: DOCKER_CONTEXT naming any context but
+ * `default`; and, when DOCKER_HOST is not set, a context other than `default` chosen in the user's
+ * configuration, which is where `docker context use` records it. When DOCKER_HOST is set, Docker uses it
+ * over that choice. Both measured: evidence/2026-11-12-package-0.5/measure-docker-behaviours.sh, item 7.
  */
 export function dockerEnv(sb: Pick<Sandbox, "dir">): NodeJS.ProcessEnv {
-  if (process.env.DOCKER_CONTEXT || userDockerClient().context) {
+  if (process.env.DOCKER_CONTEXT && process.env.DOCKER_CONTEXT !== "default") {
     throw new Error(
-      "The sandbox names its Docker daemon with DOCKER_HOST; a Docker context (DOCKER_CONTEXT, or one chosen with `docker context use`) is not supported. Set DOCKER_HOST instead.",
+      "The sandbox names its Docker daemon with DOCKER_HOST; a Docker context chosen with DOCKER_CONTEXT is not supported. Unset DOCKER_CONTEXT, and set DOCKER_HOST if the daemon is not the default one.",
+    );
+  }
+  if (!process.env.DOCKER_HOST && userDockerClient().context) {
+    throw new Error(
+      "The sandbox names its Docker daemon with DOCKER_HOST; the Docker context chosen in your Docker configuration (with `docker context use`) is not supported. Run `docker context use default`, or set DOCKER_HOST.",
     );
   }
   const env: NodeJS.ProcessEnv = {
@@ -411,7 +421,8 @@ export const sandbox = {
     for (const image of [sb.appBuild.image, sb.appBuild.toolsImage]) await run("docker", ["image", "rm", "-f", image], { env: dockerEnv(sb) }).catch(() => undefined);
   },
   /** Start services and wait for their health checks. The tools service is never started this way: it is refused by name. */
-  up: (sb: Sandbox, services: string[] = []) => {
+  up: async (sb: Sandbox, services: string[] = []): Promise<string> => {
+    // An async function, so that this refusal is a rejected promise like any other failure of up.
     if (services.includes("tools")) throw new Error("The tools service runs one command at a time, through runOnce; it is not started with up.");
     return compose(sb, ["up", "-d", "--wait", ...services], 600_000, false);
   },

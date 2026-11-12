@@ -2,8 +2,10 @@
 # Measures, on this machine, the Docker and Compose behaviours package 0.5 relies on.
 # Docker's own documentation (docs.docker.com) could not be read from the session that wrote this,
 # so these are recorded as measurements (docs/SOURCES.md). Made-up values only; nothing is pushed or pulled.
-# Usage: bash measure-docker-behaviours.sh  (needs the local images alpine:3.20; npm registry access for item 6)
+# Usage, from the repository root: bash evidence/2026-11-12-package-0.5/measure-docker-behaviours.sh
+# (needs the local image alpine:3.20; npm registry access for item 6)
 set -u
+REPO=$(cd "$(dirname "$0")/../.." && pwd)
 W=$(mktemp -d)
 trap 'rm -rf "$W"' EXIT
 EMPTY="$W/empty-client"; mkdir -p "$EMPTY"
@@ -61,8 +63,11 @@ services:
     profiles: ["tools"]
     command: ["sleep", "60"]
 YAML
-D compose -f "$W/c4/compose.yaml" --dry-run up -d tools 2>&1 | grep -c "Started" | sed 's/^/dry run of "up -d tools": lines saying Started: /'
 left() { D ps -aq --filter label=com.docker.compose.project=measure05p | wc -l; }
+D compose -f "$W/c4/compose.yaml" up -d tools >/dev/null 2>&1
+echo "'up -d tools', without --profile, the service being under the profile 'tools' only: containers running: $(D ps -q --filter label=com.docker.compose.project=measure05p --filter status=running | wc -l)"
+D compose -f "$W/c4/compose.yaml" --profile tools down --remove-orphans >/dev/null 2>&1
+echo "then '--profile tools down --remove-orphans': containers left: $(left)"
 for flags in "down" "down --remove-orphans" "--profile tools down" "--profile tools down --remove-orphans"; do
   D compose -f "$W/c4/compose.yaml" run -d tools sleep 60 >/dev/null 2>&1
   D compose -f "$W/c4/compose.yaml" $flags >/dev/null 2>&1
@@ -76,5 +81,61 @@ echo "== 5. CLI plugins are found in a system folder even with an empty client c
 D info --format '{{range .ClientInfo.Plugins}}{{.Name}} {{.Path}}{{"\n"}}{{end}}' | grep -E "^(compose|buildx) "
 
 echo
-echo "== 6. drizzle-kit 0.31.11 loads a .env file by itself (read in the published package)"
-( cd "$W" && npm pack drizzle-kit@0.31.11 --silent >/dev/null 2>&1 && tar -xzf drizzle-kit-0.31.11.tgz && echo "bin.cjs lines that load dotenv/config: $(grep -c 'dotenv/config' package/bin.cjs)" ) || echo "could not fetch the package"
+echo "== 6. drizzle-kit 0.31.11 loads a .env file by itself when it starts (read in the published package)"
+( cd "$W" && npm pack drizzle-kit@0.31.11 --silent >/dev/null 2>&1 && tar -xzf drizzle-kit-0.31.11.tgz && {
+  echo "bin.cjs: where require_main is defined, and the module it is:"
+  grep -n -A1 '^var require_main = ' package/bin.cjs
+  echo "bin.cjs lines that call dotenv's config(), require_main().config(: $(grep -c 'require_main().config(' package/bin.cjs)"
+  echo "the call, with the two lines before it:"
+  grep -n -B2 'require_main().config(' package/bin.cjs
+} ) || echo "could not fetch the package"
+
+echo
+echo "== 7. 'docker context use' records the choice as currentContext in config.json under DOCKER_CONFIG; DOCKER_HOST is used over it"
+C="$W/context-client"; mkdir -p "$C"
+DC() { env -i PATH="$PATH" HOME="$W" DOCKER_CONFIG="$C" "$@"; }
+DC docker context create measure05-made-up --docker host=unix:///var/run/docker.sock >/dev/null 2>&1 || echo "context create failed"
+DC docker context use measure05-made-up >/dev/null 2>&1
+echo "config.json under DOCKER_CONFIG after 'docker context use measure05-made-up': $(grep -o '"currentContext": *"[^"]*"' "$C/config.json")"
+echo "context Docker uses, DOCKER_HOST not set: $(DC docker context show 2>/dev/null)"
+echo "context Docker uses, DOCKER_HOST set (to the default socket): $(DC DOCKER_HOST=unix:///var/run/docker.sock docker context show 2>/dev/null)"
+echo "context Docker uses, DOCKER_CONTEXT=default: $(DC DOCKER_CONTEXT=default docker context show 2>/dev/null)"
+DC docker context use default >/dev/null 2>&1
+DC docker context rm measure05-made-up >/dev/null 2>&1
+echo "after 'docker context use default' and 'docker context rm': config.json lines naming the made-up context: $(grep -c measure05-made-up "$C/config.json"); made-up contexts left: $(DC docker context ls -q | grep -c measure05)"
+
+echo
+echo "== 8. cliPluginsExtraDirs in the client's config.json adds a plugin folder"
+X="$W/extra-plugins"; E="$W/extra-client"; mkdir -p "$X" "$E"
+cat > "$X/docker-measurestub" <<'SH'
+#!/bin/sh
+if [ "$1" = docker-cli-plugin-metadata ]; then
+  echo '{"SchemaVersion":"0.1.0","Vendor":"made-up","Version":"0.0.1","ShortDescription":"made-up stub plugin"}'
+else
+  echo "made-up stub plugin ran"
+fi
+SH
+chmod +x "$X/docker-measurestub"
+printf '{"cliPluginsExtraDirs":["%s"]}\n' "$X" > "$E/config.json"
+DE() { env -i PATH="$PATH" HOME="$W" DOCKER_CONFIG="$E" docker "$@"; }
+echo "config.json naming the stub's folder in cliPluginsExtraDirs: plugins found named measurestub: $(DE info --format '{{range .ClientInfo.Plugins}}{{.Name}}{{"\n"}}{{end}}' | grep -c '^measurestub$'); 'docker measurestub' prints: $(DE measurestub 2>&1)"
+echo "empty client configuration: plugins found named measurestub: $(D info --format '{{range .ClientInfo.Plugins}}{{.Name}}{{"\n"}}{{end}}' | grep -c '^measurestub$')"
+
+echo
+echo "== 9. The template's .dockerignore keeps .env and .env.local out of the build context, and keeps .env.example"
+B9="$W/b9"; mkdir -p "$B9"
+cp "$REPO/templates/next/.dockerignore" "$B9/.dockerignore"
+for f in .env .env.local .env.example made-up-app-file.txt; do echo "MADE_UP_SETTING=made-up" > "$B9/$f"; done
+printf 'FROM alpine:3.20\nCOPY . /ctx/\n' > "$B9/Dockerfile"
+echo "files in the scratch context: $(cd "$B9" && ls -A | paste -sd ' ' -)"
+D build -q --no-cache -t measure05-b9 "$B9" >/dev/null 2>&1 || echo "build b9 failed"
+echo "files that reached the image: $(D run --rm measure05-b9 ls -A /ctx | paste -sd ' ' -)"
+D image rm -f measure05-b9 >/dev/null
+
+echo
+echo "== 10. HTTP_PROXY, like HTTPS_PROXY (item 1), reaches RUN steps when not declared, and is then not in the image history"
+mkdir -p "$W/b10"
+printf 'FROM alpine:3.20\nRUN echo "proxy seen by the build step: ${HTTP_PROXY:+yes}"\n' > "$W/b10/Dockerfile"
+echo "build step output lines saying the proxy was seen (not declared): $(D build --no-cache --progress=plain -t measure05-b10 --build-arg HTTP_PROXY="$MADE_UP" "$W/b10" 2>&1 | grep -c 'proxy seen by the build step: yes$')"
+echo "not declared: history lines holding the made-up proxy: $(D history --no-trunc measure05-b10 | grep -c "$MADE_UP")"
+D image rm -f measure05-b10 >/dev/null
