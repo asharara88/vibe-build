@@ -38,7 +38,7 @@ exit code: 0
 # D. The script's third step, which lists development packages outside the permitted list and refuses nothing, and its last step, which rewrites a report file, were not run.
 ```
 
-So, by the build plan's definition, **L9 is true** since the owner's approval of 12 November: the packages it names are approved in `docs/DECISIONS.md` and the committed check passes. What this check does **not** do: it applies the permitted list to shipped packages only. Development tools are refused only if their licence is on a short list of strong-copyleft names; anything else outside the permitted list is listed, not refused. The approved names are not entered in it as exceptions; it passes because of that weaker rule. Replacing it with one rule is package 0.4. All 191 installed packages are read.
+So, by the build plan's definition, **L9 is true** since the owner's approval of 12 November (on the reading of that approval which the owner has not yet confirmed; `docs/STATUS.md`): the packages it names are approved in `docs/DECISIONS.md` and the committed check passes. What this check does **not** do: it applies the permitted list to shipped packages only. Development tools are refused only if their licence is on a short list of strong-copyleft names; anything else outside the permitted list is listed, not refused. The approved names are not entered in it as exceptions; it passes because of that weaker rule. Replacing it with one rule is package 0.4. All 191 installed packages are read.
 
 ## `templates/next/`: the check fails, and it reads only part of what is installed
 

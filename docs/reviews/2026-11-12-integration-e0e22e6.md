@@ -155,3 +155,19 @@ The reviewer's closing answers: package 0.1's "Done means" unmet at `612d281` (y
 Left as they are and said here: the list "Yours to confirm" in the status file is still a list, not separate questions with choices; the saved test run holds summary lines, not the full output; four lines of the status file are long.
 
 **This review read `2c9cd7f`. The commit that answers it also brings in the record of the owner's decision to remove `sharp` (package R1, on its own branch). It has not been read by anyone independent when it is made**; it is re-read before any merge.
+
+## Sixth review: the re-read of commit `07a953a`
+
+A fresh reviewer agent read `07a953a` by commit and re-ran the licence commands. **Verdict: not ready to merge**, for two one-sentence points; everything else confirmed. Fifth-review findings: seven answered, two partly.
+
+| # | Finding | Blocking | Answer in the commit after `07a953a` |
+| --- | --- | --- | --- |
+| 1 | The status file's question on the second stack gave as its reason "nothing in the queue waits on it", against the same file's table, where package S1a waits on exactly that | Yes | The reason now says what waits on it and that nothing able to start today is held up |
+| 2 | The plan's progress row for 0.1 said "three reviews" | Yes | The count is removed, here and in the status file's opening line |
+| 3 | The recommended option of the question on the template's licence condition left out three consequences, and claimed a step more than the record shows | No | The three consequences are stated in the option; the wording is "as recorded" and names the unconfirmed reading it rests on |
+| 4 | R1's evidence was cited as if present on this branch | No | The plan's row and known gap 40 name the branch and the pull request |
+| 5 to 13 | Known gap 32's "two reasons"; stale pointers; the exact-name weakness of the development-tools rule not in the gaps file; Claude Code's readings in the owner's `sharp` row; "carried" where the integration branch still carries; `sharp` and "lock file" unexplained; a caveat on "L9 is true" in the evidence file; "a sealed box"; the order of the next packages | No | Each corrected. Not changed: two counts in the evidence file are shown without the command that produced them |
+
+Earlier answers in this file cite the status file's questions by the numbers they had at the time; the numbers have since shifted as questions were answered.
+
+**This review read `07a953a`. The commit that answers it is re-read before any merge.**
