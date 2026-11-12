@@ -14,7 +14,8 @@
  *   certificate. This is development only (known gaps 1 and 2).
  */
 import { execFile } from "node:child_process";
-import { copyFileSync, mkdirSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, symlinkSync, writeFileSync } from "node:fs";
+import { homedir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 
@@ -89,8 +90,10 @@ export function toolsImageName(projectId: string): string {
  * sandbox, never from the machine that hosts the builder (package 0.5, known gap 29).
  *
  * Its environment is a named list: DATABASE_URL, the names in `toolsEnv`, and the names in the app's
- * secrets file. Every entry has a value written here, so Compose takes nothing from the host's
- * environment. It is under the "tools" profile, so it starts only when it is run on purpose.
+ * secrets file. Every entry has a value written here, so no name is copied from the host's environment.
+ * Compose still fills in `${NAME}` inside a value (DATABASE_URL's password, on purpose); it runs with the
+ * narrow environment of `dockerEnv`, so that comes from the project's own .env file. It is under the
+ * "tools" profile, so it starts only when it is run on purpose.
  */
 function toolsService(spec: SandboxSpec, common: Record<string, unknown>, databaseUrl: string) {
   if (!spec.app) return null;
@@ -273,6 +276,11 @@ export interface Sandbox {
 export function createSandbox(spec: SandboxSpec, dbPassword: string, appSecrets: Record<string, string> = {}): Sandbox {
   mkdirSync(join(spec.dir, "secrets"), { recursive: true });
   mkdirSync(join(spec.dir, "workspace"), { recursive: true });
+  // The project's own Docker client folder, empty but for the user's CLI plugins (see dockerEnv).
+  mkdirSync(join(spec.dir, "docker-client"), { recursive: true, mode: 0o700 });
+  const userPlugins = join(process.env.DOCKER_CONFIG ?? join(homedir(), ".docker"), "cli-plugins");
+  const projectPlugins = join(spec.dir, "docker-client", "cli-plugins");
+  if (existsSync(userPlugins) && !existsSync(projectPlugins)) symlinkSync(userPlugins, projectPlugins);
   writeFileSync(join(spec.dir, "secrets", "db_password"), dbPassword, { mode: 0o600 });
   // DB_PASSWORD is interpolated by Compose into DATABASE_URL from the project's own .env file.
   writeFileSync(join(spec.dir, ".env"), `DB_PASSWORD=${dbPassword}\n`, { mode: 0o600 });
@@ -304,14 +312,42 @@ export function createSandbox(spec: SandboxSpec, dbPassword: string, appSecrets:
   return { dir: spec.dir, composeFile, projectName: composeProjectName(spec.projectId), appBuild, toolsEnvNames };
 }
 
-async function compose(sb: Sandbox, args: string[], timeoutMs = 180_000, env?: NodeJS.ProcessEnv): Promise<string> {
-  const { stdout } = await run("docker", ["compose", "-f", sb.composeFile, ...args], { timeout: timeoutMs, maxBuffer: 10 * 1024 * 1024, env });
-  return stdout;
+/** Settings that only say which Docker daemon to talk to. Passed on, so every command reaches the same daemon. */
+export const DOCKER_DAEMON_SETTINGS = ["DOCKER_HOST", "DOCKER_TLS_VERIFY", "DOCKER_CERT_PATH"] as const;
+
+/**
+ * The environment every Docker command of a sandbox runs with: PATH, HOME, the settings that name the
+ * Docker daemon, and DOCKER_CONFIG pointed at the project's own, empty Docker client folder. Nothing
+ * else of the builder's process is there for Compose to copy into a container. The client folder is
+ * the project's own because Docker's client configuration can itself add settings to every container
+ * (its `proxies` entry adds proxy settings); the user's CLI plugins are linked into it so that
+ * `docker compose` and `docker buildx` are still found. A Docker context (DOCKER_CONTEXT, or one chosen
+ * in the user's client configuration) is not used: the daemon is the one DOCKER_HOST names, or the
+ * default one, for every command alike.
+ */
+export function dockerEnv(sb: Pick<Sandbox, "dir">): NodeJS.ProcessEnv {
+  if (process.env.DOCKER_CONTEXT) {
+    throw new Error("The sandbox names its Docker daemon with DOCKER_HOST; a Docker context (DOCKER_CONTEXT) is not supported.");
+  }
+  const env: NodeJS.ProcessEnv = {
+    PATH: process.env.PATH ?? "/usr/local/bin:/usr/bin:/bin",
+    HOME: process.env.HOME ?? homedir(),
+    DOCKER_CONFIG: join(sb.dir, "docker-client"),
+  };
+  for (const k of DOCKER_DAEMON_SETTINGS) if (process.env[k]) env[k] = process.env[k];
+  return env;
 }
 
-/** The environment the `docker compose` command itself gets for a one-off run: enough to find Docker, nothing else. */
-export function composeRunEnv(): NodeJS.ProcessEnv {
-  return { PATH: process.env.PATH ?? "/usr/local/bin:/usr/bin:/bin", HOME: process.env.HOME ?? "/root" };
+async function compose(sb: Sandbox, args: string[], timeoutMs = 180_000, withTools = true): Promise<string> {
+  // The tools profile is named on every command but `up`, so that a tools container is seen, and
+  // removed with the rest, while `up` never starts one.
+  const profile = withTools ? ["--profile", "tools"] : [];
+  const { stdout } = await run("docker", ["compose", "-f", sb.composeFile, ...profile, ...args], {
+    timeout: timeoutMs,
+    maxBuffer: 10 * 1024 * 1024,
+    env: dockerEnv(sb),
+  });
+  return stdout;
 }
 
 export const sandbox = {
@@ -327,7 +363,7 @@ export const sandbox = {
       const args = ["build", "--target", target, "--tag", tag, ...(b.hostNetwork ? ["--network", "host"] : [])];
       for (const [k, v] of Object.entries(b.args)) args.push("--build-arg", `${k}=${v}`);
       args.push(b.context);
-      const { stdout, stderr } = await run("docker", args, { timeout: 1_200_000, maxBuffer: 20 * 1024 * 1024 });
+      const { stdout, stderr } = await run("docker", args, { timeout: 1_200_000, maxBuffer: 20 * 1024 * 1024, env: dockerEnv(sb) });
       out += stdout + stderr;
     }
     return out;
@@ -335,18 +371,13 @@ export const sandbox = {
   /** Remove the app and tools images after the project's containers are gone. */
   removeImage: async (sb: Sandbox) => {
     if (!sb.appBuild) return;
-    for (const image of [sb.appBuild.image, sb.appBuild.toolsImage]) await run("docker", ["image", "rm", "-f", image]).catch(() => undefined);
+    for (const image of [sb.appBuild.image, sb.appBuild.toolsImage]) await run("docker", ["image", "rm", "-f", image], { env: dockerEnv(sb) }).catch(() => undefined);
   },
-  /** Start services and wait for their health checks. */
-  up: (sb: Sandbox, services: string[] = []) => compose(sb, ["up", "-d", "--wait", ...services], 600_000),
-  /**
-   * Run a one-off command in a fresh container of a service (for migrations and seeding). Compose is
-   * given an environment of PATH and HOME only, so that no setting of the builder's own process is
-   * there to be picked up, whatever the compose file says.
-   */
-  runOnce: (sb: Sandbox, service: string, cmd: string[]) =>
-    compose(sb, ["run", "--rm", "--no-deps", "-T", service, ...cmd], 600_000, composeRunEnv()),
-  /** Stop and remove the project's containers, networks and volumes. */
+  /** Start services and wait for their health checks. The tools service is never started this way. */
+  up: (sb: Sandbox, services: string[] = []) => compose(sb, ["up", "-d", "--wait", ...services], 600_000, false),
+  /** Run a one-off command in a fresh container of a service (for migrations and seeding). */
+  runOnce: (sb: Sandbox, service: string, cmd: string[]) => compose(sb, ["run", "--rm", "--no-deps", "-T", service, ...cmd], 600_000),
+  /** Stop and remove the project's containers, a one-off tools container left by an interrupted run included, and its networks and volumes. */
   destroy: (sb: Sandbox) => compose(sb, ["down", "-v", "--remove-orphans"]),
   /** Run a command inside a running service. */
   exec: (sb: Sandbox, service: string, cmd: string[]) => compose(sb, ["exec", "-T", service, ...cmd]),

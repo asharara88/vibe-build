@@ -2,9 +2,10 @@
 FROM node:22-alpine AS build
 WORKDIR /app
 # The development machine reaches the internet only through a proxy with its own certificate.
-# Both are passed in as build arguments and used only during the build. Neither is in the image.
-ARG HTTPS_PROXY
-ARG HTTP_PROXY
+# The proxy's address is passed as a build argument that Docker predefines (HTTPS_PROXY, HTTP_PROXY):
+# it reaches the build steps and, because it is not declared here, it is not recorded in the image's
+# history. The certificate is copied into this build stage: the app image (the `run` stage) does not
+# contain it; the tools image, which is this stage, does, on the development profile only.
 ARG NODE_EXTRA_CA_CERTS
 COPY certs/ /certs/
 RUN if [ -f /certs/session-ca.crt ]; then npm config set cafile /certs/session-ca.crt; fi

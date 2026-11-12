@@ -30,7 +30,8 @@ const log = (s: string) => console.log(s);
 
 const dir = mkdtempSync(join(tmpdir(), "builder-tpl-"));
 const workspace = join(dir, "workspace");
-cpSync(templateDir, workspace, { recursive: true, filter: (src) => !/\/(node_modules|\.next|certs)(\/|$)/.test(src) });
+// A local settings file (.env) is never copied: the app's settings come from the sandbox only.
+cpSync(templateDir, workspace, { recursive: true, filter: (src) => !/\/(node_modules|\.next|certs|\.env(\.(?!example$)[^/]*)?)(\/|$)/.test(src) });
 log(`Template copied from ${templateDir} to the project workspace.`);
 
 const dbPassword = randomBytes(18).toString("base64url");
@@ -61,7 +62,7 @@ const sb = createSandbox(
   dbPassword,
   { AUTH_SECRET: authSecret, APP_SAMPLE_PASSWORD: samplePassword },
 );
-log(`Compose project ${sb.projectName}: db, egress, app. Secrets written to the sandbox's secrets folder only.`);
+log(`Compose project ${sb.projectName}: db, egress, app, and tools for one-off set-up commands. Secrets written to the sandbox's secrets folder only.`);
 
 const t0 = Date.now();
 try {
@@ -71,7 +72,12 @@ try {
   await sandbox.up(sb, ["db"]);
   log("");
   log("The tools container's environment, printed by a stand-in seed step run as the seed is run (scripts/tools-env-check.ts):");
-  const envCheck = await checkToolsEnv(sb);
+  const envCheck = await checkToolsEnv(sb, {
+    DATABASE_URL: `postgres://app:${dbPassword}@127.0.0.1:${dbPort}/app`,
+    APP_URL: appUrl,
+    AUTH_SECRET: authSecret,
+    APP_SAMPLE_PASSWORD: samplePassword,
+  });
   log(envCheck.lines.map((l) => "  " + l).join("\n"));
   if (!envCheck.passed) throw new Error("the tools container was given a setting it should not have");
   log("");

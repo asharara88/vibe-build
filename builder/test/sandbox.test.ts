@@ -1,10 +1,10 @@
-import { execFile } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync } from "node:fs";
+import { execFile, spawnSync } from "node:child_process";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { promisify } from "node:util";
 import { afterAll, describe, expect, it } from "vitest";
-import { composeDocument, composeRunEnv, createSandbox, sandbox, toYaml, type SandboxSpec } from "../src/sandbox/manager.js";
+import { composeDocument, createSandbox, dockerEnv, sandbox, toYaml, type SandboxSpec } from "../src/sandbox/manager.js";
 
 const run = promisify(execFile);
 const builderDir = resolve(import.meta.dirname, "..");
@@ -70,7 +70,7 @@ describe("sandbox manager: compose documents", () => {
     }
   });
 
-  it("package 0.5: the sandbox records the names given to the tools container, and runs Compose with PATH and HOME only", () => {
+  it("package 0.5: the sandbox records the names given to the tools container, and Docker runs with a narrow environment and its own client folder", () => {
     const dir = mkdtempSync(join(tmpdir(), "builder-sb-"));
     const sb = createSandbox(
       { ...base, profile: "server", dir, app: { buildContext: join(dir, "workspace"), port: 3100, toolsEnv: { APP_URL: "http://x" } } },
@@ -79,7 +79,10 @@ describe("sandbox manager: compose documents", () => {
     );
     expect(sb.toolsEnvNames).toEqual(["APP_SAMPLE_PASSWORD", "APP_URL", "AUTH_SECRET", "DATABASE_URL"]);
     expect(sb.appBuild?.toolsImage).toBe("builder_p_test-tools:latest");
-    expect(Object.keys(composeRunEnv()).sort()).toEqual(["HOME", "PATH"]);
+    const env = dockerEnv(sb);
+    expect(Object.keys(env).filter((k) => !["DOCKER_HOST", "DOCKER_TLS_VERIFY", "DOCKER_CERT_PATH"].includes(k)).sort()).toEqual(["DOCKER_CONFIG", "HOME", "PATH"]);
+    expect(env.DOCKER_CONFIG).toBe(join(dir, "docker-client"));
+    expect(existsSync(join(dir, "docker-client"))).toBe(true);
   });
 
   it("writes YAML that Docker Compose accepts", async () => {
@@ -133,5 +136,61 @@ describe("sandbox manager: live, development profile", () => {
     const logs = await sandbox.logs(sb, "egress");
     expect(logs).toContain('"host":"example.com"');
     expect(logs).toContain('"decision":"refused"');
+  }, 180_000);
+});
+
+describe("sandbox manager: live, the tools container (package 0.5)", () => {
+  // A small tools image made from the base image the template uses, started without its shell script,
+  // as the template's tools stage is. Nothing is fetched: the base image is already on this machine.
+  const dir = mkdtempSync(join(tmpdir(), "builder-tools-"));
+  // A user's home folder whose Docker client configuration adds made-up proxies to every container.
+  const userHome = mkdtempSync(join(tmpdir(), "builder-home-"));
+  const savedHome = process.env.HOME;
+  let sb: ReturnType<typeof createSandbox>;
+  const names = 'console.log(JSON.stringify(Object.keys(process.env).sort()))';
+
+  afterAll(async () => {
+    if (sb) {
+      await sandbox.destroy(sb).catch(() => undefined);
+      await sandbox.removeImage(sb);
+    }
+    process.env.HOME = savedHome;
+  });
+
+  it("a Docker client configuration that adds proxy settings to containers does not reach the tools container", async () => {
+    // Docker reads its client configuration from $HOME/.docker unless told otherwise, and adds its proxies to every container it starts.
+    mkdirSync(join(userHome, ".docker"), { recursive: true });
+    writeFileSync(
+      join(userHome, ".docker", "config.json"),
+      JSON.stringify({ proxies: { default: { httpProxy: "http://made-up-proxy.invalid:3128", httpsProxy: "http://made-up-proxy.invalid:3128" } } }),
+    );
+    process.env.HOME = userHome;
+    mkdirSync(join(dir, "workspace"), { recursive: true });
+    sb = createSandbox(
+      { ...base, projectId: "p_tools_live", profile: "development-cloud-session", dir, devDbPort: 5549, app: { buildContext: join(dir, "workspace"), port: 3119, toolsEnv: { APP_URL: "http://made-up.invalid" } } },
+      "sample-only-password",
+      { AUTH_SECRET: "made-up-secret", APP_SAMPLE_PASSWORD: "made-up-sample" },
+    );
+    const built = spawnSync("docker", ["build", "-t", sb.appBuild!.toolsImage, "-"], { input: "FROM node:22-alpine\nENTRYPOINT []\n", env: dockerEnv(sb) });
+    expect(built.status, built.stderr?.toString()).toBe(0);
+
+    // The control: the same command through Compose with the user's configuration does get the proxies.
+    const control = await run("docker", ["compose", "-f", sb.composeFile, "--profile", "tools", "run", "--rm", "--no-deps", "-T", "tools", "node", "-e", names], {
+      env: { PATH: process.env.PATH, HOME: userHome },
+    });
+    expect(JSON.parse(control.stdout.trim().split("\n").pop()!)).toContain("HTTP_PROXY");
+
+    // Through the sandbox: exactly the named list, the image's own settings, and what Docker sets.
+    const seen = JSON.parse((await sandbox.runOnce(sb, "tools", ["node", "-e", names])).trim().split("\n").pop()!) as string[];
+    expect(seen).toEqual(["APP_SAMPLE_PASSWORD", "APP_URL", "AUTH_SECRET", "DATABASE_URL", "HOME", "HOSTNAME", "NODE_VERSION", "PATH", "YARN_VERSION"]);
+  }, 180_000);
+
+  it("removing the project also removes a tools container whose run was cut off", async () => {
+    // A tools run left behind, as when the builder is stopped while a set-up command runs.
+    await run("docker", ["compose", "-f", sb.composeFile, "--profile", "tools", "run", "-d", "--no-deps", "tools", "node", "-e", "setTimeout(() => {}, 120000)"], { env: dockerEnv(sb) });
+    const filter = ["ps", "-a", "--filter", `label=com.docker.compose.project=${sb.projectName}`, "--format", "{{.Names}}"];
+    expect((await run("docker", filter)).stdout.trim()).not.toBe("");
+    await sandbox.destroy(sb);
+    expect((await run("docker", filter)).stdout.trim()).toBe("");
   }, 180_000);
 });
