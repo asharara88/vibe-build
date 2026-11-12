@@ -1,0 +1,145 @@
+# npx vitest run --reporter=verbose, all test files (from builder/, files of commit 69b0e28, 12 Nov 2026; the checkout's path is shown as <checkout>). Started 17:15:18 UTC. Docker was running, so the live tests ran.
+
+ RUN  v5.1.0 <checkout>/builder
+
+ ✓ test/licence-rule.test.ts > licence expressions > accepts a permitted licence and combinations made only of permitted licences 2ms
+ ✓ test/licence-rule.test.ts > licence expressions > refuses anything else 0ms
+ ✓ test/licence-rule.test.ts > one rule, kept the same in every component > the template carries the same two files as the builder, byte for byte 1ms
+ ✓ test/licence-rule.test.ts > one rule, kept the same in every component > both components permit the same licences, and every exception names its approval 3ms
+ ✓ test/licence-rule.test.ts > the rule > judges a package the lock file lists for another machine like any other, and counts it apart 1ms
+ ✓ test/licence-rule.test.ts > the rule > holds an exception to one version where the rule gives one 1ms
+ ✓ test/licence-rule.test.ts > the rule > matches a build package against any installed version of its main package, where the rule gives no single version 1ms
+ ✓ test/licence-rule.test.ts > the rule > holds every approved package in both components to the version that was read 1ms
+ ✓ test/licence-rule.test.ts > the rule > accepts the component's own package at its named version, and refuses any other package of that name 1ms
+ ✓ test/licence-rule.test.ts > the rule > passes when every package is permitted 0ms
+ ✓ test/licence-rule.test.ts > the rule > fails on a development-only package outside the list: there is no weaker rule for development tools 0ms
+ ✓ test/licence-rule.test.ts > the rule > lists every problem, not only the first 0ms
+ ✓ test/licence-rule.test.ts > the rule > accepts the named exceptions for development use 0ms
+ ✓ test/licence-rule.test.ts > the rule > does not extend an approval to another package with the same licence 0ms
+ ✓ test/licence-rule.test.ts > the rule > fails when a package approved for development use is among the shipped dependencies 0ms
+ ✓ test/licence-rule.test.ts > the rule > fails when an approved package later declares a different licence 0ms
+ ✓ test/licence-rule.test.ts > the rule > fails a build package whose version differs from its main package, or whose main package is absent 0ms
+ ✓ test/licence-rule.test.ts > the rule > covers only the build packages named one by one, not every name that starts the same way 0ms
+ ✓ test/licence-rule.test.ts > the rule > treats an old-style list of licences as all applying, each read on its own 0ms
+ ✓ test/licence-rule.test.ts > the rule > records which packages were accepted on one side of a choice of licences 0ms
+ ✓ test/licence-rule.test.ts > the rule > does not let a build package's name excuse a different licence 0ms
+ ✓ test/licence-rule.test.ts > the real check, run against a folder with a test package added > passes on a folder whose packages are all permitted 846ms
+ ✓ test/licence-rule.test.ts > the real check, run against a folder with a test package added > fails when a shipped test package outside the rule is added, and names it 789ms
+ ✓ test/licence-rule.test.ts > the real check, run against a folder with a test package added > fails when a development-only test package outside the rule is added 773ms
+ ✓ test/licence-rule.test.ts > the real check, run against a folder with a test package added > fails when a test package declares no licence at all 837ms
+ ✓ test/licence-rule.test.ts > the real check, run against a folder with a test package added > fails when a shipped test package outside the rule is marked private 743ms
+ ✓ test/licence-rule.test.ts > the real check, run against a folder with a test package added > fails when it reads nothing: an empty folder, or a folder that does not exist 926ms
+ ✓ test/licence-rule.test.ts > the real check, run against a folder with a test package added > fails when a declared dependency is not installed, since its licence cannot be read 792ms
+ ✓ test/licence-rule.test.ts > the real check, run against a folder with a test package added > passes with a lock file whose entries all come from the registry under permitted licences 750ms
+ ✓ test/licence-rule.test.ts > the real check, run against a folder with a test package added > fails on a package that only another machine would install, read from the lock file 772ms
+ ✓ test/licence-rule.test.ts > the real check, run against a folder with a test package added > fails on a lock-file package that records no licence, or one that names a permitted licence beside another 761ms
+ ✓ test/licence-rule.test.ts > the real check, run against a folder with a test package added > fails on a package that does not come from the registry: an archive file, a git address, another server 3254ms
+ ✓ test/licence-rule.test.ts > the real check, run against a folder with a test package added > fails when there is no lock file, or when a shrinkwrap file that npm would prefer is there 1601ms
+ ✓ test/licence-rule.test.ts > the real check, run against a folder with a test package added > fails on an installed folder the lock file does not list, and on a link to a folder outside 1597ms
+ ✓ test/licence-rule.test.ts > the real check, run against a folder with a test package added > fails when two folders call themselves the same package and version but declare different licences 829ms
+ ✓ test/licence-rule.test.ts > the real check, run against a folder with a test package added > fails on a folder holding a package under another name that the lock file does not record 783ms
+ ✓ test/licence-rule.test.ts > the real check, run against a folder with a test package added > fails on a package folder with no name, an unreadable package.json, or the component's own name 3895ms
+ ✓ test/licence-rule.test.ts > the real check, run against a folder with a test package added > fails on a package put in a hidden folder, and on a scope folder that is a link 3979ms
+ ✓ test/licence-rule.test.ts > the real check, run against a folder with a test package added > fails on an optional or peer dependency that is neither installed nor in the lock file 723ms
+ ✓ test/licence-rule.test.ts > the real check, run against a folder with a test package added > fails on a lock file that lists no packages, or cannot be read 3094ms
+ ✓ test/licence-rule.test.ts > the real check, run against a folder with a test package added > fails on a local package the rule does not name, whether a folder or a link 791ms
+ ✓ test/licence-rule.test.ts > the real check, run against a folder with a test package added > a component's own package > passes when the folder is exactly what the rule names 778ms
+ ✓ test/licence-rule.test.ts > the real check, run against a folder with a test package added > a component's own package > fails without the rule naming it: an unlicensed private package is refused like any other 807ms
+ ✓ test/licence-rule.test.ts > the real check, run against a folder with a test package added > a component's own package > fails when a file in it has changed, or a file has been added 1747ms
+ ✓ test/licence-rule.test.ts > the real check, run against a folder with a test package added > a component's own package > fails when another folder calls itself by the own package's name and version, nested or under another folder name 1627ms
+ ✓ test/licence-rule.test.ts > the real check, run against a folder with a test package added > a component's own package > fails when a real package is installed under its name 768ms
+ ✓ test/licence-rule.test.ts > the real check, run against a folder with a test package added > fails when the notices file is out of date 2202ms
+ ✓ test/licence-rule.test.ts > the real check, run against a folder with a test package added > passes on the builder itself, with the notices file up to date 2175ms
+ ✓ test/scripted-engine.test.ts > scripted engine: the fixed change sets of example 1 > has the two steps of the design note's slice, in order 3ms
+ ✓ test/scripted-engine.test.ts > scripted engine: the fixed change sets of example 1 > each copy matches its fingerprint; each add is a file not there yet; each replace names the fingerprint of the file the step finds (the template's, or the previous step's) 4ms
+ ✓ test/scripted-engine.test.ts > scripted engine: the fixed change sets of example 1 > no path is protected, outside the workspace, under certs/ or hidden 1ms
+ ✓ test/scripted-engine.test.ts > scripted engine: the fixed change sets of example 1 > every protected path is a plain file in the template 1ms
+ ✓ test/scripted-engine.test.ts > scripted engine: the fixed change sets of example 1 > every code file written starts with "Written by the scripted engine (fixed change …). No AI model wrote this." 1ms
+ ✓ test/scripted-engine.test.ts > scripted engine: the fixed change sets of example 1 > after each step the banner says, in both languages, that the scripted engine built the app; English and Arabic have the same messages 2ms
+ ✓ test/scripted-engine.test.ts > scripted engine: the fixed change sets of example 1 > the leave-request statuses are exactly the example spec's, with waiting as the default 1ms
+ ✓ test/scripted-engine.test.ts > scripted engine: the fixed change sets of example 1 > the change sets hold nothing but the applier, the manifests and the files they list 1ms
+ ✓ test/scripted-engine.test.ts > scripted engine: the fixed change sets of example 1 > the applier uses nothing but Node's own modules 1ms
+ ✓ test/scripted-engine.test.ts > scripted engine: the engine service in the compose file > server profile: no network, no settings, the hardening, user node, and exactly three mounts 2ms
+ ✓ test/scripted-engine.test.ts > scripted engine: the engine service in the compose file > development-cloud-session profile: no network, no settings, the hardening, user node, and exactly three mounts 1ms
+ ✓ test/scripted-engine.test.ts > scripted engine: the engine service in the compose file > there is no engine service unless the sandbox asks for one 0ms
+ ✓ test/scripted-engine.test.ts > scripted engine: the engine service in the compose file > Docker Compose accepts the file; the empty folder is made; up refuses the engine service 105ms
+ ✓ test/scripted-engine.test.ts > scripted engine: the class, against a stand-in runner (no container, no model) > a step that runs: name scripted, its events, zero usage, turns = files written, and a commit labelled [scripted] by the scripted engine 268ms
+ ✓ test/scripted-engine.test.ts > scripted engine: the class, against a stand-in runner (no container, no model) > the turn limit: the container is told it; a limit line ends the step as failed with 'turn limit reached'; nothing is committed 201ms
+ ✓ test/scripted-engine.test.ts > scripted engine: the class, against a stand-in runner (no container, no model) > an unknown step fails before any container is started 88ms
+ ✓ test/scripted-engine.test.ts > scripted engine: the class, against a stand-in runner (no container, no model) > a write to a protected path refused by the applier becomes a 'blocked' event and a failed step 124ms
+ ✓ test/scripted-engine.test.ts > scripted engine: the class, against a stand-in runner (no container, no model) > a file the change does not name, or one git ignores, fails the step and is reported; nothing is committed 311ms
+ ✓ test/scripted-engine.test.ts > scripted engine: the class, against a stand-in runner (no container, no model) > stop() kills the running container and resolves only once the step has ended 'stopped' 140ms
+ ✓ test/scripted-engine.test.ts > scripted engine: the class, against a stand-in runner (no container, no model) > stop() asked for while the step is being prepared: no container is started, and stop() resolves once the step has ended 133ms
+ ✓ test/scripted-engine.test.ts > scripted engine: the class, against a stand-in runner (no container, no model) > a runner that reports a time limit or a failing event handler ends the step as failed, saying so 140ms
+ ✓ test/scripted-engine.test.ts > scripted engine: the class, against a stand-in runner (no container, no model) > an event handler that throws before the container is asked for fails the step; no container is started 79ms
+ ✓ test/scripted-engine.test.ts > scripted engine: the class, against a stand-in runner (no container, no model) > entries git cannot see (a .git at the top, a .git in a folder git tracks, a .GIT, a named pipe, a nested repository) fail the step and are reported; nothing is committed; the reset leaves nothing 566ms
+ ✓ test/scripted-engine.test.ts > scripted engine: the class, against a stand-in runner (no container, no model) > a step does not start on a workspace that holds an entry git cannot see; the walk follows no link 118ms
+ ✓ test/scripted-engine.test.ts > scripted engine: the class, against a stand-in runner (no container, no model) > the reset: a nested repository and a named pipe are removed, nothing is left; what cannot be put back is returned 187ms
+ ✓ test/scripted-engine.test.ts > scripted engine: the class, against a stand-in runner (no container, no model) > a step does not start on a workspace with changes that are not committed, or when a protected path is missing 160ms
+ ✓ test/scripted-engine.test.ts > scripted engine: live, in the engine container (development profile) > set-up: a fresh copy of the template, its history outside it, owned by the engine's user 61ms
+ ✓ test/scripted-engine.test.ts > scripted engine: live, in the engine container (development profile) > stop() part-way: the container is killed and removed, and the workspace is put back 2554ms
+ ✓ test/scripted-engine.test.ts > scripted engine: live, in the engine container (development profile) > stop() asked for while the step is being prepared: no engine container is started, and the workspace is unchanged 44ms
+ ✓ test/scripted-engine.test.ts > scripted engine: live, in the engine container (development profile) > a step that runs past its time limit: the container is killed and removed, and the step fails saying so 2177ms
+ ✓ test/scripted-engine.test.ts > scripted engine: live, in the engine container (development profile) > an event handler that throws while the container runs: the builder goes on, the container is killed and removed, and the step fails saying so 1970ms
+ ✓ test/scripted-engine.test.ts > scripted engine: live, in the engine container (development profile) > applies both fixed steps in the engine container; each is committed as [scripted] by the scripted engine, with zero usage 820ms
+ ✓ test/scripted-engine.test.ts > scripted engine: live, in the engine container (development profile) > a protected path: the applier refuses to write it (a 'blocked' event), and the read-only mount refuses a write in place (EROFS), which is all a mount over a file stops (next test) 747ms
+ ✓ test/scripted-engine.test.ts > scripted engine: live, in the engine container (development profile) > a protected file replaced through a renamed folder: the read-only mount over the file does not stop it; the check after the step does (the step fails, nothing is committed, the reset puts the file back) 433ms
+ ✓ test/scripted-engine.test.ts > scripted engine: live, in the engine container (development profile) > a step that plants .git folders and a named pipe beside its own file: the walk sees them though git does not, the step fails, nothing is committed, the reset removes them 396ms
+ ✓ test/scripted-engine.test.ts > scripted engine: live, in the engine container (development profile) > the applier's refusals, in the engine container: a wrong fingerprint for a replace (nothing written, though the entry before it was sound), an add over an existing file, a path outside the workspace, a path through a link; and the applier does not start outside /engine or without a workspace 2610ms
+ ✓ test/scripted-engine.test.ts > scripted engine: live, in the engine container (development profile) > the turn limit inside the applier: with a limit of 1 it writes one file and stops; the step fails 'turn limit reached'; nothing is committed; the reset puts it back 487ms
+ ✓ test/scripted-engine.test.ts > scripted engine: live, in the engine container (development profile) > runStreaming: a line handler that throws does not bring the builder down; the container is killed and removed, and the run ends carrying the error 417ms
+ ✓ test/scripted-engine.test.ts > scripted engine: live, in the engine container (development profile) > inside the engine container: user node, no settings of its own, no network but loopback, an empty certs folder, the change sets read-only 403ms
+ ✓ test/scripted-engine.test.ts > scripted engine: live, in the engine container (development profile) > removing the project also removes an engine container whose run was cut off 10511ms
+ ✓ test/sandbox.test.ts > sandbox manager: compose documents > server profile: an internal network with no route out, and the egress proxy as the only bridge 2ms
+ ✓ test/sandbox.test.ts > sandbox manager: compose documents > development profile: host network, session proxy and certificate, database on a non-default port 1ms
+ ✓ test/sandbox.test.ts > sandbox manager: compose documents > package 0.5: a tools service under its own profile, given a named list of settings and nothing from the host 1ms
+ ✓ test/sandbox.test.ts > sandbox manager: compose documents > package 0.5: the sandbox records the names given to the tools container, and Docker runs with a narrow environment and its own client folder 2ms
+ ✓ test/sandbox.test.ts > sandbox manager: compose documents > package 0.5: only the user's extra plugin folders are carried into the project's Docker client folder; a chosen context is refused; up refuses the tools service 3ms
+ ✓ test/sandbox.test.ts > sandbox manager: compose documents > package 0.5: an empty DOCKER_CONFIG counts as not set, so the user's own folder under HOME is read 1ms
+ ✓ test/sandbox.test.ts > sandbox manager: compose documents > package 0.5: a context chosen in the configuration is accepted when DOCKER_HOST is set; DOCKER_CONTEXT=default is accepted, any other DOCKER_CONTEXT refused 7ms
+ ✓ test/sandbox.test.ts > sandbox manager: compose documents > package 0.5: a plugin link to a folder that has since gone is replaced, or removed, without error 5ms
+ ✓ test/sandbox.test.ts > sandbox manager: compose documents > writes YAML that Docker Compose accepts 83ms
+ ✓ test/sandbox.test.ts > sandbox manager: compose documents > round-trips a small document through the YAML writer 0ms
+ ✓ test/sandbox.test.ts > sandbox manager: live, development profile > starts the project's database and egress proxy, and the proxy refuses hosts not on the list 3752ms
+ ✓ test/sandbox.test.ts > sandbox manager: live, the tools container (package 0.5) > a Docker client configuration that adds proxy settings to containers does not reach the tools container 881ms
+ ✓ test/sandbox.test.ts > sandbox manager: live, the tools container (package 0.5) > removing the project also removes a tools container whose run was cut off 10462ms
+ ✓ test/gateway.test.ts > model gateway: key and metering > forwards with the real key, keeps the key out of the client's view, and records usage and cost 52ms
+ ✓ test/gateway.test.ts > model gateway: key and metering > relays a streamed response byte for byte and meters it from the stream's events 18ms
+ ✓ test/gateway.test.ts > model gateway: key and metering > records a stream the client abandoned part-way, marked incomplete, with the usage seen so far 43ms
+ ✓ test/gateway.test.ts > model gateway: key and metering > prices one-hour cache writes and fast mode from the response, not the request 15ms
+ ✓ test/gateway.test.ts > model gateway: key and metering > prices by the model that served the answer when it differs from the one requested 14ms
+ ✓ test/gateway.test.ts > model gateway: key and metering > records a failed upstream answer with zero usage and the upstream error 11ms
+ ✓ test/gateway.test.ts > model gateway: key and metering > does not follow a redirect from the provider, so the key goes nowhere else 10ms
+ ✓ test/gateway.test.ts > model gateway: key and metering > answers 502 and records the attempt when the provider cannot be reached 11ms
+ ✓ test/gateway.test.ts > model gateway: the cap > refuses the call whose estimate would cross the cap, names the reason, and logs the refusal 32ms
+ ✓ test/gateway.test.ts > model gateway: the cap > refuses outright once spend has reached the cap 17ms
+ ✓ test/gateway.test.ts > model gateway: the cap > holds parallel calls to the cap: with history, in-flight calls count against it 331ms
+ ✓ test/gateway.test.ts > model gateway: the cap > holds parallel calls to the cap: with no history, one call completes before the next is judged 317ms
+ ✓ test/gateway.test.ts > model gateway: what is refused > refuses a model that is not in the price table 6ms
+ ✓ test/gateway.test.ts > model gateway: what is refused > refuses to be configured with a model that has no price 1ms
+ ✓ test/gateway.test.ts > model gateway: what is refused > refuses an unknown token and never forwards it 2ms
+ ✓ test/gateway.test.ts > model gateway: what is refused > refuses a non-JSON body 4ms
+ ✓ test/gateway.test.ts > model gateway: what is refused > refuses paid paths it does not know, such as batches, and percent-encoded disguises 8ms
+ ✓ test/gateway.test.ts > model gateway: what is refused > refuses methods other than POST 4ms
+ ✓ test/gateway.test.ts > model gateway: what is refused > passes token counting through, logged and unmetered 8ms
+ ✓ test/gateway.test.ts > model gateway: what is refused > raised no faults during this run 0ms
+ ✓ test/egress.test.ts > egress proxy > matches exact hosts and wildcard subdomains, nothing else 2ms
+ ✓ test/egress.test.ts > egress proxy > lets an allowed HTTPS host through and logs it as allowed 458ms
+ ✓ test/egress.test.ts > egress proxy > reaches the model API host (401 without a key means it was reached) 370ms
+ ✓ test/egress.test.ts > egress proxy > refuses a host that is not on the list and logs the refusal 10ms
+ ✓ test/egress.test.ts > egress proxy > refuses a plain HTTP request to a host not on the list 13ms
+ ✓ test/events.test.ts > event log > appends and lists events in order 9ms
+ ✓ test/events.test.ts > event log > refuses to update an event 7ms
+ ✓ test/events.test.ts > event log > refuses to truncate the event log 6ms
+ ✓ test/events.test.ts > event log > refuses to delete an event 17ms
+ ✓ test/app-spec.test.ts > app spec > accepts the fixed brief for test example 1 (leave request) 12ms
+ ✓ test/app-spec.test.ts > app spec > names the problem in plain words when a screen is for an unknown role 2ms
+ ✓ test/app-spec.test.ts > app spec > refuses a choice field with no choices 1ms
+ ✓ test/app-spec.test.ts > app spec > refuses more than five core actions 2ms
+
+ Test Files  7 passed (7)
+      Tests  134 passed (134)
+   Start at  17:15:18
+   Duration  93.77s (tests 100%)
+
+exit code: 0

@@ -1,0 +1,3 @@
+# The three scripts of package 2.1 type-checked with the settings of builder/tsconfig.json (whose folders, src and test, do not include scripts/), from builder/, files of commit 69b0e28, 12 Nov 2026:
+# npx tsc --ignoreConfig --noEmit --strict --target ES2022 --module NodeNext --moduleResolution NodeNext --noUncheckedIndexedAccess --esModuleInterop --skipLibCheck --types node scripts/demo-scripted.ts scripts/screenshot-scripted.ts scripts/scripted-manifest.ts
+exit code: 0
