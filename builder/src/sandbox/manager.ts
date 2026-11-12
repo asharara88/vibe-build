@@ -14,7 +14,7 @@
  *   certificate. This is development only (known gaps 1 and 2).
  */
 import { execFile } from "node:child_process";
-import { copyFileSync, existsSync, mkdirSync, symlinkSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, lstatSync, mkdirSync, readFileSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -276,11 +276,26 @@ export interface Sandbox {
 export function createSandbox(spec: SandboxSpec, dbPassword: string, appSecrets: Record<string, string> = {}): Sandbox {
   mkdirSync(join(spec.dir, "secrets"), { recursive: true });
   mkdirSync(join(spec.dir, "workspace"), { recursive: true });
-  // The project's own Docker client folder, empty but for the user's CLI plugins (see dockerEnv).
-  mkdirSync(join(spec.dir, "docker-client"), { recursive: true, mode: 0o700 });
-  const userPlugins = join(process.env.DOCKER_CONFIG ?? join(homedir(), ".docker"), "cli-plugins");
-  const projectPlugins = join(spec.dir, "docker-client", "cli-plugins");
-  if (existsSync(userPlugins) && !existsSync(projectPlugins)) symlinkSync(userPlugins, projectPlugins);
+  // The project's own Docker client folder: nothing in it but where to find the user's CLI plugins (see dockerEnv).
+  const client = join(spec.dir, "docker-client");
+  mkdirSync(client, { recursive: true, mode: 0o700 });
+  const user = userDockerClient();
+  const projectPlugins = join(client, "cli-plugins");
+  let linked = false;
+  try {
+    lstatSync(projectPlugins);
+    linked = true;
+  } catch {
+    /* nothing there yet */
+  }
+  if (linked && !existsSync(projectPlugins)) {
+    unlinkSync(projectPlugins); // a link to a folder that has since gone
+    linked = false;
+  }
+  if (!linked && existsSync(join(user.dir, "cli-plugins"))) symlinkSync(join(user.dir, "cli-plugins"), projectPlugins);
+  // Only the list of extra plugin folders is carried over from the user's configuration: never its
+  // proxies, sign-ins or anything else.
+  writeFileSync(join(client, "config.json"), JSON.stringify(user.pluginDirs.length ? { cliPluginsExtraDirs: user.pluginDirs } : {}) + "\n", { mode: 0o600 });
   writeFileSync(join(spec.dir, "secrets", "db_password"), dbPassword, { mode: 0o600 });
   // DB_PASSWORD is interpolated by Compose into DATABASE_URL from the project's own .env file.
   writeFileSync(join(spec.dir, ".env"), `DB_PASSWORD=${dbPassword}\n`, { mode: 0o600 });
@@ -313,21 +328,43 @@ export function createSandbox(spec: SandboxSpec, dbPassword: string, appSecrets:
 }
 
 /** Settings that only say which Docker daemon to talk to. Passed on, so every command reaches the same daemon. */
-export const DOCKER_DAEMON_SETTINGS = ["DOCKER_HOST", "DOCKER_TLS_VERIFY", "DOCKER_CERT_PATH"] as const;
+export const DOCKER_DAEMON_SETTINGS = ["DOCKER_HOST", "DOCKER_TLS", "DOCKER_TLS_VERIFY", "DOCKER_CERT_PATH"] as const;
+
+/**
+ * The user's own Docker client folder, and the two things the sandbox reads from its configuration:
+ * the extra plugin folders it names, and the Docker context it has chosen, if any. Nothing else in
+ * it (proxies, registry sign-ins) is read or used.
+ */
+export function userDockerClient(): { dir: string; pluginDirs: string[]; context: string | null } {
+  const dir = process.env.DOCKER_CONFIG ?? join(process.env.HOME ?? homedir(), ".docker");
+  let pluginDirs: string[] = [];
+  let context: string | null = null;
+  try {
+    const cfg = JSON.parse(readFileSync(join(dir, "config.json"), "utf8")) as { cliPluginsExtraDirs?: unknown; currentContext?: unknown };
+    if (Array.isArray(cfg.cliPluginsExtraDirs)) pluginDirs = cfg.cliPluginsExtraDirs.filter((d): d is string => typeof d === "string");
+    if (typeof cfg.currentContext === "string" && cfg.currentContext !== "" && cfg.currentContext !== "default") context = cfg.currentContext;
+  } catch {
+    /* no configuration, or not readable: nothing to carry over */
+  }
+  return { dir, pluginDirs, context };
+}
 
 /**
  * The environment every Docker command of a sandbox runs with: PATH, HOME, the settings that name the
  * Docker daemon, and DOCKER_CONFIG pointed at the project's own, empty Docker client folder. Nothing
  * else of the builder's process is there for Compose to copy into a container. The client folder is
  * the project's own because Docker's client configuration can itself add settings to every container
- * (its `proxies` entry adds proxy settings); the user's CLI plugins are linked into it so that
- * `docker compose` and `docker buildx` are still found. A Docker context (DOCKER_CONTEXT, or one chosen
- * in the user's client configuration) is not used: the daemon is the one DOCKER_HOST names, or the
- * default one, for every command alike.
+ * (its `proxies` entry adds proxy settings). The user's plugin folder is linked into it, and the
+ * extra plugin folders the user's configuration names are copied into its configuration, so that
+ * `docker compose` and `docker buildx` are still found. Registry sign-ins in the user's configuration
+ * are not used (known gap 5). A Docker context is refused, whether chosen with DOCKER_CONTEXT or in the
+ * user's configuration: the daemon is the one DOCKER_HOST names, or the default one, for every command.
  */
 export function dockerEnv(sb: Pick<Sandbox, "dir">): NodeJS.ProcessEnv {
-  if (process.env.DOCKER_CONTEXT) {
-    throw new Error("The sandbox names its Docker daemon with DOCKER_HOST; a Docker context (DOCKER_CONTEXT) is not supported.");
+  if (process.env.DOCKER_CONTEXT || userDockerClient().context) {
+    throw new Error(
+      "The sandbox names its Docker daemon with DOCKER_HOST; a Docker context (DOCKER_CONTEXT, or one chosen with `docker context use`) is not supported. Set DOCKER_HOST instead.",
+    );
   }
   const env: NodeJS.ProcessEnv = {
     PATH: process.env.PATH ?? "/usr/local/bin:/usr/bin:/bin",
@@ -373,8 +410,11 @@ export const sandbox = {
     if (!sb.appBuild) return;
     for (const image of [sb.appBuild.image, sb.appBuild.toolsImage]) await run("docker", ["image", "rm", "-f", image], { env: dockerEnv(sb) }).catch(() => undefined);
   },
-  /** Start services and wait for their health checks. The tools service is never started this way. */
-  up: (sb: Sandbox, services: string[] = []) => compose(sb, ["up", "-d", "--wait", ...services], 600_000, false),
+  /** Start services and wait for their health checks. The tools service is never started this way: it is refused by name. */
+  up: (sb: Sandbox, services: string[] = []) => {
+    if (services.includes("tools")) throw new Error("The tools service runs one command at a time, through runOnce; it is not started with up.");
+    return compose(sb, ["up", "-d", "--wait", ...services], 600_000, false);
+  },
   /** Run a one-off command in a fresh container of a service (for migrations and seeding). */
   runOnce: (sb: Sandbox, service: string, cmd: string[]) => compose(sb, ["run", "--rm", "--no-deps", "-T", service, ...cmd], 600_000),
   /** Stop and remove the project's containers, a one-off tools container left by an interrupted run included, and its networks and volumes. */

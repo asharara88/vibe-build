@@ -6,8 +6,9 @@
  * With --guard, the role guard is also tried by each kind of visitor (package 0.3).
  * Development profile only. The tables and the sample users are created in the project's tools
  * container (the template image's `tools` stage), never on this machine (package 0.5). Before that,
- * a stand-in seed step run in the same way prints the names in its environment, and the run fails if
- * any setting of the builder's own is among them (scripts/tools-env-check.ts).
+ * a stand-in seed step run in the same way reports the names in its environment and a fingerprint of
+ * each value, and the run fails unless they are exactly the settings given, with the values given, and
+ * none of the builder's own settings (scripts/tools-env-check.ts).
  */
 import { execFile } from "node:child_process";
 import { randomBytes } from "node:crypto";

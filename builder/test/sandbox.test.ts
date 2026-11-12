@@ -80,9 +80,38 @@ describe("sandbox manager: compose documents", () => {
     expect(sb.toolsEnvNames).toEqual(["APP_SAMPLE_PASSWORD", "APP_URL", "AUTH_SECRET", "DATABASE_URL"]);
     expect(sb.appBuild?.toolsImage).toBe("builder_p_test-tools:latest");
     const env = dockerEnv(sb);
-    expect(Object.keys(env).filter((k) => !["DOCKER_HOST", "DOCKER_TLS_VERIFY", "DOCKER_CERT_PATH"].includes(k)).sort()).toEqual(["DOCKER_CONFIG", "HOME", "PATH"]);
+    expect(Object.keys(env).filter((k) => !["DOCKER_HOST", "DOCKER_TLS", "DOCKER_TLS_VERIFY", "DOCKER_CERT_PATH"].includes(k)).sort()).toEqual(["DOCKER_CONFIG", "HOME", "PATH"]);
     expect(env.DOCKER_CONFIG).toBe(join(dir, "docker-client"));
     expect(existsSync(join(dir, "docker-client"))).toBe(true);
+  });
+
+  it("package 0.5: only the user's extra plugin folders are carried into the project's Docker client folder; a chosen context is refused; up refuses the tools service", async () => {
+    const saved = process.env.DOCKER_CONFIG;
+    const userDir = mkdtempSync(join(tmpdir(), "builder-user-docker-"));
+    try {
+      process.env.DOCKER_CONFIG = userDir;
+      // Made-up values only.
+      writeFileSync(
+        join(userDir, "config.json"),
+        JSON.stringify({
+          proxies: { default: { httpProxy: "http://made-up-proxy.invalid:3128" } },
+          auths: { "registry.invalid": { auth: "bWFkZS11cDptYWRlLXVw" } },
+          credsStore: "made-up-store",
+          cliPluginsExtraDirs: ["/made-up/plugins"],
+          currentContext: "default",
+        }),
+      );
+      const dir = mkdtempSync(join(tmpdir(), "builder-sb-"));
+      const sb = createSandbox({ ...base, profile: "server", dir, app: { buildContext: join(dir, "workspace"), port: 3100 } }, "sample-only-password");
+      expect(JSON.parse(readFileSync(join(dir, "docker-client", "config.json"), "utf8"))).toEqual({ cliPluginsExtraDirs: ["/made-up/plugins"] });
+      expect(() => dockerEnv(sb)).not.toThrow();
+      await expect(async () => sandbox.up(sb, ["tools"])).rejects.toThrow(/not started with up/);
+      writeFileSync(join(userDir, "config.json"), JSON.stringify({ currentContext: "made-up-context" }));
+      expect(() => dockerEnv(sb)).toThrow(/context/);
+    } finally {
+      if (saved === undefined) delete process.env.DOCKER_CONFIG;
+      else process.env.DOCKER_CONFIG = saved;
+    }
   });
 
   it("writes YAML that Docker Compose accepts", async () => {
@@ -152,6 +181,9 @@ describe("sandbox manager: live, the tools container (package 0.5)", () => {
   afterAll(async () => {
     if (sb) {
       await sandbox.destroy(sb).catch(() => undefined);
+      // If a test failed part-way, a container of this project may be left: it goes before its image.
+      const left = await run("docker", ["ps", "-aq", "--filter", `label=com.docker.compose.project=${sb.projectName}`], { env: dockerEnv(sb) }).catch(() => ({ stdout: "" }));
+      for (const id of left.stdout.split("\n").filter(Boolean)) await run("docker", ["rm", "-f", id], { env: dockerEnv(sb) }).catch(() => undefined);
       await sandbox.removeImage(sb);
     }
     process.env.HOME = savedHome;
@@ -175,8 +207,9 @@ describe("sandbox manager: live, the tools container (package 0.5)", () => {
     expect(built.status, built.stderr?.toString()).toBe(0);
 
     // The control: the same command through Compose with the user's configuration does get the proxies.
+    const { DOCKER_CONFIG: _projectClient, ...withoutProjectClient } = dockerEnv(sb);
     const control = await run("docker", ["compose", "-f", sb.composeFile, "--profile", "tools", "run", "--rm", "--no-deps", "-T", "tools", "node", "-e", names], {
-      env: { PATH: process.env.PATH, HOME: userHome },
+      env: { ...withoutProjectClient, HOME: userHome },
     });
     expect(JSON.parse(control.stdout.trim().split("\n").pop()!)).toContain("HTTP_PROXY");
 
@@ -189,8 +222,8 @@ describe("sandbox manager: live, the tools container (package 0.5)", () => {
     // A tools run left behind, as when the builder is stopped while a set-up command runs.
     await run("docker", ["compose", "-f", sb.composeFile, "--profile", "tools", "run", "-d", "--no-deps", "tools", "node", "-e", "setTimeout(() => {}, 120000)"], { env: dockerEnv(sb) });
     const filter = ["ps", "-a", "--filter", `label=com.docker.compose.project=${sb.projectName}`, "--format", "{{.Names}}"];
-    expect((await run("docker", filter)).stdout.trim()).not.toBe("");
+    expect((await run("docker", filter, { env: dockerEnv(sb) })).stdout.trim()).not.toBe("");
     await sandbox.destroy(sb);
-    expect((await run("docker", filter)).stdout.trim()).toBe("");
+    expect((await run("docker", filter, { env: dockerEnv(sb) })).stdout.trim()).toBe("");
   }, 180_000);
 });

@@ -8,9 +8,13 @@
  *    declares (read from `docker image inspect`), and HOSTNAME and HOME, which Docker sets in every
  *    container;
  *  - each named setting holds exactly the value the builder chose to give it, and each of the image's
- *    own settings holds the image's value (compared by fingerprint). HOSTNAME and HOME are not compared:
- *    Docker sets them per container.
- * So a builder setting cannot be inside under any name, its own or one on the list.
+ *    own settings holds the image's value (compared by fingerprint). HOSTNAME and HOME are not compared
+ *    with an expected value: Docker sets them per container;
+ *  - no value inside, HOSTNAME and HOME included, is equal to the value of any of the builder's own
+ *    settings that is set in this process (compared by fingerprint; the values are never printed).
+ * So no setting from the builder's environment is inside under its own name, and none of their values is
+ * inside under any name. What the check cannot judge is a value the builder chose to give on purpose: the
+ * named list is the builder's own choice.
  *
  * It is run twice:
  *  1. through `sandbox.runOnce`, the way the demonstration runs the real seed;
@@ -25,7 +29,12 @@ import { dockerEnv, sandbox, type Sandbox } from "../src/sandbox/manager.js";
 
 const run = promisify(execFile);
 
-/** Every setting the builder's own code reads (grep of process.env in builder/src and builder/scripts, 12 Nov 2026). */
+/**
+ * The eleven settings specific to the builder that its code reads (grep of process.env in builder/src and
+ * builder/scripts, 12 Nov 2026). The code also reads PATH, HOME and Docker's own client settings
+ * (DOCKER_CONFIG, DOCKER_CONTEXT, DOCKER_HOST, DOCKER_TLS, DOCKER_TLS_VERIFY, DOCKER_CERT_PATH), which steer
+ * the Docker command itself; any of those inside the container would fail the check as a name not on the list.
+ */
 export const BUILDER_SETTINGS = [
   "BUILDER_DATABASE_URL",
   "BUILDER_TEST_DATABASE_URL",
@@ -88,6 +97,11 @@ export async function checkToolsEnv(sb: Sandbox, given: Record<string, string>):
   const setByDocker = ["HOSTNAME", "HOME"];
   const allowed = new Set([...Object.keys(expected), ...setByDocker]);
 
+  // The builder's own settings as set in this process, by fingerprint only.
+  const builderFingerprints = new Set(
+    [...BUILDER_SETTINGS, ...OTHER_MARKED].map((n) => process.env[n]).filter((v): v is string => typeof v === "string" && v !== "").map(fingerprint),
+  );
+
   const markers: Record<string, string> = {};
   for (const name of [...BUILDER_SETTINGS, ...OTHER_MARKED]) markers[name] = `made-up-marker-${randomBytes(8).toString("hex")}`;
   const markerValues = Object.values(markers);
@@ -113,7 +127,7 @@ export async function checkToolsEnv(sb: Sandbox, given: Record<string, string>):
   const runs = [
     { label: "1. As the seed is run (sandbox.runOnce)", seen: first, markersChecked: false },
     {
-      label: `2. Compose given this process's whole environment (${Object.keys(fullEnv).length} settings, including made-up values for the builder's ${BUILDER_SETTINGS.length} settings, ${OTHER_MARKED.join(" and ")})`,
+      label: `2. Compose given this process's whole environment, with Docker's client folder set to the project's own (${Object.keys(fullEnv).length} settings, including made-up values for the builder's ${BUILDER_SETTINGS.length} settings, ${OTHER_MARKED.join(" and ")})`,
       seen: second,
       markersChecked: true,
     },
@@ -124,8 +138,14 @@ export async function checkToolsEnv(sb: Sandbox, given: Record<string, string>):
     const missing = Object.keys(expected).filter((n) => !(n in seen.entries));
     const wrongValue = Object.keys(expected).filter((n) => n in seen.entries && seen.entries[n] !== expected[n]);
     const builderNames = names.filter((n) => BUILDER_SETTINGS.includes(n) || OTHER_MARKED.includes(n) || n.startsWith("BUILDER_"));
+    const builderValues = names.filter((n) => builderFingerprints.has(seen.entries[n]!));
     const ok =
-      extra.length === 0 && missing.length === 0 && wrongValue.length === 0 && builderNames.length === 0 && (!markersChecked || seen.found.length === 0);
+      extra.length === 0 &&
+      missing.length === 0 &&
+      wrongValue.length === 0 &&
+      builderNames.length === 0 &&
+      builderValues.length === 0 &&
+      (!markersChecked || seen.found.length === 0);
     if (!ok) passed = false;
     lines.push(`${label}:`);
     lines.push(`   settings seen inside (${names.length}): ${names.join(", ")}`);
@@ -135,6 +155,9 @@ export async function checkToolsEnv(sb: Sandbox, given: Record<string, string>):
       `   named or image settings whose value is not the one given: ${wrongValue.length ? wrongValue.join(", ") : "none"} (${Object.keys(expected).length} compared by fingerprint)`,
     );
     lines.push(`   builder settings among the names: ${builderNames.length ? builderNames.join(", ") : "none"}`);
+    lines.push(
+      `   settings whose value equals one of the builder's own settings in this process: ${builderValues.length ? builderValues.join(", ") : "none"} (${builderFingerprints.size} of the builder's settings set here, compared by fingerprint)`,
+    );
     if (markersChecked) lines.push(`   made-up values found in any setting: ${seen.found.length} of ${markerValues.length}`);
     lines.push(`   ${ok ? "PASSED" : "FAILED"}`);
   }

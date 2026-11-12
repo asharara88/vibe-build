@@ -79,6 +79,19 @@ Not read: the LGPL-3.0 text, the CC-BY-3.0 text, the Mozilla MPL FAQ and the Cre
 | "For Claude 4.6 and later models, using inference_geo: \"us\" applies a 1.1x pricing multiplier. inference_geo: \"global\" (default) uses standard pricing." Server-side tools carry "additional usage-based pricing"; "Web search is available on the Claude API for $10 USD per 1,000 searches, plus standard token costs". Fast mode prices are listed for Claude Fable 5.2 ($16 / $80), Claude Opus 5.5 ($8 / $40) and two older Opus models only | [Pricing](https://platform.claude.com/docs/en/about-claude/pricing) |
 | "The token count is an estimate. In some cases, the actual number of input tokens used when creating a message might differ by a small amount." | [Token counting](https://platform.claude.com/docs/en/build-with-claude/token-counting) |
 
+## Measured on 12 November 2026 on the development machine, for package 0.5 (Docker 29.9.2, Docker Compose v5.6.1)
+
+Docker's documentation (docs.docker.com) could not be read from the session that recorded these: its network does not reach that site. Each fact below was measured instead, with made-up values, by a script kept with its output. Re-check against Docker's documentation before relying on any of them on another version.
+
+| Fact | Source |
+| --- | --- |
+| A proxy setting passed to `docker build` as a build argument (`HTTPS_PROXY`) reaches the build steps without being declared in the Dockerfile. It is recorded in the image's history only when the Dockerfile declares it with `ARG` | `evidence/2026-11-12-package-0.5/measure-docker-behaviours.sh` and `.txt`, item 1; the template's tools image in `measure-tools-image.txt` |
+| A `proxies` entry in Docker's client configuration (`config.json` in the folder named by `DOCKER_CONFIG`, by default `~/.docker`) adds proxy settings to every container that client starts | Same files, item 2 |
+| Docker Compose fills in `${NAME}` inside the values of `environment` and of an `env_file`, from its own environment; `$$` gives a literal `$` | Same files, item 3 |
+| Docker Compose starts a service under a profile when that service is named on the command line; a one-off `run` container of such a service is removed by `down` only when both the profile and `--remove-orphans` are given | Same files, item 4 |
+| On this machine `docker compose` and `docker buildx` are found in `/usr/libexec/docker/cli-plugins`, also with an empty client configuration | Same files, item 5 |
+| `drizzle-kit` 0.31.11 loads a `.env` file by itself when it starts | Same files, item 6, read in the published package's `bin.cjs` |
+
 ## Product documentation read on 12 November 2026 for the owner's own set-up; nothing in the repository relies on it
 
 | Fact | Source |
