@@ -19,10 +19,15 @@
  * that git ignores are seen too. Files git ignores are never committed, so their fingerprints are
  * kept beside the history at each commit, and the check compares against them: the session
  * certificate the development build needs lives in the workspace and is ignored.
+ *
+ * git never lists an entry named `.git` at the workspace's top or in a folder that holds tracked
+ * files, and never lists a named pipe, a socket or a device. So the check also walks the workspace
+ * itself (`entriesGitCannotSee`), and anything of that kind fails the step and is removed by the
+ * reset (found by the review of package 2.1).
  */
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, lstatSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { closeSync, constants, existsSync, lstatSync, openSync, readdirSync, readFileSync, readSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { promisify } from "node:util";
 
@@ -71,7 +76,63 @@ export async function git(repo: ProjectRepo, args: string[]): Promise<string> {
   return stdout;
 }
 
-const sha256File = (path: string) => createHash("sha256").update(readFileSync(path)).digest("hex");
+/**
+ * The fingerprint of a regular file, read a piece at a time, so that a file of any size can be
+ * fingerprinted (reading it whole fails above 2 GiB). A link at the path is refused, not followed.
+ */
+function sha256File(path: string): string {
+  const hash = createHash("sha256");
+  const fd = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW);
+  try {
+    const buf = Buffer.allocUnsafe(1024 * 1024);
+    for (let n = readSync(fd, buf, 0, buf.length, null); n > 0; n = readSync(fd, buf, 0, buf.length, null)) hash.update(buf.subarray(0, n));
+  } finally {
+    closeSync(fd);
+  }
+  return hash.digest("hex");
+}
+
+/** An entry git cannot see, which the workspace must never hold. */
+export interface NotAllowedEntry {
+  /** Its path in the workspace. */
+  path: string;
+  /** What it is, in plain words. */
+  what: string;
+}
+
+/**
+ * Walk the workspace on this machine and list what git cannot see, which the workspace must never hold:
+ *  - every entry named `.git`, in any letter case, at any depth, whatever it is (folder, file or
+ *    link). git skips such entries, so the check after a step, the commit and the reset would not
+ *    see them; and a `.git` folder can hold settings that make a later plain `git` run in that
+ *    folder start a program;
+ *  - every entry that is not a regular file, a folder or a symbolic link: a named pipe, a socket or a
+ *    device. git does not list these either.
+ * Each entry is looked at with lstat, so a link is never followed, and only names and types are read,
+ * never a file's contents. A folder named `.git` is listed whole, not gone into.
+ */
+export function entriesGitCannotSee(workTree: string): NotAllowedEntry[] {
+  const out: NotAllowedEntry[] = [];
+  const walk = (rel: string) => {
+    for (const name of readdirSync(rel === "" ? workTree : join(workTree, rel)).sort()) {
+      const path = rel === "" ? name : `${rel}/${name}`;
+      const st = lstatSync(join(workTree, path), { throwIfNoEntry: false });
+      if (name.toLowerCase() === ".git") out.push({ path, what: "named .git" });
+      else if (!st) out.push({ path, what: "an entry whose name could not be read back" });
+      else if (st.isDirectory()) walk(path);
+      else if (st.isFile() || st.isSymbolicLink()) continue;
+      else if (st.isFIFO()) out.push({ path, what: "a named pipe" });
+      else if (st.isSocket()) out.push({ path, what: "a socket" });
+      else if (st.isBlockDevice() || st.isCharacterDevice()) out.push({ path, what: "a device" });
+      else out.push({ path, what: "neither a file, a folder nor a link" });
+    }
+  };
+  walk("");
+  return out;
+}
+
+/** The entries, for a message: "src/.git (named .git), src/pipe (a named pipe)". */
+export const describeNotAllowed = (entries: NotAllowedEntry[]) => entries.map((e) => `${e.path} (${e.what})`).join(", ");
 
 /** Every file git ignores in the workspace, with its fingerprint. */
 async function ignoredFiles(repo: ProjectRepo): Promise<Record<string, string>> {
@@ -120,7 +181,8 @@ export function parseStatus(z: string): StatusEntry[] {
 /** Make the workspace a repository whose history is outside it, and commit what is there now. */
 export async function initProjectRepo(repo: ProjectRepo, message: string): Promise<string> {
   if (existsSync(repo.gitDir)) throw new Error(`${repo.gitDir} already exists; a project's repository is made once.`);
-  if (existsSync(join(repo.workTree, ".git"))) throw new Error("The workspace already has a .git entry; the project's history is kept outside the workspace.");
+  const notAllowed = entriesGitCannotSee(repo.workTree);
+  if (notAllowed.length) throw new Error(`The workspace holds entries git cannot see, so they could not be part of its history: ${describeNotAllowed(notAllowed)}.`);
   await git(repo, ["init", "--quiet", "--initial-branch=main"]);
   await git(repo, ["add", "--all"]);
   await git(repo, ["commit", "--quiet", "--no-verify", "-m", message]);
@@ -135,8 +197,11 @@ export interface WorkspaceChanges {
   ignoredNew: string[];
   /** Ignored files that were there at the last commit and are now different or gone. */
   ignoredChanged: string[];
+  /** Entries git cannot see, which the workspace must never hold (`entriesGitCannotSee`). None can be in the last commit. */
+  notAllowed: NotAllowedEntry[];
 }
 
+/** What differs from the last commit. Used by the check before a step, the check after it, and the reset. */
 export async function workspaceChanges(repo: ProjectRepo): Promise<WorkspaceChanges> {
   const entries = parseStatus(await git(repo, ["status", "--porcelain", "-z", "--untracked-files=all", "--ignored"]));
   const changed = [...new Set(entries.filter((e) => e.code !== "!!").map((e) => e.path))].sort();
@@ -144,11 +209,13 @@ export async function workspaceChanges(repo: ProjectRepo): Promise<WorkspaceChan
   const now = await ignoredFiles(repo);
   const ignoredNew = Object.keys(now).filter((p) => !(p in before)).sort();
   const ignoredChanged = Object.keys(before).filter((p) => now[p] !== before[p]).sort();
-  return { changed, ignoredNew, ignoredChanged };
+  return { changed, ignoredNew, ignoredChanged, notAllowed: entriesGitCannotSee(repo.workTree) };
 }
 
-/** Commit everything in the workspace, with `author` as the author. Returns the new commit's id. */
+/** Commit everything in the workspace, with `author` as the author. Returns the new commit's id. Refused if the workspace holds anything git cannot see. */
 export async function commitAll(repo: ProjectRepo, author: string, message: string): Promise<string> {
+  const notAllowed = entriesGitCannotSee(repo.workTree);
+  if (notAllowed.length) throw new Error(`Not committed: the workspace holds entries git cannot see: ${describeNotAllowed(notAllowed)}.`);
   await git(repo, ["add", "--all"]);
   await git(repo, ["commit", "--quiet", "--no-verify", `--author=${author}`, "-m", message]);
   await recordIgnoredBaseline(repo);
@@ -157,14 +224,23 @@ export async function commitAll(repo: ProjectRepo, author: string, message: stri
 
 /**
  * Put the workspace back as it was at the last commit, after a step that failed or was stopped:
- * changed files restored, new files removed, and ignored files that were not there at the last commit
- * removed. An ignored file that was there and has changed cannot be restored (git never had it):
- * it is reported, and the caller must not go on.
+ * changed files restored; new files removed, a folder holding a repository of its own included;
+ * entries git cannot see (anything named `.git`, named pipes, sockets, devices) removed, since none
+ * can be in the last commit; and ignored files that were not there at the last commit removed.
+ * Then the workspace is compared with the last commit again, and everything still different is
+ * returned as `unrestorable` (an ignored file that was there and has changed, for example: git never
+ * had it). If that list is not empty, the caller must not go on.
  */
-export async function resetToLastCommit(repo: ProjectRepo): Promise<{ removedIgnored: string[]; unrestorable: string[] }> {
+export async function resetToLastCommit(repo: ProjectRepo): Promise<{ removedIgnored: string[]; removedNotAllowed: string[]; unrestorable: string[] }> {
   await git(repo, ["reset", "--quiet", "--hard", "HEAD"]);
-  await git(repo, ["clean", "--quiet", "-d", "--force"]);
-  const { ignoredNew, ignoredChanged } = await workspaceChanges(repo);
-  for (const p of ignoredNew) rmSync(join(repo.workTree, p), { force: true, recursive: true });
-  return { removedIgnored: ignoredNew, unrestorable: ignoredChanged };
+  // -f twice: with one, git leaves an untracked folder that holds a repository of its own. No -x:
+  // ignored files stay (the session certificate among them); the new ones are removed below.
+  await git(repo, ["clean", "--quiet", "-d", "-f", "-f"]);
+  const first = await workspaceChanges(repo);
+  // rmSync removes a link itself, never what it points to.
+  for (const e of first.notAllowed) rmSync(join(repo.workTree, e.path), { force: true, recursive: true });
+  for (const p of first.ignoredNew) rmSync(join(repo.workTree, p), { force: true, recursive: true });
+  const left = await workspaceChanges(repo);
+  const unrestorable = [...new Set([...left.changed, ...left.ignoredNew, ...left.ignoredChanged, ...left.notAllowed.map((e) => e.path)])].sort();
+  return { removedIgnored: first.ignoredNew, removedNotAllowed: first.notAllowed.map((e) => e.path), unrestorable };
 }

@@ -23,7 +23,7 @@ import { join, posix } from "node:path";
 import { emptyUsage } from "../gateway/cost.js";
 import { sandbox as sandboxManager, type Sandbox, type StreamingRun } from "../sandbox/manager.js";
 import type { BuildEngine, EngineEvent, StepInstruction, StepResult } from "./interface.js";
-import { commitAll, workspaceChanges, type ProjectRepo } from "./project-repo.js";
+import { commitAll, describeNotAllowed, workspaceChanges, type ProjectRepo } from "./project-repo.js";
 
 export const SCRIPTED_ENGINE_NAME = "scripted";
 export const SCRIPTED_AUTHOR = "Scripted engine <scripted@example.invalid>";
@@ -96,7 +96,10 @@ export function readManifest(changeSetsDir: string, example: string, step: strin
 }
 
 /** How a step's container is started. The default is the sandbox manager's streaming runner, on the `engine` service. */
-export type EngineRunner = (args: { container: string; cmd: string[]; volumes: string[]; onLine: (line: string) => void }) => StreamingRun;
+export type EngineRunner = (args: { container: string; cmd: string[]; volumes: string[]; onLine: (line: string) => void; timeoutMs: number }) => StreamingRun;
+
+/** A step's container is killed after this long, unless the engine is given another limit. */
+export const DEFAULT_STEP_TIMEOUT_MS = 600_000;
 
 export interface ScriptedEngineOptions {
   /** The project's sandbox, whose compose file has the engine service. */
@@ -111,6 +114,8 @@ export interface ScriptedEngineOptions {
   example: string;
   /** For rehearsing a stop part-way: the applier pauses this long before each write. */
   delayMsPerWrite?: number;
+  /** A step's container is killed after this long, and the step fails saying so. Default ten minutes. */
+  stepTimeoutMs?: number;
   /** For tests: how the container is started. */
   runner?: EngineRunner;
 }
@@ -129,9 +134,11 @@ const now = () => new Date().toISOString();
 
 export class ScriptedEngine implements BuildEngine {
   readonly name = SCRIPTED_ENGINE_NAME;
+  /** The container of the step that is running, once it has been asked for. */
   private current: StreamingRun | null = null;
+  /** The step that is running: it settles when the step has ended, container gone and checks done. */
+  private step: Promise<StepResult> | null = null;
   private stopRequested = false;
-  private running = false;
 
   constructor(private readonly opts: ScriptedEngineOptions) {
     if (!NAME.test(opts.example)) throw new Error(`"${opts.example}" is not an example name.`);
@@ -141,36 +148,58 @@ export class ScriptedEngine implements BuildEngine {
     return { gitDir: this.opts.gitDir, workTree: this.opts.workspace };
   }
 
-  async runStep(step: StepInstruction, onEvent: (e: EngineEvent) => void): Promise<StepResult> {
-    if (this.running) throw new Error("A step is already running in this engine.");
-    this.running = true;
+  runStep(step: StepInstruction, onEvent: (e: EngineEvent) => void): Promise<StepResult> {
+    if (this.step) return Promise.reject(new Error("A step is already running in this engine."));
     this.stopRequested = false;
-    try {
-      return await this.run(step, onEvent);
-    } finally {
-      this.running = false;
+    const running = this.run(step, onEvent).finally(() => {
       this.current = null;
-    }
+      this.step = null;
+    });
+    this.step = running;
+    return running;
   }
 
+  /**
+   * Stop the running step, if any, and resolve only when it has ended: no container is started after
+   * a stop is asked for, a container already asked for is killed and gone, and the step's result
+   * (failed, "stopped") has been worked out. A step whose container had already ended when the stop
+   * came finishes its check and its commit as usual.
+   */
   async stop(): Promise<void> {
-    if (!this.running) return;
+    const running = this.step;
+    if (!running) return;
     this.stopRequested = true;
     await this.current?.kill();
+    await running.then(
+      () => undefined,
+      () => undefined,
+    );
   }
 
   private async run(step: StepInstruction, onEvent: (e: EngineEvent) => void): Promise<StepResult> {
     const { example, workspace, changeSetsDir } = this.opts;
     let turns = 0;
+    // The caller's handler may throw. Outside the container's lines, its first error is kept and the
+    // step fails (or, after the commit, is still reported as done); a throw never leaves the step half
+    // handled. Inside the container's lines, the runner catches it and kills the container.
+    let eventError: string | null = null;
+    const emit = (e: EngineEvent) => {
+      try {
+        onEvent(e);
+      } catch (err) {
+        eventError ??= err instanceof Error ? err.message : String(err);
+      }
+    };
     const fail = (reason: string, changedFiles: string[] = []): StepResult => {
-      onEvent({ type: "failed", reason, at: now() });
+      emit({ type: "failed", reason, at: now() });
       return { ok: false, changedFiles, usage: emptyUsage(), turns, failureReason: reason };
     };
-    onEvent({
+    emit({
       type: "text",
       text: `Scripted engine: fixed change ${example}/${step.stepId}. The instruction (${step.instruction.length} characters) is not read. No model is called.`,
       at: now(),
     });
+    if (eventError) return fail(`handling the step's events failed: ${eventError}`);
 
     // Refusals before any container is started.
     if (!listSteps(changeSetsDir, example).includes(step.stepId)) return fail(`unknown step: there is no fixed change ${example}/${step.stepId}`);
@@ -191,6 +220,9 @@ export class ScriptedEngine implements BuildEngine {
       volumes.push(`${full}:/workspace/${p}:ro`);
     }
     const before = await workspaceChanges(this.repo);
+    if (before.notAllowed.length > 0) {
+      return fail(`the workspace holds entries git cannot see, which it must never hold: ${describeNotAllowed(before.notAllowed)}`);
+    }
     if (before.changed.length + before.ignoredNew.length + before.ignoredChanged.length > 0) {
       return fail("the workspace has changes that are not committed; a step starts only from a committed workspace");
     }
@@ -209,6 +241,8 @@ export class ScriptedEngine implements BuildEngine {
         seen.outcome ??= { kind: "error", reason: "the engine printed a line that could not be read" };
         return;
       }
+      // onEvent is called here without a guard: if it throws, the runner kills the container and
+      // reports the error (handlerError), and the step fails.
       if (line.kind === "write") {
         turns++;
         onEvent({ type: "tool_call", tool: "scripted.write", input: { op: line.op, path: line.path, sha256: line.sha256 }, at: now() });
@@ -223,24 +257,31 @@ export class ScriptedEngine implements BuildEngine {
       else seen.outcome ??= { kind: "error", reason: "the engine printed a line of a kind this builder does not know" };
     };
     const runner: EngineRunner =
-      this.opts.runner ?? ((a) => sandboxManager.runStreaming(this.opts.sandbox, "engine", a.cmd, { container: a.container, volumes: a.volumes, onLine: a.onLine }));
-    this.current = runner({ container, cmd, volumes, onLine });
-    if (this.stopRequested) await this.current.kill();
+      this.opts.runner ??
+      ((a) => sandboxManager.runStreaming(this.opts.sandbox, "engine", a.cmd, { container: a.container, volumes: a.volumes, onLine: a.onLine, timeoutMs: a.timeoutMs }));
+    const timeoutMs = this.opts.stepTimeoutMs ?? DEFAULT_STEP_TIMEOUT_MS;
+    // A stop asked for while the step was being prepared: no container is started. Nothing is
+    // awaited between this check and the runner, so a stop cannot slip in between them.
+    if (this.stopRequested) return fail("stopped");
+    this.current = runner({ container, cmd, volumes, onLine, timeoutMs });
     const ended = await this.current.done;
 
     let failure: string | null = null;
     const o = seen.outcome;
     if (this.stopRequested) failure = "stopped";
+    else if (ended.handlerError !== undefined) failure = `handling the step's events failed, so the engine container was stopped: ${ended.handlerError}`;
+    else if (ended.timedOut) failure = `the step ran longer than its time limit (${Math.round(timeoutMs / 1000)} seconds), so the engine container was stopped`;
     else if (o?.kind === "blocked") failure = `blocked: ${o.reason}`;
     else if (o?.kind === "limit") failure = "turn limit reached";
     else if (o?.kind === "error") failure = o.reason;
     else if (ended.code !== 0) failure = `the engine container ended with exit code ${ended.code ?? "none (killed)"}: ${ended.stderrTail.trim().split("\n").pop() ?? ""}`;
     else if (o?.kind !== "done") failure = "the engine did not say that it had finished";
 
-    // What git sees, whatever happened: the step's result reports it.
+    // What git sees, and what the walk finds that git cannot see, whatever happened: the step's result reports it.
     const after = await workspaceChanges(this.repo);
-    const changedFiles = [...new Set([...after.changed, ...after.ignoredNew, ...after.ignoredChanged])].sort();
+    const changedFiles = [...new Set([...after.changed, ...after.ignoredNew, ...after.ignoredChanged, ...after.notAllowed.map((e) => e.path)])].sort();
     if (failure) return fail(failure, changedFiles);
+    if (after.notAllowed.length) return fail(`entries git cannot see, which the workspace must never hold: ${describeNotAllowed(after.notAllowed)}`, changedFiles);
 
     // The files changed must be exactly the change's own, with exactly the change's contents.
     const expected = new Set(manifest.files.map((f) => f.path));
@@ -259,7 +300,7 @@ export class ScriptedEngine implements BuildEngine {
     if (wrongContent.length) return fail(`files whose contents are not the fixed change's: ${wrongContent.map((f) => f.path).join(", ")}`, changedFiles);
 
     await commitAll(this.repo, SCRIPTED_AUTHOR, scriptedCommitMessage(example, step.stepId));
-    onEvent({ type: "finished", at: now() });
+    emit({ type: "finished", at: now() });
     return { ok: true, changedFiles, usage: emptyUsage(), turns };
   }
 }

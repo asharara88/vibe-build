@@ -24,7 +24,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { promisify } from "node:util";
 import type { EngineEvent } from "../src/engine/interface.js";
-import { git, initProjectRepo, type ProjectRepo } from "../src/engine/project-repo.js";
+import { describeNotAllowed, entriesGitCannotSee, git, initProjectRepo, type ProjectRepo } from "../src/engine/project-repo.js";
 import { listSteps, ScriptedEngine, TEMPLATE_PROTECTED_PATHS } from "../src/engine/scripted.js";
 import { createSandbox, dockerEnv, sandbox } from "../src/sandbox/manager.js";
 
@@ -102,6 +102,8 @@ try {
   log(`  git --git-dir=<sandbox>/workspace.git --work-tree=<sandbox>/workspace: first commit ${first.slice(0, 7)} (the template copy).`);
   log(`  The repository folder holds: ${readdirSync(repo.gitDir).sort().join(", ")}`);
   log(`  The workspace holds no .git: ${readdirSync(workspace).includes(".git") ? "NO, it does" : "true"}`);
+  const unseen = () => describeNotAllowed(entriesGitCannotSee(workspace)) || "none";
+  log(`  Entries git cannot see (anything named .git at any depth, pipes, sockets, devices), from a walk of the workspace: ${unseen()}`);
 
   log("");
   log("== 2. The two fixed steps, each in a fresh engine container ==");
@@ -128,6 +130,7 @@ try {
     );
     log(`  result: ok=${res.ok}, turns=${res.turns}, usage=${JSON.stringify(res.usage)}${res.failureReason ? `, failure: ${res.failureReason}` : ""}`);
     log(`  files git saw changed (${res.changedFiles.length}): ${res.changedFiles.join(", ")}`);
+    log(`  entries git cannot see, after the step: ${unseen()}`);
     log(`  commit: ${(await git(repo, ["log", "-1", "--format=%h %an <%ae>, committed by %cn: %s"])).trim()}`);
     if (!res.ok) throw new Error(`step ${stepId} did not finish: ${res.failureReason}`);
   }
