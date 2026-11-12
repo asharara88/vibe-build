@@ -351,17 +351,17 @@ Everything that matters: tokens per step, steps per app, retry rate, and cache h
 
 ### 5.5 The per-project cap
 
-In this note, *worst-case*, said of a hold, means the dearest case the hold's inputs allow: the provider's token estimate plus an assumed margin, and `max_tokens`, at the dearest listed rates; a hold is a reservation, not a proven ceiling on the bill (known gap 41).
-
 Each project has a cap in dollars, set when the project is created, with a default the owner chooses (section 9). Summing what has already been spent does not show that the next call fits, so the cap works by **holds**: money set aside before a call and settled afterwards. The budget equation, checked before every call, is:
 
 > spent (settled cost of finished calls) + open holds (calls in flight, and holds kept for calls not yet reconciled) + this call's hold ≤ cap.
+
+In this section, as built in package 1.2, *worst-case*, said of a hold, means the dearest case the hold's inputs allow: the provider's token estimate plus an assumed margin, and `max_tokens` (the most output the request allows), each at the dearest listed rate that applies to that count and that request (the Input, Output and Fast mode rows below). A hold is therefore a reservation, not a proven ceiling on the bill (known gap 41). The owner approved the cap as "worst-case holds" (line 5); he has not been asked whether that approval means this.
 
 **The hold is meant to be the most this call can cost, worked out from the request and not from history.** The gateway computes it from the request itself before forwarding anything. Review on 12 November found ways a call could still cost more than the hold as written here; they are under "Known limits of the hold" below, with what package 1.2 is to do about each:
 
 | Part of the hold | How it is bounded |
 | --- | --- |
-| Input | The request's prompt tokens, counted by the provider's token-counting call (assumed to be free: no source in `docs/SOURCES.md` says so; counting calls carry no hold). **If the prompt cannot be counted, the call is refused**; no estimate from the request's size is used (amendment b). Priced at the dearest input rate that could apply to this model and this prompt: the one-hour cache-write rate, taken at the long-prompt price for a model that has one (for Claude Haiku 5.5 that is $1.00 per million tokens, not $0.20), unless the counted prompt is under the threshold by the margin package 1.2 sets (amendment c) |
+| Input | The request's prompt tokens, counted by the provider's token-counting call (assumed to be free: no source in `docs/SOURCES.md` says so; counting calls carry no hold, so if they are billed, that money is outside the cap). **If the prompt cannot be counted, the call is refused**; no estimate from the request's size is used (amendment b). Priced at the dearest input rate that could apply to this model and this prompt: the one-hour cache-write rate, taken at the long-prompt price for a model that has one (for Claude Haiku 5.5 that is $1.00 per million tokens, not $0.20), unless the counted prompt is under the threshold by the margin package 1.2 sets (amendment c) |
 | Output | The request's `max_tokens`, which the model is assumed not to exceed (no source in `docs/SOURCES.md` says so; the same assumption is what bounds extended thinking, the reasoning the model does before it answers), priced at the dearest output rate that could apply: the long-prompt output rate for a model that has one, on the same test as the input (amendment c). The gateway refuses a request whose `max_tokens` is above the profile's ceiling, so a hold cannot be made absurd |
 | Fast mode | Doubles both parts whenever the request asks for it **or the profile allows the provider to serve it** (amendment c), so the hold covers fast mode at twice the standard rate. Twice is what the pricing page lists for Claude Opus 5.5 and Claude Fable 5.2; for any other model it is an assumption (known gap 23) |
 
@@ -406,7 +406,7 @@ Each project has a cap in dollars, set when the project is created, with a defau
 | (d) | A successful answer whose usage cannot be read keeps its full hold and is marked unreconciled | Step 2 of the life of a hold |
 | (e) | If a finished call cannot be saved, its hold stays open, the project is frozen, and no further call is made until the owner reconciles it | Step 5 of the life of a hold |
 
-**Other changes to this note made with or after those five (to this section, to 5.2 and 7.2, and one to the comparison table under decision D), each for the owner to see.** They are not among the five amendments the owner approved through the build plan; the first three follow from them, the fourth awaits his confirmation, and the rest were found in review: some are corrections, some are new, and some are the owner's to approve, as each row says.
+**Other changes to this note made with or after those five (to this section, to 5.2, 6.1 and 7.2, and two to the comparison table under decision D), each for the owner to see.** They are not among the five amendments the owner approved through the build plan; the first three follow from them, the fourth awaits his confirmation, and the rest were found in review: some are corrections, some are new, and some are the owner's to approve, as each row says.
 
 | Date | Change | Why | Standing |
 | --- | --- | --- | --- |
@@ -428,6 +428,7 @@ Each project has a cap in dollars, set when the project is created, with a defau
 | 11 and 12 Nov 2026 | The paragraph "The two invariants" was added to 5.5, and step 3 gained the rule that a kept hold is closed only by the owner's recorded action stating the actual cost and its evidence | The invariants come from the plan's package 1.4 and the closing rule from its package 1.5; the note has to state both | Taken from the plan's own wording; listed here for completeness |
 | 12 Nov 2026 | Proof row B4 split into two cases | No model has both a long-prompt rate and a listed fast-mode price, so the row could not be shown as first written | It changes what finishes package 1.2, so it is the owner's to approve or change, with the row assignment |
 | 12 Nov 2026 | In the comparison table under decision D, "permissive licences: Both" replaced by a row saying neither candidate is free of non-permissive licences as found so far | `caniuse-lite` and the LGPL packages of `sharp` were found in the TypeScript template after the table was written; the sentence above the table that said every component is permissive was corrected with it | Correction of a fact. The stack decision is unchanged and is the owner's |
+| 12 Nov 2026 | Wording of the hold made to match what package 1.2 builds: *worst-case* defined in 5.5; token counting "free" and `max_tokens` "cannot exceed" marked as assumptions; steps 2 and 5 limited to the amount of the hold; the margin recorded as an assumption, not a measurement (the outside-facts row and the change-log row above); the 6.1 Spend row says a hold is a reservation, not a proven ceiling; the `caniuse-lite` row under decision D says its approval rests on an unconfirmed reading | The owner's outside review of 12 Nov found these sentences claimed more than is built or sourced | Corrections, for the owner to see; whether the cap's approval at line 5 means a reservation of this kind is his to say |
 
 ---
 

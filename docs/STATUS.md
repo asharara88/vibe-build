@@ -67,11 +67,11 @@ The packages that could come next; later ones are in the plan, section 7.
 | 0.6b; M8 | A demo server, among others | Server |
 | C1, C2 | The demo candidate, among others | Candidate |
 
-**No real model call is made on package 1.2's code until a fault stops the project's later calls** (amendment e, proof row B10, package 1.4). In that code a call whose record cannot be saved, or whose bill is above its hold, only raises a fault (known gap 35).
+**Claude Code's stance: no real model call on package 1.2's code before the project is stopped when a finished call cannot be saved** (amendment e, proof row B10, package 1.4). In that code such a call only raises a fault (known gap 35). A bill above its hold also at most raises a fault, and no package yet stops the project in that case; whether one should is yours to decide before the first real model call (known gaps 35 and 41). Your own option under plan section 4 to allow a real call before checkpoint 1 is unchanged.
 
 ## Waiting on the owner
 
-One decision at a time, in this order. Each has a recommendation and its reason, except question 8, which is a question of fact.
+One decision at a time, in this order, except that question 10 is asked first, on 12 Nov, because your outside review asked for the licence records to be settled. Each has a recommendation and its reason, except question 8, which is a question of fact.
 
 **1. What finishes package 1.2?** The plan first said "the rows in design note 7.2". On 12 Nov that was narrowed to proof rows B1 to B6, in answer to a review you passed on; your own approval of that is not recorded. The rows themselves were also rewritten that day (B4 is split in two; B1, B2, B5 and B6 say more), so choosing (a) or (b) accepts them as they now read. Review also found four ways the hold could fall short and one case that was not defined (known gap 41). Package 1.2 handles them by refusing the request, by keeping the hold, or by a margin on the token count; none has a proof row.
 - (a) **B1 to B6, plus a proof row for each of those five.** Recommended. Reason: they are built in 1.2, so what finishes 1.2 should include showing them. It adds five rows to the design note and changes the plan's "and only those". The row for the margin can show only that a margin is applied; whether it is large enough needs a real provider (package 2.3).
@@ -99,8 +99,8 @@ One decision at a time, in this order. Each has a recommendation and its reason,
 
 **9. [Server] A demo server**, when ready to spend; not needed before package 0.6b. Prices read on 11 Nov 2026 (`docs/OPEN-DECISIONS.md` item 5): (a) **Hetzner CPX32, €30.49 per month excl. VAT, no UAE location** (recommended: lowest verified price; made-up data only); (b) Oracle Cloud in Dubai; (c) AWS in the UAE; (d) DigitalOcean, $48.00 per month, no UAE. Prices for (b) and (c) could not be read. The chosen price is read again on the day of approval.
 
-**10. Your licence approval of 12 Nov ("a0 approved"): exactly what does it cover?** It was read as option (a), with the `lightningcss` family read as eleven named build packages, each package held to the version read on 12 Nov; you have not confirmed that reading, and L9 and L11 rest on it. Every exception as entered, with its version, licence, component and use, is listed in one row of `docs/DECISIONS.md` (12 Nov, the note on the row "Licence exceptions approved").
-- (a) **Confirm exactly the exceptions listed there, each held to its version; any version change is shown to you first.** Recommended. Reason: it is the narrowest reading and matches the rule files as they are.
+**10. Your licence approval of 12 Nov ("a0 approved"): exactly what does it cover?** It was read as option (a), with the `lightningcss` family read as eleven named build packages, and as holding across version upgrades while each licence is unchanged; you have not confirmed that reading, and L9 and L11 rest on it. The rule files are stricter than that reading: each package is accepted only at the version read on 12 Nov, and another version fails the check until someone has looked at it. Every exception as entered, with its version, licence, component and use, is listed in one row of `docs/DECISIONS.md` (12 Nov, the note on the row "Licence exceptions approved").
+- (a) **Confirm exactly the exceptions listed there, each held to its version, and any version change is shown to you before it is accepted.** Recommended. Reason: it is the narrowest reading. The version pin is how the rule files work today; showing you each change first would be a new rule, written into the files' notes.
 - (b) Confirm the same names, letting Claude Code accept a newer version when its licence is unchanged.
 - (c) Narrow the list: you name what to drop.
 
