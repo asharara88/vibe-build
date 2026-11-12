@@ -51,8 +51,8 @@ describe("the key reader", () => {
   it("does not read an escape whose own letter or digits are themselves escaped: the stated limit", () => {
     // These are outside the three rules, and the record says so. If the reader is ever extended to read them,
     // this test should be changed together with the record.
-    expect(spellsKey("ab\\u\\0\\0\\2\\dcd".replace(/\\\\/g, "\\"), "ab-cd")).toBe(false);
-    expect(spellsKey("ab\\u005c\\u0075002dcd".replace(/\\\\/g, "\\"), "ab-cd")).toBe(false);
+    expect(spellsKey("ab\\u\\0\\0\\2\\dcd", "ab-cd")).toBe(false);
+    expect(spellsKey("ab\\u005c\\u0075002dcd", "ab-cd")).toBe(false);
   });
 
   it("finds the key however it is written within the three rules: 3,000 random keys, every character spelt at random", () => {

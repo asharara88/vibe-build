@@ -145,7 +145,7 @@ export function createGateway(opts: GatewayOptions) {
     try {
       out = JSON.stringify(scrub(JSON.parse(raw)));
     } catch {
-      // Not JSON, or too deeply nested to write out again.
+      // Not JSON (or, in principle, a JSON value that cannot be written out again).
       out = raw.split(key).join("[redacted]");
     }
     return carriesKey(out) ? WITHHELD_BODY : out;

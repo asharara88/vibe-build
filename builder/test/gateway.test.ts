@@ -926,7 +926,7 @@ describe("holds: found by the third review, and kept fixed", () => {
   it("an answer nested very deeply does not make the call fail: its hold is kept with a note in the log", async () => {
     // As first written (fourth review) this test also expected the body to be withheld. Since the sixth
     // review a body out of which the key cannot be read goes back as it was read, however deeply nested;
-    // one that carries the key and cannot be written out again is still withheld (second half).
+    // one that carries the key is written out again with the key cut out and its nesting cut at 200 levels (second half).
     const { id, token } = await newProject(5);
     const res = await call(token, plain("deep-500"));
     expect(res.status).toBe(500);
