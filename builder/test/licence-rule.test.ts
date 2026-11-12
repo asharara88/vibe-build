@@ -94,17 +94,46 @@ describe("the rule", () => {
       {},
     );
     expect(mismatch.problems.map((p) => p.package)).toEqual(["lightningcss-linux-x64-gnu@1.34.0"]);
-    const orphan = applyRule(rule, { "lightningcss-anything@1.0.0": { licenses: "MPL-2.0" } }, {});
+    const orphan = applyRule(rule, { "lightningcss-linux-x64-gnu@1.33.0": { licenses: "MPL-2.0" } }, {});
     expect(orphan.problems).toHaveLength(1);
+    expect(orphan.problems[0]?.reason).toContain("is not installed");
   });
 
-  it("does not let the family name excuse a different licence", () => {
+  it("covers only the build packages named one by one, not every name that starts the same way", () => {
+    // lightningcss-cli and lightningcss-wasm are real packages under MPL-2.0 that the owner did not approve.
     const r = applyRule(
       rule,
-      { "lightningcss@1.33.0": { licenses: "MPL-2.0" }, "lightningcss-extra@1.33.0": { licenses: "GPL-3.0-only" } },
+      {
+        "lightningcss@1.33.0": { licenses: "MPL-2.0" },
+        "lightningcss-cli@1.33.0": { licenses: "MPL-2.0" },
+        "lightningcss-wasm@1.33.0": { licenses: "MPL-2.0" },
+        "lightningcss-loader@3.0.1": { licenses: "MIT" },
+      },
       {},
     );
-    expect(r.problems.map((p) => p.package)).toEqual(["lightningcss-extra@1.33.0"]);
+    expect(r.problems.map((p) => p.package)).toEqual(["lightningcss-cli@1.33.0", "lightningcss-wasm@1.33.0"]);
+  });
+
+  it("treats an old-style list of licences as all applying, each read on its own", () => {
+    const r = applyRule(rule, { "old-style@1.0.0": { licenses: ["GPL-3.0-only", "MIT OR Apache-2.0"] } }, {});
+    expect(r.problems.map((p) => p.package)).toEqual(["old-style@1.0.0"]);
+    const ok = applyRule(rule, { "old-style@1.0.0": { licenses: ["MIT", "ISC"] } }, {});
+    expect(ok.problems).toEqual([]);
+  });
+
+  it("records which packages were accepted on one side of a choice of licences", () => {
+    const r = applyRule(rule, { "dual@1.0.0": { licenses: "(MIT OR GPL-3.0-only)" } }, {});
+    expect(r.problems).toEqual([]);
+    expect(r.choices).toEqual([{ package: "dual@1.0.0", licence: "(MIT OR GPL-3.0-only)" }]);
+  });
+
+  it("does not let a build package's name excuse a different licence", () => {
+    const r = applyRule(
+      rule,
+      { "lightningcss@1.33.0": { licenses: "MPL-2.0" }, "lightningcss-linux-x64-gnu@1.33.0": { licenses: "GPL-3.0-only" } },
+      {},
+    );
+    expect(r.problems.map((p) => p.package)).toEqual(["lightningcss-linux-x64-gnu@1.33.0"]);
   });
 });
 
@@ -172,6 +201,50 @@ describe("the real check, run against a folder with a test package added", () =>
     const r = run(dir);
     expect(r.code).toBe(1);
     expect(r.out).toContain("fake-none@1.0.0");
+  });
+
+  it("fails when a shipped test package outside the rule is marked private", () => {
+    const dir = fixture("private-breach", { "fake-private": "" }, {}, {});
+    const p = path.join(dir, "node_modules", "fake-private");
+    mkdirSync(p, { recursive: true });
+    writeFileSync(path.join(p, "package.json"), JSON.stringify({ name: "fake-private", version: "1.0.0", private: true, license: "GPL-3.0-only" }));
+    const r = run(dir);
+    expect(r.code).toBe(1);
+    // The licence tool reports any package marked private as "UNLICENSED", whatever it declares,
+    // so a private dependency is always refused rather than skipped.
+    expect(r.out).toContain("fake-private@1.0.0 | UNLICENSED");
+  });
+
+  it("fails when it reads nothing: an empty folder, or a folder that does not exist", () => {
+    const empty = path.join(tmp, "empty");
+    mkdirSync(empty, { recursive: true });
+    writeFileSync(path.join(empty, "package.json"), JSON.stringify({ name: "empty", version: "0.0.1", private: true }));
+    const r1 = run(empty);
+    expect(r1.code).toBe(1);
+    expect(r1.out).toContain("no installed package was found");
+    const r2 = run(path.join(tmp, "does-not-exist"));
+    expect(r2.code).toBe(1);
+    expect(r2.out).toContain("RESULT: FAILED");
+  });
+
+  it("fails when a declared dependency is not installed, since its licence cannot be read", () => {
+    const dir = fixture("uninstalled", { "fake-mit": "", "fake-absent": "" }, {}, { "fake-mit": "MIT" });
+    const r = run(dir);
+    expect(r.code).toBe(1);
+    expect(r.out).toContain("fake-absent is declared as a dependency but is not installed");
+  });
+
+  it("fails when the notices file is out of date", () => {
+    const noticesPath = path.join(builderDir, "THIRD-PARTY-NOTICES.md");
+    const original = readFileSync(noticesPath, "utf8");
+    try {
+      writeFileSync(noticesPath, original + "\nedited by hand\n");
+      const r = run(builderDir);
+      expect(r.code).toBe(1);
+      expect(r.out).toContain("THIRD-PARTY-NOTICES.md is missing or out of date");
+    } finally {
+      writeFileSync(noticesPath, original);
+    }
   });
 
   it("passes on the builder itself, with the notices file up to date", () => {

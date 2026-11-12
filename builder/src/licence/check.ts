@@ -26,17 +26,62 @@ const rulePath = path.resolve(arg("--rule") ?? path.join(componentDir, "licence-
 const write = process.argv.includes("--write");
 const isOwnComponent = dir === componentDir;
 
+function fail(message: string): never {
+  console.log(`PROBLEM: ${message}`);
+  console.log("RESULT: FAILED");
+  process.exit(1);
+}
+
+if (!existsSync(path.join(dir, "package.json"))) fail(`${dir} has no package.json, so there is nothing to check.`);
+
+// Every installed package is read, including any marked private. Only the folder's own
+// package (the root) is left out, by its path.
 function readInstalled(production: boolean): Installed {
   const tool = path.join(componentDir, "node_modules", ".bin", "license-checker-rseidelsohn");
-  const args = ["--json", "--excludePrivatePackages", "--start", dir];
+  const args = ["--json", "--start", dir];
   if (production) args.push("--production");
   const out = execFileSync(tool, args, { encoding: "utf8", maxBuffer: 64 * 1024 * 1024, stdio: ["ignore", "pipe", "pipe"] });
-  return JSON.parse(out) as Installed;
+  const found = JSON.parse(out) as Installed;
+  const result: Installed = {};
+  for (const [key, pkg] of Object.entries(found)) {
+    if (pkg.path !== undefined && path.resolve(pkg.path) === dir) continue;
+    result[key] = pkg;
+  }
+  return result;
+}
+
+// "Shipped" means not development-only. The tool decides it by what it can reach from the
+// non-development dependencies among the installed packages. The lock file, where there is
+// one, marks development-only packages itself; a package is treated as shipped if either says so.
+function shippedByLockFile(all: Installed): Installed {
+  const lockPath = path.join(dir, "package-lock.json");
+  const extra: Installed = {};
+  if (!existsSync(lockPath)) return extra;
+  const lock = JSON.parse(readFileSync(lockPath, "utf8")) as { packages?: Record<string, { version?: string; dev?: boolean }> };
+  for (const [where, entry] of Object.entries(lock.packages ?? {})) {
+    if (where === "" || entry.dev === true) continue;
+    const name = where.slice(where.lastIndexOf("node_modules/") + "node_modules/".length);
+    const key = `${name}@${entry.version ?? ""}`;
+    const pkg = all[key];
+    if (pkg) extra[key] = pkg;
+  }
+  return extra;
+}
+
+// A dependency the folder declares but which is not installed cannot be checked, so it fails.
+function declaredButMissing(): string[] {
+  const root = JSON.parse(readFileSync(path.join(dir, "package.json"), "utf8")) as {
+    dependencies?: Record<string, string>;
+    devDependencies?: Record<string, string>;
+  };
+  const names = [...Object.keys(root.dependencies ?? {}), ...Object.keys(root.devDependencies ?? {})];
+  return names.filter((n) => !existsSync(path.join(dir, "node_modules", n, "package.json")));
 }
 
 const rule = JSON.parse(readFileSync(rulePath, "utf8")) as LicenceRule;
 const all = readInstalled(false);
-const shipped = readInstalled(true);
+const shipped = { ...readInstalled(true), ...shippedByLockFile(all) };
+const missing = declaredButMissing();
 const result = applyRule(rule, all, shipped);
 
 console.log(`Licence check for ${path.relative(path.resolve(componentDir, ".."), dir) || dir}`);
@@ -55,7 +100,20 @@ if (result.exceptionsNotInstalled.length > 0) {
   console.log(`Named exceptions not installed here: ${result.exceptionsNotInstalled.join(", ")}`);
 }
 
+if (result.choices.length > 0) {
+  console.log("Accepted on one side of a choice of licences (the permitted side is the one taken):");
+  for (const c of result.choices) console.log(`  ${c.package} | ${c.licence}`);
+}
+
 let failed = false;
+if (result.checked === 0) {
+  failed = true;
+  console.log("PROBLEM: no installed package was found. A check that read nothing has not passed.");
+}
+for (const name of missing) {
+  failed = true;
+  console.log(`PROBLEM: ${name} is declared as a dependency but is not installed, so its licence could not be read.`);
+}
 if (result.problems.length > 0) {
   failed = true;
   console.log(`PROBLEMS: ${result.problems.length}`);

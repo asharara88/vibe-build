@@ -1,5 +1,5 @@
 {
-  "about": "The one licence rule for this component (hard rule 2; build plan package 0.4). Every installed package, shipped or development, must carry a licence on the permitted list, or be named below. An exception is the owner's written approval of one named package for one named use, recorded in docs/DECISIONS.md. It never covers another package with the same licence.",
+  "about": "The one licence rule for this component (hard rule 2; build plan package 0.4). Every installed package, shipped or development, must carry a licence on the permitted list, or be named below. An exception is the owner's written approval of one named package for one named use, recorded in docs/DECISIONS.md. It never covers another package with the same licence. Where a package offers a choice of licences (\"A OR B\"), it is accepted if one of the choices is on the permitted list, and that choice is the one taken.",
   "permitted": [
     "MIT",
     "Apache-2.0",
@@ -16,7 +16,6 @@
   "exceptions": [
     {
       "name": "lightningcss",
-      "family": "lightningcss-",
       "licence": "MPL-2.0",
       "use": "development",
       "approved": "2026-11-12",
@@ -24,7 +23,20 @@
       "attribution": "lightningcss, from the parcel-bundler/lightningcss project. Its source code is subject to the terms of the Mozilla Public License, v. 2.0.",
       "source": "https://github.com/parcel-bundler/lightningcss",
       "licence_text": "https://mozilla.org/MPL/2.0/",
-      "family_note": "The per-machine build packages named lightningcss-<machine> are published from the same source at the same version under the same licence; which one is installed depends on the machine."
+      "build_packages": [
+        "lightningcss-android-arm64",
+        "lightningcss-darwin-arm64",
+        "lightningcss-darwin-x64",
+        "lightningcss-freebsd-x64",
+        "lightningcss-linux-arm-gnueabihf",
+        "lightningcss-linux-arm64-gnu",
+        "lightningcss-linux-arm64-musl",
+        "lightningcss-linux-x64-gnu",
+        "lightningcss-linux-x64-musl",
+        "lightningcss-win32-arm64-msvc",
+        "lightningcss-win32-x64-msvc"
+      ],
+      "build_packages_note": "The eleven per-machine build packages that lightningcss 1.33.0 lists as its own optional dependencies, each named here exactly. Which one is installed depends on the machine. Each is accepted only at the same version and licence as lightningcss itself. No other package whose name begins with lightningcss- is covered."
     },
     {
       "name": "spdx-exceptions",
@@ -34,7 +46,7 @@
       "record": "docs/DECISIONS.md, 12 Nov 2026, licence exceptions approved by the owner",
       "attribution": "From version 2.0 of the SPDX specification: Copyright (c) 2010-2015 Linux Foundation and its Contributors. Licensed under the Creative Commons Attribution License 3.0 Unported. All other rights are expressly reserved.",
       "source": "https://github.com/kemitchell/spdx-exceptions.json",
-      "licence_text": "http://spdx.org/licenses/CC-BY-3.0"
+      "licence_text": "Creative Commons Attribution 3.0 Unported. The package's own files give no link to the text; the related package spdx-ranges links http://spdx.org/licenses/CC-BY-3.0"
     },
     {
       "name": "spdx-ranges",
