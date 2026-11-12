@@ -19,20 +19,22 @@
  *     - for comparison only, a container on Docker's default network, which is not a project container.
  *  5. Every attempt per container, a table of all of them, and the egress proxy's own log.
  *  6. Everything removed: containers, network, volume, images, the stand-in listener, the temporary folder.
+ *     Each clean-up step runs on its own, so that one failing does not stop the others, and what is left
+ *     is always reported.
  *
  * Nothing the probe tests is run on this machine: every attempt is made from inside a container.
  * Development profile only. No model is called. Made-up data only. No setting's value is printed.
  */
 import { execFile, spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import net from "node:net";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { createInterface } from "node:readline";
 import { promisify } from "node:util";
 import { ANSWER_WORDING, columnCell, gotAnswer, parseProbeOutput, readMachineSide, renderMarkdownTable, renderTable, sessionProxyHostPort, summarise, type Column, type ProbeReport } from "../src/sandbox/isolation.js";
-import { composeDocument, createSandbox, dockerEnv, HARDENING, sandbox, type SandboxSpec } from "../src/sandbox/manager.js";
+import { composeDocument, composeProjectName, createSandbox, dockerEnv, HARDENING, sandbox, type Sandbox, type SandboxSpec } from "../src/sandbox/manager.js";
 
 const run = promisify(execFile);
 const builderDir = resolve(import.meta.dirname, "..");
@@ -48,25 +50,25 @@ const EGRESS_PORT = 3128;
 const BUILDER_DB_PORT = 5432;
 const PROBE_MOUNT = "/probe/isolation-probe.mjs";
 
-const dir = mkdtempSync(join(tmpdir(), "builder-isolation-"));
-const workspace = join(dir, "workspace");
-// A local settings file (.env) is never copied: the app's settings come from the sandbox only.
-cpSync(templateDir, workspace, { recursive: true, filter: (src) => !/\/(node_modules|\.next|certs|\.env(\.(?!example$)[^/]*)?)(\/|$)/.test(src) });
+const PROJECT_ID = "demo_isolation";
+const ALLOW_HOSTS = ["registry.npmjs.org"];
 
-const spec: SandboxSpec = {
-  projectId: "demo_isolation",
-  dir,
-  profile: "development-cloud-session",
-  allowHosts: ["registry.npmjs.org"],
-  gatewayUrl: `http://127.0.0.1:${GATEWAY_PORT}`,
-  builderDir,
-  hostProxy: { url: process.env.HTTPS_PROXY ?? "", caBundlePath: "/root/.ccr/ca-bundle.crt" },
-  devDbPort: PROJECT_DB_PORT,
-  app: { buildContext: workspace, port: 3131, env: { APP_URL: "http://127.0.0.1:3131" }, writablePaths: ["/app/.next/cache"], toolsEnv: { APP_URL: "http://127.0.0.1:3131" } },
-  engine: { workspace, changeSets: join(builderDir, "scripted") },
+/** The project, on the development profile, in the temporary folder `dir`. */
+const projectSpec = (dir: string): SandboxSpec => {
+  const workspace = join(dir, "workspace");
+  return {
+    projectId: PROJECT_ID,
+    dir,
+    profile: "development-cloud-session",
+    allowHosts: ALLOW_HOSTS,
+    gatewayUrl: `http://127.0.0.1:${GATEWAY_PORT}`,
+    builderDir,
+    hostProxy: { url: process.env.HTTPS_PROXY ?? "", caBundlePath: "/root/.ccr/ca-bundle.crt" },
+    devDbPort: PROJECT_DB_PORT,
+    app: { buildContext: workspace, port: 3131, env: { APP_URL: "http://127.0.0.1:3131" }, writablePaths: ["/app/.next/cache"], toolsEnv: { APP_URL: "http://127.0.0.1:3131" } },
+    engine: { workspace, changeSets: join(builderDir, "scripted") },
+  };
 };
-// Made-up secrets for this run only; the app never starts, but its settings file is what its container is given.
-const sb = createSandbox(spec, randomBytes(18).toString("base64url"), { AUTH_SECRET: randomBytes(32).toString("base64url"), APP_SAMPLE_PASSWORD: "Sample-" + randomBytes(9).toString("base64url") });
 
 const sessionProxy = sessionProxyHostPort(process.env.HTTPS_PROXY);
 /** The probe's settings, completed with what is read on the machine for group G once the project's services are up. */
@@ -84,7 +86,7 @@ const probeSettings = (machine: { bridgeGateway: string | null; machineListeners
   });
 
 /** Run the probe in a fresh container of a project service, through the sandbox manager. */
-async function probeService(service: string, label: string): Promise<string[]> {
+async function probeService(sb: Sandbox, service: string, label: string): Promise<string[]> {
   const lines: string[] = [];
   const r = sandbox.runStreaming(sb, service, ["node", PROBE_MOUNT, settings], {
     container: `${sb.projectName}-isolation-${label}`,
@@ -97,9 +99,10 @@ async function probeService(service: string, label: string): Promise<string[]> {
   return lines;
 }
 
-const COMPARISON = `${sb.projectName}-isolation-bridge`;
+const PROJECT_NAME = composeProjectName(PROJECT_ID);
+const COMPARISON = `${PROJECT_NAME}-isolation-bridge`;
 /** For comparison only: the probe in a container on Docker's default network, with the same hardening. Not a project container. */
-async function probeBridge(): Promise<string[]> {
+async function probeBridge(sb: Sandbox): Promise<string[]> {
   const args = [
     "run", "--rm", "--name", COMPARISON, "--network", "bridge", "--user", "node",
     "--cap-drop", "ALL", "--security-opt", "no-new-privileges:true", "--pids-limit", String(HARDENING.pids_limit), "--memory", HARDENING.mem_limit, "--read-only",
@@ -141,9 +144,19 @@ function show(label: string, report: ProbeReport, ownLoopback: boolean) {
 
 const t0 = Date.now();
 let standIn: net.Server | string = "not started";
+// Made inside the try, so that the clean-up below removes whatever was made, however far the run got.
+let dir: string | undefined;
+let sb: Sandbox | undefined;
 try {
+  dir = mkdtempSync(join(tmpdir(), "builder-isolation-"));
+  const spec = projectSpec(dir);
+  // A local settings file (.env) is never copied: the app's settings come from the sandbox only.
+  cpSync(templateDir, join(dir, "workspace"), { recursive: true, filter: (src) => !/\/(node_modules|\.next|certs|\.env(\.(?!example$)[^/]*)?)(\/|$)/.test(src) });
+  // Made-up secrets for this run only; the app never starts, but its settings file is what its container is given.
+  const made = createSandbox(spec, randomBytes(18).toString("base64url"), { AUTH_SECRET: randomBytes(32).toString("base64url"), APP_SAMPLE_PASSWORD: "Sample-" + randomBytes(9).toString("base64url") });
+  sb = made;
   log("Package 0.6a: isolation checked on the development profile, from inside the project's containers.");
-  log(`Compose project ${sb.projectName}, profile development-cloud-session. Egress list: ${spec.allowHosts.join(", ")}.`);
+  log(`Compose project ${made.projectName}, profile development-cloud-session. Egress list: ${spec.allowHosts.join(", ")}.`);
   log(`The session proxy, as given to the probe: ${sessionProxy ?? "not set"} (host and port only).`);
   log("");
   log("== 1. The project's services, as the Compose file gives them ==");
@@ -153,21 +166,21 @@ try {
   }
   log("");
   log("== 2. Images built, database and egress proxy started ==");
-  await sandbox.build(sb);
+  await sandbox.build(made);
   const users = await Promise.all(
-    [sb.appBuild!.image, sb.appBuild!.toolsImage].map(async (image) => (await run("docker", ["image", "inspect", image, "--format", "{{.Config.User}}"], { env: dockerEnv(sb) })).stdout.trim()),
+    [made.appBuild!.image, made.appBuild!.toolsImage].map(async (image) => (await run("docker", ["image", "inspect", image, "--format", "{{.Config.User}}"], { env: dockerEnv(made) })).stdout.trim()),
   );
   log(`  App image built (user ${users[0]}), tools image built (user ${users[1]}), from the house template, in ${Math.round((Date.now() - t0) / 1000)} s.`);
-  await sandbox.up(sb, ["db", "egress"]);
-  for (let i = 0; i < 40 && !(await sandbox.logs(sb, "egress")).includes('"listening"'); i++) await new Promise((r) => setTimeout(r, 500));
-  const ps = JSON.parse(`[${(await sandbox.ps(sb)).trim().split("\n").join(",")}]`) as Array<{ Service: string; State: string; Health?: string }>;
+  await sandbox.up(made, ["db", "egress"]);
+  for (let i = 0; i < 40 && !(await sandbox.logs(made, "egress")).includes('"listening"'); i++) await new Promise((r) => setTimeout(r, 500));
+  const ps = JSON.parse(`[${(await sandbox.ps(made)).trim().split("\n").join(",")}]`) as Array<{ Service: string; State: string; Health?: string }>;
   for (const p of ps) log(`  Container ${p.Service}: ${p.State}${p.Health ? ` (${p.Health})` : ""}`);
   standIn = await standInGateway();
   log(`  Stand-in listener on the gateway's address 127.0.0.1:${GATEWAY_PORT}: ${typeof standIn === "string" ? standIn : "listening (accepts a connection and closes it; the real gateway is not running)"}`);
   log("");
 
   log("== 3. Read on the machine for group G (read-only; nothing is connected to here) ==");
-  const machine = await readMachineSide(dockerEnv(sb));
+  const machine = await readMachineSide(dockerEnv(made));
   settings = probeSettings(machine);
   log(`  Listening TCP sockets on the machine (/proc/net/tcp): ${machine.machineListeners.join(", ") || "none"}`);
   log(`  Gateway address of Docker's default network (docker network inspect bridge): ${machine.bridgeGateway ?? "none found; no G attempts"}`);
@@ -182,10 +195,10 @@ try {
   const raw: Record<string, string[]> = {};
   // In the engine and comparison containers, 127.0.0.1 is the container's own loopback address, not the machine's.
   const plan: Array<[string, string, boolean, () => Promise<string[]>]> = [
-    ["app", "app container (host network)", false, () => probeService("app", "app")],
-    ["tools", "tools container (host network)", false, () => probeService("tools", "tools")],
-    ["engine", "engine container (no network)", true, () => probeService("engine", "engine")],
-    ["bridge", "comparison: default network, not a project container", true, probeBridge],
+    ["app", "app container (host network)", false, () => probeService(made, "app", "app")],
+    ["tools", "tools container (host network)", false, () => probeService(made, "tools", "tools")],
+    ["engine", "engine container (no network)", true, () => probeService(made, "engine", "engine")],
+    ["bridge", "comparison: default network, not a project container", true, () => probeBridge(made)],
   ];
   for (const [key, label, ownLoopback, go] of plan) {
     const lines = await go();
@@ -204,7 +217,7 @@ try {
   log("");
 
   log("== 6. The project's egress proxy's own log: one line per decision ==");
-  const decisions = (await sandbox.logs(sb, "egress")).split("\n").filter((l) => l.includes('"decision"')).map((l) => l.replace(/^[^|]*\|\s*/, "  "));
+  const decisions = (await sandbox.logs(made, "egress")).split("\n").filter((l) => l.includes('"decision"')).map((l) => l.replace(/^[^|]*\|\s*/, "  "));
   log(decisions.join("\n") || "  (none)");
   log(`  ${decisions.length} decisions logged. Attempts sent directly or through the session's proxy do not pass through it.`);
 
@@ -225,17 +238,40 @@ try {
   if (e.stderr) log(e.stderr.slice(-3000));
   process.exitCode = 1;
 } finally {
-  if (typeof standIn !== "string") await new Promise((r) => (standIn as net.Server).close(r));
-  await run("docker", ["rm", "-f", COMPARISON], { env: dockerEnv(sb) }).catch(() => undefined);
-  await sandbox.destroy(sb);
-  await sandbox.removeImage(sb);
-  const env = dockerEnv(sb);
-  rmSync(dir, { recursive: true, force: true });
-  const left = await run("docker", ["ps", "-a", "--filter", `label=com.docker.compose.project=${sb.projectName}`, "--format", "{{.Names}}"], { env });
-  const leftBridge = await run("docker", ["ps", "-a", "--filter", `name=${COMPARISON}`, "--format", "{{.Names}}"], { env });
-  const images = await run("docker", ["images", "--format", "{{.Repository}}", "--filter", `reference=${sb.projectName}*`], { env });
-  log("");
-  log(
-    `Removed: containers, network, volume, images, the stand-in listener and the temporary folder. Containers of the project left: ${left.stdout.trim() || "none"}. Comparison container left: ${leftBridge.stdout.trim() || "none"}. Images of the project left: ${images.stdout.trim() || "none"}.`,
-  );
+  // Each step on its own: a step that fails is reported and marks the run failed, and the next steps still run.
+  const step = async (what: string, f: () => unknown) => {
+    try {
+      await f();
+    } catch (err) {
+      log(`Clean-up step failed (${what}): ${err instanceof Error ? err.message : String(err)}`);
+      process.exitCode = 1;
+    }
+  };
+  const server = standIn;
+  if (typeof server !== "string") await step("closing the stand-in listener", () => new Promise((r) => server.close(r)));
+  const made = sb;
+  if (made) {
+    // `docker rm -f` fails when the container is already gone, as it should be (it runs with --rm); what is left is reported below.
+    await step("removing the comparison container", () => run("docker", ["rm", "-f", COMPARISON], { env: dockerEnv(made) }).catch(() => undefined));
+    await step("removing the project's containers, network and volume", () => sandbox.destroy(made));
+    await step("removing the project's images", () => sandbox.removeImage(made));
+  }
+  const folder = dir;
+  if (folder) await step("removing the temporary folder", () => rmSync(folder, { recursive: true, force: true }));
+  await step("reporting what is left", async () => {
+    // Docker's settings as the sandbox gives them; its client folder may already be gone, which Docker accepts.
+    const env = dockerEnv({ dir: folder ?? join(tmpdir(), "builder-isolation-not-made") });
+    const ask = async (args: string[]) => (await run("docker", args, { env })).stdout.trim().split("\n").filter(Boolean).join(", ") || "none";
+    const label = `label=com.docker.compose.project=${PROJECT_NAME}`;
+    const left = [
+      `project containers: ${await ask(["ps", "-a", "--filter", label, "--format", "{{.Names}}"])}`,
+      `project networks: ${await ask(["network", "ls", "--filter", label, "--format", "{{.Name}}"])}`,
+      `project volumes: ${await ask(["volume", "ls", "--filter", label, "--format", "{{.Name}}"])}`,
+      `comparison container: ${await ask(["ps", "-a", "--filter", `name=${COMPARISON}`, "--format", "{{.Names}}"])}`,
+      `project images: ${await ask(["images", "--format", "{{.Repository}}", "--filter", `reference=${PROJECT_NAME}*`])}`,
+      `temporary folder: ${folder && existsSync(folder) ? "still there" : "none"}`,
+    ];
+    log("");
+    log(`Clean-up: containers, network, volume, images, the stand-in listener and the temporary folder removed. Left behind: ${left.join("; ")}.`);
+  });
 }

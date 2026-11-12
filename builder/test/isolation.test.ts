@@ -11,7 +11,7 @@ import { promisify } from "node:util";
 import { describe, expect, it, onTestFinished } from "vitest";
 import { BODY_READ_MS, classifyError, countOtherSockets, parseAbstractUnix, parseListeners, parseSettings, parseUdpBound, planAttempts, runAttempt, type PlannedAttempt } from "../scripts/isolation-probe.mjs";
 import { ANSWER_WORDING, cell, columnCell, gotAnswer, parseProbeOutput, readMachineSide, RESULT, renderMarkdownTable, renderTable, sessionProxyHostPort, summarise, type ProbeAttempt } from "../src/sandbox/isolation.js";
-import { createSandbox, dockerEnv, sandbox } from "../src/sandbox/manager.js";
+import { createSandbox, dockerEnv, sandbox, type Sandbox } from "../src/sandbox/manager.js";
 
 // Package 0.6a. The unit tests call the probe's functions only. Those that make an attempt make it only
 // against made-up servers the test itself starts on the loopback address (127.0.0.1 and "localhost"):
@@ -383,8 +383,14 @@ describe("isolation probe: reading what it prints (unit)", () => {
 
 describe("isolation probe: live, the engine container (development profile)", () => {
   it("from inside the engine container, which has no network, every attempt fails, outside and on the host alike", async () => {
-    // Made inside the test, so that nothing is left behind when the test is filtered out.
+    // Made inside the test, so that nothing is left behind when the test is filtered out. The clean-up is
+    // registered straight away, before anything can fail: it removes the project if it was made, then the folder.
     const dir = mkdtempSync(join(tmpdir(), "builder-isolation-live-"));
+    let made: Sandbox | undefined;
+    onTestFinished(async () => {
+      if (made) await sandbox.destroy(made).catch(() => undefined);
+      rmSync(dir, { recursive: true, force: true });
+    });
     mkdirSync(join(dir, "workspace", "certs"), { recursive: true });
     const sb = createSandbox(
       {
@@ -400,10 +406,7 @@ describe("isolation probe: live, the engine container (development profile)", ()
       },
       "sample-only-password",
     );
-    onTestFinished(async () => {
-      await sandbox.destroy(sb).catch(() => undefined);
-      rmSync(dir, { recursive: true, force: true });
-    });
+    made = sb;
     // Group G as well: the machine's listening ports at the gateway address of Docker's default network.
     const machine = await readMachineSide(dockerEnv(sb));
     expect(machine.bridgeGateway).toMatch(/^\d+\.\d+\.\d+\.\d+$/);
