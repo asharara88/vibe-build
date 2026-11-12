@@ -25,8 +25,9 @@ export const auth = betterAuth({
   },
   user: {
     additionalFields: {
-      // Rule 5: the role is set by an admin or the seed, never by the user signing up.
-      role: { type: "string", required: false, defaultValue: "employee", input: false },
+      // Rule 5: the role is set by an admin or the seed, never by the user signing up. A new
+      // account has no role ("none" is not a role this app recognises), so every guard refuses it.
+      role: { type: "string", required: false, defaultValue: "none", input: false },
     },
   },
   plugins: [nextCookies()],

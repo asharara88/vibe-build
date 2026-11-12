@@ -22,7 +22,7 @@ Then open http://localhost:3000. Sign in as `employee@example.test`, `manager@ex
 | 2 Lists have an empty state | `EmptyState` component; the home page shows one |
 | 3 Actions that fail say why | Error messages the user can act on, never codes (sign-in form) |
 | 4 Who-and-when stamps | `stamps()` in `src/db/schema.ts`; every app table must spread it |
-| 5 Role check before anything | `requireRole()` in `src/lib/roles.ts`, called first on every page |
+| 5 Role check before anything | The guards in `src/lib/roles.tsx`: every page is written with `guardedPage`, every form action with `guardedAction`, every data route with `guardedRoute`. The code inside is only called with a permitted user. `npm run build` fails if a page, action or route has no guard (`scripts/check-guards.ts`) |
 | 6 Confirmation before anything destructive | Translated confirm texts in `messages/*.json`; a confirm component is added with the first destructive action |
 | 7 No secrets in code | Everything from the environment; the browser receives nothing secret |
 | 8 Numbers show source and period | `common.source` message; a component is added with the first number |
@@ -31,7 +31,30 @@ Then open http://localhost:3000. Sign in as `employee@example.test`, `manager@ex
 
 ## Files the builder must not change
 
-`src/auth.ts`, `src/lib/roles.ts`, the four sign-in tables in `src/db/schema.ts`, and anything under `acceptance/`. These are protected by the builder's engine rules and mounted read-only.
+`src/auth.ts`, `src/lib/roles.tsx`, `src/lib/access.ts`, `scripts/check-guards.ts`, the four sign-in tables in `src/db/schema.ts`, and anything under `acceptance/`. The build engine is to be told not to change these, and `scripts/check-guards.ts`, `src/lib/roles.tsx` and `src/lib/access.ts` with them; that rule belongs to the engine, which is not built yet, so nothing enforces it today.
+
+## The role guard (rule 5)
+
+Three things in an app can show or change data: a page, a form action and a data route. Each is written through a guard that names the roles it is for:
+
+```ts
+export default guardedPage(["manager"], async ({ user, locale }) => ...);          // src/app/[locale]/.../page.tsx
+export const approve = guardedAction(["manager"], async (user, formData) => ...);   // a file marked "use server"
+export const GET = guardedRoute(["manager"], async (request, user) => ...);         // src/app/api/.../route.ts
+```
+
+- The code inside is called only with a permitted user. There is no "denied" flag to forget.
+- Not signed in: the sign-in page (a route answers 401). Signed in with the wrong role: a plain "no access" page in the reader's language (a route answers 403).
+- A role the app does not recognise is refused, never treated as the lowest role. A new account has the role `none`, which is not a role, until someone gives it one.
+- The few things that need no role (the sign-in page, the sign-in library's routes) are written with `publicPage`, `publicAction` or `publicRoute`, each with its reason.
+- `npm run build` runs `scripts/check-guards.ts` first. It fails if a page, action or route is written in any way it does not recognise as guarded, and refuses the ways round it that reviews have found (listed in `evidence/2026-11-12-package-0.3/role-guard.md`). It is there to catch a guard left out by mistake; it is not a defence against code written on purpose to defeat the guard. `next.config.ts` is held to its exact contents by the check, and the build script must be exactly `tsx scripts/check-guards.ts && next build`. `npm run check:guards` prints the list of what is guarded and for whom.
+- A page file exports only its page (and, if needed, a setting with a plain value). Something like `generateMetadata` would run before the guard, so it is refused; a page title comes from the layout.
+- `npm test` runs the tests of the decision (one for each role) and of that check.
+- The pages under `src/app/[locale]/example/` and the route `src/app/api/example/roles` are examples; the build step that adds an app's own screens replaces them.
+
+What the guard does not do: a refused page is sent with the ordinary "found" status, not a "forbidden" one (the framework's way of sending that is still marked experimental); layouts are not checked, so a layout must not show data; and the check reads how a file is written, not what roles it names.
+
+The request file is `src/proxy.ts`. It must sit beside the `app` folder; at the template's root Next.js does not run it.
 
 ## The image library `sharp` is not installed
 
