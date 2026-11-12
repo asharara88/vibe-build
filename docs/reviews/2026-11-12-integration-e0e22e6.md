@@ -192,4 +192,26 @@ Its nine non-blocking findings, answered in the record update made after the mer
 | 8 | "At the latest with the checkpoint 2 pack" beside packages that cannot start until the owner decides | Reworded: at the latest before package 3.3 can start |
 | 9 | Wording in this file: "everything else confirmed" above eleven findings; "here" for another file | Corrected |
 
-Also noted by the reviewer and recorded in the status file without being looked into: a set-up script on both cloud environments, `openrouter.ai` among the allowed hosts, and three variables on "Default" whose names begin `BW2`. The reviewer read the repository as public.
+Also noted by the reviewer: a set-up script on both cloud environments, `openrouter.ai` among the allowed hosts, and three variables on "Default" that are not this project's. The script on "vibe-build" was put there by another session of this project with the owner's approval (pull request #8, open, not merged); the rest was not looked into. The reviewer read the repository as public.
+
+**On "no contradicting pair".** Three of the nine findings are worded "X beside Y" (2, 5 and 8). The reviewer judged that none was an actual contradiction: in each case the two statements were true together once read in full, and the wording was loose. The reviewer's own report is not saved in the repository; this section is Claude Code's summary of it.
+
+**The review bot.** Pull request #7 was marked ready for review at 08:58 UTC and merged at 08:58:55. The review bot read `492370c` and finished at 08:59:49 with no findings, 54 seconds **after** the merge. The commit it read is the commit merged, but the merge did not wait for it. From now on a pull request is not merged until the bot's review of its head has finished.
+
+## Review of the record update (commit `ba17011`, pull request #11)
+
+A fresh reviewer agent read `ba17011` against the integration branch. It verified that the merged content of pull request #7 is identical to `492370c`, and answered: packages 0.1 and 1.1 are rightly marked tested as of `492370c`; P-1 is rightly closed, on the qualification now written into the P-1 row. **It said `ba17011` should not be merged as it stood**, for three one-sentence points:
+
+| # | Finding | Blocking | Answer in the next commit |
+| --- | --- | --- | --- |
+| 1 | The register's introduction to Part 2 still said package 1.1 is "built, not tested" | Yes | Corrected; the register's header updated |
+| 2 | "Not set by this work: a set-up script on both environments" was contradicted by the project's own pull request #8, from another session | Yes | The status file and this record now say where the "vibe-build" script came from and what was not looked into |
+| 3 | "Whether it is public was not re-checked" beside "the reviewer read the repository as public" | Yes | The question now says it was read as public |
+| 4 | For 0.1 and P-1, "findings closed" is met by the record update, not at `492370c` alone | No | Said in the P-1 row and the status file's 0.1 row |
+| 5 | The tested marks rest on Claude Code's summary of the seventh review; three findings were worded as pairs | No | A paragraph above says why the reviewer did not count them as contradictions |
+| 6 | The recommendation on `VIBEBUILD_KEY` had flipped to "leave it", leaving out three reasons against | No | The recommendation is "remove it until checkpoint 1" again, with the three reasons; "only its name has been seen" |
+| 7 | Known gap 37 was closed although the pull request's description had no row for the review bot | No | The bot's row is added to the description; the paragraph above records that the merge came before the bot's result. Gap 37's closing text is corrected |
+| 8 | "First in the plan's order whose dependencies are met" was not literally true (R1 comes earlier) | No | Reworded |
+| 9 | What finishes package 1.2 was listed for the owner, not asked | No | It is now question 2, to be answered before 1.2 is marked tested |
+| 10 | The status file named the prefix of variables belonging to the owner's other work, in a public repository | No | Removed from the status file and this record. It remains in the history of commit `ba17011`, which is not rewritten |
+| 11 | With status updates going through their own pull request, a session could start on a stale status file | No | The decisions row now says which branch to read |
