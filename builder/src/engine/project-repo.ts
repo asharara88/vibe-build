@@ -13,7 +13,7 @@
  *  - the file-system monitor, which can run a program, is switched off.
  * A content filter named in a `.gitattributes` the engine writes runs only if the repository's own
  * settings define it, and they are written here only. Whether this is enough is for an engineer to
- * judge (known gap 50).
+ * judge (known gap 51).
  *
  * The check after a step reads `git status --porcelain -z --untracked-files=all --ignored`, so files
  * that git ignores are seen too. Files git ignores are never committed, so their fingerprints are

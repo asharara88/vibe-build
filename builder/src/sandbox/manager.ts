@@ -140,7 +140,7 @@ const bindMount = (source: string, target: string, readOnly: boolean) => ({
  * The engine service (package 2.1). The same in both profiles: no network at all, because the
  * scripted engine calls no model and fetches nothing. The real engine (package 2.2) needs a route to
  * the gateway; its network is decided there, and what 3.1 shows from this container about the
- * network does not carry over to it (known gap 49). It runs as the unprivileged user `node`, with the
+ * network does not carry over to it (known gap 50). It runs as the unprivileged user `node`, with the
  * hardening every project container gets, a read-only root, a small `/tmp`, no settings file and no
  * environment entry, and without the base image's start-up script, which would add PWD and SHLVL.
  * Under the "engine" profile, so it starts only when a step is run on purpose; `up` refuses it.

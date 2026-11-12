@@ -89,7 +89,7 @@ A further run with the build skipping the cache passed the same way and printed 
    - its mounts: root read-only, `/engine` read-only, `/tmp` and `/workspace` read-write, `/workspace/certs` and the 12 protected paths read-only;
    - network interfaces: `lo` only. A name lookup of `registry.npmjs.org` failed (`EAI_AGAIN`), and so did a connection to the project database's port on the host (`ECONNREFUSED`); the same connection was tried again in section 5, once the database was listening on the host, and failed the same way;
    - settings inside, names only: `HOME`, `HOSTNAME`, `NODE_VERSION`, `PATH`, `YARN_VERSION` (what Docker and the image set; none from the builder).
-4. **The image build**, with nothing from Docker's cache in the app image but one step (`WORKDIR /app`, which makes an empty folder). The template's guard check read 44 code files and listed every page, action and route with its guard, the three new pages and the new action among them: "RESULT: PASSED". `next build` listed `/[locale]/my-requests` and `/[locale]/my-requests/new`. The text the check shows for what each scripted file's guard is given is wrong (for example `guardedPage(ploye)` for home's `guardedPage(ROLES)`): a defect in how the check prints, which does not change what it decides (known gap 51).
+4. **The image build**, with nothing from Docker's cache in the app image but one step (`WORKDIR /app`, which makes an empty folder). The template's guard check read 44 code files and listed every page, action and route with its guard, the three new pages and the new action among them: "RESULT: PASSED". `next build` listed `/[locale]/my-requests` and `/[locale]/my-requests/new`. The text the check shows for what each scripted file's guard is given is wrong (for example `guardedPage(ploye)` for home's `guardedPage(ROLES)`): a defect in how the check prints, which does not change what it decides (known gap 52).
 5. **Tables, users, the app.** `drizzle-kit push` in the tools container created the table ("Changes applied"), with the list of two schema files. The seed created the three sample users. Read back from the database: the 12 columns, the status default `'waiting'`, the three checks and the three links to the user table. The app container started and was healthy.
 6. **The screens** (`scripts/screenshot-scripted.ts`), 14 checks, all PASS:
    - the banner names the scripted engine, in English and in Arabic;
@@ -131,13 +131,13 @@ The sample users' names are in English on the Arabic pages ("Sample Employee"); 
 ## What this does not show
 
 - **Packages 3.1, 3.2, 2.2 and W2 are not built.** The acceptance store and runner, the exporter, the real engine and the test harness are what this package is for; none of them exists yet. That later packages can use it "with no spend" is designed, not shown: nothing uses it yet.
-- **The network, for the real engine.** The engine container has no network. Attempts made from it, in 3.1, to reach the acceptance store over the network or through the database will fail for that reason alone, and say nothing about package 2.2's engine, which needs a route to the gateway (known gap 49).
+- **The network, for the real engine.** The engine container has no network. Attempts made from it, in 3.1, to reach the acceptance store over the network or through the database will fail for that reason alone, and say nothing about package 2.2's engine, which needs a route to the gateway (known gap 50).
 - **The server profile.** Only the development profile was run. The engine service is the same in both (unit test), but it was not started on a server.
-- **The rest of example 1.** No employee record, no balance, no telling the manager, no manager or HR screens, and no mail catcher in the template (known gap 53). Acceptance item 1 is what this app can pass; items 2 to 6 cannot.
-- **Migrations.** The table is made by `drizzle-kit push`; there are no migration files (known gap 52).
-- **That git in the builder cannot be made to run something by the engine's files.** It is designed so that git reads and runs none of them; an engineer's view is asked for (known gap 50).
-- **Protected paths stop changes to the files themselves, not new files beside them.** The scripted engine cannot add any file outside its fixed change; the real engine will need a rule (known gap 55).
-- **The engine's user.** The workspace was handed to uid 1000 because the builder runs as root here (known gap 56).
-- **The browser ran on this machine.** Playwright's browser ran on the host and ran the app's page code there; the app's server ran in its container (known gap 54).
+- **The rest of example 1.** No employee record, no balance, no telling the manager, no manager or HR screens, and no mail catcher in the template (known gap 54). Acceptance item 1 is what this app can pass; items 2 to 6 cannot.
+- **Migrations.** The table is made by `drizzle-kit push`; there are no migration files (known gap 53).
+- **That git in the builder cannot be made to run something by the engine's files.** It is designed so that git reads and runs none of them; an engineer's view is asked for (known gap 51).
+- **Protected paths stop changes to the files themselves, not new files beside them.** The scripted engine cannot add any file outside its fixed change; the real engine will need a rule (known gap 56).
+- **The engine's user.** The workspace was handed to uid 1000 because the builder runs as root here (known gap 57).
+- **The browser ran on this machine.** Playwright's browser ran on the host and ran the app's page code there; the app's server ran in its container (known gap 55).
 - **The Arabic texts** were written by Claude Code and have not been checked by anyone who reads Arabic. They are on `docs/arabic-wording-list.md` for the owner.
 - **No independent review** has been made of this package yet.
