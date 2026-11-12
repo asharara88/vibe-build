@@ -1,0 +1,25 @@
+# Each fix of the review answers removed in a scratch copy of builder/, and the live tests of the tools container run.
+# A: dockerEnv no longer points DOCKER_CONFIG at the project's own client folder.
+# B: destroy runs 'down' without the tools profile.
+# Both live tests run each time, because the second uses the sandbox the first creates.
+
+## A
+372d371
+<     DOCKER_CONFIG: join(sb.dir, "docker-client"),
+     × a Docker client configuration that adds proxy settings to containers does not reach the tools container 928ms
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+AssertionError: expected [ 'APP_SAMPLE_PASSWORD', …(12) ] to deeply equal [ 'APP_SAMPLE_PASSWORD', …(8) ]
+      Tests  1 failed | 1 passed | 8 skipped (10)
+
+## B
+421c421
+<   destroy: (sb: Sandbox) => compose(sb, ["down", "-v", "--remove-orphans"]),
+---
+>   destroy: (sb: Sandbox) => compose(sb, ["down", "-v", "--remove-orphans"], 180_000, false),
+     × removing the project also removes a tools container whose run was cut off 400ms
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+AssertionError: expected 'builder_p_tools_live-tools-run-98528b…' to be '' // Object.is equality
+      Tests  1 failed | 1 passed | 8 skipped (10)
+
+## Both fixes in place (this branch)
+      Tests  2 passed | 8 skipped (10)

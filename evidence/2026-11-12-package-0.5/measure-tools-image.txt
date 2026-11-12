@@ -1,0 +1,8 @@
+tools image built from templates/next at bbe0857
+history lines: 22
+history lines holding the proxy's address: 0
+image settings (inspect) lines holding it: 0
+image's declared settings: NEXT_TELEMETRY_DISABLED NODE_VERSION PATH YARN_VERSION 
+user: node, start-up script: null
+session certificate files in the image: /app/certs/session-ca.crt /certs/session-ca.crt 
+a .env file in /app: 0

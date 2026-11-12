@@ -1,0 +1,23 @@
+Template copied from <checkout>/templates/next to the project workspace.
+Compose project builder_demo_template: db, egress, app. Secrets written to the sandbox's secrets folder only.
+Building the app image and the tools image inside Docker (development profile: build steps use the session proxy)...
+Image built in 67 s.
+
+The tools container's environment, printed by a stand-in seed step run as the seed is run (scripts/tools-env-check.ts):
+  Named list (4): APP_SAMPLE_PASSWORD, APP_URL, AUTH_SECRET, DATABASE_URL
+  Set by the tools image itself, or by Docker for every container (6): HOME, HOSTNAME, NEXT_TELEMETRY_DISABLED, NODE_VERSION, PATH, YARN_VERSION
+  1. As the seed is run (Compose itself given only PATH and HOME):
+     settings seen inside (12): APP_SAMPLE_PASSWORD, APP_URL, AUTH_SECRET, DATABASE_URL, HOME, HOSTNAME, NEXT_TELEMETRY_DISABLED, NODE_VERSION, PATH, PWD, SHLVL, YARN_VERSION
+     not on the named list and not the image's own: PWD, SHLVL
+     builder settings among them: none
+     made-up marker values found in any setting: 0 of 13
+     FAILED
+  2. Compose given this process's whole environment (210 settings, including made-up values for the builder's 12 settings and one more):
+     settings seen inside (12): APP_SAMPLE_PASSWORD, APP_URL, AUTH_SECRET, DATABASE_URL, HOME, HOSTNAME, NEXT_TELEMETRY_DISABLED, NODE_VERSION, PATH, PWD, SHLVL, YARN_VERSION
+     not on the named list and not the image's own: PWD, SHLVL
+     builder settings among them: none
+     made-up marker values found in any setting: 0 of 13
+     FAILED
+FAILED: the tools container was given a setting it should not have
+
+Containers, network, volume, image and the temporary folder removed.

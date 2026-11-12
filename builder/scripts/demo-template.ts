@@ -4,8 +4,11 @@
  *
  * Usage (from builder/): npx tsx scripts/demo-template.ts <templateDir> <outDir> [--guard]
  * With --guard, the role guard is also tried by each kind of visitor (package 0.3).
- * Development profile only. Schema push and seeding run from this machine against the project's
- * database because the run-time image carries no development tools (docs/KNOWN-GAPS.md, gap 29).
+ * Development profile only. The tables and the sample users are created in the project's tools
+ * container (the template image's `tools` stage), never on this machine (package 0.5). Before that,
+ * a stand-in seed step run in the same way reports the names in its environment and a fingerprint of
+ * each value, and the run fails unless they are exactly the settings given, with the values given, and
+ * none of the builder's own settings (scripts/tools-env-check.ts).
  */
 import { execFile } from "node:child_process";
 import { randomBytes } from "node:crypto";
@@ -14,6 +17,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { promisify } from "node:util";
 import { createSandbox, sandbox } from "../src/sandbox/manager.js";
+import { checkToolsEnv } from "./tools-env-check.js";
 
 const run = promisify(execFile);
 const [templateDirArg, outDirArg] = process.argv.slice(2);
@@ -27,7 +31,8 @@ const log = (s: string) => console.log(s);
 
 const dir = mkdtempSync(join(tmpdir(), "builder-tpl-"));
 const workspace = join(dir, "workspace");
-cpSync(templateDir, workspace, { recursive: true, filter: (src) => !/\/(node_modules|\.next|certs)(\/|$)/.test(src) });
+// A local settings file (.env) is never copied: the app's settings come from the sandbox only.
+cpSync(templateDir, workspace, { recursive: true, filter: (src) => !/\/(node_modules|\.next|certs|\.env(\.(?!example$)[^/]*)?)(\/|$)/.test(src) });
 log(`Template copied from ${templateDir} to the project workspace.`);
 
 const dbPassword = randomBytes(18).toString("base64url");
@@ -47,28 +52,41 @@ const sb = createSandbox(
     builderDir: resolve(import.meta.dirname, ".."),
     hostProxy: { url: process.env.HTTPS_PROXY ?? "", caBundlePath: "/root/.ccr/ca-bundle.crt" },
     devDbPort: dbPort,
-    app: { buildContext: workspace, port: appPort, env: { APP_URL: appUrl }, writablePaths: ["/app/.next/cache"] },
+    app: {
+      buildContext: workspace,
+      port: appPort,
+      env: { APP_URL: appUrl },
+      writablePaths: ["/app/.next/cache"],
+      toolsEnv: { APP_URL: appUrl },
+    },
   },
   dbPassword,
   { AUTH_SECRET: authSecret, APP_SAMPLE_PASSWORD: samplePassword },
 );
-log(`Compose project ${sb.projectName}: db, egress, app. Secrets written to the sandbox's secrets folder only.`);
+log(`Compose project ${sb.projectName}: db, egress, app, and tools for one-off set-up commands. Secrets written to the sandbox's secrets folder only.`);
 
 const t0 = Date.now();
 try {
-  log("Building the app image inside Docker (development profile: build steps use the session proxy)...");
+  log("Building the app image and the tools image inside Docker (development profile: build steps use the session proxy)...");
   await sandbox.build(sb);
   log(`Image built in ${Math.round((Date.now() - t0) / 1000)} s.`);
   await sandbox.up(sb, ["db"]);
-  const dbUrl = `postgres://app:${dbPassword}@127.0.0.1:${dbPort}/app`;
-  log("Creating the tables (drizzle-kit push) and the three sample users (seed)...");
-  await run("npx", ["drizzle-kit", "push", "--force"], { cwd: templateDir, env: { ...process.env, DATABASE_URL: dbUrl }, timeout: 180_000 });
-  const seed = await run("node", ["--import", "tsx", "scripts/seed.ts"], {
-    cwd: templateDir,
-    env: { ...process.env, DATABASE_URL: dbUrl, AUTH_SECRET: authSecret, APP_URL: appUrl, APP_SAMPLE_PASSWORD: samplePassword },
-    timeout: 180_000,
+  log("");
+  log("The tools container's environment, printed by a stand-in seed step run as the seed is run (scripts/tools-env-check.ts):");
+  const envCheck = await checkToolsEnv(sb, {
+    DATABASE_URL: `postgres://app:${dbPassword}@127.0.0.1:${dbPort}/app`,
+    APP_URL: appUrl,
+    AUTH_SECRET: authSecret,
+    APP_SAMPLE_PASSWORD: samplePassword,
   });
-  log(seed.stdout.trim().split("\n").map((l) => "  " + l).join("\n"));
+  log(envCheck.lines.map((l) => "  " + l).join("\n"));
+  if (!envCheck.passed) throw new Error("the tools container was given a setting it should not have");
+  log("");
+  log("Creating the tables (drizzle-kit push) and the three sample users (seed), in the tools container...");
+  const push = await sandbox.runOnce(sb, "tools", ["node_modules/.bin/drizzle-kit", "push", "--force"]);
+  log(`  drizzle-kit push: done (${push.trim().split("\n").length} lines of output, not shown)`);
+  const seed = await sandbox.runOnce(sb, "tools", ["node", "--import", "tsx", "scripts/seed.ts"]);
+  log(seed.trim().split("\n").map((l) => "  " + l).join("\n"));
   log("Starting the app container and waiting for it to answer...");
   await sandbox.up(sb, ["app"]);
   const ps = JSON.parse(`[${(await sandbox.ps(sb)).trim().split("\n").join(",")}]`) as Array<{ Service: string; State: string; Health?: string }>;

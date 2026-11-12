@@ -14,7 +14,8 @@
  *   certificate. This is development only (known gaps 1 and 2).
  */
 import { execFile } from "node:child_process";
-import { copyFileSync, mkdirSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, lstatSync, mkdirSync, readFileSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
+import { homedir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 
@@ -49,6 +50,11 @@ export interface SandboxSpec {
     env?: Record<string, string>;
     /** Paths the app must be able to write at run time (everything else is read-only). */
     writablePaths?: string[];
+    /**
+     * Settings for the tools container (tables and sample users), besides DATABASE_URL and the
+     * app's secrets file. Only what is named here reaches it: never the host's environment (package 0.5).
+     */
+    toolsEnv?: Record<string, string>;
   };
 }
 
@@ -72,6 +78,35 @@ export function composeProjectName(projectId: string): string {
 
 export function appImageName(projectId: string): string {
   return `${composeProjectName(projectId)}-app:latest`;
+}
+
+export function toolsImageName(projectId: string): string {
+  return `${composeProjectName(projectId)}-tools:latest`;
+}
+
+/**
+ * The tools service: the template image's `tools` stage, which has the development tools the app's
+ * run-time image does not. It creates the tables and the sample users from inside the project's
+ * sandbox, never from the machine that hosts the builder (package 0.5, known gap 29).
+ *
+ * Its environment is a named list: DATABASE_URL, the names in `toolsEnv`, and the names in the app's
+ * secrets file. Every entry has a value written here, so no name is copied from the host's environment.
+ * Compose still fills in `${NAME}` inside a value (DATABASE_URL's password, on purpose); it runs with the
+ * narrow environment of `dockerEnv`, so that comes from the project's own .env file. It is under the
+ * "tools" profile, so it starts only when it is run on purpose.
+ */
+function toolsService(spec: SandboxSpec, common: Record<string, unknown>, databaseUrl: string) {
+  if (!spec.app) return null;
+  return {
+    image: toolsImageName(spec.projectId),
+    pull_policy: "never",
+    profiles: ["tools"],
+    ...common,
+    read_only: true,
+    tmpfs: ["/tmp:rw,noexec,nosuid,size=64m"],
+    env_file: ["./secrets/app.env"],
+    environment: { DATABASE_URL: databaseUrl, ...(spec.app.toolsEnv ?? {}) },
+  };
 }
 
 /** The app service shared by both profiles, before networking is added. */
@@ -115,6 +150,7 @@ export function composeDocument(spec: SandboxSpec): Record<string, unknown> {
 
   if (spec.profile === "server") {
     const app = appService(spec, common, "postgres://app:${DB_PASSWORD}@db:5432/app");
+    const tools = toolsService(spec, common, "postgres://app:${DB_PASSWORD}@db:5432/app");
     return {
       name: composeProjectName(spec.projectId),
       networks: { internal: { internal: true }, egress: {} },
@@ -122,6 +158,7 @@ export function composeDocument(spec: SandboxSpec): Record<string, unknown> {
       volumes: { dbdata: {} },
       services: {
         ...(app ? { app: { ...app, networks: ["internal"] } } : {}),
+        ...(tools ? { tools: { ...tools, networks: ["internal"] } } : {}),
         db: {
           image: images.postgres,
           ...common,
@@ -156,12 +193,15 @@ export function composeDocument(spec: SandboxSpec): Record<string, unknown> {
   if (!spec.hostProxy) throw new Error("The development profile needs the host proxy URL and certificate path.");
   const devPort = spec.devDbPort ?? 5433;
   const app = appService(spec, common, `postgres://app:\${DB_PASSWORD}@127.0.0.1:${devPort}/app`);
+  // The tools container is given no proxy setting: it needs the project's database and nothing else.
+  const tools = toolsService(spec, common, `postgres://app:\${DB_PASSWORD}@127.0.0.1:${devPort}/app`);
   return {
     name: composeProjectName(spec.projectId),
     secrets: { db_password: { file: "./secrets/db_password" } },
     volumes: { dbdata: {} },
     services: {
       ...(app ? { app: { ...app, network_mode: "host" } } : {}),
+      ...(tools ? { tools: { ...tools, network_mode: "host" } } : {}),
       db: {
         image: images.postgres,
         ...common,
@@ -222,8 +262,10 @@ export interface Sandbox {
   dir: string;
   composeFile: string;
   projectName: string;
-  /** How to build the app image, when the project has an app. */
-  appBuild?: { context: string; image: string; hostNetwork: boolean; args: Record<string, string> };
+  /** How to build the app image and the tools image, when the project has an app. */
+  appBuild?: { context: string; image: string; toolsImage: string; hostNetwork: boolean; args: Record<string, string> };
+  /** The names, and only the names, of the settings the tools container is given. */
+  toolsEnvNames?: string[];
 }
 
 /**
@@ -234,6 +276,26 @@ export interface Sandbox {
 export function createSandbox(spec: SandboxSpec, dbPassword: string, appSecrets: Record<string, string> = {}): Sandbox {
   mkdirSync(join(spec.dir, "secrets"), { recursive: true });
   mkdirSync(join(spec.dir, "workspace"), { recursive: true });
+  // The project's own Docker client folder: nothing in it but where to find the user's CLI plugins (see dockerEnv).
+  const client = join(spec.dir, "docker-client");
+  mkdirSync(client, { recursive: true, mode: 0o700 });
+  const user = userDockerClient();
+  const projectPlugins = join(client, "cli-plugins");
+  let linked = false;
+  try {
+    lstatSync(projectPlugins);
+    linked = true;
+  } catch {
+    /* nothing there yet */
+  }
+  if (linked && !existsSync(projectPlugins)) {
+    unlinkSync(projectPlugins); // a link to a folder that has since gone
+    linked = false;
+  }
+  if (!linked && existsSync(join(user.dir, "cli-plugins"))) symlinkSync(join(user.dir, "cli-plugins"), projectPlugins);
+  // Only the list of extra plugin folders is carried over from the user's configuration: never its
+  // proxies, sign-ins or anything else.
+  writeFileSync(join(client, "config.json"), JSON.stringify(user.pluginDirs.length ? { cliPluginsExtraDirs: user.pluginDirs } : {}) + "\n", { mode: 0o600 });
   writeFileSync(join(spec.dir, "secrets", "db_password"), dbPassword, { mode: 0o600 });
   // DB_PASSWORD is interpolated by Compose into DATABASE_URL from the project's own .env file.
   writeFileSync(join(spec.dir, ".env"), `DB_PASSWORD=${dbPassword}\n`, { mode: 0o600 });
@@ -252,39 +314,110 @@ export function createSandbox(spec: SandboxSpec, dbPassword: string, appSecrets:
     ? {
         context: spec.app.buildContext,
         image: appImageName(spec.projectId),
+        toolsImage: toolsImageName(spec.projectId),
         hostNetwork: Boolean(spec.hostProxy),
         args: (spec.hostProxy
           ? { HTTPS_PROXY: spec.hostProxy.url, HTTP_PROXY: spec.hostProxy.url, NODE_EXTRA_CA_CERTS: "/certs/session-ca.crt" }
           : {}) as Record<string, string>,
       }
     : undefined;
-  return { dir: spec.dir, composeFile, projectName: composeProjectName(spec.projectId), appBuild };
+  const toolsEnvNames = spec.app
+    ? [...new Set(["DATABASE_URL", ...Object.keys(spec.app.toolsEnv ?? {}), ...Object.keys(appSecrets)])].sort()
+    : undefined;
+  return { dir: spec.dir, composeFile, projectName: composeProjectName(spec.projectId), appBuild, toolsEnvNames };
 }
 
-async function compose(sb: Sandbox, args: string[], timeoutMs = 180_000): Promise<string> {
-  const { stdout } = await run("docker", ["compose", "-f", sb.composeFile, ...args], { timeout: timeoutMs, maxBuffer: 10 * 1024 * 1024 });
+/** Settings that only say which Docker daemon to talk to. Passed on, so every command reaches the same daemon. */
+export const DOCKER_DAEMON_SETTINGS = ["DOCKER_HOST", "DOCKER_TLS", "DOCKER_TLS_VERIFY", "DOCKER_CERT_PATH"] as const;
+
+/**
+ * The user's own Docker client folder, and the two things the sandbox reads from its configuration:
+ * the extra plugin folders it names, and the Docker context it has chosen, if any. Nothing else in
+ * it (proxies, registry sign-ins) is read or used.
+ */
+export function userDockerClient(): { dir: string; pluginDirs: string[]; context: string | null } {
+  const dir = process.env.DOCKER_CONFIG ?? join(process.env.HOME ?? homedir(), ".docker");
+  let pluginDirs: string[] = [];
+  let context: string | null = null;
+  try {
+    const cfg = JSON.parse(readFileSync(join(dir, "config.json"), "utf8")) as { cliPluginsExtraDirs?: unknown; currentContext?: unknown };
+    if (Array.isArray(cfg.cliPluginsExtraDirs)) pluginDirs = cfg.cliPluginsExtraDirs.filter((d): d is string => typeof d === "string");
+    if (typeof cfg.currentContext === "string" && cfg.currentContext !== "" && cfg.currentContext !== "default") context = cfg.currentContext;
+  } catch {
+    /* no configuration, or not readable: nothing to carry over */
+  }
+  return { dir, pluginDirs, context };
+}
+
+/**
+ * The environment every Docker command of a sandbox runs with: PATH, HOME, the settings that name the
+ * Docker daemon, and DOCKER_CONFIG pointed at the project's own, empty Docker client folder. Nothing
+ * else of the builder's process is there for Compose to copy into a container. The client folder is
+ * the project's own because Docker's client configuration can itself add settings to every container
+ * (its `proxies` entry adds proxy settings). The user's plugin folder is linked into it, and the
+ * extra plugin folders the user's configuration names are copied into its configuration, so that
+ * `docker compose` and `docker buildx` are still found. Registry sign-ins in the user's configuration
+ * are not used (known gap 5). A Docker context is refused, whether chosen with DOCKER_CONTEXT or in the
+ * user's configuration: the daemon is the one DOCKER_HOST names, or the default one, for every command.
+ */
+export function dockerEnv(sb: Pick<Sandbox, "dir">): NodeJS.ProcessEnv {
+  if (process.env.DOCKER_CONTEXT || userDockerClient().context) {
+    throw new Error(
+      "The sandbox names its Docker daemon with DOCKER_HOST; a Docker context (DOCKER_CONTEXT, or one chosen with `docker context use`) is not supported. Set DOCKER_HOST instead.",
+    );
+  }
+  const env: NodeJS.ProcessEnv = {
+    PATH: process.env.PATH ?? "/usr/local/bin:/usr/bin:/bin",
+    HOME: process.env.HOME ?? homedir(),
+    DOCKER_CONFIG: join(sb.dir, "docker-client"),
+  };
+  for (const k of DOCKER_DAEMON_SETTINGS) if (process.env[k]) env[k] = process.env[k];
+  return env;
+}
+
+async function compose(sb: Sandbox, args: string[], timeoutMs = 180_000, withTools = true): Promise<string> {
+  // The tools profile is named on every command but `up`, so that a tools container is seen, and
+  // removed with the rest, while `up` never starts one.
+  const profile = withTools ? ["--profile", "tools"] : [];
+  const { stdout } = await run("docker", ["compose", "-f", sb.composeFile, ...profile, ...args], {
+    timeout: timeoutMs,
+    maxBuffer: 10 * 1024 * 1024,
+    env: dockerEnv(sb),
+  });
   return stdout;
 }
 
 export const sandbox = {
-  /** Build the app image with plain `docker build`, on the host network in development. */
+  /**
+   * Build the app image (the Dockerfile's `run` stage) and the tools image (its `tools` stage) with
+   * plain `docker build`, on the host network in development. The second build reuses the first's steps.
+   */
   build: async (sb: Sandbox): Promise<string> => {
-    if (!sb.appBuild) throw new Error("This sandbox has no app to build.");
-    const args = ["build", "--tag", sb.appBuild.image, ...(sb.appBuild.hostNetwork ? ["--network", "host"] : [])];
-    for (const [k, v] of Object.entries(sb.appBuild.args)) args.push("--build-arg", `${k}=${v}`);
-    args.push(sb.appBuild.context);
-    const { stdout, stderr } = await run("docker", args, { timeout: 1_200_000, maxBuffer: 20 * 1024 * 1024 });
-    return stdout + stderr;
+    const b = sb.appBuild;
+    if (!b) throw new Error("This sandbox has no app to build.");
+    let out = "";
+    for (const [target, tag] of [["run", b.image], ["tools", b.toolsImage]] as const) {
+      const args = ["build", "--target", target, "--tag", tag, ...(b.hostNetwork ? ["--network", "host"] : [])];
+      for (const [k, v] of Object.entries(b.args)) args.push("--build-arg", `${k}=${v}`);
+      args.push(b.context);
+      const { stdout, stderr } = await run("docker", args, { timeout: 1_200_000, maxBuffer: 20 * 1024 * 1024, env: dockerEnv(sb) });
+      out += stdout + stderr;
+    }
+    return out;
   },
-  /** Remove the app image after the project's containers are gone. */
+  /** Remove the app and tools images after the project's containers are gone. */
   removeImage: async (sb: Sandbox) => {
-    if (sb.appBuild) await run("docker", ["image", "rm", "-f", sb.appBuild.image]).catch(() => undefined);
+    if (!sb.appBuild) return;
+    for (const image of [sb.appBuild.image, sb.appBuild.toolsImage]) await run("docker", ["image", "rm", "-f", image], { env: dockerEnv(sb) }).catch(() => undefined);
   },
-  /** Start services and wait for their health checks. */
-  up: (sb: Sandbox, services: string[] = []) => compose(sb, ["up", "-d", "--wait", ...services], 600_000),
+  /** Start services and wait for their health checks. The tools service is never started this way: it is refused by name. */
+  up: (sb: Sandbox, services: string[] = []) => {
+    if (services.includes("tools")) throw new Error("The tools service runs one command at a time, through runOnce; it is not started with up.");
+    return compose(sb, ["up", "-d", "--wait", ...services], 600_000, false);
+  },
   /** Run a one-off command in a fresh container of a service (for migrations and seeding). */
   runOnce: (sb: Sandbox, service: string, cmd: string[]) => compose(sb, ["run", "--rm", "--no-deps", "-T", service, ...cmd], 600_000),
-  /** Stop and remove the project's containers, networks and volumes. */
+  /** Stop and remove the project's containers, a one-off tools container left by an interrupted run included, and its networks and volumes. */
   destroy: (sb: Sandbox) => compose(sb, ["down", "-v", "--remove-orphans"]),
   /** Run a command inside a running service. */
   exec: (sb: Sandbox, service: string, cmd: string[]) => compose(sb, ["exec", "-T", service, ...cmd]),
