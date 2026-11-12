@@ -9,7 +9,7 @@
 import { execFile } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { promisify } from "node:util";
-import { parseListeners } from "../../scripts/isolation-probe.mjs";
+import { MAX_MACHINE_LISTENERS, parseListeners } from "../../scripts/isolation-probe.mjs";
 
 export type Toward = "outside" | "host" | "lookup" | "egress-proxy" | "session-proxy";
 
@@ -212,6 +212,21 @@ export function renderMarkdownTable(columns: Column[]): string {
 }
 
 /**
+ * The machine's listening TCP sockets, as "address:port" texts, from /proc/net/tcp and /proc/net/tcp6 text:
+ * each once, sorted. The probe takes at most MAX_MACHINE_LISTENERS of them; with more, this refuses with a
+ * plain message rather than leave some out of group G without saying so.
+ */
+export function machineListenersFrom(tcp4: string, tcp6: string): string[] {
+  const listeners = [...parseListeners(tcp4, 4), ...parseListeners(tcp6, 6)];
+  const all = [...new Set(listeners.map((l) => `${l.address}:${l.port}`))].sort();
+  if (all.length > MAX_MACHINE_LISTENERS)
+    throw new Error(
+      `The machine has ${all.length} listening TCP sockets; the isolation probe takes at most ${MAX_MACHINE_LISTENERS} for group G. The check stops here rather than leave ${all.length - MAX_MACHINE_LISTENERS} of them out without saying so.`,
+    );
+  return all;
+}
+
+/**
  * What the harness reads on the machine for the probe's group G, read-only; nothing is connected to:
  * the listening TCP sockets with their addresses (/proc/net/tcp, and /proc/net/tcp6 where the machine has
  * IPv6), and the gateway address of Docker's default network (`docker network inspect bridge`, run with
@@ -225,8 +240,7 @@ export async function readMachineSide(dockerSettings: NodeJS.ProcessEnv): Promis
       return "";
     }
   };
-  const listeners = [...parseListeners(read("/proc/net/tcp"), 4), ...parseListeners(read("/proc/net/tcp6"), 6)];
-  const machineListeners = [...new Set(listeners.map((l) => `${l.address}:${l.port}`))].sort();
+  const machineListeners = machineListenersFrom(read("/proc/net/tcp"), read("/proc/net/tcp6"));
   const { stdout } = await promisify(execFile)("docker", ["network", "inspect", "bridge", "--format", "{{range .IPAM.Config}}{{.Gateway}} {{end}}"], { env: dockerSettings });
   const bridgeGateway = stdout.trim().split(/\s+/).find((a) => /^\d{1,3}(\.\d{1,3}){3}$/.test(a)) ?? null;
   return { bridgeGateway, machineListeners };

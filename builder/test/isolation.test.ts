@@ -9,8 +9,8 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { promisify } from "node:util";
 import { describe, expect, it, onTestFinished } from "vitest";
-import { BODY_READ_MS, classifyError, countOtherSockets, INTERFACES_ALL, INTERFACES_UP, listInterfaces, parseAbstractUnix, parseListeners, parseSettings, parseUdpBound, planAttempts, runAttempt, type PlannedAttempt } from "../scripts/isolation-probe.mjs";
-import { ANSWER_WORDING, cell, columnCell, DIFFERS_BY_CONTAINER, gotAnswer, parseProbeOutput, readMachineSide, RESULT, renderMarkdownTable, renderTable, sessionProxyHostPort, summarise, type ProbeAttempt } from "../src/sandbox/isolation.js";
+import { BODY_READ_MS, classifyError, countOtherSockets, INTERFACES_ALL, INTERFACES_UP, listInterfaces, MAX_MACHINE_LISTENERS, parseAbstractUnix, parseListeners, parseSettings, parseUdpBound, planAttempts, runAttempt, type PlannedAttempt } from "../scripts/isolation-probe.mjs";
+import { ANSWER_WORDING, cell, columnCell, DIFFERS_BY_CONTAINER, gotAnswer, machineListenersFrom, parseProbeOutput, readMachineSide, RESULT, renderMarkdownTable, renderTable, sessionProxyHostPort, summarise, type ProbeAttempt } from "../src/sandbox/isolation.js";
 import { createSandbox, dockerEnv, sandbox, type Sandbox } from "../src/sandbox/manager.js";
 
 // Package 0.6a. The unit tests call the probe's functions only. Those that make an attempt make it only
@@ -343,6 +343,25 @@ describe("isolation probe: its attempts, against made-up servers on the loopback
 });
 
 describe("isolation probe: reading what it prints (unit)", () => {
+  it(`the harness passes the machine's listening sockets to the probe, and refuses plainly when there are more than the probe takes (${MAX_MACHINE_LISTENERS})`, () => {
+    // Made-up /proc/net/tcp text in the kernel's format: n listening sockets on 127.0.0.1, ports 10000 and up.
+    const tcp = (n: number) =>
+      ["  sl  local_address rem_address   st tx_queue rx_queue tr tm->when retrnsmt   uid  timeout inode"]
+        .concat(Array.from({ length: n }, (_, i) => `   ${i}: 0100007F:${(10000 + i).toString(16).toUpperCase()} 00000000:0000 0A 00000000:00000000 00:00000000 00000000     0        0 ${i} 1 0 100 0 0 10 0`))
+        .join("\n");
+    const most = machineListenersFrom(tcp(MAX_MACHINE_LISTENERS), "");
+    expect(most.length).toBe(MAX_MACHINE_LISTENERS);
+    // As many as that is what the probe takes; one more it refuses.
+    expect(parseSettings(JSON.stringify({ ...SETTINGS, bridgeGateway: "172.17.0.1", machineListeners: most })).machineListeners.length).toBe(MAX_MACHINE_LISTENERS);
+    expect(() => parseSettings(JSON.stringify({ ...SETTINGS, bridgeGateway: "172.17.0.1", machineListeners: [...most, "127.0.0.1:9999"] }))).toThrow(/at most 64/);
+    // The same socket listed twice counts once.
+    expect(machineListenersFrom(`${tcp(2)}\n${tcp(2).split("\n").slice(1).join("\n")}`, "")).toEqual(["127.0.0.1:10000", "127.0.0.1:10001"]);
+    // One more than the probe takes: the harness refuses, saying how many there are and how many would be left out.
+    expect(() => machineListenersFrom(tcp(MAX_MACHINE_LISTENERS + 1), "")).toThrow(
+      "The machine has 65 listening TCP sockets; the isolation probe takes at most 64 for group G. The check stops here rather than leave 1 of them out without saying so.",
+    );
+  });
+
   it("reads a complete run, and counts which attempts got an answer", () => {
     const lines = [
       JSON.stringify({ kind: "info", name: "network interfaces", value: "lo (127.0.0.1)" }),

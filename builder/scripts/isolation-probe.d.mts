@@ -33,6 +33,7 @@ export interface PlannedAttempt {
 export const SESSION_CERT_PATHS: string[];
 export const BODY_READ_MS: number;
 export const OPENED_THEN_SILENT: string;
+export const MAX_MACHINE_LISTENERS: number;
 export const INTERFACES_UP: string;
 export const INTERFACES_ALL: string;
 export function listInterfaces(dir?: string): string;

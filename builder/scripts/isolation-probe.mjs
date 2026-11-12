@@ -57,6 +57,9 @@ const isIPv4 = (v) => {
 /** A listening socket as parseListeners writes it: an IPv4 address, "::", "::1" or "ipv6", then the port. */
 const LISTENER = /^(\d{1,3}(?:\.\d{1,3}){3}|::|::1|ipv6):(\d{1,5})$/;
 
+/** The most listening sockets the probe takes for group G. The harness refuses to run with more (src/sandbox/isolation.ts). */
+export const MAX_MACHINE_LISTENERS = 64;
+
 /** Read and check the settings. Throws with a plain message on anything unexpected. */
 export function parseSettings(text) {
   let raw;
@@ -86,7 +89,7 @@ export function parseSettings(text) {
   if (bridgeGateway !== null && !isIPv4(bridgeGateway)) throw new Error('"bridgeGateway" must be an IPv4 address, or null.');
   const machineListeners = [];
   const given = raw.machineListeners ?? [];
-  if (!Array.isArray(given) || given.length > 64) throw new Error('"machineListeners" must be a list of at most 64 "address:port" texts.');
+  if (!Array.isArray(given) || given.length > MAX_MACHINE_LISTENERS) throw new Error(`"machineListeners" must be a list of at most ${MAX_MACHINE_LISTENERS} "address:port" texts.`);
   for (const item of given) {
     const m = typeof item === "string" ? LISTENER.exec(item) : null;
     if (!m || Number(m[2]) < 1 || Number(m[2]) > 65535 || (m[1].includes(".") && !isIPv4(m[1])))
