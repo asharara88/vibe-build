@@ -186,8 +186,10 @@ export class ScriptedEngine implements BuildEngine {
     //  - before the container is asked for, the step fails and no container is asked for;
     //  - while the container runs, the container is killed and the step fails saying so (a throw inside
     //    the container's lines is caught by the runner, `handlerError`; a rejection is caught here);
-    //  - once the container has ended, the step fails if the error is known before the commit;
-    //  - after the commit (the `finished` event), the step is still reported as done.
+    //  - once the container has ended, the step fails if the error is known before the step's commit
+    //    begins (the last check is just before `commitAll`);
+    //  - once the step's commit has begun (a rejection that comes during the commit, an error on the
+    //    `finished` event that follows it, or a later rejection), the step is still reported as done.
     // A promise the handler returns is not waited for: its rejection is caught whenever it comes.
     let eventError: string | null = null;
     let handle: StreamingRun | null = null;

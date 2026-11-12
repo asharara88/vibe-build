@@ -39,7 +39,8 @@ export interface BuildEngine {
    * `onEvent` may throw, or return a promise that rejects: an engine must not let either bring the
    * builder down or leave its container running. The scripted engine then kills its container and
    * fails the step ("handling the step's events failed …"); it does not wait for a promise the handler
-   * returns, so one that rejects after the step's commit leaves the step reported as done.
+   * returns, so one that rejects once the step's commit has begun leaves the step reported as done
+   * (one known before the commit begins fails the step).
    */
   runStep(step: StepInstruction, onEvent: (e: EngineEvent) => void): Promise<StepResult>;
   /** Stop the running step, if any. */

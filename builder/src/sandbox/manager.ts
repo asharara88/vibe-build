@@ -8,10 +8,14 @@
  * Two profiles:
  * - `server`: the project's containers share an internal Docker network with no route out.
  *   The egress proxy is attached to that network and to the outside, and is the only way out.
- * - `development-cloud-session`: the development machine reaches the internet only through a
- *   proxy on its own loopback address, which containers on a bridge network cannot reach. So the
- *   containers share the host's network, are told about the session proxy, and are given its
- *   certificate. This is development only (known gaps 1 and 2).
+ * - `development-cloud-session`: the containers share the host's network, are told about the
+ *   cloud session's proxy, and are given its certificate. That proxy is on the machine's own
+ *   loopback address, which a container on Docker's default ("bridge") network could not reach
+ *   (package 0.6a, 12 Nov 2026: refused at the machine's address on that network, attempt G45887).
+ *   It is not the machine's only way out: in the same run, requests sent with no proxy got answers,
+ *   from these containers and from one on Docker's default network. On this profile the app and
+ *   tools containers are not isolated from the machine (evidence/2026-11-12-package-0.6a/isolation-checks.md).
+ *   This is development only (known gaps 1, 2 and 60).
  * In both, the engine container of package 2.1 (the scripted engine) has no network at all.
  */
 import { execFile, spawn } from "node:child_process";
