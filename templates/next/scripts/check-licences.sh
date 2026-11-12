@@ -7,8 +7,9 @@ ALLOW="MIT;Apache-2.0;BSD-2-Clause;BSD-3-Clause;ISC;0BSD;BlueOak-1.0.0;CC0-1.0;P
 # Owner-approved exceptions, each with the date and place of the written approval:
 # - caniuse-lite (CC-BY-4.0): browser-support data that Next.js ships in every app. Approved by
 #   name for generated apps by the owner on 12 Nov 2026, on conditions (docs/DECISIONS.md).
-#   Entered here on 12 Nov 2026, at the exact version read that day, so a new version is
-#   refused until it has been looked at. The lock file check below fails if its licence changes.
+#   Entered here on 12 Nov 2026 with the version read that day, so the versions that follow are
+#   refused until looked at. (The tool matches this entry by its leading text, not exactly: gap 43.)
+#   The lock file check below fails if its licence changes.
 # This list must never be empty: the tool reads an empty entry as "@" and then skips every
 # package whose name begins with "@" (docs/KNOWN-GAPS.md, gap 43).
 # Known limit of the tool: --onlyAllow accepts a licence if a permitted name appears anywhere in
