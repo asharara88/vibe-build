@@ -1,0 +1,233 @@
+# Controls: each new unit test of this round, run once with its fix removed. Commit 325ecd2, 12 Nov 2026 20:40 UTC, from builder/.
+# Each test is expected to FAIL here. For each: the one change made for the run, the command, its output; then the file is restored with `git checkout` and checked unchanged.
+
+####################################################################################################
+# 1. Review finding 8, the tunnel: the old line `agent: false` put back in httpsTunnelAttempt (builder/scripts/isolation-probe.mjs).
+# The change, as `git diff`:
+diff --git a/builder/scripts/isolation-probe.mjs b/builder/scripts/isolation-probe.mjs
+index 5663a8d..0199e8e 100644
+--- a/builder/scripts/isolation-probe.mjs
++++ b/builder/scripts/isolation-probe.mjs
+@@ -433,6 +433,7 @@ function httpsTunnelAttempt(op, ms, sessionCert) {
+           port: op.port,
+           path: op.path,
+           method: "GET",
++          agent: false,
+           servername: op.host,
+           ...trust(sessionCert),
+           createConnection: () => tls.connect({ socket, servername: op.host, ...trust(sessionCert) }),
+# $ npx vitest run test/isolation.test.ts -t "finding 8"
+
+ RUN  v5.1.0 <checkout>/builder
+
+ ❯ test/isolation.test.ts (15 tests | 1 failed | 14 skipped) 61ms
+   ❯ isolation probe: its attempts, against made-up servers on the loopback address (unit) (3)
+     × sends the HTTPS request of a tunnel attempt inside the proxy's tunnel, never straight to the target (review finding 8) 59ms
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 14 skipped (15)
+   Start at  20:40:20
+   Duration  242ms (tests 45%, import 39%, transform 14%, worker 3%)
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/isolation.test.ts > isolation probe: its attempts, against made-up servers on the loopback address (unit) > sends the HTTPS request of a tunnel attempt inside the proxy's tunnel, never straight to the target (review finding 8)
+AssertionError: expected { …(4) } to deeply equal { …(4) }
+
+- Expected
++ Received
+
+  {
+-   "answeredBy": "B-inside-the-tunnel",
++   "answeredBy": "A-direct-to-the-target",
+    "connects": [
+      "CONNECT localhost:43899 HTTP/1.1",
+    ],
+-   "directConnections": 0,
++   "directConnections": 1,
+    "result": "HTTP 418",
+  }
+
+ ❯ test/isolation.test.ts:237:126
+    235|     const r = await runAttempt(madeUpAttempt({ type: "https-tunnel", p…
+    236|     // All at once, so that a failure shows every part: what the proxy…
+    237|     expect({ connects, result: r.result, answeredBy: /server: ([^;]+)/…
+       |                                                                                                                              ^
+    238|       connects: [`CONNECT localhost:${directPort} HTTP/1.1`],
+    239|       result: "HTTP 418",
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+exit code: 1
+# Restored with `git checkout -- scripts/isolation-probe.mjs`; `git diff --stat -- builder` afterwards: empty (the file is as committed)
+
+####################################################################################################
+# 2. Review finding 10, the held body: readAnswer settles on the body's 'end' only, as before (builder/scripts/isolation-probe.mjs); no settling on the headers, no brief read, no result at the limit.
+# The change, as `git diff`:
+diff --git a/builder/scripts/isolation-probe.mjs b/builder/scripts/isolation-probe.mjs
+index 5663a8d..0248fd2 100644
+--- a/builder/scripts/isolation-probe.mjs
++++ b/builder/scripts/isolation-probe.mjs
+@@ -337,9 +337,6 @@ function readAnswer(res, finish, cleanup, atLimit, ms) {
+   const status = res.statusCode ?? 0;
+   let body = "";
+   const settle = (code, note) => finish({ result: `HTTP ${status}`, code, detail: [httpDetail(status, res.headers, body), note].filter(Boolean).join("; ") });
+-  atLimit(() => ({ result: `HTTP ${status}`, code: null, detail: [httpDetail(status, res.headers, body), `the body did not finish within the time limit (${ms} ms)`].filter(Boolean).join("; ") }));
+-  const brief = setTimeout(() => settle(null, `the body did not finish within ${BODY_READ_MS} ms of the answer`), BODY_READ_MS);
+-  cleanup(() => clearTimeout(brief));
+   res.setEncoding("utf8");
+   res.on("data", (d) => {
+     if (body.length < 2048) body += d;
+# $ npx vitest run test/isolation.test.ts -t "finding 10"
+
+ RUN  v5.1.0 <checkout>/builder
+
+ ❯ test/isolation.test.ts (15 tests | 1 failed | 14 skipped) 4025ms
+   ❯ isolation probe: its attempts, against made-up servers on the loopback address (unit) (3)
+     × an HTTP answer whose body is held open is still that HTTP status, settled once the headers came (review finding 10) 4023ms
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 14 skipped (15)
+   Start at  20:40:21
+   Duration  4.19s (tests 98%, import 1%)
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/isolation.test.ts > isolation probe: its attempts, against made-up servers on the loopback address (unit) > an HTTP answer whose body is held open is still that HTTP status, settled once the headers came (review finding 10)
+AssertionError: expected { result: 'timed out', …(1) } to deeply equal { result: 'HTTP 200', …(1) }
+
+- Expected
++ Received
+
+  {
+-   "detail": "server: made-up-slow-body; the body did not finish within 1000 ms of the answer",
+-   "result": "HTTP 200",
++   "detail": "no answer within 4000 ms",
++   "result": "timed out",
+  }
+
+ ❯ test/isolation.test.ts:257:60
+    255|     const t0 = Date.now();
+    256|     const brief = await runAttempt(madeUpAttempt(op), parseSettings(JS…
+    257|     expect({ result: brief.result, detail: brief.detail }).toEqual({ r…
+       |                                                            ^
+    258|     expect(Date.now() - t0).toBeLessThan(3500);
+    259|     // The limit is shorter than the brief read: the limit ends it, an…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+exit code: 1
+# Restored with `git checkout -- scripts/isolation-probe.mjs`; `git diff --stat -- builder` afterwards: empty (the file is as committed)
+
+####################################################################################################
+# 3. Review finding 11, what counts as an answer: gotAnswer given its old pattern, /^(connected|HTTP \d{3}|proxy answered \d{3}|found \d+ address)/ (builder/src/sandbox/isolation.ts).
+# The change, as `git diff`:
+diff --git a/builder/src/sandbox/isolation.ts b/builder/src/sandbox/isolation.ts
+index 8394020..4c02875 100644
+--- a/builder/src/sandbox/isolation.ts
++++ b/builder/src/sandbox/isolation.ts
+@@ -54,7 +54,7 @@ export const ANSWER_WORDING = "a connection opened, an HTTP status, a proxy's an
+  * an error code it does not know and which can come before any connection opens.
+  */
+ export function gotAnswer(result: string): boolean {
+-  return /^(connected|HTTP \d{3}|proxy answered \d{3}|found \d+ address|certificate not trusted|secure connection failed|connection reset|proxy closed without an answer|not an HTTP answer)/.test(result);
++  return /^(connected|HTTP \d{3}|proxy answered \d{3}|found \d+ address)/.test(result);
+ }
+ 
+ const str = (v: unknown) => typeof v === "string";
+# $ npx vitest run test/isolation.test.ts -t "finding 11"
+
+ RUN  v5.1.0 <checkout>/builder
+
+ ❯ test/isolation.test.ts (15 tests | 1 failed | 14 skipped) 8ms
+   ❯ isolation probe: reading what it prints (unit) (5)
+     × an answer (a connection opened, an HTTP status, a proxy's answer, or an address found) is told apart from a failure; every result given only after a connection opened is an answer (review finding 11) 7ms
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 14 skipped (15)
+   Start at  20:40:26
+   Duration  178ms (import 62%, transform 20%, tests 13%, worker 5%)
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/isolation.test.ts > isolation probe: reading what it prints (unit) > an answer (a connection opened, an HTTP status, a proxy's answer, or an address found) is told apart from a failure; every result given only after a connection opened is an answer (review finding 11)
+AssertionError: certificate not trusted: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ test/isolation.test.ts:305:156
+    303|     // Given only once a connection opened: a TLS server sent a certif…
+    304|     const afterAConnection = ["certificate not trusted", "secure conne…
+    305|     for (const r of ["connected", "HTTP 403", "proxy answered 200", "f…
+       |                                                                                                                                                            ^
+    306|     for (const r of ["refused", "timed out", "name not found", "no nam…
+    307|     // Every word either way is one the report accepts.
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+exit code: 1
+# Restored with `git checkout -- src/sandbox/isolation.ts`; `git diff --stat -- builder` afterwards: empty (the file is as committed)
+
+####################################################################################################
+# 4. Code note, a proxy that closes: tunnel() given no handler for the connection's end or close, as before (builder/scripts/isolation-probe.mjs).
+# The change, as `git diff`:
+diff --git a/builder/scripts/isolation-probe.mjs b/builder/scripts/isolation-probe.mjs
+index 5663a8d..a671ae5 100644
+--- a/builder/scripts/isolation-probe.mjs
++++ b/builder/scripts/isolation-probe.mjs
+@@ -409,8 +409,6 @@ function tunnel(op, finish, cleanup, then) {
+     then(s);
+   };
+   s.on("data", onData);
+-  s.on("end", closed);
+-  s.on("close", closed);
+   s.on("connect", () => s.write(`CONNECT ${op.target} HTTP/1.1\r\nHost: ${op.target}\r\nUser-Agent: isolation-probe\r\n\r\n`));
+   s.on("error", (e) => finish({ result: classifyError(codeOf(e)), code: codeOf(e), detail: "the proxy itself could not be reached" }));
+ }
+# $ npx vitest run test/isolation.test.ts -t "closes the connection without answering"
+
+ RUN  v5.1.0 <checkout>/builder
+
+ ❯ test/isolation.test.ts (15 tests | 1 failed | 14 skipped) 3022ms
+   ❯ isolation probe: its attempts, against made-up servers on the loopback address (unit) (3)
+     × a proxy that closes the connection without answering a CONNECT has its own result, at once, not 'timed out' 3020ms
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 14 skipped (15)
+   Start at  20:40:27
+   Duration  3.20s (tests 98%, import 1%)
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/isolation.test.ts > isolation probe: its attempts, against made-up servers on the loopback address (unit) > a proxy that closes the connection without answering a CONNECT has its own result, at once, not 'timed out'
+AssertionError: expected { result: 'timed out', …(2) } to deeply equal { …(3) }
+
+- Expected
++ Received
+
+  {
+-   "code": "PROXY_CLOSED",
+-   "detail": "",
+-   "result": "proxy closed without an answer",
++   "code": "TIMEOUT",
++   "detail": "no answer within 3000 ms",
++   "result": "timed out",
+  }
+
+ ❯ test/isolation.test.ts:273:15
+    271|     const t0 = Date.now();
+    272|     const r = await runAttempt(madeUpAttempt({ type: "connect", proxy:…
+    273|     expect(r).toEqual({ result: "proxy closed without an answer", code…
+       |               ^
+    274|     expect(Date.now() - t0).toBeLessThan(2000);
+    275|     expect(r.result).toMatch(RESULT);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+exit code: 1
+# Restored with `git checkout -- scripts/isolation-probe.mjs`; `git diff --stat -- builder` afterwards: empty (the file is as committed)
+

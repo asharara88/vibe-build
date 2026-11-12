@@ -1,23 +1,38 @@
-# Control: the live test run with the engine service given the host's network instead of none (builder/src/sandbox/manager.ts, line 157, changed for this run only and then restored with git checkout). Commit 8868f43, 12 Nov 2026 19:48 UTC.
+# Control: the live test run with the engine service given the host's network instead of none (builder/src/sandbox/manager.ts, line 157, changed for this run only and then restored with git checkout). Commit 325ecd2, 12 Nov 2026 20:40 UTC.
 # The test is expected to FAIL here: it must not pass for a container that has a network.
+# The change, as git diff:
+diff --git a/builder/src/sandbox/manager.ts b/builder/src/sandbox/manager.ts
+index 061b15d..ec4aea3 100644
+--- a/builder/src/sandbox/manager.ts
++++ b/builder/src/sandbox/manager.ts
+@@ -154,7 +154,7 @@ function engineService(spec: SandboxSpec, common: Record<string, unknown>, image
+     read_only: true,
+     tmpfs: ["/tmp:rw,noexec,nosuid,size=16m"],
+     user: "node",
+-    network_mode: "none",
++    network_mode: "host",
+     entrypoint: [],
+     working_dir: "/workspace",
+     volumes: [
 # npx vitest run test/isolation.test.ts -t live
 
  RUN  v5.1.0 <checkout>/builder
 
- ❯ test/isolation.test.ts (10 tests | 1 failed | 9 skipped) 1463ms
+ ❯ test/isolation.test.ts (15 tests | 1 failed | 14 skipped) 1480ms
    ❯ isolation probe: live, the engine container (development profile) (1)
-     × from inside the engine container, which has no network, every attempt fails, outside and on the host alike 1462ms
+     × from inside the engine container, which has no network, every attempt fails, outside and on the host alike 1478ms
 
 ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
 
  FAIL  test/isolation.test.ts > isolation probe: live, the engine container (development profile) > from inside the engine container, which has no network, every attempt fails, outside and on the host alike
-AssertionError: expected [ …(15) ] to deeply equal []
+AssertionError: expected [ …(18) ] to deeply equal []
 
 - Expected
 + Received
 
 - []
 + [
++   "A1 registry.npmjs.org:443: certificate not trusted",
 +   "A2 registry.npmjs.org:80: HTTP 301",
 +   "A5 github.com:80: HTTP 301",
 +   "B1 1.1.1.1:443: connected",
@@ -28,27 +43,31 @@ AssertionError: expected [ …(15) ] to deeply equal []
 +   "C9 127.0.0.1:45887: connected",
 +   "X2024 127.0.0.1:2024: connected",
 +   "X33427 127.0.0.1:33427: connected",
++   "G2024 172.17.0.1:2024: connected",
 +   "D1 registry.npmjs.org: found 12 addresses",
 +   "D5 registry.npmjs.org @1.1.1.1: found 12 addresses",
 +   "F1 registry.npmjs.org:443: proxy answered 200",
 +   "F2 github.com:443: proxy answered 200",
 +   "F3 example.com:443: proxy answered 403",
++   "F4 github.com:443: certificate not trusted",
 + ]
 
- ❯ test/isolation.test.ts:204:111
-    202|     expect(report.ended).toBe(true);
-    203|     // First, and all at once: every attempt that got an answer of any…
-    204|     expect(report.attempts.filter((a) => gotAnswer(a.result)).map((a) …
+ ❯ test/isolation.test.ts:429:111
+    427|     // First, and all at once: every attempt that got an answer (a con…
+    428|     // proxy's answer, or an address found; any result given only afte…
+    429|     expect(report.attempts.filter((a) => gotAnswer(a.result)).map((a) …
        |                                                                                                               ^
-    205|     expect(report.attempts.filter((a) => a.toward === "outside").lengt…
-    206|     // Nothing listens inside a container with no network, so the prob…
+    430|     // Nor an attempt whose error the probe could not name: it is not …
+    431|     expect(report.attempts.filter((a) => a.result === "error").map((a)…
 
 ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
 
 
  Test Files  1 failed (1)
-      Tests  1 failed | 9 skipped (10)
-   Start at  19:48:29
-   Duration  1.63s (tests 96%, import 3%, transform 1%)
+      Tests  1 failed | 14 skipped (15)
+   Start at  20:40:56
+   Duration  1.64s (tests 96%, import 3%, transform 1%)
 
 exit code: 1
+# Restored with git checkout; git diff --stat -- builder afterwards: 
+(empty means the file is as committed)

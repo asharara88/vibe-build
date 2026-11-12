@@ -1,4 +1,4 @@
-# npm run check:licences, from builder/, commit 8868f43, 12 Nov 2026 19:45 UTC
+# npm run check:licences, from builder/, commit 325ecd2, 12 Nov 2026 20:36 UTC
 
 > builder@0.0.1 check:licences
 > bash scripts/check-licences.sh
