@@ -284,6 +284,8 @@ The same reviewer read only the changes since `892fa52` and ran about 150 more f
 
 A further re-read, of `6ce58a3`, found R1 closed and the hidden-folder reproductions failing as they should, nothing weakened, and one thing left: the two sentences above on hidden folders claimed more than the code does. They now say what is caught, and the limits are listed below. No code was changed for this.
 
+The last re-read, of `fb93640` (that change alone), found the sentences true as written and the listed limits matching what it had reproduced, and nothing blocking: "it may be merged as it stands". The review bot finished on `fb93640` with no findings. Pull request #9 was merged at that commit on 12 November. That re-read made three wording suggestions, taken up after the merge in this file: "npm puts no package in any of these places"; the sentence on a linked nested `node_modules` folder; and "a package folder or scope folder that is a link". Left as they are, and non-blocking in the reviewer's own marking: the findings in the tables above whose "Done" cell says so.
+
 ## What this does not show
 
 - **That any licence is complied with.** The check compares declared licence names with a list. Nothing here is legal advice.
