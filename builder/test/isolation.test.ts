@@ -7,6 +7,7 @@ import type { AddressInfo, Socket } from "node:net";
 import net from "node:net";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import tls from "node:tls";
 import { promisify } from "node:util";
 import { describe, expect, it, onTestFinished } from "vitest";
 import { BODY_READ_MS, classifyError, countOtherSockets, INTERFACES_ALL, INTERFACES_UP, listInterfaces, MAX_MACHINE_LISTENERS, parseAbstractUnix, parseListeners, parseSettings, parseUdpBound, planAttempts, runAttempt, type PlannedAttempt } from "../scripts/isolation-probe.mjs";
@@ -213,6 +214,26 @@ async function onLoopback(server: net.Server | Server, host = "127.0.0.1"): Prom
   return (server.address() as AddressInfo).port;
 }
 
+/**
+ * A made-up TLS server on the loopback address ("localhost") that completes the secure handshake and then never
+ * sends a byte, with a file holding its made-up certificate, given to the probe as its certificate file (as a
+ * copy of the session's certificate would be). `handshakes()` counts the handshakes it completed. The server
+ * and the file are removed when the test ends.
+ */
+async function silentTlsServer(): Promise<{ port: number; certFile: string; handshakes: () => number }> {
+  const dir = mkdtempSync(join(tmpdir(), "builder-isolation-cert-"));
+  onTestFinished(() => rmSync(dir, { recursive: true, force: true }));
+  const { cert, key } = madeUpCertificate("localhost");
+  const certFile = join(dir, "made-up-ca.crt");
+  writeFileSync(certFile, cert);
+  let handshakes = 0;
+  const server = tls.createServer({ cert, key }, (s) => {
+    handshakes++;
+    s.on("error", () => undefined);
+  });
+  return { port: await onLoopback(server, "localhost"), certFile, handshakes: () => handshakes };
+}
+
 const madeUpAttempt = (op: PlannedAttempt["op"]): PlannedAttempt => ({ id: "T1", group: "made-up", toward: "outside", what: "made-up", target: "made-up", how: "made-up", op });
 
 describe("isolation probe: its attempts, against made-up servers on the loopback address (unit)", () => {
@@ -293,7 +314,7 @@ describe("isolation probe: its attempts, against made-up servers on the loopback
   // was "timed out", counted as no answer. The words are written out here, not taken from the probe.
   const OPENED_THEN_SILENT = "connected, then no answer within the limit";
 
-  it("a server that accepts the connection and never answers: 'connected, then no answer within the limit', counted as an answer, not 'timed out'", async () => {
+  it("a server that accepts the connection and never answers: 'connected, then no answer within the limit', counted as an answer, not 'timed out'; over HTTPS, the detail says whether the secure handshake finished", async () => {
     // A made-up server that accepts every connection and never sends a byte. It listens at "localhost", so
     // that the HTTPS attempt can name its server as a name, not an address.
     const host = "localhost";
@@ -309,17 +330,23 @@ describe("isolation probe: its attempts, against made-up servers on the loopback
       const r = await runAttempt(madeUpAttempt(op), s, null);
       seen[name] = { ...r, counted: gotAnswer(r.result) };
     }
-    const opened = (detail: string) => ({ result: OPENED_THEN_SILENT, code: "TIMEOUT_AFTER_CONNECT", detail: `${detail} within the time limit (300 ms)`, counted: true });
+    // HTTPS to a made-up TLS server that completes the secure handshake and then never answers (third review of
+    // 0.6a): the detail says that the secure connection opened. Its limit is longer, so that the handshake has time.
+    const silent = await silentTlsServer();
+    const r = await runAttempt(madeUpAttempt({ type: "https", host, port: silent.port, path: "/" }), parseSettings(JSON.stringify({ ...SETTINGS, timeoutMs: 1000 })), silent.certFile);
+    seen["https, the handshake finished"] = { ...r, counted: gotAnswer(r.result), handshakes: silent.handshakes() };
+    const opened = (detail: string, ms = 300) => ({ result: OPENED_THEN_SILENT, code: "TIMEOUT_AFTER_CONNECT", detail: `${detail} within the time limit (${ms} ms)`, counted: true });
     expect(seen).toEqual({
       http: opened("the connection opened; no HTTP status came"),
       https: opened("the connection opened; the secure handshake did not finish"),
       "http-proxy": opened("the connection to the proxy opened; no HTTP status came"),
       connect: opened("the connection to the proxy opened; it did not answer the CONNECT"),
+      "https, the handshake finished": { ...opened("the secure connection opened; no HTTP status came", 1000), handshakes: 1 },
     });
     expect(OPENED_THEN_SILENT).toMatch(RESULT);
   });
 
-  it("a proxy that answers 200 to a CONNECT and then says nothing: the tunnel attempt is 'connected, then no answer within the limit', with the proxy's 200 in its detail", async () => {
+  it("a proxy that answers 200 to a CONNECT and then says nothing: the tunnel attempt is 'connected, then no answer within the limit', with the proxy's 200 in its detail, and, where the secure connection inside the tunnel opened, that too", async () => {
     // A made-up proxy: it reads the CONNECT, answers 200, and then sends nothing more.
     const connects: string[] = [];
     const port = await onLoopback(
@@ -338,6 +365,38 @@ describe("isolation probe: its attempts, against made-up servers on the loopback
       code: "TIMEOUT_AFTER_CONNECT",
       detail: "the proxy answered 200 to the CONNECT; nothing came back inside the tunnel within the time limit (300 ms)",
       counted: true,
+    });
+    // A made-up proxy that answers 200 and joins its tunnel to a made-up TLS server that completes the secure
+    // handshake and then never answers (third review of 0.6a): the detail says that the secure connection inside
+    // the tunnel opened. Its limit is longer, so that the handshake has time.
+    const silent = await silentTlsServer();
+    const joined: string[] = [];
+    const joining = await onLoopback(
+      net.createServer((c) => {
+        c.on("error", () => undefined);
+        c.once("data", (d: Buffer) => {
+          joined.push(d.toString("latin1").split("\r\n")[0] ?? "");
+          const up = net.connect(silent.port, "localhost", () => {
+            c.write("HTTP/1.1 200 Connection established\r\n\r\n");
+            c.pipe(up).pipe(c);
+          });
+          up.on("error", () => c.destroy());
+          c.on("close", () => up.destroy());
+        });
+      }),
+    );
+    const inside = await runAttempt(
+      madeUpAttempt({ type: "https-tunnel", proxy: { host: "127.0.0.1", port: joining }, host: "localhost", port: 443, path: "/" }),
+      parseSettings(JSON.stringify({ ...SETTINGS, timeoutMs: 1000 })),
+      silent.certFile,
+    );
+    expect({ connects: joined, ...inside, counted: gotAnswer(inside.result), handshakes: silent.handshakes() }).toEqual({
+      connects: ["CONNECT localhost:443 HTTP/1.1"],
+      result: OPENED_THEN_SILENT,
+      code: "TIMEOUT_AFTER_CONNECT",
+      detail: "the proxy answered 200 to the CONNECT and the secure connection inside the tunnel opened; no HTTP status came within the time limit (1000 ms)",
+      counted: true,
+      handshakes: 1,
     });
   });
 });
