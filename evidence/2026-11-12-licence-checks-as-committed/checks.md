@@ -69,7 +69,7 @@ So **L11 is not true.** What this shows about the committed check:
 3. **Its rule for development tools matches licence names exactly.** "LGPL-3.0" is on its list, "LGPL-3.0-or-later" is not, so the last command passes although LGPL packages are installed.
 4. Nothing in it lists every package outside the permitted list. For the template that list is in known gap 40.
 
-So two things stand between the template and a passing check: the approved name has to be entered in the check, and the LGPL packages have to be removed or approved. Both are put to the owner in `docs/STATUS.md`, questions 1 and 2.
+So two things stand between the template and a passing check: the approved name has to be entered in the check, and the LGPL packages have to be removed or approved. The owner has since chosen removal for the LGPL packages (package R1); how the approved name gets into the check is put to him in `docs/STATUS.md`.
 
 ## What this does not show
 
