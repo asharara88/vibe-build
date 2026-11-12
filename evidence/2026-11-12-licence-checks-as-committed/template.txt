@@ -1,13 +1,24 @@
-$ npx license-checker-rseidelsohn --production --onlyAllow MIT;Apache-2.0;BSD-2-Clause;BSD-3-Clause;ISC;0BSD;BlueOak-1.0.0;CC0-1.0;Python-2.0;PostgreSQL;Unlicense --excludePackages  --excludePrivatePackages --summary
+# A. The production gate exactly as in scripts/check-licences.sh (options quoted as in the script):
+$ npx license-checker-rseidelsohn --production --onlyAllow "MIT;Apache-2.0;BSD-2-Clause;BSD-3-Clause;ISC;0BSD;BlueOak-1.0.0;CC0-1.0;Python-2.0;PostgreSQL;Unlicense" --excludePackages "" --excludePrivatePackages --summary
 Package "caniuse-lite@1.0.30001823" is licensed under "CC-BY-4.0" which is not permitted by the --onlyAllow flag. Exiting.
 exit code: 1
 
-# The same command without the script's empty --excludePackages option:
-$ npx license-checker-rseidelsohn --production --onlyAllow MIT;Apache-2.0;BSD-2-Clause;BSD-3-Clause;ISC;0BSD;BlueOak-1.0.0;CC0-1.0;Python-2.0;PostgreSQL;Unlicense --excludePrivatePackages --summary
+# B. How many packages the tool reads with and without the script's empty --excludePackages "" option:
+with the empty option:    175 packages read; 0 of them have a name starting with @
+without the option:       267 packages read; 92 of them have a name starting with @
+
+# C. The production gate without the empty option:
+$ npx license-checker-rseidelsohn --production --onlyAllow "MIT;Apache-2.0;BSD-2-Clause;BSD-3-Clause;ISC;0BSD;BlueOak-1.0.0;CC0-1.0;Python-2.0;PostgreSQL;Unlicense" --excludePrivatePackages --summary
 Package "@img/sharp-libvips-linux-x64@1.3.4" is licensed under "LGPL-3.0-or-later" which is not permitted by the --onlyAllow flag. Exiting.
 exit code: 1
 
-$ npx license-checker-rseidelsohn --failOn GPL-1.0;GPL-2.0;GPL-3.0;AGPL-1.0;AGPL-3.0;LGPL-2.0;LGPL-2.1;LGPL-3.0;SSPL-1.0;BUSL-1.1;CC-BY-NC-4.0 --excludePackages  --excludePrivatePackages --summary
+# D. The production gate with the approved package excluded by name:
+$ npx license-checker-rseidelsohn --production --onlyAllow "MIT;Apache-2.0;BSD-2-Clause;BSD-3-Clause;ISC;0BSD;BlueOak-1.0.0;CC0-1.0;Python-2.0;PostgreSQL;Unlicense" --excludePackages "caniuse-lite" --excludePrivatePackages --summary
+Package "@img/sharp-libvips-linux-x64@1.3.4" is licensed under "LGPL-3.0-or-later" which is not permitted by the --onlyAllow flag. Exiting.
+exit code: 1
+
+# E. The rule for development tools exactly as in the script:
+$ npx license-checker-rseidelsohn --failOn "GPL-1.0;GPL-2.0;GPL-3.0;AGPL-1.0;AGPL-3.0;LGPL-2.0;LGPL-2.1;LGPL-3.0;SSPL-1.0;BUSL-1.1;CC-BY-NC-4.0" --excludePackages "" --excludePrivatePackages --summary
 ├─ MIT: 99
 ├─ ISC: 43
 ├─ BlueOak-1.0.0: 11
@@ -23,3 +34,22 @@ $ npx license-checker-rseidelsohn --failOn GPL-1.0;GPL-2.0;GPL-3.0;AGPL-1.0;AGPL
 
 exit code: 0
 
+# F. The same rule without the empty option:
+$ npx license-checker-rseidelsohn --failOn "GPL-1.0;GPL-2.0;GPL-3.0;AGPL-1.0;AGPL-3.0;LGPL-2.0;LGPL-2.1;LGPL-3.0;SSPL-1.0;BUSL-1.1;CC-BY-NC-4.0" --excludePrivatePackages --summary
+├─ MIT: 156
+├─ ISC: 59
+├─ Apache-2.0: 22
+├─ BlueOak-1.0.0: 11
+├─ BSD-3-Clause: 4
+├─ LGPL-3.0-or-later: 2
+├─ Apache-2.0 AND MIT: 2
+├─ BSD-2-Clause: 2
+├─ MPL-2.0: 2
+├─ 0BSD: 2
+├─ Apache-2.0 AND LGPL-3.0-or-later AND MIT: 1
+├─ CC-BY-4.0: 1
+├─ CC-BY-3.0: 1
+├─ CC0-1.0: 1
+└─ (MIT AND CC-BY-3.0): 1
+
+exit code: 0

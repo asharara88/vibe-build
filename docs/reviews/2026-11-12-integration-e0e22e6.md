@@ -130,3 +130,44 @@ The reviewer's closing answers: package 0.1's "Done means" unmet at `612d281` (y
 | 13 | Small items | No | Corrected: the model-key item in `docs/OPEN-DECISIONS.md`; "it costs nothing"; the other `@img` packages named; two lock-file rows moved out of the "live page" section of `docs/SOURCES.md`; "five closing answers"; known gap 39; the design note's "permissive licences: Both" and "added below"; two additions to 5.5 that were missing from the list |
 
 **This review read `5e12c88`. The commits after it have not been read by anyone independent when they are made**; they are re-read before any merge.
+
+## Fifth review: the re-read of commit `2c9cd7f`
+
+| | |
+| --- | --- |
+| Reviewed | Branch `claude/tracking-corrections` at commit `2c9cd7f`, read by commit; it also read `ed36012` |
+| Reviewer | Another fresh reviewer agent, started by Claude Code under the build plan and the working rule on reviews. It did not write the documents |
+| Verdict | **Not ready to merge.** Of the fourth review's thirteen findings, ten answered and three partly. Three new blocking findings, all in records. Package 0.1's "Done means" still unmet; P-1 cannot close. Package 1.1: "Done means" met, and no remaining reason in the note's content not to mark it tested, once the commit read is the commit merged |
+| What it confirmed | The licence-check runs, by re-running them; the lock-file counts; the type check; that package 0.4 and pull request #9 read the same everywhere (parked, stopped, not merged, with the owner); that nothing outside `docs/` and `evidence/` changed; no secret, placeholder, time estimate or claim of security, readiness or compliance |
+
+| # | Finding | Blocking | Answer in the commit after `2c9cd7f` |
+| --- | --- | --- | --- |
+| 1 | The template's committed licence check skips every package whose name begins with `@` (175 of 267 read), so it never examined the LGPL packages; the evidence file gave a different, wrong explanation; recorded nowhere | Yes | Reproduced. The evidence file rewritten with the counts and the runs with and without the faulty option; known gap 43; known gap 40's sentence corrected; the status file's L11 row, the plan's progress row, register row P-4 and the decisions row now give all the causes |
+| 2 | The status file's new list of words said "the gateway is the one door to the AI model", against "no safeguard is shown" and "meant to be the one door" four lines later | Yes | Reworded: "the part meant to be the one door"; "the part that filters the requests sent through it" |
+| 3 | The status file said "two reviews in a row" and "the third version" after a fourth review | Yes | The counts are removed; the row points to this record |
+| 4 | Single-cause wording for L11 in four other places | No | Corrected with finding 1 |
+| 5 | The question to the owner about the licence codes was not a fair choice: a narrower option was missing, and one option asked him to "say how" | No | Rewritten as three options. The recommended one is the narrower option: enter the approved name in the template's existing check, which the approval's own conditions already call for |
+| 6 | One change to the design note (the comparison table under decision D) was not in the dated list; the line above it still said every component is permissive | No | Row added; the sentence corrected |
+| 7 | The hosted-agent row carried, under the owner's name, a sentence that was Claude Code's; it did not mention made-up data or what "no real model call" covers | No | The sentence removed; the notes marked as Claude Code's; the status file says "by this project" |
+| 8 | The split of proof row B4 was labelled a correction although it changes what finishes package 1.2 | No | Relabelled as the owner's to approve or change |
+| 9 | Small items: a pointer to the wrong item in `docs/OPEN-DECISIONS.md`; "the outcome is recorded in the status file" when it was not; "the rest are corrections"; a plan progress row; "a timeout" given to the wrong package; three terms unexplained | No | Corrected |
+
+Left as they are and said here: the list "Yours to confirm" in the status file is still a list, not separate questions with choices; the saved test run holds summary lines, not the full output; four lines of the status file are long.
+
+**This review read `2c9cd7f`. The commit that answers it also brings in the record of the owner's decision to remove `sharp` (package R1, on its own branch). It has not been read by anyone independent when it is made**; it is re-read before any merge.
+
+## Sixth review: the re-read of commit `07a953a`
+
+A fresh reviewer agent read `07a953a` by commit and re-ran the licence commands. **Verdict: not ready to merge**, for two one-sentence points; everything else confirmed. Fifth-review findings: seven answered, two partly.
+
+| # | Finding | Blocking | Answer in the commit after `07a953a` |
+| --- | --- | --- | --- |
+| 1 | The status file's question on the second stack gave as its reason "nothing in the queue waits on it", against the same file's table, where package S1a waits on exactly that | Yes | The reason now says what waits on it and that nothing able to start today is held up |
+| 2 | The plan's progress row for 0.1 said "three reviews" | Yes | The count is removed, here and in the status file's opening line |
+| 3 | The recommended option of the question on the template's licence condition left out three consequences, and claimed a step more than the record shows | No | The three consequences are stated in the option; the wording is "as recorded" and names the unconfirmed reading it rests on |
+| 4 | R1's evidence was cited as if present on this branch | No | The plan's row and known gap 40 name the branch and the pull request |
+| 5 to 13 | Known gap 32's "two reasons"; stale pointers; the exact-name weakness of the development-tools rule not in the gaps file; Claude Code's readings in the owner's `sharp` row; "carried" where the integration branch still carries; `sharp` and "lock file" unexplained; a caveat on "L9 is true" in the evidence file; "a sealed box"; the order of the next packages | No | Each corrected. Not changed: two counts in the evidence file are shown without the command that produced them |
+
+Earlier answers in this file cite the status file's questions by the numbers they had at the time; the numbers have since shifted as questions were answered.
+
+**This review read `07a953a`. The commit that answers it is re-read before any merge.**

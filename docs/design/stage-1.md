@@ -156,7 +156,7 @@ Later stages: the secure-deployment guide compares containers, gVisor and virtua
 | Licence check | license-checker-rseidelsohn (BSD-3-Clause) | pip-licenses (MIT) |
 | Database | PostgreSQL 16 in both (the current major is 18; 16 is what the development machine has, and the version is pinned either way) | |
 
-All licences above were verified today against each project's own repository or package index (`docs/SOURCES.md`). Every one is permissive. htmx's "Zero-Clause BSD" is a BSD-family licence and permissive; I list it so the owner sees it.
+All licences above were verified today against each project's own repository or package index (`docs/SOURCES.md`). Every one listed here is permissive; the packages they bring with them were not checked at the time, and some are not (see the licence row in the table below, and known gaps 32 and 40). htmx's "Zero-Clause BSD" is a BSD-family licence and permissive; I list it so the owner sees it.
 
 How the criteria fall, before measurement:
 
@@ -380,7 +380,7 @@ Each project has a cap in dollars, set when the project is created, with a defau
 | The token count is "an estimate" and the billed input "might differ by a small amount" | Token-counting page | A margin is added to the counted prompt; its size is set from measurement in 1.2 and checked against the real provider in package 2.3 |
 | Server-side tools are billed on top of tokens (web search: $10 per 1,000 searches) | Pricing page | The gateway refuses any request that includes a server-side tool. The engine in Stage 1 is not expected to need one; that is an assumption until package 2.2 |
 | Fast mode for a model the pricing page does not list is assumed to cost twice the standard rate | Pricing page lists it for some models only | The gateway refuses fast mode for a model whose fast-mode price is not in its table |
-| **An error answer from the provider is not defined:** the steps above do not say whether its hold is kept or released, and no proof row covers it | Found in review | The hold is released only when the provider's answer shows the request was rejected before any work was done; in every other case (a server error, a timeout) it is kept, unreconciled; a connection cut part-way is amendment (a) and belongs to package 1.4 |
+| **An error answer from the provider is not defined:** the steps above do not say whether its hold is kept or released, and no proof row covers it | Found in review | The hold is released only when the provider's answer shows the request was rejected before any work was done; in every other case, such as a server error, it is kept, unreconciled. A call that never answers or is cut part-way is amendment (a) and belongs to package 1.4 |
 
 **No proof row exists yet for any of these five.** Package 1.2 is finished by rows B1 to B6 and only those, so as the plan stands the refusals and the margin would be built without being part of what finishes the package. Adding rows for them would add to package 1.2's "Done means", which is the owner's to decide (`docs/STATUS.md`, "Yours to confirm").
 
@@ -404,7 +404,7 @@ Each project has a cap in dollars, set when the project is created, with a defau
 | (d) | A successful answer whose usage cannot be read keeps its full hold and is marked unreconciled | Step 2 of the life of a hold |
 | (e) | If a finished call cannot be saved, its hold stays open, the project is frozen, and no further call is made until the owner reconciles it | Step 5 of the life of a hold |
 
-**Other changes to this section and to 5.2 and 7.2 made with or after those five, each for the owner to see.** They are not among the five amendments the owner approved through the build plan; the first three follow from them, the fourth awaits his confirmation, the rest are corrections found in review.
+**Other changes to this note made with or after those five (to this section, to 5.2 and 7.2, and one to the comparison table under decision D), each for the owner to see.** They are not among the five amendments the owner approved through the build plan; the first three follow from them, the fourth awaits his confirmation, and the rest were found in review: some are corrections, some are new, and some are the owner's to approve, as each row says.
 
 | Date | Change | Why | Standing |
 | --- | --- | --- | --- |
@@ -424,7 +424,8 @@ Each project has a cap in dollars, set when the project is created, with a defau
 | 12 Nov 2026 | **Which package builds what.** Package 1.2 builds opening, settling, expiry and start-up recovery (B1 to B6). Package 1.4 builds what happens when a call is cut off, is unreadable or cannot be saved (amendments a, d, e) together with the tests that show it (B8 to B13). B14 (package 1.5) needs those cases, so **1.5 can be finished only after 1.4**, although the plan lists 1.5 as depending on 1.2 alone | The earlier text did not say, and had the engineer's question attached to 1.2 | Decided by Claude Code as a matter of how it is built; whether to add the 1.4 dependency to the plan is the owner's to say |
 | 12 Nov 2026 | "Known limits of the hold" added above | A fresh reviewer checked the hold against the provider's pricing and token-counting pages and found four ways it could fall short, and one case not defined | **Open design points, not approved** |
 | 11 and 12 Nov 2026 | The paragraph "The two invariants" was added to 5.5, and step 3 gained the rule that a kept hold is closed only by the owner's recorded action stating the actual cost and its evidence | The invariants come from the plan's package 1.4 and the closing rule from its package 1.5; the note has to state both | Taken from the plan's own wording; listed here for completeness |
-| 12 Nov 2026 | Proof row B4 split into two cases | No model has both a long-prompt rate and a listed fast-mode price, so the row could not be shown as first written | Correction |
+| 12 Nov 2026 | Proof row B4 split into two cases | No model has both a long-prompt rate and a listed fast-mode price, so the row could not be shown as first written | It changes what finishes package 1.2, so it is the owner's to approve or change, with the row assignment |
+| 12 Nov 2026 | In the comparison table under decision D, "permissive licences: Both" replaced by a row saying neither candidate is free of non-permissive licences as found so far | `caniuse-lite` and the LGPL packages of `sharp` were found in the TypeScript template after the table was written; the sentence above the table that said every component is permissive was corrected with it | Correction of a fact. The stack decision is unchanged and is the owner's |
 
 ---
 
