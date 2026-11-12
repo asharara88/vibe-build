@@ -7,7 +7,7 @@
 | Answers | Register finding P-3 (`docs/reviews/2026-11-11-pull-request-2.md`): the guard returned a "denied" flag for the page to act on, treated an unrecognised role as the lowest role, and covered pages only |
 | Run on | The development machine (a cloud session). The template's own tests, type check, build and checks ran on the host in `templates/next/`. The live checks built and ran the template in containers on the development profile, which shares the host's network; as before, creating the tables and sample users ran from the host (known gap 29). Made-up sample users only |
 | Done means (plan) | (1) "A restricted example page with a test for each role." (2) "A check that fails the build when a page, action or route has no guard." (3) "The existing home page uses the guard the new way" |
-| Result | (1) **Shown**: runs 1 and 2. The decision is tested for each role in `npm test`; the pages themselves, for each kind of visitor, by the live run. (2) **Shown** for the ways of writing listed under "What the build check reads": runs 3 and 4. (3) **Shown**: run 3 lists the home page with its guard, and run 2 shows it behaving for each kind of visitor. **State: built, not tested**, until an independent reviewer has read the commit that is merged. Two reviews found ways round the check that Next.js really serves, closed since (the reviews are at the end of this file). The check is for catching a guard left out by mistake; it is not a defence against code written on purpose to get round the guard |
+| Result | **State: tested.** Merged into the integration branch on 12 November at `7b955d5`, the commit the reviewer read last; the guard check and the tests were run again there and pass (`run-on-the-integration-branch.txt`). (1) **Shown**: runs 1 and 2. The decision is tested for each role in `npm test`; the pages themselves, for each kind of visitor, by the live run. (2) **Shown** for the ways of writing listed under "What the build check reads": runs 3 and 4. (3) **Shown**: run 3 lists the home page with its guard, and run 2 shows it behaving for each kind of visitor. Two reviews found ways round the check that Next.js really serves, closed since (the reviews are at the end of this file). The check is for catching a guard left out by mistake; it is not a defence against code written on purpose to get round the guard |
 
 A *guard* is the piece of code that decides whether the person asking may see or do something. A *form action* is code on the server that a form's button runs. A *data route* is an address that answers with data instead of a page.
 
@@ -213,9 +213,9 @@ The whole output is `run-build-with-an-unguarded-page.txt`. The build of the tem
 
 - **That every page of a future app is guarded for the right roles.** The check reads how a file is written, not which roles it names: a page written with `guardedPage` for every role passes. Which roles a screen is for comes from the app's brief, and is checked by the acceptance test, which is a later package.
 - **A "forbidden" status for a refused page.** The page a refused person gets is sent with the ordinary status (200). The framework's way of sending 403 for a page is still marked experimental and is not used. Data routes do answer 401 and 403.
-- **Layouts and the framework's other special files that wrap pages.** They are not checked. A layout must not show data; the template's layout shows only the app's name and the language switch.
+- **Layouts, and the special files that render in place of a page** (`default`, `not-found`, `error`, `loading`). They are not checked. A layout must not show data; the template's layout shows only the app's name and the language switch. A slot's `default.tsx` or a `not-found.tsx` that showed data would show it to anyone.
 - **Other ways code can run on the server** that are not a page, a form action or a data route: the request file `src/proxy.ts`, which only sets the language, and anything a later framework version adds.
-- **Changes to the build itself.** The check refuses a build script that skips it, a changed `@/` and `pageExtensions`; it cannot stop someone changing the check itself or the Next.js settings in other ways. That the build engine may not change these files is a rule of the engine, which is a later package; nothing enforces it yet.
+- **Changes to the build itself.** The check refuses a build script other than exactly the check then the build, a changed `@/`, and any change to the Next.js settings file. It cannot stop someone changing the check itself (including the fingerprint it holds for the settings file), or the Dockerfile, which could build without `npm run build`. That the build engine may not change these files is a rule of the engine, which is a later package; nothing enforces it yet.
 - **Every message is sent to every visitor.** The template's whole message catalogue, in the visitor's language, goes to the browser, signed in or not. It holds no data, only wording.
 - **Two small things on the "no access" page.** For an account with no role, "Go to the home page" leads back to the same message; on `/no-access` a visitor who is not signed in also sees "Sign out".
 - **That nobody can make an account.** The sign-in library's sign-up route is open: run 2 used it to make the visitor with no role. Such an account sees nothing but the "no access" message, but it exists. Whether sign-up should be closed is a decision for the owner with the reviewing engineer (known gap 47).
@@ -258,3 +258,20 @@ The same reviewer re-ran its earlier cases (all now refused; the request file ru
 | | `dynamic = "force-static"` beside a guarded page locked everyone out | No | Refused. Tested |
 | | The decision depends on the list of roles in `src/app-config.ts`, which the build engine writes; nothing stopped a role named `none` | No | `none` is refused in the decision itself, whatever the list says. Tested |
 | | Code written on purpose can get round the guard (a file imported by the layout changed how the sign-in library reads a session) | No | Said under "What the build check reads": the check catches a guard left out by mistake, not code written to defeat it |
+
+## The third review (commit `7b955d5`), the merge, and what was done afterwards
+
+The same reviewer re-ran every earlier case with the template's real settings in place (all refused, down to one added newline in the settings file), tried new ways round the check within the mistakes a build step could plausibly make (none served), built a clean copy twice in a row (both passed) and ran the live checks (26 of 26). **Verdict: "`7b955d5` may be merged into `claude/stage-1`"; nothing blocking.** The review bot finished on `7b955d5` with no findings. Pull request #15 was merged at that commit on 12 November.
+
+Its six non-blocking points, answered after the merge in the records only:
+
+| # | Point | Done |
+| --- | --- | --- |
+| 1 | "What this does not show" still said the check cannot stop changes to the Next.js settings, which the exact-contents rule now does | Reworded: what remains is a change to the check itself or to the Dockerfile |
+| 2 | `default` and `not-found` render in place of a page, they do not wrap one; a slot's `default.tsx` could show data to anyone | Reworded here and in known gap 48 |
+| 3 | The build-script and settings rules apply only when `package.json` can be read | Recorded in known gap 48; npm cannot build without it, so it is not a way round |
+| 4 | Known gap 48 and the plan's row were stale on the reviews | Both brought up to date |
+| 5 | A `.js` page containing JSX is wrongly refused | Recorded in known gap 48; the template uses TypeScript |
+| 6 | A checkout that changes line endings would change the settings file's fingerprint | Recorded in known gap 48 |
+
+It also pointed out that a build engine which is itself a model may "fix" a failing sign-in by changing how a session is read; that is the class of change the check does not catch, and it is now named in known gap 48.
