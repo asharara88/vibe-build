@@ -465,12 +465,24 @@ async function compose(sb: Sandbox, args: string[], timeoutMs = 180_000, withOne
   return stdout;
 }
 
+/** How a streaming run ended (package 2.1). */
+export interface StreamingEnd {
+  /** The command's exit code; null if it ended by a signal. */
+  code: number | null;
+  /** The end of what it printed on stderr. */
+  stderrTail: string;
+  /** True if the run was killed because it went past its time limit. */
+  timedOut?: boolean;
+  /** Set if the line handler threw: the first error's message. The run was killed when it happened. */
+  handlerError?: string;
+}
+
 /** A command running in a one-off container, read line by line as it prints (package 2.1). */
 export interface StreamingRun {
   /** The container's name, given with `--name`, so that it can be killed by name. */
   container: string;
-  /** Settles when the command has ended: its exit code (null if it ended by a signal), and the end of what it printed on stderr. */
-  done: Promise<{ code: number | null; stderrTail: string }>;
+  /** Settles when the command has ended. It never rejects. */
+  done: Promise<StreamingEnd>;
   /** Kill the container, wait for the command to end, and remove the container if anything is left. */
   kill: () => Promise<void>;
 }
@@ -478,16 +490,29 @@ export interface StreamingRun {
 export interface StreamingOptions {
   /** The container's name. Letters, digits, `_`, `.` and `-`, starting with a letter or digit. */
   container: string;
-  /** Called once for each line the command prints on stdout, as it is printed. */
+  /**
+   * Called once for each line the command prints on stdout, as it is printed. If it throws, the run
+   * is killed, no further line is handed on, and `done` carries the error (`handlerError`).
+   */
   onLine: (line: string) => void;
   /** Extra bind mounts for this run only, in `source:target[:ro]` form. Each source must already exist. */
   volumes?: string[];
-  /** The container is killed after this long. Default ten minutes. */
+  /** The container is killed after this long, and `done` says so (`timedOut`). Default ten minutes. */
   timeoutMs?: number;
 }
 
 const CONTAINER_NAME = /^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$/;
 const pause = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/** Wait for `p`, or for `ms` at most; the timer is cleared either way, so nothing is left waiting. */
+async function waitAtMost(p: Promise<unknown>, ms: number): Promise<void> {
+  let timer: NodeJS.Timeout | undefined;
+  try {
+    await Promise.race([p, new Promise((r) => (timer = setTimeout(r, ms)))]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 /**
  * Run a command in a fresh container of a service, as `runOnce` does, but read its output line by
@@ -506,40 +531,63 @@ function runStreaming(sb: Sandbox, service: string, cmd: string[], opts: Streami
   args.push(service, ...cmd);
   const child = spawn("docker", args, { env, stdio: ["ignore", "pipe", "pipe"] });
   const lines = createInterface({ input: child.stdout });
-  lines.on("line", (line) => opts.onLine(line));
+  let timedOut = false;
+  let handlerError: string | undefined;
+  // A handler that throws must not bring the builder down with the container still running: the
+  // first error is kept, the run is killed, and later lines are not handed on.
+  lines.on("line", (line) => {
+    if (handlerError !== undefined) return;
+    try {
+      opts.onLine(line);
+    } catch (err) {
+      handlerError = err instanceof Error ? err.message : String(err);
+      void kill();
+    }
+  });
   let stderrTail = "";
   child.stderr.on("data", (d: Buffer) => {
     stderrTail = (stderrTail + d.toString("utf8")).slice(-4000);
   });
   let settled = false;
-  const done = new Promise<{ code: number | null; stderrTail: string }>((resolve) => {
+  const ended = (code: number | null, extra = ""): StreamingEnd => ({
+    code,
+    stderrTail: stderrTail + extra,
+    ...(timedOut ? { timedOut } : {}),
+    ...(handlerError !== undefined ? { handlerError } : {}),
+  });
+  const done = new Promise<StreamingEnd>((resolve) => {
     child.on("error", (err) => {
       settled = true;
-      resolve({ code: null, stderrTail: stderrTail + String(err) });
+      resolve(ended(null, String(err)));
     });
     // "close" comes after stdout has ended, so every line has been handed on by then.
     child.on("close", (code) => {
       settled = true;
-      resolve({ code, stderrTail });
+      resolve(ended(code));
     });
   });
-  const kill = async () => {
-    // The container may not exist yet if the run is still being prepared: try for a while.
-    for (let i = 0; i < 40 && !settled; i++) {
-      const killed = await run("docker", ["kill", opts.container], { env }).then(
-        () => true,
-        () => false,
-      );
-      if (killed) break;
-      await pause(250);
-    }
-    await Promise.race([done, pause(15_000)]);
-    // `--rm` removes a killed container; this removes it if anything was left.
-    await run("docker", ["rm", "-f", opts.container], { env }).catch(() => undefined);
-    if (!settled) child.kill("SIGKILL");
-    await done;
-  };
-  const timer = setTimeout(() => void kill(), opts.timeoutMs ?? 600_000);
+  let killing: Promise<void> | null = null;
+  const kill = () =>
+    (killing ??= (async () => {
+      // The container may not exist yet if the run is still being prepared: try for a while.
+      for (let i = 0; i < 40 && !settled; i++) {
+        const killed = await run("docker", ["kill", opts.container], { env }).then(
+          () => true,
+          () => false,
+        );
+        if (killed) break;
+        await pause(250);
+      }
+      await waitAtMost(done, 15_000);
+      // `--rm` removes a killed container; this removes it if anything was left.
+      await run("docker", ["rm", "-f", opts.container], { env }).catch(() => undefined);
+      if (!settled) child.kill("SIGKILL");
+      await done;
+    })());
+  const timer = setTimeout(() => {
+    timedOut = true;
+    void kill();
+  }, opts.timeoutMs ?? 600_000);
   void done.then(() => clearTimeout(timer));
   return { container: opts.container, done, kill };
 }
