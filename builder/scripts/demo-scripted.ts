@@ -160,9 +160,25 @@ try {
 
   log("");
   log("== 4. The image build: the template's guard check, then next build ==");
-  const built = await sandbox.build(sb);
+  // Nothing from Docker's build cache: identical files from an earlier run would otherwise skip the check and the build.
+  const built = await sandbox.build(sb, { noCache: true });
   const guardLines = built.split("\n").filter((l) => /Guard check|^\s*#\d+ [\d.]+\s+(page|action|route) |RESULT: |PROBLEMS:/.test(l));
   log(indent(guardLines.map((l) => l.replace(/^#\d+ [\d.]+\s+/, "")).join("\n")));
+  if (!guardLines.some((l) => l.includes("RESULT: PASSED"))) throw new Error("the guard check's result was not seen in the image build's output");
+  // The output holds the two builds one after the other, each starting with BuildKit's "#0 building with" line.
+  const [appBuild = "", toolsBuild = ""] = built.split(/^#0 building with/m).slice(1);
+  // A step taken from the cache prints "#N CACHED"; its name is on the line "#N [stage n/m] ..." before it.
+  const cached = (s: string) => {
+    const ls = s.split("\n");
+    return ls
+      .filter((l) => /^#\d+ CACHED/.test(l))
+      .map((l) => ls.find((x) => x.startsWith(l.split(" ")[0]! + " [")) ?? l)
+      .map((l) => l.replace(/^#\d+ /, ""));
+  };
+  const appCached = cached(appBuild);
+  const toolsCached = cached(toolsBuild);
+  log(`  Steps taken from Docker's build cache, app image (built with --no-cache): ${appCached.length}${appCached.length ? ": " + appCached.join("; ") : ""}`);
+  log(`  Steps taken from Docker's build cache, tools image (it reuses the steps the app build has just made): ${toolsCached.length}`);
   const routes = built.split("\n").filter((l) => /my-requests|\/\[locale\]\/home/.test(l) && /[├└┌]/.test(l));
   if (routes.length) log(indent("next build listed:\n" + routes.map((l) => l.replace(/^#\d+ [\d.]+\s+/, "")).join("\n")));
   log(`  Images built in ${Math.round((Date.now() - t0) / 1000)} s from the start of the run.`);

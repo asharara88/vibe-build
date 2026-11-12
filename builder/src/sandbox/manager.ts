@@ -548,13 +548,17 @@ export const sandbox = {
   /**
    * Build the app image (the Dockerfile's `run` stage) and the tools image (its `tools` stage) with
    * plain `docker build`, on the host network in development. The second build reuses the first's steps.
+   * With `noCache`, the first build uses nothing from Docker's build cache, so every step, the guard
+   * check and `next build` included, really runs (package 2.1: identical files would otherwise be
+   * taken from the cache of an earlier run, and the evidence would show no build).
    */
-  build: async (sb: Sandbox): Promise<string> => {
+  build: async (sb: Sandbox, opts: { noCache?: boolean } = {}): Promise<string> => {
     const b = sb.appBuild;
     if (!b) throw new Error("This sandbox has no app to build.");
     let out = "";
     for (const [target, tag] of [["run", b.image], ["tools", b.toolsImage]] as const) {
       const args = ["build", "--target", target, "--tag", tag, ...(b.hostNetwork ? ["--network", "host"] : [])];
+      if (opts.noCache && target === "run") args.push("--no-cache");
       for (const [k, v] of Object.entries(b.args)) args.push("--build-arg", `${k}=${v}`);
       args.push(b.context);
       const { stdout, stderr } = await run("docker", args, { timeout: 1_200_000, maxBuffer: 20 * 1024 * 1024, env: dockerEnv(sb) });
