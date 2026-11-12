@@ -34,7 +34,7 @@ The first version of this file held only the Phase 0 findings, numbered 1 to 6. 
 
 ## Part 2: budget-control findings
 
-The baseline's gateway has a working cap of an earlier kind: it sums what has been spent and estimates the next call from recent history. Every finding below is about that cap or about the holds design that replaces it. **For all ten, the design is corrected on paper and the running control is not done.** Package 1.1, which amended the design note, was reopened on 12 November and tested again the same day at commit `492370c`. That closes nothing here, because each finding is about what the gateway does, and the gateway's code has not changed. The proof rows B1 to B14 are in design note 7.2.
+The baseline's gateway has a working cap of an earlier kind: it sums what has been spent and estimates the next call from recent history. Every finding below is about that cap or about the holds design that replaces it. **For all ten, the design is corrected on paper and the running control is not done on the integration branch.** Package 1.2 builds part of it on a branch (pull request #12), not tested and not merged; the rows below say "not done" of the integration branch. Package 1.1, which amended the design note, was reopened on 12 November and tested again the same day at commit `492370c`. That closes nothing here, because each finding is about what the gateway does, and the gateway's code has not changed. The proof rows B1 to B14 are in design note 7.2.
 
 | # | Finding | Source | Design: where it is corrected | Runtime control | Answered by, and its proof rows | State |
 | --- | --- | --- | --- | --- | --- | --- |
