@@ -3,7 +3,7 @@
 | | |
 | --- | --- |
 | What this is | A recommendation on licence questions L9, L11 and L10, written by an independent assistant (not Claude Code, not the owner) and supplied by the owner, Ahmed Sharara, on 12 November 2026 |
-| The owner's approval | **Not recorded.** The text recommends approval; it is addressed to the owner and is not his approval. Hard rule 2 needs the owner's approval in writing, package by package. The question is put to him in `docs/STATUS.md`. Until he answers, L9, L10 and L11 stay false and nothing is unblocked |
+| The owner's approval | **Given on 12 November 2026, after this recommendation was saved, and recorded separately** in `docs/DECISIONS.md`: asked to choose, the owner wrote "a0 approved", read as option (a): the development packages and `caniuse-lite`, by name, on the conditions below; `psycopg` not approved. The recommendation remains the assistant's; the approval is the owner's. L9 and L11 become true only when the licence checks also pass |
 | What it would not do, in its own words | Approval "would unblock development; it would not approve the existing code, certify compliance, or authorise real-model spending" |
 
 ## The recommendation
@@ -50,7 +50,7 @@ Read from the licence texts shipped inside those packages:
 - Whether any of the development packages ends up inside something a customer receives. No exporter exists, so there is nothing to check yet.
 - Nothing here is legal advice, and no claim of compliance is made. Whether the notices are sufficient is for the owner's reviewing engineer or a lawyer to confirm.
 
-## What each condition would mean in the build, if the owner approves
+## What each condition means in the build, now that the owner has approved
 
 | Condition | Where it would be met | State |
 | --- | --- | --- |
@@ -59,4 +59,4 @@ Read from the licence texts shipped inside those packages:
 | Notices preserved | Package 0.4 writes a notices file from the installed packages' own licence files | Not done |
 | Development packages absent from customer deliverables | Package 3.2 (the exporter): a check on the export that none of them is in it, shown with evidence | Not done |
 | `caniuse-lite` attribution in exports | Package 3.2: each exported app carries a third-party notices file with the items of CC-BY-4.0 section 3(a)(1) | Not done |
-| LGPL distribution approach for `psycopg` | A written approach before any customer delivery of a Django app; needs the LGPL text read and an engineer's or lawyer's judgement | Not started; only if the owner wants the comparison |
+| LGPL distribution approach for `psycopg` | A written approach before any customer delivery of a Django app; needs the LGPL text read and an engineer's or lawyer's judgement | Not started; `psycopg` is not approved; only if the owner wants the comparison |
