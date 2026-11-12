@@ -118,6 +118,14 @@ The scripted engine is a stand-in for the AI builder: it writes the same fixed c
 | `leave.problem_reason_too_long` | The reason is too long. Keep it to {max} characters or fewer. | السبب طويل جداً. اجعله {max} حرف أو أقل. |
 | `leave.save_failed` | Your request was not saved because the server had a problem. Try again in a moment; if it keeps happening, tell your administrator. | لم يُحفظ طلبك لأن الخادم واجه مشكلة. حاول بعد قليل، وإذا تكرر ذلك أخبر المسؤول. |
 
+## A sentence as shown on screen (package 2.1)
+
+Part of this sentence is not in the message files, so the table above does not show it whole. Only the words around `{when}` come from the message files; what replaces `{when}` is made by the date formatter built into the app's server, from the date and time the request was sent: the day, the month's name, the year, the second "في" (at), the time and "UTC" in Latin letters. Nobody who reads Arabic has checked it; the repeated "في" and the Latin "UTC" are the points to look at. A change to the formatter's part is made in the page's code, not in the message files.
+
+| Key | Message (English / Arabic) | As shown on screen | Made by the date formatter | Seen on | Formatter set at |
+| --- | --- | --- | --- | --- | --- |
+| `leave.sent_on` | Sent on {when} / أُرسل في {when} | أُرسل في 12 نوفمبر 2026 في 17:12 UTC | 12 نوفمبر 2026 في 17:12 UTC | `evidence/2026-11-12-package-2.1/screens/06-scripted-my-requests-waiting-ar.png` | `builder/scripted/example-1/02-submitter-screen/files/src/app/[locale]/my-requests/page.tsx, line 31` |
+
 ## Record
 
 Generated on 2026-11-12 by `docs/tools/arabic-wording-list.py`. Keys compared one by one: 44 English, 44 Arabic, 0 missing in either direction. Empty messages in either language: 0. Messages whose Arabic is identical to the English: 1 (`app.english`; the language's own name is shown in its own language on purpose, so a reader who cannot read Arabic can find the switch).

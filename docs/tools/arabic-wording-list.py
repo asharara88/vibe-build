@@ -17,6 +17,16 @@ OUT = ROOT / "docs/arabic-wording-list.md"
 # replace the template's in a project's workspace). Their new and changed texts are listed too.
 SCRIPTED = ROOT / "builder/scripted/example-1"
 
+# A sentence as the app shows it, where part of it comes from the date formatter rather than the message
+# files, so the tables do not show it whole (second review of package 2.1). Copied from the screenshot
+# named; the same text comes out of the formatter with the page's options.
+AS_SHOWN = [
+    ("leave.sent_on", "Sent on {when}", "أُرسل في {when}",
+     "evidence/2026-11-12-package-2.1/screens/06-scripted-my-requests-waiting-ar.png",
+     "أُرسل في 12 نوفمبر 2026 في 17:12 UTC", "12 نوفمبر 2026 في 17:12 UTC",
+     "builder/scripted/example-1/02-submitter-screen/files/src/app/[locale]/my-requests/page.tsx, line 31"),
+]
+
 # Wording changes suggested by review, for the owner to accept or reject. They are not applied to the
 # template here: they wait on the owner.
 SUGGESTED = [
@@ -94,6 +104,11 @@ def main():
     esc = lambda v: str(v).replace("<", "&lt;").replace(">", "&gt;")
     for k in changed:
         L.append(f"| `{k}` | {esc(sen[k])} | {esc(sar[k]) if k in sar else '**missing**'} |")
+    L += ["", "## A sentence as shown on screen (package 2.1)", "",
+          "Part of this sentence is not in the message files, so the table above does not show it whole. Only the words around `{when}` come from the message files; what replaces `{when}` is made by the date formatter built into the app's server, from the date and time the request was sent: the day, the month's name, the year, the second \"في\" (at), the time and \"UTC\" in Latin letters. Nobody who reads Arabic has checked it; the repeated \"في\" and the Latin \"UTC\" are the points to look at. A change to the formatter's part is made in the page's code, not in the message files.",
+          "", "| Key | Message (English / Arabic) | As shown on screen | Made by the date formatter | Seen on | Formatter set at |", "| --- | --- | --- | --- | --- | --- |"]
+    for key, men, mar, where, shown, part, at in AS_SHOWN:
+        L.append(f"| `{key}` | {men} / {mar} | {shown} | {part} | `{where}` | `{at}` |")
     L += ["", "## Record", "",
           f"Generated on {today} by `docs/tools/arabic-wording-list.py`. Keys compared one by one: {len(en)} English, {len(ar)} Arabic, {len(missing_ar) + len(missing_en)} missing in either direction. Empty messages in either language: {len(empty)}. Messages whose Arabic is identical to the English: {len(same)}" + (" (" + ", ".join(f"`{k}`" for k in same) + "; the language's own name is shown in its own language on purpose, so a reader who cannot read Arabic can find the switch)." if same else ".")]
     OUT.write_text("\n".join(L) + "\n", encoding="utf-8")
