@@ -4,7 +4,8 @@ $ npm test   (in templates/next/)
     ok 2 - a user with the role employee
     ok 3 - a user with the role manager
     ok 4 - a user with the role hr_admin
-    ok 5 - an account with no role this app recognises is not given the lowest role
+    ok 5 - "none", the role a new account is given, is refused even if the list of roles were ever to name it
+    ok 6 - an account with no role this app recognises is not given the lowest role
 ok 1 - who is asking
 # Subtest: may they: a page, action or route for HR admins only
     ok 1 - employee: refused, role not allowed
@@ -47,14 +48,17 @@ ok 7 - a form action without a guard fails the check
     ok 5 - a route file that exports something other than its methods and plain settings
     ok 6 - a top-level app/ folder, which Next.js would serve in place of src/app
     ok 7 - special files that answer with data by themselves
-    ok 8 - a change to where "@/" points, a build script that skips the check, and pageExtensions
+    ok 8 - a change to where "@/" points, a build script that is not exactly the check then the build, and the Next.js settings
+    ok 9 - folders named .git or .next below the top, and node_modules below the top
+    ok 10 - special files with a number after their name
+    ok 11 - a page or route set to be built ahead of time ("force-static"), which would give everyone the same answer
 ok 8 - found by the review of the first version, and kept fixed
 # Subtest: a check that read nothing has not passed
     ok 1 - fails on a folder with no app in it
 ok 9 - a check that read nothing has not passed
-# tests 35
+# tests 39
 # suites 9
-# pass 35
+# pass 39
 # fail 0
 # cancelled 0
 # skipped 0

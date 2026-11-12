@@ -10,15 +10,23 @@
  *     generateMetadata, no metadata: code there would run for every visitor);
  *   - every route file under src/app: each HTTP method it exports must be
  *     `export const GET = guardedRoute(...)` or publicRoute(...), and nothing else but those settings;
- *   - every code file of the component, inside src/ or not: a file whose opening directives include
+ *   - every code file of the component, inside src/ or not (hidden folders too; only the top-level
+ *     node_modules, .next and .git are skipped): a file whose opening directives include
  *     "use server" may export only `export const name = guardedAction(...)` or publicAction(...);
  *     and no function anywhere may carry "use server" among its own opening directives.
  * The guard names must be imported from "@/lib/roles" and not declared again in the file; an
  * export must be `const`, so that it cannot be swapped for something else afterwards.
  * It also refuses: a top-level app/ or pages/ folder, or src/pages/ (Next.js would serve those);
- * the special files that answer with data by themselves (manifest, sitemap, robots, social and
- * icon images written as code); a change to where "@/" points in tsconfig.json; pageExtensions in
- * next.config.ts; and a build script that does not run this check first.
+ * a node_modules folder anywhere but at the top; the special files that answer with data by
+ * themselves (manifest, sitemap, robots, and social and icon images written as code, numbered or
+ * not); a tsconfig.json that maps "@/" anywhere but src/ or extends another; a jsconfig.json;
+ * a Next.js settings file other than the template's own next.config.ts, byte for byte; a build
+ * script other than exactly "tsx scripts/check-guards.ts && next build"; and a page or route set
+ * to be built ahead of time ("force-static"), which would serve one answer to everyone.
+ *
+ * What it is for: catching a page, action or route written without its guard by mistake. It is
+ * not a defence against code written on purpose to get round the guard (for example code that
+ * changes how the sign-in library reads a session); that is for review.
  *
  * What it does not read: layouts and the other special files (they must not show data); what a
  * guard is given (a page for every role is still "guarded"); and src/lib/roles.tsx itself, which
@@ -27,6 +35,7 @@
  *
  * Protected: the build engine must not change this file.
  */
+import { createHash } from "node:crypto";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -49,8 +58,12 @@ const METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"];
 /** Settings a page or route file may also export, each with a plain value: no code of its own. */
 const SETTINGS = ["dynamic", "dynamicParams", "revalidate", "fetchCache", "runtime", "preferredRegion", "maxDuration"];
 /** Special files that answer a request with data by themselves, with no page around them. */
-const SELF_ANSWERING = ["manifest", "sitemap", "robots", "opengraph-image", "twitter-image", "icon", "apple-icon"];
-const SKIP_DIRS = new Set(["node_modules", ".next", ".git"]);
+const SELF_ANSWERING = /^(manifest|sitemap|robots|opengraph-image\d*|twitter-image\d*|icon\d*|apple-icon\d*)$/;
+/** Folders not read, and only at the top of the component: anywhere else, they are read like any other. */
+const SKIP_AT_TOP = new Set(["node_modules", ".next", ".git"]);
+/** The template's own Next.js settings file, by the SHA-256 of its contents. Changing it means changing this. */
+const NEXT_CONFIG = { name: "next.config.ts", sha256: "6d6a993c13eda1af5e2f92ae2697c1d5fb1afb0dadb3d232f5017661433a7bbd" };
+const BUILD_SCRIPT = "tsx scripts/check-guards.ts && next build";
 const CODE = /\.(ts|tsx|js|jsx|mjs|cjs|mts|cts)$/;
 
 const problems: string[] = [];
@@ -62,7 +75,12 @@ function walk(dir: string, out: string[] = []): string[] {
   for (const name of readdirSync(dir).sort()) {
     const full = path.join(dir, name);
     if (statSync(full).isDirectory()) {
-      if (!SKIP_DIRS.has(name)) walk(full, out);
+      if (dir === root && SKIP_AT_TOP.has(name)) continue;
+      if (name === "node_modules") {
+        problems.push(`${rel(full)}/ is a node_modules folder below the top of the component. Packages are installed only at the top; nothing here is read, so it is not allowed.`);
+        continue;
+      }
+      walk(full, out);
     } else if (CODE.test(name)) out.push(full);
   }
   return out;
@@ -91,6 +109,8 @@ function directives(stmts: Node[]): string[] {
   return out;
 }
 const marksServer = (stmts: Node[]): boolean => directives(stmts).includes("use server");
+/** A setting that has a page or route built once, ahead of time, and the same answer served to everyone. */
+const builtAhead = (d: Node): boolean => ((d.id as Node).value === "dynamic" && (d.init as Node | undefined)?.value === "force-static");
 /** A plain value: text, a number, true or false. */
 const plain = (expr: unknown): boolean => ["StringLiteral", "NumericLiteral", "BooleanLiteral"].includes((expr as Node | undefined)?.type ?? "");
 
@@ -125,7 +145,7 @@ function check(file: string): void {
   const isPage = inApp && base === "page";
   const isRoute = inApp && base === "route";
   const serverFile = marksServer(body);
-  if (inApp && SELF_ANSWERING.includes(base)) {
+  if (inApp && SELF_ANSWERING.test(base)) {
     problems.push(`${rel(file)} is a special file that answers with data by itself, with no guard around it. It is not allowed; a static file in public/ can be used instead.`);
   }
 
@@ -174,7 +194,7 @@ function check(file: string): void {
       const settingsOnly =
         decl.type === "VariableDeclaration" &&
         decl.kind === "const" &&
-        ds.every((d) => (d.id as Node).type === "Identifier" && SETTINGS.includes((d.id as Node).value as string) && plain(d.init));
+        ds.every((d) => (d.id as Node).type === "Identifier" && SETTINGS.includes((d.id as Node).value as string) && plain(d.init) && !builtAhead(d));
       if (!settingsOnly) {
         const name = ds.length > 0 && (ds[0]!.id as Node).type === "Identifier" ? ((ds[0]!.id as Node).value as string) : (((decl.identifier as Node | undefined)?.value as string | undefined) ?? "(unnamed)");
         problems.push(`${rel(file)} exports "${name}" beside its page. Code there runs for every visitor, before any guard; a page file exports only its page and, if needed, a setting with a plain value (${SETTINGS.join(", ")}).`);
@@ -226,7 +246,7 @@ function check(file: string): void {
         }
         // A route file may also export Next.js settings such as "dynamic", with a plain value; only its methods are handlers.
         if (isRoute && !METHODS.includes(name)) {
-          if (!(SETTINGS.includes(name) && plain(d.init))) {
+          if (!(SETTINGS.includes(name) && plain(d.init) && !builtAhead(d))) {
             problems.push(`${rel(file)} exports "${name}". A route file exports only its methods, each written with guardedRoute, and settings with a plain value (${SETTINGS.join(", ")}).`);
           }
           continue;
@@ -257,28 +277,25 @@ const tsconfigPath = path.join(root, "tsconfig.json");
 if (existsSync(tsconfigPath)) {
   const opts = ((readJson(tsconfigPath) as { compilerOptions?: Record<string, unknown> } | undefined)?.compilerOptions ?? null) as Record<string, unknown> | null;
   const paths = opts?.paths;
-  if (opts === null || JSON.stringify(paths) !== JSON.stringify({ "@/*": ["./src/*"] }) || (opts.baseUrl !== undefined && opts.baseUrl !== ".")) {
+  const extendsOther = (readJson(tsconfigPath) as { extends?: unknown } | undefined)?.extends !== undefined;
+  if (opts === null || extendsOther || JSON.stringify(paths) !== JSON.stringify({ "@/*": ["./src/*"] }) || (opts.baseUrl !== undefined && opts.baseUrl !== ".")) {
     problems.push('tsconfig.json does not map "@/" to src/ and only that, so "@/lib/roles" might not be the guards\' own file.');
   }
 }
+if (existsSync(path.join(root, "jsconfig.json"))) problems.push('jsconfig.json exists. Only tsconfig.json may say where "@/" points.');
 const pkg = readJson(path.join(root, "package.json")) as { scripts?: Record<string, string> } | undefined;
-if (pkg !== undefined && !(pkg.scripts?.build ?? "").startsWith("tsx scripts/check-guards.ts && ")) {
-  problems.push('package.json\'s build script does not start with "tsx scripts/check-guards.ts && ", so a build would not run this check.');
+if (pkg !== undefined && pkg.scripts?.build !== BUILD_SCRIPT) {
+  problems.push(`package.json's build script is not exactly "${BUILD_SCRIPT}", so a build might not run this check, or might go on when it fails.`);
 }
-for (const name of ["next.config.ts", "next.config.mjs", "next.config.js"]) {
-  const f = path.join(root, name);
-  if (!existsSync(f)) continue;
-  try {
-    const m = parseSync(readFileSync(f, "utf8"), { syntax: "typescript", target: "es2022" }) as unknown as Node;
-    for (const n of nodes(m)) {
-      const key = n.type === "KeyValueProperty" ? (n.key as Node) : undefined;
-      if (key && ((key.type === "Identifier" && key.value === "pageExtensions") || (key.type === "StringLiteral" && key.value === "pageExtensions"))) {
-        problems.push(`${name} sets pageExtensions, which changes which files are pages; the check knows only the usual ones.`);
-      }
-    }
-  } catch {
-    problems.push(`${name} could not be read as code, so it could not be checked.`);
+// The Next.js settings decide which files are pages and where "@/" is looked up; they could be
+// written in too many ways to read reliably, so the template's own file is held to its exact contents.
+if (pkg !== undefined) {
+  for (const name of readdirSync(root).filter((n) => /^next\.config\./.test(n))) {
+    if (name !== NEXT_CONFIG.name) problems.push(`${name} exists. The only Next.js settings file allowed is the template's own ${NEXT_CONFIG.name}.`);
   }
+  const f = path.join(root, NEXT_CONFIG.name);
+  const sha = existsSync(f) ? createHash("sha256").update(readFileSync(f)).digest("hex") : "";
+  if (sha !== NEXT_CONFIG.sha256) problems.push(`${NEXT_CONFIG.name} is missing or has changed. It is held to the template's own version; a change to it is a change to this check, made by a person.`);
 }
 
 // Every code file of the component: pages and routes count only under src/app, but a "use server"

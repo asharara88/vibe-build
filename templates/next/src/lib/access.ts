@@ -28,7 +28,9 @@ export interface SessionLike {
 export function whoFrom(session: SessionLike | null | undefined): Who {
   if (!session || !session.user || typeof session.user.id !== "string" || session.user.id === "") return { kind: "nobody" };
   const { id, name, email, role } = session.user;
-  if (!isRole(role)) return { kind: "no-role", userId: id, name, email };
+  // "none" is what a new account is given (src/auth.ts). It is refused here even if the list of
+  // roles in app-config.ts, which the build engine writes, were ever to name it.
+  if (role === "none" || !isRole(role)) return { kind: "no-role", userId: id, name, email };
   return { kind: "user", user: { userId: id, name, email, role } };
 }
 

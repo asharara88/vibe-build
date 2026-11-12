@@ -2,7 +2,7 @@
 // when a page, a form action or a data route is written without a guard. Run with `npm test`.
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { after, describe, it } from "node:test";
@@ -155,11 +155,33 @@ describe("found by the review of the first version, and kept fixed", () => {
     fails({ "src/app/manifest.ts": `export default function manifest() { return { name: "x" }; }\n` }, "src/app/manifest.ts is a special file that answers with data by itself");
     fails({ "src/app/sitemap.ts": `export default function sitemap() { return []; }\n` }, "src/app/sitemap.ts is a special file");
   });
-  it('a change to where "@/" points, a build script that skips the check, and pageExtensions', () => {
+  it('a change to where "@/" points, a build script that is not exactly the check then the build, and the Next.js settings', () => {
+    const realConfig = readFileSync(path.join(templateDir, "next.config.ts"), "utf8");
+    const pkg = (build: string) => JSON.stringify({ scripts: { build } });
     fails({ "tsconfig.json": JSON.stringify({ compilerOptions: { paths: { "@/lib/roles": ["./src/lib/fake"], "@/*": ["./src/*"] } } }) }, 'tsconfig.json does not map "@/" to src/ and only that');
-    fails({ "package.json": JSON.stringify({ scripts: { build: "next build" } }) }, "build script does not start with");
-    passes({ "package.json": JSON.stringify({ scripts: { build: "tsx scripts/check-guards.ts && next build" } }), "tsconfig.json": JSON.stringify({ compilerOptions: { paths: { "@/*": ["./src/*"] } } }) });
-    fails({ "next.config.ts": `export default { pageExtensions: ["tsx", "secret.ts"] };\n` }, "next.config.ts sets pageExtensions");
+    fails({ "tsconfig.json": JSON.stringify({ extends: "./other.json", compilerOptions: { paths: { "@/*": ["./src/*"] } } }) }, 'tsconfig.json does not map "@/" to src/ and only that');
+    fails({ "jsconfig.json": "{}" }, "jsconfig.json exists");
+    for (const build of ["next build", "tsx scripts/check-guards.ts && next build || next build", "tsx scripts/check-guards.ts; next build"]) {
+      fails({ "package.json": pkg(build), "next.config.ts": realConfig }, "build script is not exactly");
+    }
+    passes({ "package.json": pkg("tsx scripts/check-guards.ts && next build"), "next.config.ts": realConfig, "tsconfig.json": JSON.stringify({ compilerOptions: { paths: { "@/*": ["./src/*"] } } }) });
+    // Found by the second review: pageExtensions written as a shorthand property passed. Any change to the settings file is now refused.
+    const changed = realConfig.replace("const nextConfig: NextConfig = {", 'const pageExtensions = ["tsx", "ts", "view.tsx"];\nconst nextConfig: NextConfig = {\n  pageExtensions,');
+    fails({ "package.json": pkg("tsx scripts/check-guards.ts && next build"), "next.config.ts": changed }, "next.config.ts is missing or has changed");
+    fails({ "package.json": pkg("tsx scripts/check-guards.ts && next build"), "next.config.ts": realConfig, "next.config.mts": "export default {};\n" }, "next.config.mts exists");
+  });
+  it("folders named .git or .next below the top, and node_modules below the top", () => {
+    // Found by the second review: these were skipped wherever they were.
+    fails({ "src/.git/act.ts": `"use server";\nexport async function wipe() {}\n` }, 'src/.git/act.ts exports "wipe" without a guard');
+    fails({ "src/app/[locale]/.next/page.tsx": `export default function Open() { return null; }\n` }, "src/app/[locale]/.next/page.tsx is a page whose default export is not");
+    fails({ "src/lib/node_modules/x/index.ts": `export const x = 1;\n` }, "src/lib/node_modules/ is a node_modules folder below the top");
+  });
+  it("special files with a number after their name", () => {
+    fails({ "src/app/[locale]/og/opengraph-image2.tsx": `export default function Image() { return null; }\n` }, "opengraph-image2.tsx is a special file that answers with data by itself");
+    fails({ "src/app/icon1.tsx": `export default function Icon() { return null; }\n` }, "src/app/icon1.tsx is a special file");
+  });
+  it('a page or route set to be built ahead of time ("force-static"), which would give everyone the same answer', () => {
+    fails({ "src/app/[locale]/s/page.tsx": `import { guardedPage } from "@/lib/roles";\nexport default guardedPage(["hr_admin"], async () => null);\nexport const dynamic = "force-static";\n` }, 'exports "dynamic" beside its page');
   });
 });
 

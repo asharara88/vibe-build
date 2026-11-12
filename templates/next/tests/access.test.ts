@@ -18,6 +18,12 @@ describe("who is asking", () => {
       assert.deepEqual(whoFrom(session(role)), { kind: "user", user: { userId: "u1", name: "Sample Person", email: "person@example.test", role } });
     });
   }
+  it('"none", the role a new account is given, is refused even if the list of roles were ever to name it', async () => {
+    const config = await import("../src/app-config");
+    const roles = config.ROLES as readonly string[];
+    assert.equal(roles.includes("none"), false);
+    assert.equal(whoFrom(session("none")).kind, "no-role");
+  });
   it("an account with no role this app recognises is not given the lowest role", () => {
     for (const odd of ["none", "", "Employee", "EMPLOYEE", " employee", "admin", "root", null, undefined, 0, 1, true, {}, ["employee"], "employee,hr_admin", "__proto__", "constructor"]) {
       const who = whoFrom(session(odd));

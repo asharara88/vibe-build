@@ -1,7 +1,7 @@
 Template copied from <repository>/templates/next to the project workspace.
 Compose project builder_demo_template: db, egress, app. Secrets written to the sandbox's secrets folder only.
 Building the app image inside Docker (development profile: build steps use the session proxy)...
-Image built in 14 s.
+Image built in 15 s.
 Creating the tables (drizzle-kit push) and the three sample users (seed)...
   created: employee@example.test (employee)
   created: manager@example.test (manager)
