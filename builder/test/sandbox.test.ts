@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { promisify } from "node:util";
 import { afterAll, describe, expect, it } from "vitest";
-import { composeDocument, createSandbox, sandbox, toYaml, type SandboxSpec } from "../src/sandbox/manager.js";
+import { composeDocument, composeRunEnv, createSandbox, sandbox, toYaml, type SandboxSpec } from "../src/sandbox/manager.js";
 
 const run = promisify(execFile);
 const builderDir = resolve(import.meta.dirname, "..");
@@ -39,6 +39,47 @@ describe("sandbox manager: compose documents", () => {
     expect(doc.services.db?.environment?.PGPORT).toBe("5543");
     expect(doc.services.egress?.environment?.EGRESS_UPSTREAM_PROXY).toBe(base.hostProxy!.url);
     expect(doc.services.egress?.volumes?.some((v) => v.endsWith(":/certs/session-ca.crt:ro"))).toBe(true);
+  });
+
+  it("package 0.5: a tools service under its own profile, given a named list of settings and nothing from the host", () => {
+    for (const profile of ["server", "development-cloud-session"] as const) {
+      const doc = composeDocument({
+        ...base,
+        profile,
+        dir: "/tmp/x",
+        app: { buildContext: "/tmp/x/workspace", port: 3100, env: { APP_URL: "http://127.0.0.1:3100" }, toolsEnv: { APP_URL: "http://127.0.0.1:3100" } },
+      }) as {
+        services: Record<
+          string,
+          { image?: string; profiles?: string[]; environment?: Record<string, unknown>; env_file?: string[]; read_only?: boolean; cap_drop?: string[]; network_mode?: string; networks?: string[] }
+        >;
+      };
+      const tools = doc.services.tools!;
+      expect(tools.image).toBe("builder_p_test-tools:latest");
+      expect(tools.profiles).toEqual(["tools"]);
+      expect(Object.keys(tools.environment ?? {}).sort()).toEqual(["APP_URL", "DATABASE_URL"]);
+      // Every entry has a value: a bare name would make Compose copy it from the host.
+      for (const v of Object.values(tools.environment ?? {})) expect(typeof v).toBe("string");
+      expect(tools.env_file).toEqual(["./secrets/app.env"]);
+      expect(tools.read_only).toBe(true);
+      expect(tools.cap_drop).toEqual(["ALL"]);
+      // No proxy setting: the tools container needs the project's database and nothing else.
+      expect(JSON.stringify(tools)).not.toMatch(/PROXY|EGRESS|BUILDER_/);
+      if (profile === "server") expect(tools.networks).toEqual(["internal"]);
+      else expect(tools.network_mode).toBe("host");
+    }
+  });
+
+  it("package 0.5: the sandbox records the names given to the tools container, and runs Compose with PATH and HOME only", () => {
+    const dir = mkdtempSync(join(tmpdir(), "builder-sb-"));
+    const sb = createSandbox(
+      { ...base, profile: "server", dir, app: { buildContext: join(dir, "workspace"), port: 3100, toolsEnv: { APP_URL: "http://x" } } },
+      "sample-only-password",
+      { AUTH_SECRET: "made-up", APP_SAMPLE_PASSWORD: "made-up-sample" },
+    );
+    expect(sb.toolsEnvNames).toEqual(["APP_SAMPLE_PASSWORD", "APP_URL", "AUTH_SECRET", "DATABASE_URL"]);
+    expect(sb.appBuild?.toolsImage).toBe("builder_p_test-tools:latest");
+    expect(Object.keys(composeRunEnv()).sort()).toEqual(["HOME", "PATH"]);
   });
 
   it("writes YAML that Docker Compose accepts", async () => {

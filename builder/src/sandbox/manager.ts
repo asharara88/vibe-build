@@ -49,6 +49,11 @@ export interface SandboxSpec {
     env?: Record<string, string>;
     /** Paths the app must be able to write at run time (everything else is read-only). */
     writablePaths?: string[];
+    /**
+     * Settings for the tools container (tables and sample users), besides DATABASE_URL and the
+     * app's secrets file. Only what is named here reaches it: never the host's environment (package 0.5).
+     */
+    toolsEnv?: Record<string, string>;
   };
 }
 
@@ -72,6 +77,33 @@ export function composeProjectName(projectId: string): string {
 
 export function appImageName(projectId: string): string {
   return `${composeProjectName(projectId)}-app:latest`;
+}
+
+export function toolsImageName(projectId: string): string {
+  return `${composeProjectName(projectId)}-tools:latest`;
+}
+
+/**
+ * The tools service: the template image's `tools` stage, which has the development tools the app's
+ * run-time image does not. It creates the tables and the sample users from inside the project's
+ * sandbox, never from the machine that hosts the builder (package 0.5, known gap 29).
+ *
+ * Its environment is a named list: DATABASE_URL, the names in `toolsEnv`, and the names in the app's
+ * secrets file. Every entry has a value written here, so Compose takes nothing from the host's
+ * environment. It is under the "tools" profile, so it starts only when it is run on purpose.
+ */
+function toolsService(spec: SandboxSpec, common: Record<string, unknown>, databaseUrl: string) {
+  if (!spec.app) return null;
+  return {
+    image: toolsImageName(spec.projectId),
+    pull_policy: "never",
+    profiles: ["tools"],
+    ...common,
+    read_only: true,
+    tmpfs: ["/tmp:rw,noexec,nosuid,size=64m"],
+    env_file: ["./secrets/app.env"],
+    environment: { DATABASE_URL: databaseUrl, ...(spec.app.toolsEnv ?? {}) },
+  };
 }
 
 /** The app service shared by both profiles, before networking is added. */
@@ -115,6 +147,7 @@ export function composeDocument(spec: SandboxSpec): Record<string, unknown> {
 
   if (spec.profile === "server") {
     const app = appService(spec, common, "postgres://app:${DB_PASSWORD}@db:5432/app");
+    const tools = toolsService(spec, common, "postgres://app:${DB_PASSWORD}@db:5432/app");
     return {
       name: composeProjectName(spec.projectId),
       networks: { internal: { internal: true }, egress: {} },
@@ -122,6 +155,7 @@ export function composeDocument(spec: SandboxSpec): Record<string, unknown> {
       volumes: { dbdata: {} },
       services: {
         ...(app ? { app: { ...app, networks: ["internal"] } } : {}),
+        ...(tools ? { tools: { ...tools, networks: ["internal"] } } : {}),
         db: {
           image: images.postgres,
           ...common,
@@ -156,12 +190,15 @@ export function composeDocument(spec: SandboxSpec): Record<string, unknown> {
   if (!spec.hostProxy) throw new Error("The development profile needs the host proxy URL and certificate path.");
   const devPort = spec.devDbPort ?? 5433;
   const app = appService(spec, common, `postgres://app:\${DB_PASSWORD}@127.0.0.1:${devPort}/app`);
+  // The tools container is given no proxy setting: it needs the project's database and nothing else.
+  const tools = toolsService(spec, common, `postgres://app:\${DB_PASSWORD}@127.0.0.1:${devPort}/app`);
   return {
     name: composeProjectName(spec.projectId),
     secrets: { db_password: { file: "./secrets/db_password" } },
     volumes: { dbdata: {} },
     services: {
       ...(app ? { app: { ...app, network_mode: "host" } } : {}),
+      ...(tools ? { tools: { ...tools, network_mode: "host" } } : {}),
       db: {
         image: images.postgres,
         ...common,
@@ -222,8 +259,10 @@ export interface Sandbox {
   dir: string;
   composeFile: string;
   projectName: string;
-  /** How to build the app image, when the project has an app. */
-  appBuild?: { context: string; image: string; hostNetwork: boolean; args: Record<string, string> };
+  /** How to build the app image and the tools image, when the project has an app. */
+  appBuild?: { context: string; image: string; toolsImage: string; hostNetwork: boolean; args: Record<string, string> };
+  /** The names, and only the names, of the settings the tools container is given. */
+  toolsEnvNames?: string[];
 }
 
 /**
@@ -252,38 +291,61 @@ export function createSandbox(spec: SandboxSpec, dbPassword: string, appSecrets:
     ? {
         context: spec.app.buildContext,
         image: appImageName(spec.projectId),
+        toolsImage: toolsImageName(spec.projectId),
         hostNetwork: Boolean(spec.hostProxy),
         args: (spec.hostProxy
           ? { HTTPS_PROXY: spec.hostProxy.url, HTTP_PROXY: spec.hostProxy.url, NODE_EXTRA_CA_CERTS: "/certs/session-ca.crt" }
           : {}) as Record<string, string>,
       }
     : undefined;
-  return { dir: spec.dir, composeFile, projectName: composeProjectName(spec.projectId), appBuild };
+  const toolsEnvNames = spec.app
+    ? [...new Set(["DATABASE_URL", ...Object.keys(spec.app.toolsEnv ?? {}), ...Object.keys(appSecrets)])].sort()
+    : undefined;
+  return { dir: spec.dir, composeFile, projectName: composeProjectName(spec.projectId), appBuild, toolsEnvNames };
 }
 
-async function compose(sb: Sandbox, args: string[], timeoutMs = 180_000): Promise<string> {
-  const { stdout } = await run("docker", ["compose", "-f", sb.composeFile, ...args], { timeout: timeoutMs, maxBuffer: 10 * 1024 * 1024 });
+async function compose(sb: Sandbox, args: string[], timeoutMs = 180_000, env?: NodeJS.ProcessEnv): Promise<string> {
+  const { stdout } = await run("docker", ["compose", "-f", sb.composeFile, ...args], { timeout: timeoutMs, maxBuffer: 10 * 1024 * 1024, env });
   return stdout;
 }
 
+/** The environment the `docker compose` command itself gets for a one-off run: enough to find Docker, nothing else. */
+export function composeRunEnv(): NodeJS.ProcessEnv {
+  return { PATH: process.env.PATH ?? "/usr/local/bin:/usr/bin:/bin", HOME: process.env.HOME ?? "/root" };
+}
+
 export const sandbox = {
-  /** Build the app image with plain `docker build`, on the host network in development. */
+  /**
+   * Build the app image (the Dockerfile's `run` stage) and the tools image (its `tools` stage) with
+   * plain `docker build`, on the host network in development. The second build reuses the first's steps.
+   */
   build: async (sb: Sandbox): Promise<string> => {
-    if (!sb.appBuild) throw new Error("This sandbox has no app to build.");
-    const args = ["build", "--tag", sb.appBuild.image, ...(sb.appBuild.hostNetwork ? ["--network", "host"] : [])];
-    for (const [k, v] of Object.entries(sb.appBuild.args)) args.push("--build-arg", `${k}=${v}`);
-    args.push(sb.appBuild.context);
-    const { stdout, stderr } = await run("docker", args, { timeout: 1_200_000, maxBuffer: 20 * 1024 * 1024 });
-    return stdout + stderr;
+    const b = sb.appBuild;
+    if (!b) throw new Error("This sandbox has no app to build.");
+    let out = "";
+    for (const [target, tag] of [["run", b.image], ["tools", b.toolsImage]] as const) {
+      const args = ["build", "--target", target, "--tag", tag, ...(b.hostNetwork ? ["--network", "host"] : [])];
+      for (const [k, v] of Object.entries(b.args)) args.push("--build-arg", `${k}=${v}`);
+      args.push(b.context);
+      const { stdout, stderr } = await run("docker", args, { timeout: 1_200_000, maxBuffer: 20 * 1024 * 1024 });
+      out += stdout + stderr;
+    }
+    return out;
   },
-  /** Remove the app image after the project's containers are gone. */
+  /** Remove the app and tools images after the project's containers are gone. */
   removeImage: async (sb: Sandbox) => {
-    if (sb.appBuild) await run("docker", ["image", "rm", "-f", sb.appBuild.image]).catch(() => undefined);
+    if (!sb.appBuild) return;
+    for (const image of [sb.appBuild.image, sb.appBuild.toolsImage]) await run("docker", ["image", "rm", "-f", image]).catch(() => undefined);
   },
   /** Start services and wait for their health checks. */
   up: (sb: Sandbox, services: string[] = []) => compose(sb, ["up", "-d", "--wait", ...services], 600_000),
-  /** Run a one-off command in a fresh container of a service (for migrations and seeding). */
-  runOnce: (sb: Sandbox, service: string, cmd: string[]) => compose(sb, ["run", "--rm", "--no-deps", "-T", service, ...cmd], 600_000),
+  /**
+   * Run a one-off command in a fresh container of a service (for migrations and seeding). Compose is
+   * given an environment of PATH and HOME only, so that no setting of the builder's own process is
+   * there to be picked up, whatever the compose file says.
+   */
+  runOnce: (sb: Sandbox, service: string, cmd: string[]) =>
+    compose(sb, ["run", "--rm", "--no-deps", "-T", service, ...cmd], 600_000, composeRunEnv()),
   /** Stop and remove the project's containers, networks and volumes. */
   destroy: (sb: Sandbox) => compose(sb, ["down", "-v", "--remove-orphans"]),
   /** Run a command inside a running service. */

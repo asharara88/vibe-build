@@ -17,6 +17,17 @@ ENV NEXT_TELEMETRY_DISABLED=1
 # The build needs no database or secret: pages that need them render at request time.
 RUN DATABASE_URL=postgres://build:build@localhost/build AUTH_SECRET=build-time-placeholder-not-a-secret-0000 npm run build
 
+# The tools image: creates the tables and the sample users, in a container, never on the machine
+# that hosts the builder (package 0.5). It is the build stage, with its development tools, run as
+# an unprivileged user. It is never started as the app and is not shipped to anyone.
+FROM build AS tools
+USER node
+# The base image starts every command through a shell script, which adds settings of its own
+# (PWD, SHLVL). The tools container runs its command directly, so that its environment is exactly
+# the named list plus what the image declares.
+ENTRYPOINT []
+CMD ["node", "-e", "console.error('The tools image runs one named command at a time, e.g. drizzle-kit push or the seed.'); process.exit(1)"]
+
 FROM node:22-alpine AS run
 WORKDIR /app
 ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 PORT=3000 HOSTNAME=0.0.0.0
