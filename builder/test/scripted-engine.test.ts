@@ -516,6 +516,16 @@ describe("scripted engine: the class, against a stand-in runner (no container, n
     expect((await resetToLastCommit(repo)).unrestorable).toEqual(["certs/session-ca.crt"]);
   });
 
+  it("the reset: a step that edited .gitignore so that the session certificate is no longer ignored does not get it removed", async () => {
+    // Made-up: a .gitignore without its certificate line, then an untracked-looking certificate.
+    const gi = join(repo.workTree, ".gitignore");
+    writeFileSync(gi, readFileSync(gi, "utf8").split("\n").filter((l) => !l.startsWith("certs/")).join("\n"));
+    const back = await resetToLastCommit(repo);
+    expect(back.unrestorable).toEqual([]);
+    expect(readFileSync(join(repo.workTree, "certs", "session-ca.crt"), "utf8")).toBe("made-up certificate\n");
+    expect(await workspaceChanges(repo)).toEqual(CLEAN);
+  });
+
   it("a step does not start on a workspace with changes that are not committed, or when a protected path is missing", async () => {
     const r = new StandInRunner(repo.workTree, (s) => applierLines(s));
     writeFileSync(join(repo.workTree, "README.md"), "changed\n");

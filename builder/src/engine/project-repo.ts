@@ -235,11 +235,13 @@ export async function commitAll(repo: ProjectRepo, author: string, message: stri
  * returned as `unrestorable` (an ignored file that was there and has changed, for example: git never
  * had it). If that list is not empty, the caller must not go on.
  *
- * What is new is removed before the tracked files are put back (found by the second review of package
- * 2.1). The other way round, one reset did not put back a protected folder moved aside and replaced by
- * a link to its moved copy: `git reset --hard` wrote nothing there, and `git clean` after it removed the
- * link and the copy, so the protected files were missing until a second reset. A round is also
- * repeated, three rounds at most, while it still changes what is left different.
+ * Each round puts the tracked files back first, then removes what is new, then puts the tracked files
+ * back again. First, because `git clean` reads the workspace's own `.gitignore`, which a step can edit:
+ * with that file restored first, the clean keeps the ignored session certificate (found by the last
+ * re-read of package 2.1). Again, because a protected folder moved aside and replaced by a link to its
+ * moved copy is not put back by the first `git reset --hard` (git reads the files through the link and
+ * writes nothing), but is once the clean has removed the link and the copy (found by the second review).
+ * A round is repeated, three rounds at most, while it still changes what is left different.
  *
  * Not handled (known gap 58): a folder tree deeper than the machine's path limit. git cannot read it,
  * and `git clean` fails, so the reset rejects with git's error and the tree stays.
@@ -249,6 +251,8 @@ export async function resetToLastCommit(repo: ProjectRepo): Promise<{ removedIgn
   const removedNotAllowed = new Set<string>();
   let unrestorable: string[] = [];
   for (let round = 1; round <= 3; round++) {
+    // The tracked files first, .gitignore among them, so that the clean below reads the committed one.
+    await git(repo, ["reset", "--quiet", "--hard", "HEAD"]);
     // -f twice: with one, git leaves an untracked folder that holds a repository of its own. No -x:
     // ignored files stay (the session certificate among them); the new ones are removed below.
     await git(repo, ["clean", "--quiet", "-d", "-f", "-f"]);

@@ -1,0 +1,9 @@
+
+ RUN  v5.1.0 <checkout>/builder
+
+
+ Test Files  7 passed (7)
+      Tests  139 passed (139)
+   Start at  18:17:15
+   Duration  97.24s (tests 100%)
+
