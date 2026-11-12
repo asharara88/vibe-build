@@ -1,10 +1,12 @@
+# These four listings were run at commit caa1ea6, BEFORE the approved name was entered in scripts/check-licences.sh.
+# "As committed" below means as committed at caa1ea6. For the script as it is now, see run-template-check.txt.
 # 1. The template's committed check, its gating command exactly as in scripts/check-licences.sh.
 #    As committed it reads only part of what is installed: the empty --excludePackages option makes the tool skip every package whose name begins with @ (known gap 43).
 $ npx license-checker-rseidelsohn --production --onlyAllow "MIT;Apache-2.0;BSD-2-Clause;BSD-3-Clause;ISC;0BSD;BlueOak-1.0.0;CC0-1.0;Python-2.0;PostgreSQL;Unlicense" --excludePackages "" --excludePrivatePackages --summary
 Package "caniuse-lite@1.0.30001823" is licensed under "CC-BY-4.0" which is not permitted by the --onlyAllow flag. Exiting.
 exit code: 1
 
-# 2. The same command with the approved package caniuse-lite named in the exclusion list. The list is then not empty, so every package is read:
+# 2. The same command with the approved package caniuse-lite named in the exclusion list. The list is then not empty, so packages whose names begin with @ are read too:
 $ npx license-checker-rseidelsohn --production --onlyAllow "MIT;Apache-2.0;BSD-2-Clause;BSD-3-Clause;ISC;0BSD;BlueOak-1.0.0;CC0-1.0;Python-2.0;PostgreSQL;Unlicense" --excludePackages "caniuse-lite" --excludePrivatePackages --summary
 ├─ MIT: 87
 ├─ Apache-2.0: 8
