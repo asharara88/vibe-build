@@ -8,14 +8,17 @@
  *     app and tools images are the real ones; the database and the egress proxy started.
  *  2. A stand-in listener on the model gateway's address (127.0.0.1:4010) if nothing listens there, so
  *     that an attempt to reach that port shows whether it can be reached. It answers nothing.
- *  3. The probe (scripts/isolation-probe.mjs, mounted read-only) run in:
+ *  3. Read on the machine, read-only, for the probe's group G: the machine's listening TCP sockets with
+ *     their addresses (/proc/net/tcp) and the gateway address of Docker's default network (`docker network
+ *     inspect`). Each container then tries a TCP connection to that gateway address on each of those ports.
+ *  4. The probe (scripts/isolation-probe.mjs, mounted read-only) run in:
  *     - the app service, as Compose starts it on this profile (host network, the hardening, the image's
  *       user, its settings file), with the probe as its command instead of the app's server;
  *     - the tools service, the same way;
  *     - the engine service (no network);
  *     - for comparison only, a container on Docker's default network, which is not a project container.
- *  4. Every attempt per container, a table of all of them, and the egress proxy's own log.
- *  5. Everything removed: containers, network, volume, images, the stand-in listener, the temporary folder.
+ *  5. Every attempt per container, a table of all of them, and the egress proxy's own log.
+ *  6. Everything removed: containers, network, volume, images, the stand-in listener, the temporary folder.
  *
  * Nothing the probe tests is run on this machine: every attempt is made from inside a container.
  * Development profile only. No model is called. Made-up data only. No setting's value is printed.
@@ -28,7 +31,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { createInterface } from "node:readline";
 import { promisify } from "node:util";
-import { ANSWER_WORDING, gotAnswer, parseProbeOutput, renderMarkdownTable, renderTable, sessionProxyHostPort, summarise, type Column, type ProbeReport } from "../src/sandbox/isolation.js";
+import { ANSWER_WORDING, columnCell, gotAnswer, parseProbeOutput, readMachineSide, renderMarkdownTable, renderTable, sessionProxyHostPort, summarise, type Column, type ProbeReport } from "../src/sandbox/isolation.js";
 import { composeDocument, createSandbox, dockerEnv, HARDENING, sandbox, type SandboxSpec } from "../src/sandbox/manager.js";
 
 const run = promisify(execFile);
@@ -66,15 +69,19 @@ const spec: SandboxSpec = {
 const sb = createSandbox(spec, randomBytes(18).toString("base64url"), { AUTH_SECRET: randomBytes(32).toString("base64url"), APP_SAMPLE_PASSWORD: "Sample-" + randomBytes(9).toString("base64url") });
 
 const sessionProxy = sessionProxyHostPort(process.env.HTTPS_PROXY);
-const settings = JSON.stringify({
-  sessionProxy,
-  projectDbPort: PROJECT_DB_PORT,
-  egressPort: EGRESS_PORT,
-  gatewayPort: GATEWAY_PORT,
-  builderDbPort: BUILDER_DB_PORT,
-  exampleAddress: "93.184.215.14",
-  timeoutMs: 5000,
-});
+/** The probe's settings, completed with what is read on the machine for group G once the project's services are up. */
+let settings = "";
+const probeSettings = (machine: { bridgeGateway: string | null; machineListeners: string[] }) =>
+  JSON.stringify({
+    sessionProxy,
+    projectDbPort: PROJECT_DB_PORT,
+    egressPort: EGRESS_PORT,
+    gatewayPort: GATEWAY_PORT,
+    builderDbPort: BUILDER_DB_PORT,
+    exampleAddress: "93.184.215.14",
+    timeoutMs: 5000,
+    ...machine,
+  });
 
 /** Run the probe in a fresh container of a project service, through the sandbox manager. */
 async function probeService(service: string, label: string): Promise<string[]> {
@@ -117,12 +124,13 @@ async function standInGateway(): Promise<net.Server | string> {
   });
 }
 
-function show(label: string, report: ProbeReport) {
+function show(label: string, report: ProbeReport, ownLoopback: boolean) {
   log(`  -- ${label} --`);
+  if (ownLoopback) log("  (127.0.0.1 in this container is its own loopback address, not the machine's.)");
   for (const i of report.info) log(`  ${i.name}: ${i.value}`);
   for (const a of report.attempts) {
     log(`  ${a.id.padEnd(6)} ${a.target}  [${a.how}]`);
-    log(`         -> ${a.result}${a.code && !a.result.startsWith("HTTP") && !a.result.startsWith("proxy answered") ? ` (${a.code})` : ""}${a.detail ? `; ${a.detail}` : ""}`);
+    log(`         -> ${columnCell({ label, report, ownLoopback }, a)}${a.detail ? `; ${a.detail}` : ""}`);
   }
   const s = summarise(report);
   log(`  ${s.total} attempts; ${s.answered} got an answer (${ANSWER_WORDING}).`);
@@ -158,28 +166,36 @@ try {
   log(`  Stand-in listener on the gateway's address 127.0.0.1:${GATEWAY_PORT}: ${typeof standIn === "string" ? standIn : "listening (accepts a connection and closes it; the real gateway is not running)"}`);
   log("");
 
-  log("== 3. The probe in each container ==");
+  log("== 3. Read on the machine for group G (read-only; nothing is connected to here) ==");
+  const machine = await readMachineSide(dockerEnv(sb));
+  settings = probeSettings(machine);
+  log(`  Listening TCP sockets on the machine (/proc/net/tcp): ${machine.machineListeners.join(", ") || "none"}`);
+  log(`  Gateway address of Docker's default network (docker network inspect bridge): ${machine.bridgeGateway ?? "none found; no G attempts"}`);
+  log("");
+
+  log("== 4. The probe in each container ==");
   log("  Each project container is started with `docker compose run` on its own service, so it has that service's network, hardening, user and settings file;");
   log(`  the probe is mounted read-only at ${PROBE_MOUNT} and is its command, in place of the service's own. The comparison container is started with \`docker run\`.`);
   log(`  Settings given to the probe: ${settings}`);
   log("");
   const columns: Column[] = [];
   const raw: Record<string, string[]> = {};
-  const plan: Array<[string, string, () => Promise<string[]>]> = [
-    ["app", "app container (host network)", () => probeService("app", "app")],
-    ["tools", "tools container (host network)", () => probeService("tools", "tools")],
-    ["engine", "engine container (no network)", () => probeService("engine", "engine")],
-    ["bridge", "comparison: default network, not a project container", probeBridge],
+  // In the engine and comparison containers, 127.0.0.1 is the container's own loopback address, not the machine's.
+  const plan: Array<[string, string, boolean, () => Promise<string[]>]> = [
+    ["app", "app container (host network)", false, () => probeService("app", "app")],
+    ["tools", "tools container (host network)", false, () => probeService("tools", "tools")],
+    ["engine", "engine container (no network)", true, () => probeService("engine", "engine")],
+    ["bridge", "comparison: default network, not a project container", true, probeBridge],
   ];
-  for (const [key, label, go] of plan) {
+  for (const [key, label, ownLoopback, go] of plan) {
     const lines = await go();
     raw[key] = lines;
     const report = parseProbeOutput(lines);
-    columns.push({ label, report });
-    show(label, report);
+    columns.push({ label, report, ownLoopback });
+    show(label, report, ownLoopback);
   }
 
-  log("== 4. Every attempt, one row each, one column per container ==");
+  log("== 5. Every attempt, one row each, one column per container ==");
   log(renderTable(columns));
   log("");
   const engine = columns[2]!.report;
@@ -187,7 +203,7 @@ try {
   log(`Engine container: every attempt failed: ${engine.ended && engine.attempts.length > 0 && engineAnswered.length === 0 ? "yes" : `NO (${engineAnswered.join(", ") || "the probe did not finish"})`}.`);
   log("");
 
-  log("== 5. The project's egress proxy's own log: one line per decision ==");
+  log("== 6. The project's egress proxy's own log: one line per decision ==");
   const decisions = (await sandbox.logs(sb, "egress")).split("\n").filter((l) => l.includes('"decision"')).map((l) => l.replace(/^[^|]*\|\s*/, "  "));
   log(decisions.join("\n") || "  (none)");
   log(`  ${decisions.length} decisions logged. Attempts sent directly or through the session's proxy do not pass through it.`);

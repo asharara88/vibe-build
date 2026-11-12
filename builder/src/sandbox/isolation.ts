@@ -3,8 +3,13 @@
  *
  * The probe (scripts/isolation-probe.mjs) runs inside a project container and prints one JSON line per
  * fact. This module turns those lines into a report, says which attempts got an answer (ANSWER_WORDING), and
- * draws the table of every attempt per container. It makes no connection itself.
+ * draws the table of every attempt per container. It makes no connection itself: `readMachineSide` only
+ * reads files on the machine and asks Docker for its default network's gateway address, for group G.
  */
+import { execFile } from "node:child_process";
+import { readFileSync } from "node:fs";
+import { promisify } from "node:util";
+import { parseListeners } from "../../scripts/isolation-probe.mjs";
 
 export type Toward = "outside" | "host" | "lookup" | "egress-proxy" | "session-proxy";
 
@@ -134,20 +139,34 @@ export function cell(a: ProbeAttempt | undefined): string {
 export interface Column {
   label: string;
   report: ProbeReport;
+  /**
+   * True for a container with a network of its own (Docker's default network, or none). There 127.0.0.1 is
+   * the container's own loopback address, not the machine's, so each attempt aimed at it says so in its cell.
+   */
+  ownLoopback?: boolean;
+}
+
+/** An attempt aimed at a 127.x.x.x address, as its target or as the proxy it goes through. */
+const AT_LOOPBACK = /(^|[\s(])127\.\d{1,3}\.\d{1,3}\.\d{1,3}:\d+/;
+
+/** One cell of a column: the result, and, where the column's loopback address is the container's own and the attempt aimed at it, that it did. */
+export function columnCell(c: Column, a: ProbeAttempt | undefined): string {
+  const text = cell(a);
+  return a && c.ownLoopback && AT_LOOPBACK.test(`${a.target} ${a.how}`) ? `${text}, at its own loopback address` : text;
 }
 
 /** The rows of the table: every attempt any container made, in the order the probe makes them. */
 function rows(columns: Column[]): ProbeAttempt[] {
   const seen = new Map<string, ProbeAttempt>();
   for (const c of columns) for (const a of c.report.attempts) if (!seen.has(a.id)) seen.set(a.id, a);
-  const order = (id: string) => ["A", "B", "C", "X", "D", "E", "F"].indexOf(id[0] ?? "") * 100000 + Number(id.slice(1) || 0);
+  const order = (id: string) => ["A", "B", "C", "X", "G", "D", "E", "F"].indexOf(id[0] ?? "") * 100000 + Number(id.slice(1) || 0);
   return [...seen.values()].sort((x, y) => order(x.id) - order(y.id));
 }
 
 /** A plain-text table: one row per attempt, one column per container. */
 export function renderTable(columns: Column[]): string {
   const header = ["id", "target", "what", ...columns.map((c) => c.label)];
-  const body = rows(columns).map((r) => [r.id, r.target, r.what, ...columns.map((c) => cell(c.report.attempts.find((a) => a.id === r.id)))]);
+  const body = rows(columns).map((r) => [r.id, r.target, r.what, ...columns.map((c) => columnCell(c, c.report.attempts.find((a) => a.id === r.id)))]);
   const widths = header.map((h, i) => Math.max(h.length, ...body.map((b) => (b[i] ?? "").length)));
   const line = (cells: string[]) => cells.map((c, i) => c.padEnd(widths[i] ?? 0)).join(" | ").trimEnd();
   return [line(header), widths.map((w) => "-".repeat(w)).join("-|-"), ...body.map(line)].join("\n");
@@ -157,6 +176,27 @@ export function renderTable(columns: Column[]): string {
 export function renderMarkdownTable(columns: Column[]): string {
   const esc = (s: string) => s.replace(/\|/g, "\\|");
   const out = [`| Id | Target | What | ${columns.map((c) => esc(c.label)).join(" | ")} |`, `| --- | --- | --- | ${columns.map(() => "---").join(" | ")} |`];
-  for (const r of rows(columns)) out.push(`| ${r.id} | ${esc(r.target)} | ${esc(r.what)} | ${columns.map((c) => esc(cell(c.report.attempts.find((a) => a.id === r.id)))).join(" | ")} |`);
+  for (const r of rows(columns)) out.push(`| ${r.id} | ${esc(r.target)} | ${esc(r.what)} | ${columns.map((c) => esc(columnCell(c, c.report.attempts.find((a) => a.id === r.id)))).join(" | ")} |`);
   return out.join("\n");
+}
+
+/**
+ * What the harness reads on the machine for the probe's group G, read-only; nothing is connected to:
+ * the listening TCP sockets with their addresses (/proc/net/tcp, and /proc/net/tcp6 where the machine has
+ * IPv6), and the gateway address of Docker's default network (`docker network inspect bridge`, run with
+ * the sandbox's Docker settings).
+ */
+export async function readMachineSide(dockerSettings: NodeJS.ProcessEnv): Promise<{ bridgeGateway: string | null; machineListeners: string[] }> {
+  const read = (p: string) => {
+    try {
+      return readFileSync(p, "utf8");
+    } catch {
+      return "";
+    }
+  };
+  const listeners = [...parseListeners(read("/proc/net/tcp"), 4), ...parseListeners(read("/proc/net/tcp6"), 6)];
+  const machineListeners = [...new Set(listeners.map((l) => `${l.address}:${l.port}`))].sort();
+  const { stdout } = await promisify(execFile)("docker", ["network", "inspect", "bridge", "--format", "{{range .IPAM.Config}}{{.Gateway}} {{end}}"], { env: dockerSettings });
+  const bridgeGateway = stdout.trim().split(/\s+/).find((a) => /^\d{1,3}(\.\d{1,3}){3}$/.test(a)) ?? null;
+  return { bridgeGateway, machineListeners };
 }

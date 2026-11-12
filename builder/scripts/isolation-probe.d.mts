@@ -10,6 +10,10 @@ export interface ProbeSettings {
   builderDbPort: number;
   exampleAddress: string;
   timeoutMs: number;
+  /** The gateway address of Docker's default network, read on the machine; null for no G attempts. */
+  bridgeGateway: string | null;
+  /** The machine's listening TCP sockets, read on the machine. */
+  machineListeners: { address: string; port: number }[];
 }
 
 export type Toward = "outside" | "host" | "lookup" | "egress-proxy" | "session-proxy";
@@ -26,7 +30,7 @@ export interface PlannedAttempt {
 
 export const SESSION_CERT_PATHS: string[];
 export const BODY_READ_MS: number;
-export const GROUPS: Record<"A" | "B" | "C" | "D" | "E" | "F", string>;
+export const GROUPS: Record<"A" | "B" | "C" | "D" | "E" | "F" | "G", string>;
 export function parseSettings(text: string | undefined): ProbeSettings;
 export function classifyError(code: string, context?: "connection" | "lookup"): string;
 export function parseListeners(text: string | undefined, family?: 4 | 6): { address: string; port: number }[];

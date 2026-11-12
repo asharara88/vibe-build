@@ -10,7 +10,7 @@ import { join, resolve } from "node:path";
 import { promisify } from "node:util";
 import { describe, expect, it, onTestFinished } from "vitest";
 import { BODY_READ_MS, classifyError, countOtherSockets, parseListeners, parseSettings, planAttempts, runAttempt, type PlannedAttempt } from "../scripts/isolation-probe.mjs";
-import { ANSWER_WORDING, cell, gotAnswer, parseProbeOutput, RESULT, renderMarkdownTable, renderTable, sessionProxyHostPort, summarise, type ProbeAttempt } from "../src/sandbox/isolation.js";
+import { ANSWER_WORDING, cell, columnCell, gotAnswer, parseProbeOutput, readMachineSide, RESULT, renderMarkdownTable, renderTable, sessionProxyHostPort, summarise, type ProbeAttempt } from "../src/sandbox/isolation.js";
 import { createSandbox, dockerEnv, sandbox } from "../src/sandbox/manager.js";
 
 // Package 0.6a. The unit tests call the probe's functions only. Those that make an attempt make it only
@@ -84,6 +84,8 @@ describe("isolation probe: its own settings and words (unit)", () => {
     for (const g of ["A", "B", "C", "D", "E", "F"]) expect(ids.some((i) => i.startsWith(g))).toBe(true);
     expect(ids).toContain("C9");
     expect(withProxy.find((a) => a.id === "X2024")?.target).toBe("127.0.0.1:2024");
+    // With no gateway given, there is no G attempt.
+    expect(ids.some((i) => i.startsWith("G"))).toBe(false);
     for (const a of withProxy.filter((x) => x.toward === "host")) expect(a.target).toMatch(/^127\.0\.0\.1:\d+$/);
     expect(withProxy.find((a) => a.id === "C7")?.target).toBe("127.0.0.1:5560");
     // Without a session proxy: no attempt toward it, and nothing else changes.
@@ -91,6 +93,23 @@ describe("isolation probe: its own settings and words (unit)", () => {
     expect(without.some((a) => a.id === "C9" || a.id.startsWith("F") || a.toward === "session-proxy")).toBe(false);
     // One extra listener, C9, and F1 to F4 fewer.
     expect(without.length).toBe(withProxy.length - 1 - 1 - 4);
+  });
+
+  it("group G: one TCP attempt per port listening on the machine, at the gateway address of Docker's default network, with the address each port listens on as read on the machine", () => {
+    const listeners = ["0.0.0.0:2024", "127.0.0.1:5432", "::1:5432", "127.0.0.1:45887"];
+    const s = parseSettings(JSON.stringify({ ...SETTINGS, bridgeGateway: "172.17.0.1", machineListeners: listeners }));
+    const g = planAttempts(s).filter((a) => a.id.startsWith("G"));
+    expect(g.map((a) => [a.id, a.target, a.op])).toEqual([
+      ["G2024", "172.17.0.1:2024", { type: "tcp", host: "172.17.0.1", port: 2024 }],
+      ["G5432", "172.17.0.1:5432", { type: "tcp", host: "172.17.0.1", port: 5432 }],
+      ["G45887", "172.17.0.1:45887", { type: "tcp", host: "172.17.0.1", port: 45887 }],
+    ]);
+    expect(g[0]?.what).toBe("port 2024, listening on the machine at 0.0.0.0 (every address), as read on the machine");
+    expect(g[1]?.what).toBe("port 5432, listening on the machine at 127.0.0.1 (loopback only) and ::1 (loopback only), as read on the machine");
+    for (const a of g) expect([a.group, a.toward, a.how]).toEqual(["Toward the machine through the container network's gateway", "host", "TCP connection, opened and closed; nothing sent"]);
+    // Only an IPv4 gateway, and only "address:port" texts, are accepted.
+    for (const bad of [{ bridgeGateway: "gateway.invalid" }, { bridgeGateway: "300.1.1.1" }, { machineListeners: ["2024"] }, { machineListeners: ["0.0.0.0:0"] }, { machineListeners: "0.0.0.0:2024" }])
+      expect(() => parseSettings(JSON.stringify({ ...SETTINGS, ...bad })), JSON.stringify(bad)).toThrow(/bridgeGateway|machineListeners/);
   });
 });
 
@@ -309,6 +328,28 @@ describe("isolation probe: reading what it prints (unit)", () => {
     ]);
     expect(md.split("\n")[0]).toBe("| Id | Target | What | first | second |");
     expect(cell(undefined)).toBe("not tried");
+    // In a column whose loopback address is the container's own, every attempt aimed at 127.0.0.1, as its
+    // target or as the proxy it goes through, says so; G rows come after the X rows.
+    const own = parseProbeOutput([
+      attempt({ id: "C5", toward: "host", target: "127.0.0.1:5432" }),
+      attempt({ id: "E1", toward: "egress-proxy", target: "registry.npmjs.org:443", how: "CONNECT through 127.0.0.1:3128" }),
+      attempt({ id: "F1", toward: "session-proxy", target: "registry.npmjs.org:443", how: "CONNECT through the cloud session's proxy (127.0.0.1:3999)" }),
+      attempt({ id: "G2024", toward: "host", target: "172.17.0.1:2024", result: "connected", code: null }),
+      attempt({ id: "X2024", toward: "host", target: "127.0.0.1:2024" }),
+      attempt({ id: "A1", target: "1.1.1.127:443" }),
+      JSON.stringify({ kind: "end", attempts: 6 }),
+    ]);
+    const column = { label: "own", report: own, ownLoopback: true };
+    expect(own.attempts.map((a) => `${a.id}: ${columnCell(column, a)}`)).toEqual([
+      "C5: refused (ECONNREFUSED), at its own loopback address",
+      "E1: refused (ECONNREFUSED), at its own loopback address",
+      "F1: refused (ECONNREFUSED), at its own loopback address",
+      "G2024: connected",
+      "X2024: refused (ECONNREFUSED), at its own loopback address",
+      "A1: refused (ECONNREFUSED)",
+    ]);
+    expect(columnCell({ ...column, ownLoopback: false }, own.attempts[0])).toBe("refused (ECONNREFUSED)");
+    expect(renderTable([column]).split("\n").slice(2).map((l) => l.split(" ")[0])).toEqual(["A1", "C5", "X2024", "G2024", "E1", "F1"]);
   });
 });
 
@@ -335,7 +376,11 @@ describe("isolation probe: live, the engine container (development profile)", ()
       await sandbox.destroy(sb).catch(() => undefined);
       rmSync(dir, { recursive: true, force: true });
     });
-    const settings = JSON.stringify({ ...SETTINGS, sessionProxy: sessionProxyHostPort(process.env.HTTPS_PROXY), projectDbPort: 5563, timeoutMs: 3000 });
+    // Group G as well: the machine's listening ports at the gateway address of Docker's default network.
+    const machine = await readMachineSide(dockerEnv(sb));
+    expect(machine.bridgeGateway).toMatch(/^\d+\.\d+\.\d+\.\d+$/);
+    expect(machine.machineListeners.length).toBeGreaterThan(0);
+    const settings = JSON.stringify({ ...SETTINGS, sessionProxy: sessionProxyHostPort(process.env.HTTPS_PROXY), projectDbPort: 5563, timeoutMs: 3000, ...machine });
     const lines: string[] = [];
     const r = sandbox.runStreaming(sb, "engine", ["node", "/probe/isolation-probe.mjs", settings], {
       container: `${sb.projectName}-isolation-engine`,
@@ -356,6 +401,7 @@ describe("isolation probe: live, the engine container (development profile)", ()
     expect(report.attempts.filter((a) => a.toward === "outside").length).toBeGreaterThanOrEqual(13);
     // Nothing listens inside a container with no network, so the probe adds no attempt of its own.
     expect(report.attempts.map((a) => a.id)).toEqual(planAttempts(parseSettings(settings)).map((a) => a.id));
+    expect(report.attempts.filter((a) => a.id.startsWith("G")).length).toBeGreaterThan(0);
     expect(report.info.find((i) => i.name === "network interfaces")?.value).toMatch(/^lo \([^;]*\)$/);
     expect(report.info.find((i) => i.name === "a copy of the session certificate inside")?.value).toBe("none");
     const left = await run("docker", ["ps", "-a", "--filter", `name=${sb.projectName}-isolation-engine`, "--format", "{{.Names}}"], { env: dockerEnv(sb) });

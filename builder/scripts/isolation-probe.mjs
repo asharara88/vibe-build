@@ -8,9 +8,12 @@
 //   node /probe/isolation-probe.mjs '<settings as JSON>'
 //
 // Settings: {"sessionProxy": "host:port" or null, "projectDbPort": n, "egressPort": n,
-//            "gatewayPort": n, "builderDbPort": n, "exampleAddress": "a.b.c.d", "timeoutMs": n}
+//            "gatewayPort": n, "builderDbPort": n, "exampleAddress": "a.b.c.d", "timeoutMs": n,
+//            "bridgeGateway": "a.b.c.d" or null, "machineListeners": ["address:port", ...]}
 // The session proxy is given as host and port only; anything that looks like a user name or a password
-// is refused, so the probe can never print one.
+// is refused, so the probe can never print one. `bridgeGateway` (the gateway address of Docker's default
+// network) and `machineListeners` (the machine's listening TCP sockets, with their addresses) are read on
+// the machine by the harness, read-only, and given here for group G.
 //
 // Every attempt is harmless: a TCP connection that is opened and closed at once, a plain HTTP request
 // (GET, no body), a proxy's CONNECT, or a name lookup. Each has a short time limit. Nothing else is sent.
@@ -39,10 +42,17 @@ export const GROUPS = {
   D: "By name lookup",
   E: "Through the project's egress proxy",
   F: "Through the cloud session's proxy, bypassing the project's egress proxy",
+  G: "Toward the machine through the container network's gateway",
 };
 
 const HOST_PORT = /^([a-zA-Z0-9.-]{1,253}|\[[0-9a-fA-F:]{2,39}\]):(\d{1,5})$/;
 const IPV4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/;
+const isIPv4 = (v) => {
+  const parts = typeof v === "string" ? IPV4.exec(v) : null;
+  return Boolean(parts) && parts.slice(1).every((p) => Number(p) <= 255);
+};
+/** A listening socket as parseListeners writes it: an IPv4 address, "::", "::1" or "ipv6", then the port. */
+const LISTENER = /^(\d{1,3}(?:\.\d{1,3}){3}|::|::1|ipv6):(\d{1,5})$/;
 
 /** Read and check the settings. Throws with a plain message on anything unexpected. */
 export function parseSettings(text) {
@@ -66,10 +76,20 @@ export function parseSettings(text) {
     sessionProxy = { host: m[1].replace(/^\[|\]$/g, ""), port: Number(m[2]) };
   }
   const exampleAddress = raw.exampleAddress ?? "93.184.215.14";
-  const parts = IPV4.exec(exampleAddress);
-  if (!parts || parts.slice(1).some((p) => Number(p) > 255)) throw new Error('"exampleAddress" must be an IPv4 address.');
+  if (!isIPv4(exampleAddress)) throw new Error('"exampleAddress" must be an IPv4 address.');
   const timeoutMs = raw.timeoutMs ?? 5000;
   if (!Number.isInteger(timeoutMs) || timeoutMs < 100 || timeoutMs > 30000) throw new Error('"timeoutMs" must be a whole number from 100 to 30000.');
+  const bridgeGateway = raw.bridgeGateway ?? null;
+  if (bridgeGateway !== null && !isIPv4(bridgeGateway)) throw new Error('"bridgeGateway" must be an IPv4 address, or null.');
+  const machineListeners = [];
+  const given = raw.machineListeners ?? [];
+  if (!Array.isArray(given) || given.length > 64) throw new Error('"machineListeners" must be a list of at most 64 "address:port" texts.');
+  for (const item of given) {
+    const m = typeof item === "string" ? LISTENER.exec(item) : null;
+    if (!m || Number(m[2]) < 1 || Number(m[2]) > 65535 || (m[1].includes(".") && !isIPv4(m[1])))
+      throw new Error('"machineListeners" must be a list of "address:port" texts, as read on the machine.');
+    machineListeners.push({ address: m[1], port: Number(m[2]) });
+  }
   return {
     sessionProxy,
     projectDbPort: port("projectDbPort"),
@@ -78,6 +98,8 @@ export function parseSettings(text) {
     builderDbPort: port("builderDbPort"),
     exampleAddress,
     timeoutMs,
+    bridgeGateway,
+    machineListeners,
   };
 }
 
@@ -177,6 +199,19 @@ export function planAttempts(s, extraListeners = []) {
   for (const l of extraListeners) {
     const host = l.address === "0.0.0.0" || l.address === "::" ? "127.0.0.1" : l.address;
     add(`X${l.port}`, "C", "host", "another listening port, seen inside the container", `${host}:${l.port}`, "TCP connection, opened and closed", { type: "tcp", host, port: l.port });
+  }
+  // G: the machine as a container on Docker's default network sees it, through that network's gateway
+  // address, on every port the harness read as listening on the machine. Each port once; its listening
+  // addresses, as read on the machine, are in the attempt's description.
+  if (s.bridgeGateway) {
+    const byPort = new Map();
+    for (const l of s.machineListeners) byPort.set(l.port, [...(byPort.get(l.port) ?? []), l.address]);
+    for (const [p, addresses] of [...byPort].sort((x, y) => x[0] - y[0])) {
+      const where = addresses
+        .map((a) => (a === "0.0.0.0" || a === "::" ? `${a} (every address)` : a === "127.0.0.1" || a === "::1" ? `${a} (loopback only)` : a))
+        .join(" and ");
+      add(`G${p}`, "G", "host", `port ${p}, listening on the machine at ${where}, as read on the machine`, `${s.bridgeGateway}:${p}`, "TCP connection, opened and closed; nothing sent", { type: "tcp", host: s.bridgeGateway, port: p });
+    }
   }
 
   add("D1", "D", "lookup", "an outside name the egress list allows", "registry.npmjs.org", "lookup with the container's own resolver", { type: "lookup", name: "registry.npmjs.org" });
