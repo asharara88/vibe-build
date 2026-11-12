@@ -7,7 +7,8 @@
  *
  * Two profiles:
  * - `server`: the project's containers share an internal Docker network with no route out.
- *   The egress proxy is attached to that network and to the outside, and is the only way out.
+ *   The egress proxy is attached to that network and to the outside, and is the only way out
+ *   (designed, not shown: package 0.6b).
  * - `development-cloud-session`: every container except the engine shares the host's network. The
  *   image build runs on the host's network and is given the cloud session's proxy as build
  *   arguments; its certificate is copied into the build stage (`createSandbox`, `build`), so the
