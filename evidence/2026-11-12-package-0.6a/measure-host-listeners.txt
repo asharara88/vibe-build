@@ -1,0 +1,31 @@
+# Read on the development machine itself (not from a container), 12 Nov 2026 19:34 UTC, with no project running.
+# Context for the probe's results only: which process holds each listening port, and how the builder's own PostgreSQL treats a connection over TCP.
+
+$ lsof -nP -iTCP -sTCP:LISTEN | awk '{print $1, $3, $9}'   (process name as lsof shortens it, user, address)
+COMMAND USER NAME
+environme root 127.0.0.1:33427
+claude root 127.0.0.1:45887
+postgres postgres 127.0.0.1:5432
+
+$ awk listening sockets in /proc/net/tcp (state 0A), as address:port
+0.0.0.0:2024
+127.0.0.1:33427
+127.0.0.1:45887
+127.0.0.1:5432
+
+$ grep -v comments /etc/postgresql/16/main/pg_hba.conf   (the builder's own PostgreSQL: how each kind of connection must sign in)
+local   all             postgres                                peer
+local   all             all                                     peer
+host    all             all             127.0.0.1/32            scram-sha-256
+host    all             all             ::1/128                 scram-sha-256
+local   replication     all                                     peer
+host    replication     all             127.0.0.1/32            scram-sha-256
+host    replication     all             ::1/128                 scram-sha-256
+
+$ grep ^port /etc/postgresql/16/main/postgresql.conf; grep listen_addresses (commented out = the default, localhost only)
+60:#listen_addresses = 'localhost'		# what IP address(es) to listen on;
+64:port = 5432				# (change requires restart)
+
+$ su postgres -c "psql -tAc 'select rolname, rolpassword is not null as has_password from pg_authid where rolcanlogin order by 1'"
+postgres|f
+root|f

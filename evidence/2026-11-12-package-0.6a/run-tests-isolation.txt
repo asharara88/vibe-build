@@ -1,0 +1,21 @@
+# npx vitest run test/isolation.test.ts --reporter=verbose, from builder/, commit fb5dc07, 12 Nov 2026 19:43 UTC
+
+ RUN  v5.1.0 <checkout>/builder
+
+ ✓ test/isolation.test.ts > isolation probe: its own settings and words (unit) > reads its settings, and refuses a session proxy given with anything but host and port 4ms
+ ✓ test/isolation.test.ts > isolation probe: its own settings and words (unit) > names each failure by its error code, and every name it can give is one the report accepts 1ms
+ ✓ test/isolation.test.ts > isolation probe: its own settings and words (unit) > finds the listening ports in /proc/net/tcp text (made-up sample in the kernel's format) 1ms
+ ✓ test/isolation.test.ts > isolation probe: its own settings and words (unit) > plans every attempt once, aims host attempts at the loopback address, and tries the session proxy only when given 2ms
+ ✓ test/isolation.test.ts > isolation probe: reading what it prints (unit) > reads a complete run, and counts which attempts got an answer of any kind 1ms
+ ✓ test/isolation.test.ts > isolation probe: reading what it prints (unit) > an answer of any kind is told apart from a failure 0ms
+ ✓ test/isolation.test.ts > isolation probe: reading what it prints (unit) > never drops a line it does not understand: an unfinished run, a wrong count, an unknown result, a stray line and a stop are all problems 1ms
+ ✓ test/isolation.test.ts > isolation probe: reading what it prints (unit) > takes the session proxy's host and port from its setting, never a user name or password 0ms
+ ✓ test/isolation.test.ts > isolation probe: reading what it prints (unit) > draws one row per attempt in the probe's order and one column per container, 'not tried' where a container did not make it 1ms
+ ✓ test/isolation.test.ts > isolation probe: live, the engine container (development profile) > from inside the engine container, which has no network, every attempt fails, outside and on the host alike 20477ms
+
+ Test Files  1 passed (1)
+      Tests  10 passed (10)
+   Start at  19:43:24
+   Duration  20.77s (tests 100%)
+
+exit code: 0

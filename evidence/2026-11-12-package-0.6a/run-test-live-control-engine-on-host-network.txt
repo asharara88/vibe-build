@@ -1,0 +1,54 @@
+# Control: the live test run with the engine service given the host's network instead of none (builder/src/sandbox/manager.ts, line 157, changed for this run only and then restored with git checkout). Commit fb5dc07, 12 Nov 2026 19:38 UTC.
+# The test is expected to FAIL here: it must not pass for a container that has a network.
+# npx vitest run test/isolation.test.ts -t live
+
+ RUN  v5.1.0 <checkout>/builder
+
+ ❯ test/isolation.test.ts (10 tests | 1 failed | 9 skipped) 1397ms
+   ❯ isolation probe: live, the engine container (development profile) (1)
+     × from inside the engine container, which has no network, every attempt fails, outside and on the host alike 1326ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/isolation.test.ts > isolation probe: live, the engine container (development profile) > from inside the engine container, which has no network, every attempt fails, outside and on the host alike
+AssertionError: expected [ …(15) ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   "A2 registry.npmjs.org:80: HTTP 301",
++   "A5 github.com:80: HTTP 301",
++   "B1 1.1.1.1:443: connected",
++   "B2 93.184.215.14:80: connected",
++   "B3 93.184.215.14:80: HTTP 403",
++   "B4 169.254.169.254:80: HTTP 403",
++   "C5 127.0.0.1:5432: connected",
++   "C9 127.0.0.1:45887: connected",
++   "X2024 127.0.0.1:2024: connected",
++   "X33427 127.0.0.1:33427: connected",
++   "D1 registry.npmjs.org: found 12 addresses",
++   "D5 registry.npmjs.org @1.1.1.1: found 12 addresses",
++   "F1 registry.npmjs.org:443: proxy answered 200",
++   "F2 github.com:443: proxy answered 200",
++   "F3 example.com:443: proxy answered 403",
++ ]
+
+ ❯ test/isolation.test.ts:205:111
+    203|     expect(report.ended).toBe(true);
+    204|     // First, and all at once: every attempt that got an answer of any…
+    205|     expect(report.attempts.filter((a) => gotAnswer(a.result)).map((a) …
+       |                                                                                                               ^
+    206|     expect(report.attempts.filter((a) => a.toward === "outside").lengt…
+    207|     // Nothing listens inside a container with no network, so the prob…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 9 skipped (10)
+   Start at  19:38:17
+   Duration  1.63s (tests 93%, transform 4%, import 3%)
+
+exit code: 1

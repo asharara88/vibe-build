@@ -1,0 +1,10 @@
+# npm run typecheck, from builder/, commit fb5dc07, 12 Nov 2026 19:41 UTC
+
+> builder@0.0.1 typecheck
+> tsc --noEmit
+
+exit code: 0
+
+# The script of package 0.6a type-checked with the settings of builder/tsconfig.json (whose folders, src and test, do not include scripts/; the probe's types come from scripts/isolation-probe.d.mts):
+# npx tsc --ignoreConfig --noEmit --strict --target ES2022 --module NodeNext --moduleResolution NodeNext --noUncheckedIndexedAccess --esModuleInterop --skipLibCheck --types node scripts/demo-isolation.ts
+exit code: 0
