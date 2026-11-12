@@ -158,12 +158,12 @@ Left as they are and said here: the list "Yours to confirm" in the status file i
 
 ## Sixth review: the re-read of commit `07a953a`
 
-A fresh reviewer agent read `07a953a` by commit and re-ran the licence commands. **Verdict: not ready to merge**, for two one-sentence points; everything else confirmed. Fifth-review findings: seven answered, two partly.
+A fresh reviewer agent read `07a953a` by commit and re-ran the licence commands. **Verdict: not ready to merge**, for two one-sentence points; it also made eleven non-blocking findings and confirmed the rest. Fifth-review findings: seven answered, two partly.
 
 | # | Finding | Blocking | Answer in the commit after `07a953a` |
 | --- | --- | --- | --- |
 | 1 | The status file's question on the second stack gave as its reason "nothing in the queue waits on it", against the same file's table, where package S1a waits on exactly that | Yes | The reason now says what waits on it and that nothing able to start today is held up |
-| 2 | The plan's progress row for 0.1 said "three reviews" | Yes | The count is removed, here and in the status file's opening line |
+| 2 | The plan's progress row for 0.1 said "three reviews" | Yes | The count is removed from the plan's row and from the status file's opening line |
 | 3 | The recommended option of the question on the template's licence condition left out three consequences, and claimed a step more than the record shows | No | The three consequences are stated in the option; the wording is "as recorded" and names the unconfirmed reading it rests on |
 | 4 | R1's evidence was cited as if present on this branch | No | The plan's row and known gap 40 name the branch and the pull request |
 | 5 to 13 | Known gap 32's "two reasons"; stale pointers; the exact-name weakness of the development-tools rule not in the gaps file; Claude Code's readings in the owner's `sharp` row; "carried" where the integration branch still carries; `sharp` and "lock file" unexplained; a caveat on "L9 is true" in the evidence file; "a sealed box"; the order of the next packages | No | Each corrected. Not changed: two counts in the evidence file are shown without the command that produced them |
@@ -171,3 +171,25 @@ A fresh reviewer agent read `07a953a` by commit and re-ran the licence commands.
 Earlier answers in this file cite the status file's questions by the numbers they had at the time; the numbers have since shifted as questions were answered.
 
 **This review read `07a953a`. The commit that answers it is re-read before any merge.**
+
+## Seventh review: the re-read of commit `492370c`, and the merge
+
+A fresh reviewer agent read the diff `07a953a..492370c` line by line and then the whole status file once more, all by commit. **Verdict: no blocking finding; `492370c` may be merged as read.** Its answers: both blocking findings of the sixth review answered; package 0.1's "Done means" met (113 lines, no contradicting pair); package 1.1's met, with no remaining reason not to mark it tested; the evidence supports closing register finding P-1, each provided `492370c` is the commit merged.
+
+**Pull request #7 was merged into `claude/stage-1` on 12 November 2026 at `492370c`** (merge commit `6c22782`; the merged content is identical to `492370c`). Packages 0.1 and 1.1 are tested again as of that commit, and P-1 is closed.
+
+Its nine non-blocking findings, answered in the record update made after the merge (a separate pull request, read by a reviewer before it is merged):
+
+| # | Finding | Answer |
+| --- | --- | --- |
+| 1 | The status file said `VIBEBUILD_KEY` is on the "Default" environment; read after the commit, it is on "vibe-build" and not on "Default" | When the file was written the variable was on "Default": Claude Code read the environment that morning and its name was listed there. The owner moved it later the same day. Read again after the merge: on "vibe-build" only. The status file's question and its Money row are corrected |
+| 2 | "Nothing in the queue needs a key" beside a table row where package 2.3 needs the key | Reworded: nothing that can start before checkpoint 1 needs a key |
+| 3 | The order of the next packages after 2.1 was not the plan's | The next-session paragraph now follows the plan's order |
+| 4 | Whether the demonstration run may stand in for R1's "existing tests" was called the owner's but asked nowhere | Added to "Yours to confirm", and named in the option that would merge R1 |
+| 5 | "The lock file now lists no LGPL package" beside "the template carries LGPL packages" | "On that branch" added |
+| 6 | Pull request #7's description was three reviews behind | Brought up to date before the merge; it names the commit each review read |
+| 7 | A review result (of R1) was pushed four minutes before it was on record anywhere | True. Recorded in known gap 38, which stays open |
+| 8 | "At the latest with the checkpoint 2 pack" beside packages that cannot start until the owner decides | Reworded: at the latest before package 3.3 can start |
+| 9 | Wording in this file: "everything else confirmed" above eleven findings; "here" for another file | Corrected |
+
+Also noted by the reviewer and recorded in the status file without being looked into: a set-up script on both cloud environments, `openrouter.ai` among the allowed hosts, and three variables on "Default" whose names begin `BW2`. The reviewer read the repository as public.

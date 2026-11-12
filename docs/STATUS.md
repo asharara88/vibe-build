@@ -2,7 +2,7 @@
 
 Read this first in every session, then `docs/BUILD-PLAN.md` section 3. This file is rewritten each session, not added to. The version before the first rewrite is in `docs/log/`.
 
-**As of:** 12 November 2026, after the owner's licence approval, his decision to remove `sharp` (an image library that Next.js installs as an optional extra), and the reviews of the tracking corrections. Nothing here is a time estimate.
+**As of:** 12 November 2026, after pull request #7 (the tracking corrections) was merged into the integration branch at the commit an independent reviewer had read. Nothing here is a time estimate.
 
 ## Words used here
 
@@ -19,22 +19,22 @@ A *branch* is a named line of work in the repository; a *commit* is one saved st
 | State | What is in it |
 | --- | --- |
 | **Accepted by the owner (in `main`)** | The handover, the project rules, the specification, the design note as first approved, the Task 0 documents |
-| **Tested** | Packages 0.2 and W4 (documents). No code package is tested. No finding about how the running system behaves is closed: sixteen of seventeen are open (`docs/reviews/2026-11-11-pull-request-2.md`) |
-| **Built, not tested** | The baseline code. Packages 0.1 and 1.1 (reopened). R1, on a branch. The `builder/` half of package 0.4, on a branch, with work on it stopped |
+| **Tested** | Packages 0.1, 0.2, 1.1 and W4, all documents. No code package is tested. No finding about how the running system behaves is closed: fifteen of seventeen findings are open (`docs/reviews/2026-11-11-pull-request-2.md`) |
+| **Built, not tested** | The baseline code. R1, on a branch. The `builder/` half of package 0.4, on a branch, with work on it stopped |
 | **Waiting on the owner** | The questions below |
 
 ## Progress under the plan
 
 | Package | State |
 | --- | --- |
-| 0.1 `docs/STATUS.md` rewritten | **Reopened 12 Nov; built, not tested.** Every review of it on 12 Nov has found statements that contradicted each other or had no support; each review and its findings are in the review record named below. It is tested only when an independent reviewer has read its final commit and found none |
+| 0.1 `docs/STATUS.md` rewritten | **Tested again 12 Nov.** Reopened that day; an independent reviewer then read the final commit (`492370c`), found no statement contradicting another, and that commit is the one merged. This file has been updated since, as the plan requires after every package; the review covers it as it stood at `492370c` |
 | 0.2 Evidence claims narrowed | Tested 11 Nov; the merged text re-read 12 Nov, no finding |
-| 1.1 Design note 5.5 amended | **Reopened 12 Nov; built, not tested.** Its "Done means" is met to the letter; review found the hold could still fall short of a call's cost (known gap 41). Tested only when an independent reviewer has read the final commit |
+| 1.1 Design note 5.5 amended | **Tested again 12 Nov** at `492370c`: the five amendments are under a dated list and each has a proof row. Tested means the document says what the plan asked; **nothing in it is built**. Still open and recorded: the hold's known limits (known gap 41), one point for an engineer (known gap 35), the expired-hold question |
 | W4 Arabic wording list | Tested 11 Nov; re-read 12 Nov, list and counts confirmed |
-| R1 `sharp` removed from the template | **Built 12 Nov on a branch, not tested.** The owner chose removal. The template's lock file now lists no LGPL package, it builds, and its demonstration run gives the same results (`evidence/2026-11-12-package-r1/remove-sharp.md`, on the R1 branch, pull request #10). Its "Done means" also needs the template's licence check to pass, and it does not yet (question 1). Its third condition says "existing tests pass"; the template has no automated tests, and whether its demonstration run may stand in for them is the owner's to say. One practical effect to know: apps built from the template get no automatic image resizing. A first independent review reproduced the removal and found no check weakened; its findings on the records are being answered on that branch |
+| R1 `sharp` removed from the template | **Built 12 Nov on a branch, not tested.** The owner chose removal. On that branch the template's lock file lists no LGPL package, it builds, and its demonstration run gives the same results (`evidence/2026-11-12-package-r1/remove-sharp.md`, on the R1 branch, pull request #10). Its "Done means" also needs the template's licence check to pass, and it does not yet (question 1). Its third condition says "existing tests pass"; the template has no automated tests, and whether its demonstration run may stand in for them is the owner's to say. One practical effect to know: apps built from the template get no automatic image resizing. A first independent review reproduced the removal and found no check weakened; its findings on the records are being answered on that branch |
 | 0.4 One licence rule | **Parked** (needs L9 and L11). Its `builder/` half was built on 12 Nov on a branch (pull request #9) **before its dependencies were met**, which was Claude Code's error (known gap 42). An independent reviewer found two blocking defects in it, and those were corrected on the branch the same day. That too was work on a parked package. **Work on it is now stopped: nothing more is done on that branch, and it is not merged, until the owner answers question 1** |
 
-The review record, with the commit each review read, is `docs/reviews/2026-11-12-integration-e0e22e6.md`. Pull request #7 holds these corrections; it is merged only when the commit reviewed is the commit merged.
+The review record, with the commit each review read, is `docs/reviews/2026-11-12-integration-e0e22e6.md`. Pull request #7 held these corrections and was merged on 12 Nov at `492370c`, the commit its last review read.
 
 ## The licence codes today
 
@@ -50,8 +50,8 @@ The packages that could come next; later ones are in the plan, section 7.
 
 | Package | Depends on | Not yet met |
 | --- | --- | --- |
-| 2.1 scripted engine; W1 web shell; W3 analyst instructions | L9 | **Nothing. These can start** once pull request #7 is merged |
-| 1.2 holds in the database (proof rows B1 to B6) | 1.1, L9 | 1.1 tested again |
+| 2.1 scripted engine; W1 web shell; W3 analyst instructions | L9 | **Nothing. These can start** |
+| 1.2 holds in the database (proof rows B1 to B6) | 1.1, L9 | **Nothing. It can start, and it is first in the plan's order** |
 | 1.3 the pre-step check | 1.2 | 1.2 |
 | 1.4 failure tests | 1.2, 1.3 | Both. It also builds the part flagged for an engineer (known gap 35) |
 | 1.5 unreconciled list | 1.2 | 1.2; and it is taken after 1.4, because its proof row needs 1.4's cases |
@@ -72,19 +72,19 @@ The packages that could come next; later ones are in the plan, section 7.
 One decision at a time, in this order. Each has a recommendation and its reason, except question 8, which is a question of fact.
 
 **1. How is the template's licence condition (L11) to be met?** What stands in the way is in hand or approved: R1 removes the LGPL packages, and `caniuse-lite` is approved. The conditions of your approval, as recorded in `docs/DECISIONS.md`, say the checks are to pass "with the names as dated exceptions". That wording is the record's, and it rests on the reading listed under "Yours to confirm", item (i). The snag is the plan's wording: R1 is finished only when the template passes "the single rule of 0.4", package 0.4 may start only when L11 is true, and L11 needs R1 merged.
-- (a) **Enter `caniuse-lite` in the template's existing check as a dated exception, in the R1 pull request, which also stops that check skipping packages (known gap 43). R1 merges once its review is clean and that check passes. L11 is then true, and package 0.4 follows in the plan's order for both components; R1's condition about the single rule is shown when 0.4 is done.** Recommended. Reason: it is the smallest step and nothing about package 0.4 changes. Three things to know before choosing it: it puts a small change to the template's check into the R1 pull request, where the plan says of R1 "nothing else is touched"; R1 would be merged while still "built, not tested", which departs from the plan's merge rule; and L11 would become true on a check that still has the weaker rule for development tools, until package 0.4 replaces it.
+- (a) **Enter `caniuse-lite` in the template's existing check as a dated exception, in the R1 pull request, which also stops that check skipping packages (known gap 43). R1 merges once its review is clean and that check passes. L11 is then true, and package 0.4 follows in the plan's order for both components; R1's condition about the single rule is shown when 0.4 is done.** Recommended. Reason: it is the smallest step and nothing about package 0.4 changes. Three things to know before choosing it: it puts a small change to the template's check into the R1 pull request, where the plan says of R1 "nothing else is touched"; R1 would be merged while still "built, not tested", which departs from the plan's merge rule, and before item (vi) under "Yours to confirm" is answered; and L11 would become true on a check that still has the weaker rule for development tools, until package 0.4 replaces it.
 - (b) Let package 0.4 be done one component at a time now, ahead of L11. Pull request #9 could then merge once its review is clean.
 - (c) Keep the plan exactly as written. R1, package 0.4 and everything that needs L11 then stay where they are.
 
-**2. The variable `VIBEBUILD_KEY`,** which the owner added to the "Default" cloud environment on 12 Nov. It has not been read or used. The builder reads `BUILDER_MODEL_API_KEY`, and the plan creates the model key at checkpoint 1.
-- (a) **Remove it for now; add it at checkpoint 1 as `BUILDER_MODEL_API_KEY` on the "vibe-build" environment, with a monthly limit set in the provider's console first.** Recommended. Reason: nothing in the queue needs a key, and "Default" is shared by all the owner's projects.
-- (b) Leave it; it stays unused until checkpoint 1.
+**2. The variable `VIBEBUILD_KEY`.** The owner added it to the "Default" cloud environment on 12 Nov and later the same day moved it to the "vibe-build" environment; read again after the merge, it is on "vibe-build" and no longer on "Default". It has not been read or used. The builder reads `BUILDER_MODEL_API_KEY`, and the plan creates the model key at checkpoint 1.
+- (a) **Leave it where it is, unused, until checkpoint 1; then rename it `BUILDER_MODEL_API_KEY`, with a monthly limit set in the provider's console first.** Recommended. Reason: nothing that can start before checkpoint 1 needs a key, and it is no longer on the environment shared by the owner's other projects.
+- (b) Remove it until checkpoint 1.
 - (c) A real model call before checkpoint 1. The owner's to decide; advised against until the cap is rebuilt.
 
 **3. [L10 or a waiver] The second stack.** Django's database driver `psycopg` is LGPL-3.0.
 - (a) Approve `psycopg` by name for the comparison only, with a written LGPL approach before any customer delivery.
 - (b) Record a waiver naming one stack: no comparison.
-- (c) **Decide later, at the latest with the checkpoint 2 pack.** Recommended. Reason: nothing that can start today is held up, and the LGPL text should be read first. What does wait on it: the second template (S1a), its live runs (S1b) and the comparison in packages 3.3 and 3.4, none of which can start until you decide.
+- (c) **Decide later, at the latest before package 3.3 can start (in the plan, that is before checkpoint 2).** Recommended. Reason: nothing that can start today is held up, and the LGPL text should be read first. What does wait on it: the second template (S1a), its live runs (S1b) and the comparison in packages 3.3 and 3.4, none of which can start until you decide.
 
 **4. Make the repository private?** (a) **Yes, now; then confirm this session can still reach it.** Recommended: nothing in it is meant for the public. (b) Leave it as it is. Whether it is public today was not re-checked on 12 Nov.
 
@@ -98,16 +98,18 @@ One decision at a time, in this order. Each has a recommendation and its reason,
 
 **9. [Server] A demo server**, when ready to spend; not needed before package 0.6b. Prices read on 11 Nov 2026 (`docs/OPEN-DECISIONS.md` item 5): (a) **Hetzner CPX32, €30.49 per month excl. VAT, no UAE location** (recommended: lowest verified price; made-up data only); (b) Oracle Cloud in Dubai; (c) AWS in the UAE; (d) DigitalOcean, $48.00 per month, no UAE. Prices for (b) and (c) could not be read. The chosen price is read again on the day of approval.
 
-**Yours to confirm, in your own time.** These are recorded as Claude Code's readings or work, not as your decisions: (i) that "a0 approved" meant option (a), covers the eleven `lightningcss` build-package names listed in `docs/DECISIONS.md`, and holds across version upgrades while each licence is unchanged; (ii) the corrections made in answer to the two reviews you passed on, including the edit to your plan's package 1.2 and the assignment of proof rows B1 to B14 (B7 asks more than the plan's wording for 1.3; 1.5 is taken after 1.4); (iii) building the proposal of known gap 35 if no engineer is named by then; (iv) what "absent from what a customer receives" means for a development package that an exported app's own list names (known gap 39); (v) the two suggested Arabic wording changes in `docs/arabic-wording-list.md`; (vi) how the known limits of the hold are handled in package 1.2 (`docs/DECISIONS.md`, the row of 12 Nov on how the cap is built), and whether proof rows for them are added to the design note, which would add to what finishes package 1.2. Each of these is put to you as a question with choices when it becomes the next thing that holds work up.
+**Yours to confirm, in your own time.** These are recorded as Claude Code's readings or work, not as your decisions: (i) that "a0 approved" meant option (a), covers the eleven `lightningcss` build-package names listed in `docs/DECISIONS.md`, and holds across version upgrades while each licence is unchanged; (ii) the corrections made in answer to the two reviews you passed on, including the edit to your plan's package 1.2 and the assignment of proof rows B1 to B14 (B7 asks more than the plan's wording for 1.3; 1.5 is taken after 1.4); (iii) building the proposal of known gap 35 if no engineer is named by then; (iv) what "absent from what a customer receives" means for a development package that an exported app's own list names (known gap 39); (v) the two suggested Arabic wording changes in `docs/arabic-wording-list.md`; (vi) whether the template's demonstration run may stand in for "existing tests pass" in package R1, since the template has no automated tests; (vii) how the known limits of the hold are handled in package 1.2 (`docs/DECISIONS.md`, the row of 12 Nov on how the cap is built), and whether proof rows for them are added to the design note, which would add to what finishes package 1.2. Each of these is put to you as a question with choices when it becomes the next thing that holds work up.
 
 ## Money
 
 | Meter | Figure |
 | --- | --- |
 | Model spend this month | $0.00 through the builder. No real model call has been made by this project. Not counted here: a separate hosted prototype agent the owner is setting up outside the repository (`docs/DECISIONS.md`, 12 Nov), which spends on his own account and is not capped by the builder |
-| The model key | Not set up under the plan. A variable named `VIBEBUILD_KEY` exists on the owner's "Default" cloud environment since 12 Nov (question 2); unread and unused |
+| The model key | Not set up under the plan. A variable named `VIBEBUILD_KEY` is on the owner's "vibe-build" cloud environment (question 2); unread and unused |
 | Monthly limit; per-project cap | Not yet set ($100 and $20 proposed); decided at checkpoint 1 |
 
 ## What the next session does
 
-Follow `docs/BUILD-PLAN.md` section 3; development machine set-up is in `CLAUDE.md`, Commands. In order: (1) have an independent reviewer read the head of pull request #7 and merge it only if the commit read is the commit merged; that also decides whether packages 0.1 and 1.1 are tested again. (2) With L9 true, start the first package in the plan's order whose dependencies are met: 1.2 if package 1.1 is tested again by then, otherwise 2.1, then W1 and W3. R1 (pull request #10) has had its first review; its findings are answered on its branch and re-read before any merge. (3) Do no work on pull request #9 and do not merge it until the owner answers question 1. (4) Start nothing that needs L11, L10, the key, the candidate or the server.
+Follow `docs/BUILD-PLAN.md` section 3; development machine set-up is in `CLAUDE.md`, Commands. In order: (1) package 1.2, the holds in the database, proof rows B1 to B6, against a stand-in provider; it is the first package in the plan's order whose dependencies are met. (2) After each package is tested, take the next by the plan's step 3: 1.3 after 1.2; 2.1 can start at any time, and once it is tested 3.1 comes before W1. (3) R1 (pull request #10): its first review's findings are answered on its branch and are re-read before any merge; it does not merge until question 1 is answered. (4) Do no work on pull request #9 and do not merge it until question 1 is answered. (5) Start nothing that needs L11, L10, the key, the candidate or the server.
+
+Seen in the cloud environments on 12 Nov and not set by this work: a set-up script on both environments that starts Docker and fetches three base images; `openrouter.ai` among the allowed hosts; three variables on "Default" whose names begin `BW2`. They were not looked into.
