@@ -261,18 +261,18 @@ Update this table at the end of every package. A date goes in a column only when
 
 | ID | Built | Tested | Accepted by the owner | Pull request | Evidence | Open findings |
 | --- | --- | --- | --- | --- | --- | --- |
-| Skeleton increments 1, 2, 3a (unapproved starting baseline) | 11 Nov 2026 | In part: 38 tests recorded as passing; the owner's six findings open | No | #2, closed as superseded 11 Nov 2026 | `evidence/2026-11-11-skeleton-1` to `-3` | Six, in `docs/reviews/`; 0.2 answers finding 2 |
+| Skeleton increments 1, 2, 3a (unapproved starting baseline) | 11 Nov 2026 | In part: 38 tests recorded as passing | No | #2, closed as superseded 11 Nov 2026 | `evidence/2026-11-11-skeleton-1` to `-3` | Seventeen owner findings in `docs/reviews/2026-11-11-pull-request-2.md`: sixteen open, one closed (P-2) |
 | R1 (only if chosen) | | | | | | |
-| 0.1 `docs/STATUS.md` rewritten | 11 Nov 2026 | 11 Nov 2026 | No | #3, merged into `claude/stage-1` | `docs/STATUS.md`; findings and fixes on the pull request | None |
-| 0.2 Evidence claims narrowed | 11 Nov 2026 | 11 Nov 2026 | No | #4, merged into `claude/stage-1` | `evidence/2026-11-11-skeleton-2/sandbox-egress.md` | None |
+| 0.1 `docs/STATUS.md` rewritten | 11 Nov 2026; rewritten again 12 Nov 2026 | **Reopened 12 Nov 2026:** the merged text had not been read by a reviewer and was found to contradict itself. Not tested until the 12 Nov rewrite's final commit has been read by a reviewer | No | #3, merged into `claude/stage-1`; then the tracking-corrections pull request | `docs/reviews/2026-11-12-integration-e0e22e6.md` | Nine found on 12 Nov, answered in the rewrite |
+| 0.2 Evidence claims narrowed | 11 Nov 2026 | 11 Nov 2026; merged text re-read 12 Nov, no finding | No | #4, merged into `claude/stage-1` | `evidence/2026-11-11-skeleton-2/sandbox-egress.md` | None |
 | 0.3, 0.4, 0.5, 0.6a, 0.6b | Parked (L11; L9 and L11; L9 and L11; 0.5; Server) | | | | | |
-| 1.1 Design note 5.5 amended | 11 Nov 2026 | 11 Nov 2026 | No | #5, merged into `claude/stage-1` | `docs/design/stage-1.md` 5.5 and 7.2 | None |
-| 1.2 to 1.5 | Parked (L9) | | | | | |
+| 1.1 Design note 5.5 amended | 11 Nov 2026; corrected 12 Nov 2026 | **Reopened 12 Nov 2026:** a defect inside amendment (c) and unlisted changes found in the merged text. Not tested until the corrected note's final commit has been read by a reviewer | No | #5, merged into `claude/stage-1`; then the tracking-corrections pull request | `docs/reviews/2026-11-12-integration-e0e22e6.md` | Nine found on 12 Nov, answered in the note; one question to the owner (expired holds); one point needing an engineer (gap 35) |
+| 1.2 to 1.5 | Parked (L9). Proof rows: 1.2 is B1 to B6; 1.3 is B7; 1.4 is B8 to B13; 1.5 is B14 | | | | | Findings C-1 to C-10 in the register, all open |
 | 2.1 to 2.3 | Parked (L9; then 2.1 and 1.2; then Key) | | | | | |
 | 3.1 to 3.4, S1a, S1b | Parked (2.1; L10 or Waiver for S1a, S1b) | | | | | |
 | M1 to M9, M7b, C1, C2 | Not started | | | | | |
 | W1 to W3 | Parked (L9; 2.1; L9) | | | | | |
-| W4 Arabic wording list | 11 Nov 2026 | 11 Nov 2026 | No | #6, merged into `claude/stage-1` | `docs/arabic-wording-list.md` | None; two wording suggestions wait on the owner and L11 |
+| W4 Arabic wording list | 11 Nov 2026 | 11 Nov 2026; merged text re-read 12 Nov, list and counts confirmed, one sentence outside its "Done means" corrected | No | #6, merged into `claude/stage-1` | `docs/arabic-wording-list.md` | None; two wording suggestions wait on the owner and L11 |
 
 ## 11. Pre-flight: what the owner settles
 
