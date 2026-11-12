@@ -5,9 +5,14 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 ALLOW="MIT;Apache-2.0;BSD-2-Clause;BSD-3-Clause;ISC;0BSD;BlueOak-1.0.0;CC0-1.0;Python-2.0;PostgreSQL;Unlicense"
 # Owner-approved exceptions, each with the date and place of the written approval:
-# - @anthropic-ai/claude-agent-sdk: Anthropic Commercial Terms of Service. Approved by the owner
-#   on 11 Nov 2026, recorded in docs/DECISIONS.md.
-EXCLUDE=""
+# - caniuse-lite (CC-BY-4.0): browser-support data that Next.js ships in every app. Approved by
+#   name for generated apps by the owner on 12 Nov 2026, on conditions (docs/DECISIONS.md).
+#   Entered here on 12 Nov 2026. The lock file check below fails if its licence ever changes.
+# This list must never be empty: the tool reads an empty entry as "@" and then skips every
+# package whose name begins with "@" (docs/KNOWN-GAPS.md, gap 43).
+EXCLUDE="caniuse-lite"
+echo "Lock file:"
+node scripts/check-lock.mjs
 echo "Production dependencies:"
 npx license-checker-rseidelsohn --production --onlyAllow "$ALLOW" --excludePackages "$EXCLUDE" --excludePrivatePackages --summary
 # Development tools are not shipped to customers. They must still be free of strong copyleft, and any

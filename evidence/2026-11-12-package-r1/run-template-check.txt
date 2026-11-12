@@ -1,0 +1,35 @@
+Lock file:
+Lock file check (templates/next/package-lock.json): 405 entries read.
+No sharp or @img package from the registry; caniuse-lite is under the approved licence; no unexpected local package.
+RESULT: PASSED
+Production dependencies:
+├─ MIT: 87
+├─ Apache-2.0: 8
+├─ BSD-3-Clause: 3
+├─ ISC: 3
+├─ Apache-2.0 AND MIT: 2
+└─ 0BSD: 1
+
+All dependencies, development tools included (summary):
+├─ MIT: 156
+├─ ISC: 59
+├─ Apache-2.0: 19
+├─ BlueOak-1.0.0: 11
+├─ BSD-3-Clause: 4
+├─ MPL-2.0: 3
+├─ Apache-2.0 AND MIT: 2
+├─ BSD-2-Clause: 2
+├─ 0BSD: 2
+├─ CC-BY-3.0: 1
+├─ CC0-1.0: 1
+└─ (MIT AND CC-BY-3.0): 1
+
+Development-only packages whose licence is outside the permitted list:
+lightningcss-linux-x64-gnu@1.33.0 | MPL-2.0
+lightningcss-linux-x64-musl@1.33.0 | MPL-2.0
+lightningcss@1.33.0 | MPL-2.0
+spdx-exceptions@2.5.0 | CC-BY-3.0
+spdx-ranges@2.1.1 | (MIT AND CC-BY-3.0)
+Licence report (every dependency) written to builder/licences.csv
+exit code: 0
+Packages the licence tool reads with the script's exclusion list as it now is: 261 of which 87 have a name beginning with @
