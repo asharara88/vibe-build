@@ -3,7 +3,7 @@ import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readlinkSy
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { promisify } from "node:util";
-import { afterAll, describe, expect, it } from "vitest";
+import { afterAll, describe, expect, it, onTestFinished } from "vitest";
 import { composeDocument, createSandbox, dockerEnv, sandbox, toYaml, type SandboxSpec } from "../src/sandbox/manager.js";
 
 const run = promisify(execFile);
@@ -71,6 +71,17 @@ describe("sandbox manager: compose documents", () => {
   });
 
   it("package 0.5: the sandbox records the names given to the tools container, and Docker runs with a narrow environment and its own client folder", () => {
+    // Independent of the machine's own Docker settings: an empty user configuration, no context, no DOCKER_HOST.
+    const saved = { DOCKER_CONFIG: process.env.DOCKER_CONFIG, DOCKER_HOST: process.env.DOCKER_HOST, DOCKER_CONTEXT: process.env.DOCKER_CONTEXT };
+    process.env.DOCKER_CONFIG = mkdtempSync(join(tmpdir(), "builder-user-docker-"));
+    delete process.env.DOCKER_HOST;
+    delete process.env.DOCKER_CONTEXT;
+    onTestFinished(() => {
+      for (const [k, v] of Object.entries(saved)) {
+        if (v === undefined) delete process.env[k];
+        else process.env[k] = v;
+      }
+    });
     const dir = mkdtempSync(join(tmpdir(), "builder-sb-"));
     const sb = createSandbox(
       { ...base, profile: "server", dir, app: { buildContext: join(dir, "workspace"), port: 3100, toolsEnv: { APP_URL: "http://x" } } },
