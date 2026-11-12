@@ -5,7 +5,12 @@
 // package for ONE named use. It never covers another package with the same licence.
 //
 // This file is the rule only: it takes what the licence tool read from the installed
-// packages and returns every problem it finds. It does not stop at the first one.
+// packages, and what the lock file records for packages that other machines would install,
+// and returns every problem it finds. It does not stop at the first one.
+//
+// The same two files (rule.ts and check.ts) are kept, byte for byte, in every component that
+// is checked, so that a component still carries its check when it is copied out of this
+// repository. A test in builder/ fails if the copies differ.
 
 export type Use = "development" | "shipped";
 
@@ -20,6 +25,11 @@ export interface LicenceException {
   build_packages?: string[];
   /** The licence string exactly as the installed package declares it. */
   licence: string;
+  /**
+   * Optional. Where given, the approval covers this version only: another version fails until
+   * someone has looked at it and changed the number here.
+   */
+  version?: string;
   /** "development": must never be among the shipped dependencies. "shipped": may be. */
   use: Use;
   /** Date of the owner's written approval, and where it is recorded. */
@@ -31,17 +41,35 @@ export interface LicenceException {
   build_packages_note?: string;
 }
 
+/**
+ * A package that is this component's own: a folder inside the component, linked in under a
+ * package name, with no licence of anyone else's to check. It is accepted only at the named
+ * version, from the named folder, with exactly the named files (each by its SHA-256).
+ */
+export interface OwnPackage {
+  name: string;
+  version: string;
+  /** Folder inside the component, with forward slashes, for example "vendor/no-sharp". */
+  path: string;
+  why: string;
+  /** Every file in that folder, by name, with the SHA-256 of its contents in hex. */
+  files: Record<string, string>;
+}
+
 export interface LicenceRule {
   permitted: string[];
   exceptions: LicenceException[];
+  own_packages?: OwnPackage[];
 }
 
-/** One installed package, as the licence tool reports it. Key is "name@version". */
+/** One package, as the licence tool reports it or as the lock file records it. Key is "name@version". */
 export interface InstalledPackage {
   licenses?: string | string[];
   repository?: string;
   path?: string;
   licenseFile?: string;
+  /** True when the package is not installed on this machine and its licence was read from the lock file. */
+  fromLockFile?: boolean;
 }
 export type Installed = Record<string, InstalledPackage>;
 
@@ -60,7 +88,12 @@ export interface ExceptionInUse {
 }
 
 export interface Result {
+  /** Packages installed on this machine. */
   checked: number;
+  /** Packages the lock file lists for other machines, judged by the licence the lock file records. */
+  fromLockFile: number;
+  /** This component's own packages that were found, as "name@version". */
+  ownInUse: string[];
   shipped: number;
   problems: Problem[];
   exceptionsInUse: ExceptionInUse[];
@@ -147,6 +180,7 @@ export function applyRule(rule: LicenceRule, all: Installed, shipped: Installed)
   const exceptionsInUse: ExceptionInUse[] = [];
   const seen = new Set<string>();
   const choices: { package: string; licence: string }[] = [];
+  const ownInUse: string[] = [];
 
   const mainVersions = new Map<string, string>();
   for (const key of Object.keys(all)) {
@@ -160,6 +194,22 @@ export function applyRule(rule: LicenceRule, all: Installed, shipped: Installed)
     const { name, version } = splitNameVersion(key);
     const licence = licenceString(pkg);
     const isShipped = key in shipped;
+
+    // The component's own packages. Whether the folder really is the component's own is
+    // checked on disk and in the lock file by the caller; here only the name and version.
+    const own = (rule.own_packages ?? []).find((o) => o.name === name);
+    if (own) {
+      if (own.version === version) {
+        ownInUse.push(key);
+        continue;
+      }
+      problems.push({
+        package: key,
+        licence: licence || "(none declared)",
+        reason: `the name ${name} belongs to this component's own package ${own.name}@${own.version} (${own.path}); any other package of that name is not to be installed`,
+      });
+      continue;
+    }
 
     const found = findException(rule, name, version, mainVersions);
     if (!found) {
@@ -189,6 +239,14 @@ export function applyRule(rule: LicenceRule, all: Installed, shipped: Installed)
       });
       continue;
     }
+    if (!viaFamily && ex.version !== undefined && ex.version !== version) {
+      problems.push({
+        package: key,
+        licence,
+        reason: `${ex.name} is entered at version ${ex.version} only; this version has not been looked at`,
+      });
+      continue;
+    }
     if (ex.use === "development" && isShipped) {
       problems.push({
         package: key,
@@ -208,8 +266,11 @@ export function applyRule(rule: LicenceRule, all: Installed, shipped: Installed)
   }
 
   const exceptionsNotInstalled = rule.exceptions.map((ex) => ex.name).filter((n) => !seen.has(n));
+  const lockOnly = Object.values(all).filter((p) => p.fromLockFile === true).length;
   return {
-    checked: Object.keys(all).length,
+    checked: Object.keys(all).length - lockOnly,
+    fromLockFile: lockOnly,
+    ownInUse,
     shipped: Object.keys(shipped).length,
     problems,
     exceptionsInUse,

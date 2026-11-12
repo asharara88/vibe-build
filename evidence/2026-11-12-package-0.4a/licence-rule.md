@@ -1,5 +1,7 @@
 # Package 0.4a: one licence rule for every dependency of `builder/`
 
+**Kept as the record of the first version of the `builder/` half, as built and reviewed on 12 November 2026 before its dependencies were met. It is not updated. The package as it now stands, for both components, is in `evidence/2026-11-12-package-0.4/licence-rule.md`.**
+
 | | |
 | --- | --- |
 | Date | 12 November 2026 |

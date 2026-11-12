@@ -13,6 +13,10 @@ import { readFileSync } from "node:fs";
 const lockPath = process.argv[2] ?? new URL("../package-lock.json", import.meta.url).pathname;
 const packages = JSON.parse(readFileSync(lockPath, "utf8")).packages ?? {};
 const problems = [];
+// A lock file that lists nothing has not been checked: that is a failure, not a pass.
+if (typeof packages !== "object" || Array.isArray(packages) || Object.keys(packages).filter((k) => k !== "").length === 0) {
+  problems.push("The lock file lists no packages, so nothing in it could be checked.");
+}
 
 for (const [where, entry] of Object.entries(packages)) {
   const name = where.slice(where.lastIndexOf("node_modules/") + "node_modules/".length);

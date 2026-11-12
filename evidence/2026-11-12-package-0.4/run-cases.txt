@@ -1,0 +1,62 @@
+A. The template as it is
+   old check: exit code 0 (PASSES)
+   new rule:  exit code 0 (PASSES)
+
+B. A shipped test package under GPL-3.0-only is added
+   old check: exit code 1 (fails)
+      Package "fake-gpl@1.0.0" is licensed under "GPL-3.0-only" which is not permitted by the --onlyAllow flag. Exiting.
+   new rule:  exit code 1 (fails)
+      PROBLEMS: 1
+        fake-gpl@1.0.0 | GPL-3.0-only | its licence is outside the permitted list and the package is not a named exception
+
+C. A development-only test package under LGPL-3.0-or-later is added
+   old check: exit code 0 (PASSES)
+   new rule:  exit code 1 (fails)
+      PROBLEMS: 1
+        fake-lgpl-later@1.0.0 | LGPL-3.0-or-later | its licence is outside the permitted list and the package is not a named exception
+
+D. A shipped test package declaring "MIT AND LGPL-3.0" is added
+   old check: exit code 0 (PASSES)
+   new rule:  exit code 1 (fails)
+      PROBLEMS: 1
+        fake-both@1.0.0 | MIT AND LGPL-3.0 | its licence is outside the permitted list and the package is not a named exception
+
+E. A shipped test package under GPL-3.0-only, marked private, is added
+   old check: exit code 0 (PASSES)
+   new rule:  exit code 1 (fails)
+      PROBLEMS: 1
+        fake-private@1.0.0 | UNLICENSED | its licence is outside the permitted list and the package is not a named exception
+
+F. The lock file lists a package under LGPL-3.0-or-later that only another machine would install
+   old check: exit code 0 (PASSES)
+   new rule:  exit code 1 (fails)
+      PROBLEMS: 1
+        @fake/other-machine@1.0.0 | LGPL-3.0-or-later | its licence is outside the permitted list and the package is not a named exception
+
+G. The approved package caniuse-lite at another version (1.0.30001824), same licence
+   old check: exit code 1 (fails)
+      Package "caniuse-lite@1.0.30001824" is licensed under "CC-BY-4.0" which is not permitted by the --onlyAllow flag. Exiting.
+   new rule:  exit code 1 (fails)
+      PROBLEMS: 1
+        caniuse-lite@1.0.30001824 | CC-BY-4.0 | caniuse-lite is entered at version 1.0.30001823 only; this version has not been looked at
+      PROBLEM: THIRD-PARTY-NOTICES.md is missing or out of date. Run the check with --write and commit the result.
+
+H. The lock file as it was before the image library sharp was removed (the installed packages unchanged).
+   Only the new rule is run here, without the separate lock-file check that keeps sharp out:
+   new rule:  exit code 1 
+      PROBLEMS: 15
+        @img/sharp-libvips-darwin-arm64@1.3.4 | LGPL-3.0-or-later | its licence is outside the permitted list and the package is not a named exception
+        @img/sharp-libvips-darwin-x64@1.3.4 | LGPL-3.0-or-later | its licence is outside the permitted list and the package is not a named exception
+        @img/sharp-libvips-linux-arm64@1.3.4 | LGPL-3.0-or-later | its licence is outside the permitted list and the package is not a named exception
+        @img/sharp-libvips-linux-arm@1.3.4 | LGPL-3.0-or-later | its licence is outside the permitted list and the package is not a named exception
+        @img/sharp-libvips-linux-ppc64@1.3.4 | LGPL-3.0-or-later | its licence is outside the permitted list and the package is not a named exception
+        @img/sharp-libvips-linux-riscv64@1.3.4 | LGPL-3.0-or-later | its licence is outside the permitted list and the package is not a named exception
+        @img/sharp-libvips-linux-s390x@1.3.4 | LGPL-3.0-or-later | its licence is outside the permitted list and the package is not a named exception
+        @img/sharp-libvips-linux-x64@1.3.4 | LGPL-3.0-or-later | its licence is outside the permitted list and the package is not a named exception
+        @img/sharp-libvips-linuxmusl-arm64@1.3.4 | LGPL-3.0-or-later | its licence is outside the permitted list and the package is not a named exception
+        @img/sharp-libvips-linuxmusl-x64@1.3.4 | LGPL-3.0-or-later | its licence is outside the permitted list and the package is not a named exception
+        @img/sharp-wasm32@0.35.5 | Apache-2.0 AND LGPL-3.0-or-later AND MIT | its licence is outside the permitted list and the package is not a named exception
+        @img/sharp-win32-arm64@0.35.5 | Apache-2.0 AND LGPL-3.0-or-later | its licence is outside the permitted list and the package is not a named exception
+        @img/sharp-win32-ia32@0.35.5 | Apache-2.0 AND LGPL-3.0-or-later | its licence is outside the permitted list and the package is not a named exception
+        @img/sharp-win32-x64@0.35.5 | Apache-2.0 AND LGPL-3.0-or-later | its licence is outside the permitted list and the package is not a named exception
+        sharp@0.35.5 | Apache-2.0 | the name sharp belongs to this component's own package sharp@0.0.0-removed (vendor/no-sharp); any other package of that name is not to be installed
