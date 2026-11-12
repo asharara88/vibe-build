@@ -77,6 +77,12 @@ Not read: the LGPL-3.0 text, the CC-BY-3.0 text, the Mozilla MPL FAQ and the Cre
 | "For Claude 4.6 and later models, using inference_geo: \"us\" applies a 1.1x pricing multiplier. inference_geo: \"global\" (default) uses standard pricing." Server-side tools carry "additional usage-based pricing"; "Web search is available on the Claude API for $10 USD per 1,000 searches, plus standard token costs". Fast mode prices are listed for Claude Fable 5.2 ($16 / $80), Claude Opus 5.5 ($8 / $40) and two older Opus models only | [Pricing](https://platform.claude.com/docs/en/about-claude/pricing) |
 | "The token count is an estimate. In some cases, the actual number of input tokens used when creating a message might differ by a small amount." | [Token counting](https://platform.claude.com/docs/en/build-with-claude/token-counting) |
 
+## Verified 12 November 2026, against the live page (fast mode)
+
+| Fact | Source |
+| --- | --- |
+| A request opts in to fast mode by setting `speed: "fast"`; the answer's usage then reports `speed: "fast"`. "Fast mode is available on Claude Fable 5.2, Claude Mythos 5.2, and Claude Opus 5.5"; it is in research preview or deprecated on two older Opus models | [Fast mode](https://platform.claude.com/docs/en/build-with-claude/fast-mode) |
+
 ## Product documentation read on 12 November 2026 for the owner's own set-up; nothing in the repository relies on it
 
 | Fact | Source |

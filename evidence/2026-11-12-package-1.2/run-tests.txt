@@ -1,0 +1,59 @@
+$ npm run typecheck
+exit code: 0
+
+$ npx vitest run --reporter=verbose   (the whole suite; same tests as npm test)
+ ✓ test/sandbox.test.ts > sandbox manager: compose documents > server profile: an internal network with no route out, and the egress proxy as the only bridge
+ ✓ test/sandbox.test.ts > sandbox manager: compose documents > development profile: host network, session proxy and certificate, database on a non-default port
+ ✓ test/sandbox.test.ts > sandbox manager: compose documents > writes YAML that Docker Compose accepts
+ ✓ test/sandbox.test.ts > sandbox manager: compose documents > round-trips a small document through the YAML writer
+ ✓ test/sandbox.test.ts > sandbox manager: live, development profile > starts the project's database and egress proxy, and the proxy refuses hosts not on the list
+ ✓ test/gateway.test.ts > model gateway: key and metering > forwards with the real key, keeps the key out of the client's view, and records usage and cost
+ ✓ test/gateway.test.ts > model gateway: key and metering > relays a streamed response byte for byte and meters it from the stream's events
+ ✓ test/gateway.test.ts > model gateway: key and metering > prices one-hour cache writes and fast mode from the response
+ ✓ test/gateway.test.ts > model gateway: key and metering > prices by the model that served the answer when it differs from the one requested
+ ✓ test/gateway.test.ts > model gateway: key and metering > settles at nothing when the provider rejects the request before doing any work
+ ✓ test/gateway.test.ts > model gateway: key and metering > does not follow a redirect from the provider, so the key goes nowhere else
+ ✓ test/gateway.test.ts > model gateway: key and metering > answers 502, forwards nothing and opens no hold when the provider cannot be reached at all
+ ✓ test/gateway.test.ts > holds: a call that ends without readable usage keeps its hold open > a server error from the provider
+ ✓ test/gateway.test.ts > holds: a call that ends without readable usage keeps its hold open > a stream the client abandoned part-way: the usage seen is written down and releases nothing
+ ✓ test/gateway.test.ts > holds: a call that ends without readable usage keeps its hold open > a successful answer with no usage block
+ ✓ test/gateway.test.ts > holds: a call that ends without readable usage keeps its hold open > a stream that ends cleanly without usage figures
+ ✓ test/gateway.test.ts > holds: a call that ends without readable usage keeps its hold open > the provider reachable for counting but not for the call itself
+ ✓ test/gateway.test.ts > holds: proof rows B1 to B6 of the design note > B1: a hold is opened before the call is forwarded and settled to the actual cost
+ ✓ test/gateway.test.ts > holds: proof rows B1 to B6 of the design note > B2: a call whose hold does not fit is refused at the call: no hold, nothing forwarded
+ ✓ test/gateway.test.ts > holds: proof rows B1 to B6 of the design note > B2: with calls arriving together against room for one hold, one is admitted, through one gateway or two
+ ✓ test/gateway.test.ts > holds: proof rows B1 to B6 of the design note > B3: a prompt that cannot be counted is refused, with the reason named
+ ✓ test/gateway.test.ts > holds: proof rows B1 to B6 of the design note > B4 (1): a model with a long-prompt rate is held at that rate when the prompt is at or near the threshold
+ ✓ test/gateway.test.ts > holds: proof rows B1 to B6 of the design note > B4 (2): on a profile that allows fast mode, a model with a fast-mode price is held at twice the standard rates
+ ✓ test/gateway.test.ts > holds: proof rows B1 to B6 of the design note > B5: a hold past its deadline is kept at its full amount, marked expired and unreconciled, and still counts
+ ✓ test/gateway.test.ts > holds: proof rows B1 to B6 of the design note > B6: holds are database rows: a gateway that starts finds the hold an earlier one left open, and keeps it
+ ✓ test/gateway.test.ts > holds: what a hold cannot bound is refused before anything is forwarded > no max_tokens, or more than the profile's ceiling
+ ✓ test/gateway.test.ts > holds: what a hold cannot bound is refused before anything is forwarded > routing that changes the price of every token
+ ✓ test/gateway.test.ts > holds: what a hold cannot bound is refused before anything is forwarded > tools the provider runs itself, and tool servers
+ ✓ test/gateway.test.ts > holds: what a hold cannot bound is refused before anything is forwarded > fast mode where the profile does not allow it, or the model has no fast-mode price
+ ✓ test/gateway.test.ts > holds: what a hold cannot bound is refused before anything is forwarded > lets the caller's own tools through
+ ✓ test/gateway.test.ts > holds: what a hold cannot bound is refused before anything is forwarded > the arithmetic of a hold, on its own
+ ✓ test/gateway.test.ts > model gateway: what is refused > refuses a model that is not in the price table
+ ✓ test/gateway.test.ts > model gateway: what is refused > refuses to be configured with a model that has no price
+ ✓ test/gateway.test.ts > model gateway: what is refused > refuses an unknown token and never forwards it
+ ✓ test/gateway.test.ts > model gateway: what is refused > refuses a non-JSON body
+ ✓ test/gateway.test.ts > model gateway: what is refused > refuses paid paths it does not know, such as batches, and percent-encoded disguises
+ ✓ test/gateway.test.ts > model gateway: what is refused > refuses methods other than POST
+ ✓ test/gateway.test.ts > model gateway: what is refused > passes token counting through, logged and unmetered
+ ✓ test/gateway.test.ts > model gateway: what is refused > raised no faults during this run
+ ✓ test/egress.test.ts > egress proxy > matches exact hosts and wildcard subdomains, nothing else
+ ✓ test/egress.test.ts > egress proxy > lets an allowed HTTPS host through and logs it as allowed
+ ✓ test/egress.test.ts > egress proxy > reaches the model API host (401 without a key means it was reached)
+ ✓ test/egress.test.ts > egress proxy > refuses a host that is not on the list and logs the refusal
+ ✓ test/egress.test.ts > egress proxy > refuses a plain HTTP request to a host not on the list
+ ✓ test/events.test.ts > event log > appends and lists events in order
+ ✓ test/events.test.ts > event log > refuses to update an event
+ ✓ test/events.test.ts > event log > refuses to truncate the event log
+ ✓ test/events.test.ts > event log > refuses to delete an event
+ ✓ test/app-spec.test.ts > app spec > accepts the fixed brief for test example 1 (leave request)
+ ✓ test/app-spec.test.ts > app spec > names the problem in plain words when a screen is for an unknown role
+ ✓ test/app-spec.test.ts > app spec > refuses a choice field with no choices
+ ✓ test/app-spec.test.ts > app spec > refuses more than five core actions
+ Test Files  5 passed (5)
+      Tests  52 passed (52)
+exit code: 0
