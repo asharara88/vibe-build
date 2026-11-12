@@ -1,0 +1,24 @@
+# Control: the demonstration's clean-up when the run fails early. The certificate path in builder/scripts/demo-isolation.ts (line 66) was changed, for this run only, to one that does not exist, then restored with git checkout. Commit cf5d41f, 12 Nov 2026 21:29 UTC, from builder/.
+# Expected: the run fails while making the sandbox (before any image is built or container started), and the clean-up still removes the temporary folder it had made, which by then holds made-up secrets, and reports nothing left.
+# The change, as git diff:
+diff --git a/builder/scripts/demo-isolation.ts b/builder/scripts/demo-isolation.ts
+index abac102..c599add 100644
+--- a/builder/scripts/demo-isolation.ts
++++ b/builder/scripts/demo-isolation.ts
+@@ -63,7 +63,7 @@ const projectSpec = (dir: string): SandboxSpec => {
+     allowHosts: ALLOW_HOSTS,
+     gatewayUrl: `http://127.0.0.1:${GATEWAY_PORT}`,
+     builderDir,
+-    hostProxy: { url: process.env.HTTPS_PROXY ?? "", caBundlePath: "/root/.ccr/ca-bundle.crt" },
++    hostProxy: { url: process.env.HTTPS_PROXY ?? "", caBundlePath: "/made-up/not-there/ca-bundle.crt" },
+     devDbPort: PROJECT_DB_PORT,
+     app: { buildContext: workspace, port: 3131, env: { APP_URL: "http://127.0.0.1:3131" }, writablePaths: ["/app/.next/cache"], toolsEnv: { APP_URL: "http://127.0.0.1:3131" } },
+     engine: { workspace, changeSets: join(builderDir, "scripted") },
+# Temporary folders named builder-isolation-* in TMPDIR before the run: 0
+# npx tsx scripts/demo-isolation.ts
+FAILED: ENOENT: no such file or directory, copyfile '/made-up/not-there/ca-bundle.crt' -> '<tmp>/builder-isolation-xZ26sp/workspace/certs/session-ca.crt'
+
+Clean-up: containers, network, volume, images, the stand-in listener and the temporary folder removed. Left behind: project containers: none; project networks: none; project volumes: none; comparison container: none; project images: none; temporary folder: none.
+exit code: 1
+# Temporary folders named builder-isolation-* in TMPDIR after the run (listed by this script, not by the demonstration): 0
+# Restored with git checkout; git diff --stat -- builder afterwards: empty (the file is as committed)

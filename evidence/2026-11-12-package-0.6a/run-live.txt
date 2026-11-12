@@ -1,0 +1,504 @@
+# npx tsx scripts/demo-isolation.ts ../evidence/2026-11-12-package-0.6a   (from builder/, commit cf5d41f, 12 Nov 2026 21:28 UTC)
+Package 0.6a: isolation checked on the development profile, from inside the project's containers.
+Compose project builder_demo_isolation, profile development-cloud-session. Egress list: registry.npmjs.org.
+The session proxy, as given to the probe: 127.0.0.1:45887 (host and port only).
+
+== 1. The project's services, as the Compose file gives them ==
+  app    network: host; user: the image's own; read-only root: true; capabilities dropped: ALL
+  tools  network: host; user: the image's own; read-only root: true; capabilities dropped: ALL
+  engine network: none; user: node; read-only root: true; capabilities dropped: ALL
+  db     network: host; user: the image's own; read-only root: false; capabilities dropped: ALL
+  egress network: host; user: node; read-only root: true; capabilities dropped: ALL
+
+== 2. Images built, database and egress proxy started ==
+  App image built (user app), tools image built (user node), from the house template, in 7 s.
+  Container db: running (healthy)
+  Container egress: running
+  Stand-in listener on the gateway's address 127.0.0.1:4010: listening (accepts a connection and closes it; the real gateway is not running)
+
+== 3. Read on the machine for group G (read-only; nothing is connected to here) ==
+  Listening TCP sockets on the machine (/proc/net/tcp): 0.0.0.0:2024, 0.0.0.0:3128, 0.0.0.0:5562, 127.0.0.1:33427, 127.0.0.1:4010, 127.0.0.1:45887, 127.0.0.1:5432
+  Gateway address of Docker's default network (docker network inspect bridge): 172.17.0.1
+
+== 4. The probe in each container ==
+  Each project container is started with `docker compose run` on its own service, so it has that service's network, hardening, user and settings file;
+  the probe is mounted read-only at /probe/isolation-probe.mjs and is its command, in place of the service's own. The comparison container is started with `docker run`.
+  Settings given to the probe: {"sessionProxy":"127.0.0.1:45887","projectDbPort":5562,"egressPort":3128,"gatewayPort":4010,"builderDbPort":5432,"exampleAddress":"93.184.215.14","timeoutMs":5000,"bridgeGateway":"172.17.0.1","machineListeners":["0.0.0.0:2024","0.0.0.0:3128","0.0.0.0:5562","127.0.0.1:33427","127.0.0.1:4010","127.0.0.1:45887","127.0.0.1:5432"]}
+
+  -- app container (host network) --
+  user id: 100
+  network interfaces that are up and running, with their addresses (as Node lists them): lo (127.0.0.1); eth0 (192.0.2.2)
+  every network interface in /sys/class/net, up or down (name and state only): docker0 (down), eth0 (up), ifb0 (down), ifb1 (down), lo (unknown)
+  name servers in /etc/resolv.conf: 8.8.8.8, 8.8.4.4
+  listening TCP ports seen in /proc/net: 0.0.0.0:2024, 0.0.0.0:3128, 0.0.0.0:5562, 127.0.0.1:33427, 127.0.0.1:4010, 127.0.0.1:45887, 127.0.0.1:5432
+  other TCP sockets seen, in any state (/proc/net/tcp): 43
+  UDP sockets with no remote end, seen in /proc/net/udp: none
+  abstract Unix sockets seen in /proc/net/unix (listed only, not connected to): @docker_cli_c4a20c64f4c502a7f626445593e39674
+  Docker's socket inside (/var/run/docker.sock, /run/docker.sock): absent
+  settings that name a proxy or a certificate (names only): none
+  a copy of the session certificate inside: none
+  example.com's address used by B2 and B3: 93.184.215.14, as given in the settings: example.com could not be looked up here (ENOTFOUND)
+  A1     registry.npmjs.org:443  [HTTPS GET /-/ping, sent directly, no proxy]
+         -> certificate not trusted (SELF_SIGNED_CERT_IN_CHAIN)
+  A2     registry.npmjs.org:80  [HTTP GET /-/ping, sent directly, no proxy]
+         -> HTTP 301; server: cloudflare; location: https://registry.npmjs.org/-/ping
+  A3     example.com:443  [HTTPS GET /, sent directly, no proxy]
+         -> name not found (ENOTFOUND)
+  A4     example.com:80  [HTTP GET /, sent directly, no proxy]
+         -> name not found (ENOTFOUND)
+  A5     github.com:80  [HTTP GET /, sent directly, no proxy]
+         -> HTTP 301; location: https://github.com/
+  B1     1.1.1.1:443  [TCP connection, opened and closed]
+         -> connected
+  B2     93.184.215.14:80  [TCP connection, opened and closed]
+         -> connected
+  B3     93.184.215.14:80  [HTTP GET / with the name example.com, no proxy]
+         -> HTTP 403; x-deny-reason: host_not_allowed; says: "Host not in allowlist: example.com. Add this host to your network egress settings to allow access."
+  B4     169.254.169.254:80  [HTTP GET /, no extra headers, no proxy]
+         -> HTTP 403; x-deny-reason: private_dest_ip; says: "Destination IP is in a private/reserved range"
+  C1     1.1.1.1:22  [TCP connection, opened and closed]
+         -> refused (ECONNREFUSED)
+  C2     1.1.1.1:25  [TCP connection, opened and closed]
+         -> refused (ECONNREFUSED)
+  C3     1.1.1.1:53  [TCP connection, opened and closed]
+         -> refused (ECONNREFUSED)
+  C4     1.1.1.1:8080  [TCP connection, opened and closed]
+         -> refused (ECONNREFUSED)
+  C5     127.0.0.1:5432  [TCP connection, opened and closed]
+         -> connected
+  C6     127.0.0.1:4010  [TCP connection, opened and closed]
+         -> connected
+  C7     127.0.0.1:5562  [TCP connection, opened and closed]
+         -> connected
+  C8     127.0.0.1:3128  [TCP connection, opened and closed]
+         -> connected
+  C9     127.0.0.1:45887  [TCP connection, opened and closed]
+         -> connected
+  X2024  127.0.0.1:2024  [TCP connection, opened and closed]
+         -> connected
+  X33427 127.0.0.1:33427  [TCP connection, opened and closed]
+         -> connected
+  G2024  172.17.0.1:2024  [TCP connection, opened and closed; nothing sent]
+         -> connected
+  G3128  172.17.0.1:3128  [TCP connection, opened and closed; nothing sent]
+         -> connected
+  G4010  172.17.0.1:4010  [TCP connection, opened and closed; nothing sent]
+         -> refused (ECONNREFUSED)
+  G5432  172.17.0.1:5432  [TCP connection, opened and closed; nothing sent]
+         -> refused (ECONNREFUSED)
+  G5562  172.17.0.1:5562  [TCP connection, opened and closed; nothing sent]
+         -> connected
+  G33427 172.17.0.1:33427  [TCP connection, opened and closed; nothing sent]
+         -> refused (ECONNREFUSED)
+  G45887 172.17.0.1:45887  [TCP connection, opened and closed; nothing sent]
+         -> refused (ECONNREFUSED)
+  D1     registry.npmjs.org  [lookup with the container's own resolver]
+         -> found 12 addresses; 104.16.11.34, 104.16.3.34, 104.16.4.34
+  D2     example.com  [lookup with the container's own resolver]
+         -> name not found (ENOTFOUND)
+  D3     db  [lookup with the container's own resolver]
+         -> name not found (ENOTFOUND)
+  D4     metadata.google.internal  [lookup with the container's own resolver]
+         -> name not found (ENOTFOUND)
+  D5     registry.npmjs.org @1.1.1.1  [question sent to 1.1.1.1 port 53 (UDP)]
+         -> found 12 addresses; 104.16.11.34, 104.16.3.34, 104.16.4.34
+  D6     example.com @1.1.1.1  [question sent to 1.1.1.1 port 53 (UDP)]
+         -> name not found (ENOTFOUND)
+  E1     registry.npmjs.org:443  [CONNECT through 127.0.0.1:3128]
+         -> proxy answered 200
+  E2     registry.npmjs.org:443  [CONNECT through 127.0.0.1:3128, then HTTPS GET /-/ping]
+         -> HTTP 200; server: cloudflare
+  E3     example.com:443  [CONNECT through 127.0.0.1:3128]
+         -> proxy answered 403; says: "egress refused: example.com is not an allowed host"
+  E4     registry.npmjs.org:80  [HTTP GET http://registry.npmjs.org/-/ping through 127.0.0.1:3128]
+         -> HTTP 405; says: "agent-proxy relay: this proxy only accepts HTTPS CONNECT tunnels. Plain-HTTP/absolute-form requests are not su"
+  E5     example.com:80  [HTTP GET http://example.com/ through 127.0.0.1:3128]
+         -> HTTP 403; says: "egress refused: example.com is not an allowed host"
+  F1     registry.npmjs.org:443  [CONNECT through the cloud session's proxy (127.0.0.1:45887)]
+         -> proxy answered 200
+  F2     github.com:443  [CONNECT through the cloud session's proxy (127.0.0.1:45887)]
+         -> proxy answered 200
+  F3     example.com:443  [CONNECT through the cloud session's proxy (127.0.0.1:45887)]
+         -> proxy answered 403; says: "request blocked: no rule or allowlist entry allows host "example.com""
+  F4     github.com:443  [CONNECT through the cloud session's proxy (127.0.0.1:45887), then HTTPS GET /robots.txt]
+         -> certificate not trusted (SELF_SIGNED_CERT_IN_CHAIN); the proxy answered 200; the error came after
+  42 attempts; 28 got an answer (a connection opened, an HTTP status, a proxy's answer, or an address found).
+    toward outside: 7 of 13 got an answer
+    toward host: 10 of 14 got an answer
+    toward lookup: 2 of 6 got an answer
+    toward egress-proxy: 5 of 5 got an answer
+    toward session-proxy: 4 of 4 got an answer
+
+  -- tools container (host network) --
+  user id: 1000
+  network interfaces that are up and running, with their addresses (as Node lists them): lo (127.0.0.1); eth0 (192.0.2.2)
+  every network interface in /sys/class/net, up or down (name and state only): docker0 (down), eth0 (up), ifb0 (down), ifb1 (down), lo (unknown)
+  name servers in /etc/resolv.conf: 8.8.8.8, 8.8.4.4
+  listening TCP ports seen in /proc/net: 0.0.0.0:2024, 0.0.0.0:3128, 0.0.0.0:5562, 127.0.0.1:33427, 127.0.0.1:4010, 127.0.0.1:45887, 127.0.0.1:5432
+  other TCP sockets seen, in any state (/proc/net/tcp): 76
+  UDP sockets with no remote end, seen in /proc/net/udp: none
+  abstract Unix sockets seen in /proc/net/unix (listed only, not connected to): @docker_cli_9d4daa0cab37be6f1bc15245cc5760e0
+  Docker's socket inside (/var/run/docker.sock, /run/docker.sock): absent
+  settings that name a proxy or a certificate (names only): none
+  a copy of the session certificate inside: /certs/session-ca.crt
+  example.com's address used by B2 and B3: 93.184.215.14, as given in the settings: example.com could not be looked up here (ENOTFOUND)
+  A1     registry.npmjs.org:443  [HTTPS GET /-/ping, sent directly, no proxy; trusting also /certs/session-ca.crt]
+         -> HTTP 200; server: cloudflare
+  A2     registry.npmjs.org:80  [HTTP GET /-/ping, sent directly, no proxy]
+         -> HTTP 301; server: cloudflare; location: https://registry.npmjs.org/-/ping
+  A3     example.com:443  [HTTPS GET /, sent directly, no proxy; trusting also /certs/session-ca.crt]
+         -> name not found (ENOTFOUND)
+  A4     example.com:80  [HTTP GET /, sent directly, no proxy]
+         -> name not found (ENOTFOUND)
+  A5     github.com:80  [HTTP GET /, sent directly, no proxy]
+         -> HTTP 301; location: https://github.com/
+  B1     1.1.1.1:443  [TCP connection, opened and closed]
+         -> connected
+  B2     93.184.215.14:80  [TCP connection, opened and closed]
+         -> connected
+  B3     93.184.215.14:80  [HTTP GET / with the name example.com, no proxy]
+         -> HTTP 403; x-deny-reason: host_not_allowed; says: "Host not in allowlist: example.com. Add this host to your network egress settings to allow access."
+  B4     169.254.169.254:80  [HTTP GET /, no extra headers, no proxy]
+         -> HTTP 403; x-deny-reason: private_dest_ip; says: "Destination IP is in a private/reserved range"
+  C1     1.1.1.1:22  [TCP connection, opened and closed]
+         -> refused (ECONNREFUSED)
+  C2     1.1.1.1:25  [TCP connection, opened and closed]
+         -> refused (ECONNREFUSED)
+  C3     1.1.1.1:53  [TCP connection, opened and closed]
+         -> refused (ECONNREFUSED)
+  C4     1.1.1.1:8080  [TCP connection, opened and closed]
+         -> refused (ECONNREFUSED)
+  C5     127.0.0.1:5432  [TCP connection, opened and closed]
+         -> connected
+  C6     127.0.0.1:4010  [TCP connection, opened and closed]
+         -> connected
+  C7     127.0.0.1:5562  [TCP connection, opened and closed]
+         -> connected
+  C8     127.0.0.1:3128  [TCP connection, opened and closed]
+         -> connected
+  C9     127.0.0.1:45887  [TCP connection, opened and closed]
+         -> connected
+  X2024  127.0.0.1:2024  [TCP connection, opened and closed]
+         -> connected
+  X33427 127.0.0.1:33427  [TCP connection, opened and closed]
+         -> connected
+  G2024  172.17.0.1:2024  [TCP connection, opened and closed; nothing sent]
+         -> connected
+  G3128  172.17.0.1:3128  [TCP connection, opened and closed; nothing sent]
+         -> connected
+  G4010  172.17.0.1:4010  [TCP connection, opened and closed; nothing sent]
+         -> refused (ECONNREFUSED)
+  G5432  172.17.0.1:5432  [TCP connection, opened and closed; nothing sent]
+         -> refused (ECONNREFUSED)
+  G5562  172.17.0.1:5562  [TCP connection, opened and closed; nothing sent]
+         -> connected
+  G33427 172.17.0.1:33427  [TCP connection, opened and closed; nothing sent]
+         -> refused (ECONNREFUSED)
+  G45887 172.17.0.1:45887  [TCP connection, opened and closed; nothing sent]
+         -> refused (ECONNREFUSED)
+  D1     registry.npmjs.org  [lookup with the container's own resolver]
+         -> found 12 addresses; 104.16.11.34, 104.16.3.34, 104.16.4.34
+  D2     example.com  [lookup with the container's own resolver]
+         -> name not found (ENOTFOUND)
+  D3     db  [lookup with the container's own resolver]
+         -> name not found (ENOTFOUND)
+  D4     metadata.google.internal  [lookup with the container's own resolver]
+         -> name not found (ENOTFOUND)
+  D5     registry.npmjs.org @1.1.1.1  [question sent to 1.1.1.1 port 53 (UDP)]
+         -> found 12 addresses; 104.16.11.34, 104.16.3.34, 104.16.4.34
+  D6     example.com @1.1.1.1  [question sent to 1.1.1.1 port 53 (UDP)]
+         -> name not found (ENOTFOUND)
+  E1     registry.npmjs.org:443  [CONNECT through 127.0.0.1:3128]
+         -> proxy answered 200
+  E2     registry.npmjs.org:443  [CONNECT through 127.0.0.1:3128, then HTTPS GET /-/ping; trusting also /certs/session-ca.crt]
+         -> HTTP 200; server: cloudflare
+  E3     example.com:443  [CONNECT through 127.0.0.1:3128]
+         -> proxy answered 403; says: "egress refused: example.com is not an allowed host"
+  E4     registry.npmjs.org:80  [HTTP GET http://registry.npmjs.org/-/ping through 127.0.0.1:3128]
+         -> HTTP 405; says: "agent-proxy relay: this proxy only accepts HTTPS CONNECT tunnels. Plain-HTTP/absolute-form requests are not su"
+  E5     example.com:80  [HTTP GET http://example.com/ through 127.0.0.1:3128]
+         -> HTTP 403; says: "egress refused: example.com is not an allowed host"
+  F1     registry.npmjs.org:443  [CONNECT through the cloud session's proxy (127.0.0.1:45887)]
+         -> proxy answered 200
+  F2     github.com:443  [CONNECT through the cloud session's proxy (127.0.0.1:45887)]
+         -> proxy answered 200
+  F3     example.com:443  [CONNECT through the cloud session's proxy (127.0.0.1:45887)]
+         -> proxy answered 403; says: "request blocked: no rule or allowlist entry allows host "example.com""
+  F4     github.com:443  [CONNECT through the cloud session's proxy (127.0.0.1:45887), then HTTPS GET /robots.txt; trusting also /certs/session-ca.crt]
+         -> HTTP 403; says: "{"message":"This GitHub API path is not available: sessions are bound to their configured repositories. Use re"
+  42 attempts; 28 got an answer (a connection opened, an HTTP status, a proxy's answer, or an address found).
+    toward outside: 7 of 13 got an answer
+    toward host: 10 of 14 got an answer
+    toward lookup: 2 of 6 got an answer
+    toward egress-proxy: 5 of 5 got an answer
+    toward session-proxy: 4 of 4 got an answer
+
+  -- engine container (no network) --
+  (127.0.0.1 in this container is its own loopback address, not the machine's.)
+  user id: 1000
+  network interfaces that are up and running, with their addresses (as Node lists them): lo (127.0.0.1)
+  every network interface in /sys/class/net, up or down (name and state only): lo (unknown)
+  name servers in /etc/resolv.conf: 8.8.8.8, 8.8.4.4
+  listening TCP ports seen in /proc/net: none
+  other TCP sockets seen, in any state (/proc/net/tcp): 0
+  UDP sockets with no remote end, seen in /proc/net/udp: none
+  abstract Unix sockets seen in /proc/net/unix (listed only, not connected to): none
+  Docker's socket inside (/var/run/docker.sock, /run/docker.sock): absent
+  settings that name a proxy or a certificate (names only): none
+  a copy of the session certificate inside: none
+  example.com's address used by B2 and B3: 93.184.215.14, as given in the settings: example.com could not be looked up here (EAI_AGAIN)
+  A1     registry.npmjs.org:443  [HTTPS GET /-/ping, sent directly, no proxy]
+         -> no name server answered (EAI_AGAIN)
+  A2     registry.npmjs.org:80  [HTTP GET /-/ping, sent directly, no proxy]
+         -> no name server answered (EAI_AGAIN)
+  A3     example.com:443  [HTTPS GET /, sent directly, no proxy]
+         -> no name server answered (EAI_AGAIN)
+  A4     example.com:80  [HTTP GET /, sent directly, no proxy]
+         -> no name server answered (EAI_AGAIN)
+  A5     github.com:80  [HTTP GET /, sent directly, no proxy]
+         -> no name server answered (EAI_AGAIN)
+  B1     1.1.1.1:443  [TCP connection, opened and closed]
+         -> network unreachable (ENETUNREACH)
+  B2     93.184.215.14:80  [TCP connection, opened and closed]
+         -> network unreachable (ENETUNREACH)
+  B3     93.184.215.14:80  [HTTP GET / with the name example.com, no proxy]
+         -> network unreachable (ENETUNREACH)
+  B4     169.254.169.254:80  [HTTP GET /, no extra headers, no proxy]
+         -> network unreachable (ENETUNREACH)
+  C1     1.1.1.1:22  [TCP connection, opened and closed]
+         -> network unreachable (ENETUNREACH)
+  C2     1.1.1.1:25  [TCP connection, opened and closed]
+         -> network unreachable (ENETUNREACH)
+  C3     1.1.1.1:53  [TCP connection, opened and closed]
+         -> network unreachable (ENETUNREACH)
+  C4     1.1.1.1:8080  [TCP connection, opened and closed]
+         -> network unreachable (ENETUNREACH)
+  C5     127.0.0.1:5432  [TCP connection, opened and closed]
+         -> refused (ECONNREFUSED), at its own loopback address
+  C6     127.0.0.1:4010  [TCP connection, opened and closed]
+         -> refused (ECONNREFUSED), at its own loopback address
+  C7     127.0.0.1:5562  [TCP connection, opened and closed]
+         -> refused (ECONNREFUSED), at its own loopback address
+  C8     127.0.0.1:3128  [TCP connection, opened and closed]
+         -> refused (ECONNREFUSED), at its own loopback address
+  C9     127.0.0.1:45887  [TCP connection, opened and closed]
+         -> refused (ECONNREFUSED), at its own loopback address
+  G2024  172.17.0.1:2024  [TCP connection, opened and closed; nothing sent]
+         -> network unreachable (ENETUNREACH)
+  G3128  172.17.0.1:3128  [TCP connection, opened and closed; nothing sent]
+         -> network unreachable (ENETUNREACH)
+  G4010  172.17.0.1:4010  [TCP connection, opened and closed; nothing sent]
+         -> network unreachable (ENETUNREACH)
+  G5432  172.17.0.1:5432  [TCP connection, opened and closed; nothing sent]
+         -> network unreachable (ENETUNREACH)
+  G5562  172.17.0.1:5562  [TCP connection, opened and closed; nothing sent]
+         -> network unreachable (ENETUNREACH)
+  G33427 172.17.0.1:33427  [TCP connection, opened and closed; nothing sent]
+         -> network unreachable (ENETUNREACH)
+  G45887 172.17.0.1:45887  [TCP connection, opened and closed; nothing sent]
+         -> network unreachable (ENETUNREACH)
+  D1     registry.npmjs.org  [lookup with the container's own resolver]
+         -> no name server answered (EAI_AGAIN)
+  D2     example.com  [lookup with the container's own resolver]
+         -> no name server answered (EAI_AGAIN)
+  D3     db  [lookup with the container's own resolver]
+         -> no name server answered (EAI_AGAIN)
+  D4     metadata.google.internal  [lookup with the container's own resolver]
+         -> no name server answered (EAI_AGAIN)
+  D5     registry.npmjs.org @1.1.1.1  [question sent to 1.1.1.1 port 53 (UDP)]
+         -> no name server answered (ECONNREFUSED)
+  D6     example.com @1.1.1.1  [question sent to 1.1.1.1 port 53 (UDP)]
+         -> no name server answered (ECONNREFUSED)
+  E1     registry.npmjs.org:443  [CONNECT through 127.0.0.1:3128]
+         -> refused (ECONNREFUSED), at its own loopback address; the proxy itself could not be reached
+  E2     registry.npmjs.org:443  [CONNECT through 127.0.0.1:3128, then HTTPS GET /-/ping]
+         -> refused (ECONNREFUSED), at its own loopback address; the proxy itself could not be reached
+  E3     example.com:443  [CONNECT through 127.0.0.1:3128]
+         -> refused (ECONNREFUSED), at its own loopback address; the proxy itself could not be reached
+  E4     registry.npmjs.org:80  [HTTP GET http://registry.npmjs.org/-/ping through 127.0.0.1:3128]
+         -> refused (ECONNREFUSED), at its own loopback address
+  E5     example.com:80  [HTTP GET http://example.com/ through 127.0.0.1:3128]
+         -> refused (ECONNREFUSED), at its own loopback address
+  F1     registry.npmjs.org:443  [CONNECT through the cloud session's proxy (127.0.0.1:45887)]
+         -> refused (ECONNREFUSED), at its own loopback address; the proxy itself could not be reached
+  F2     github.com:443  [CONNECT through the cloud session's proxy (127.0.0.1:45887)]
+         -> refused (ECONNREFUSED), at its own loopback address; the proxy itself could not be reached
+  F3     example.com:443  [CONNECT through the cloud session's proxy (127.0.0.1:45887)]
+         -> refused (ECONNREFUSED), at its own loopback address; the proxy itself could not be reached
+  F4     github.com:443  [CONNECT through the cloud session's proxy (127.0.0.1:45887), then HTTPS GET /robots.txt]
+         -> refused (ECONNREFUSED), at its own loopback address; the proxy itself could not be reached
+  40 attempts; 0 got an answer (a connection opened, an HTTP status, a proxy's answer, or an address found).
+    toward outside: 0 of 13 got an answer
+    toward host: 0 of 12 got an answer
+    toward lookup: 0 of 6 got an answer
+    toward egress-proxy: 0 of 5 got an answer
+    toward session-proxy: 0 of 4 got an answer
+
+  -- comparison: default network, not a project container --
+  (127.0.0.1 in this container is its own loopback address, not the machine's.)
+  user id: 1000
+  network interfaces that are up and running, with their addresses (as Node lists them): lo (127.0.0.1); eth0 (172.17.0.2)
+  every network interface in /sys/class/net, up or down (name and state only): eth0 (up), lo (unknown)
+  name servers in /etc/resolv.conf: 8.8.8.8, 8.8.4.4
+  listening TCP ports seen in /proc/net: none
+  other TCP sockets seen, in any state (/proc/net/tcp): 0
+  UDP sockets with no remote end, seen in /proc/net/udp: none
+  abstract Unix sockets seen in /proc/net/unix (listed only, not connected to): none
+  Docker's socket inside (/var/run/docker.sock, /run/docker.sock): absent
+  settings that name a proxy or a certificate (names only): none
+  a copy of the session certificate inside: none
+  example.com's address used by B2 and B3: 93.184.215.14, as given in the settings: example.com could not be looked up here (ENOTFOUND)
+  A1     registry.npmjs.org:443  [HTTPS GET /-/ping, sent directly, no proxy]
+         -> certificate not trusted (SELF_SIGNED_CERT_IN_CHAIN)
+  A2     registry.npmjs.org:80  [HTTP GET /-/ping, sent directly, no proxy]
+         -> HTTP 301; server: cloudflare; location: https://registry.npmjs.org/-/ping
+  A3     example.com:443  [HTTPS GET /, sent directly, no proxy]
+         -> name not found (ENOTFOUND)
+  A4     example.com:80  [HTTP GET /, sent directly, no proxy]
+         -> name not found (ENOTFOUND)
+  A5     github.com:80  [HTTP GET /, sent directly, no proxy]
+         -> HTTP 301; location: https://github.com/
+  B1     1.1.1.1:443  [TCP connection, opened and closed]
+         -> connected
+  B2     93.184.215.14:80  [TCP connection, opened and closed]
+         -> connected
+  B3     93.184.215.14:80  [HTTP GET / with the name example.com, no proxy]
+         -> HTTP 403; x-deny-reason: host_not_allowed; says: "Host not in allowlist: example.com. Add this host to your network egress settings to allow access."
+  B4     169.254.169.254:80  [HTTP GET /, no extra headers, no proxy]
+         -> HTTP 403; x-deny-reason: private_dest_ip; says: "Destination IP is in a private/reserved range"
+  C1     1.1.1.1:22  [TCP connection, opened and closed]
+         -> refused (ECONNREFUSED)
+  C2     1.1.1.1:25  [TCP connection, opened and closed]
+         -> refused (ECONNREFUSED)
+  C3     1.1.1.1:53  [TCP connection, opened and closed]
+         -> refused (ECONNREFUSED)
+  C4     1.1.1.1:8080  [TCP connection, opened and closed]
+         -> refused (ECONNREFUSED)
+  C5     127.0.0.1:5432  [TCP connection, opened and closed]
+         -> refused (ECONNREFUSED), at its own loopback address
+  C6     127.0.0.1:4010  [TCP connection, opened and closed]
+         -> refused (ECONNREFUSED), at its own loopback address
+  C7     127.0.0.1:5562  [TCP connection, opened and closed]
+         -> refused (ECONNREFUSED), at its own loopback address
+  C8     127.0.0.1:3128  [TCP connection, opened and closed]
+         -> refused (ECONNREFUSED), at its own loopback address
+  C9     127.0.0.1:45887  [TCP connection, opened and closed]
+         -> refused (ECONNREFUSED), at its own loopback address
+  G2024  172.17.0.1:2024  [TCP connection, opened and closed; nothing sent]
+         -> connected
+  G3128  172.17.0.1:3128  [TCP connection, opened and closed; nothing sent]
+         -> connected
+  G4010  172.17.0.1:4010  [TCP connection, opened and closed; nothing sent]
+         -> refused (ECONNREFUSED)
+  G5432  172.17.0.1:5432  [TCP connection, opened and closed; nothing sent]
+         -> refused (ECONNREFUSED)
+  G5562  172.17.0.1:5562  [TCP connection, opened and closed; nothing sent]
+         -> connected
+  G33427 172.17.0.1:33427  [TCP connection, opened and closed; nothing sent]
+         -> refused (ECONNREFUSED)
+  G45887 172.17.0.1:45887  [TCP connection, opened and closed; nothing sent]
+         -> refused (ECONNREFUSED)
+  D1     registry.npmjs.org  [lookup with the container's own resolver]
+         -> found 12 addresses; 104.16.11.34, 104.16.3.34, 104.16.4.34
+  D2     example.com  [lookup with the container's own resolver]
+         -> name not found (ENOTFOUND)
+  D3     db  [lookup with the container's own resolver]
+         -> name not found (ENOTFOUND)
+  D4     metadata.google.internal  [lookup with the container's own resolver]
+         -> name not found (ENOTFOUND)
+  D5     registry.npmjs.org @1.1.1.1  [question sent to 1.1.1.1 port 53 (UDP)]
+         -> found 12 addresses; 104.16.11.34, 104.16.3.34, 104.16.4.34
+  D6     example.com @1.1.1.1  [question sent to 1.1.1.1 port 53 (UDP)]
+         -> name not found (ENOTFOUND)
+  E1     registry.npmjs.org:443  [CONNECT through 127.0.0.1:3128]
+         -> refused (ECONNREFUSED), at its own loopback address; the proxy itself could not be reached
+  E2     registry.npmjs.org:443  [CONNECT through 127.0.0.1:3128, then HTTPS GET /-/ping]
+         -> refused (ECONNREFUSED), at its own loopback address; the proxy itself could not be reached
+  E3     example.com:443  [CONNECT through 127.0.0.1:3128]
+         -> refused (ECONNREFUSED), at its own loopback address; the proxy itself could not be reached
+  E4     registry.npmjs.org:80  [HTTP GET http://registry.npmjs.org/-/ping through 127.0.0.1:3128]
+         -> refused (ECONNREFUSED), at its own loopback address
+  E5     example.com:80  [HTTP GET http://example.com/ through 127.0.0.1:3128]
+         -> refused (ECONNREFUSED), at its own loopback address
+  F1     registry.npmjs.org:443  [CONNECT through the cloud session's proxy (127.0.0.1:45887)]
+         -> refused (ECONNREFUSED), at its own loopback address; the proxy itself could not be reached
+  F2     github.com:443  [CONNECT through the cloud session's proxy (127.0.0.1:45887)]
+         -> refused (ECONNREFUSED), at its own loopback address; the proxy itself could not be reached
+  F3     example.com:443  [CONNECT through the cloud session's proxy (127.0.0.1:45887)]
+         -> refused (ECONNREFUSED), at its own loopback address; the proxy itself could not be reached
+  F4     github.com:443  [CONNECT through the cloud session's proxy (127.0.0.1:45887), then HTTPS GET /robots.txt]
+         -> refused (ECONNREFUSED), at its own loopback address; the proxy itself could not be reached
+  40 attempts; 12 got an answer (a connection opened, an HTTP status, a proxy's answer, or an address found).
+    toward outside: 7 of 13 got an answer
+    toward host: 3 of 12 got an answer
+    toward lookup: 2 of 6 got an answer
+    toward egress-proxy: 0 of 5 got an answer
+    toward session-proxy: 0 of 4 got an answer
+
+== 5. Every attempt, one row each, one column per container ==
+id     | target                      | what                                                                                      | app container (host network)                        | tools container (host network) | engine container (no network)                       | comparison: default network, not a project container
+-------|-----------------------------|-------------------------------------------------------------------------------------------|-----------------------------------------------------|--------------------------------|-----------------------------------------------------|-----------------------------------------------------
+A1     | registry.npmjs.org:443      | a host the egress list allows, HTTPS                                                      | certificate not trusted (SELF_SIGNED_CERT_IN_CHAIN) | HTTP 200                       | no name server answered (EAI_AGAIN)                 | certificate not trusted (SELF_SIGNED_CERT_IN_CHAIN)
+A2     | registry.npmjs.org:80       | a host the egress list allows, plain HTTP                                                 | HTTP 301                                            | HTTP 301                       | no name server answered (EAI_AGAIN)                 | HTTP 301
+A3     | example.com:443             | a host the egress list refuses, HTTPS                                                     | name not found (ENOTFOUND)                          | name not found (ENOTFOUND)     | no name server answered (EAI_AGAIN)                 | name not found (ENOTFOUND)
+A4     | example.com:80              | a host the egress list refuses, plain HTTP                                                | name not found (ENOTFOUND)                          | name not found (ENOTFOUND)     | no name server answered (EAI_AGAIN)                 | name not found (ENOTFOUND)
+A5     | github.com:80               | another host the egress list refuses, plain HTTP                                          | HTTP 301                                            | HTTP 301                       | no name server answered (EAI_AGAIN)                 | HTTP 301
+B1     | 1.1.1.1:443                 | a public address, HTTPS port                                                              | connected                                           | connected                      | network unreachable (ENETUNREACH)                   | connected
+B2     | 93.184.215.14:80            | the address given for example.com (not checked), HTTP port                                | connected                                           | connected                      | network unreachable (ENETUNREACH)                   | connected
+B3     | 93.184.215.14:80            | the address given for example.com (not checked), plain HTTP                               | HTTP 403                                            | HTTP 403                       | network unreachable (ENETUNREACH)                   | HTTP 403
+B4     | 169.254.169.254:80          | the cloud's machine-information address (link-local)                                      | HTTP 403                                            | HTTP 403                       | network unreachable (ENETUNREACH)                   | HTTP 403
+C1     | 1.1.1.1:22                  | an outside address, port 22 (remote login)                                                | refused (ECONNREFUSED)                              | refused (ECONNREFUSED)         | network unreachable (ENETUNREACH)                   | refused (ECONNREFUSED)
+C2     | 1.1.1.1:25                  | an outside address, port 25 (mail)                                                        | refused (ECONNREFUSED)                              | refused (ECONNREFUSED)         | network unreachable (ENETUNREACH)                   | refused (ECONNREFUSED)
+C3     | 1.1.1.1:53                  | an outside address, port 53 (name service over TCP)                                       | refused (ECONNREFUSED)                              | refused (ECONNREFUSED)         | network unreachable (ENETUNREACH)                   | refused (ECONNREFUSED)
+C4     | 1.1.1.1:8080                | an outside address, port 8080                                                             | refused (ECONNREFUSED)                              | refused (ECONNREFUSED)         | network unreachable (ENETUNREACH)                   | refused (ECONNREFUSED)
+C5     | 127.0.0.1:5432              | the builder's own database (PostgreSQL)                                                   | connected                                           | connected                      | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address
+C6     | 127.0.0.1:4010              | the model gateway's port                                                                  | connected                                           | connected                      | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address
+C7     | 127.0.0.1:5562              | the project's database                                                                    | connected                                           | connected                      | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address
+C8     | 127.0.0.1:3128              | the project's egress proxy                                                                | connected                                           | connected                      | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address
+C9     | 127.0.0.1:45887             | the cloud session's proxy                                                                 | connected                                           | connected                      | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address
+X2024  | 127.0.0.1:2024              | another listening port, seen inside the container                                         | connected                                           | connected                      | not tried                                           | not tried
+X33427 | 127.0.0.1:33427             | another listening port, seen inside the container                                         | connected                                           | connected                      | not tried                                           | not tried
+G2024  | 172.17.0.1:2024             | port 2024, listening on the machine at 0.0.0.0 (every address), as read on the machine    | connected                                           | connected                      | network unreachable (ENETUNREACH)                   | connected
+G3128  | 172.17.0.1:3128             | port 3128, listening on the machine at 0.0.0.0 (every address), as read on the machine    | connected                                           | connected                      | network unreachable (ENETUNREACH)                   | connected
+G4010  | 172.17.0.1:4010             | port 4010, listening on the machine at 127.0.0.1 (loopback only), as read on the machine  | refused (ECONNREFUSED)                              | refused (ECONNREFUSED)         | network unreachable (ENETUNREACH)                   | refused (ECONNREFUSED)
+G5432  | 172.17.0.1:5432             | port 5432, listening on the machine at 127.0.0.1 (loopback only), as read on the machine  | refused (ECONNREFUSED)                              | refused (ECONNREFUSED)         | network unreachable (ENETUNREACH)                   | refused (ECONNREFUSED)
+G5562  | 172.17.0.1:5562             | port 5562, listening on the machine at 0.0.0.0 (every address), as read on the machine    | connected                                           | connected                      | network unreachable (ENETUNREACH)                   | connected
+G33427 | 172.17.0.1:33427            | port 33427, listening on the machine at 127.0.0.1 (loopback only), as read on the machine | refused (ECONNREFUSED)                              | refused (ECONNREFUSED)         | network unreachable (ENETUNREACH)                   | refused (ECONNREFUSED)
+G45887 | 172.17.0.1:45887            | port 45887, listening on the machine at 127.0.0.1 (loopback only), as read on the machine | refused (ECONNREFUSED)                              | refused (ECONNREFUSED)         | network unreachable (ENETUNREACH)                   | refused (ECONNREFUSED)
+D1     | registry.npmjs.org          | an outside name the egress list allows                                                    | found 12 addresses                                  | found 12 addresses             | no name server answered (EAI_AGAIN)                 | found 12 addresses
+D2     | example.com                 | an outside name the egress list refuses                                                   | name not found (ENOTFOUND)                          | name not found (ENOTFOUND)     | no name server answered (EAI_AGAIN)                 | name not found (ENOTFOUND)
+D3     | db                          | an internal-looking name: the database's name on the server profile                       | name not found (ENOTFOUND)                          | name not found (ENOTFOUND)     | no name server answered (EAI_AGAIN)                 | name not found (ENOTFOUND)
+D4     | metadata.google.internal    | an internal-looking name: the cloud's machine-information service                         | name not found (ENOTFOUND)                          | name not found (ENOTFOUND)     | no name server answered (EAI_AGAIN)                 | name not found (ENOTFOUND)
+D5     | registry.npmjs.org @1.1.1.1 | an allowed name, asking an outside name server directly                                   | found 12 addresses                                  | found 12 addresses             | no name server answered (ECONNREFUSED)              | found 12 addresses
+D6     | example.com @1.1.1.1        | a refused name, asking an outside name server directly                                    | name not found (ENOTFOUND)                          | name not found (ENOTFOUND)     | no name server answered (ECONNREFUSED)              | name not found (ENOTFOUND)
+E1     | registry.npmjs.org:443      | an allowed host, tunnel                                                                   | proxy answered 200                                  | proxy answered 200             | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address
+E2     | registry.npmjs.org:443      | an allowed host, HTTPS inside the tunnel                                                  | HTTP 200                                            | HTTP 200                       | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address
+E3     | example.com:443             | a refused host, tunnel                                                                    | proxy answered 403                                  | proxy answered 403             | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address
+E4     | registry.npmjs.org:80       | an allowed host, plain HTTP                                                               | HTTP 405                                            | HTTP 405                       | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address
+E5     | example.com:80              | a refused host, plain HTTP                                                                | HTTP 403                                            | HTTP 403                       | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address
+F1     | registry.npmjs.org:443      | a host the egress list allows                                                             | proxy answered 200                                  | proxy answered 200             | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address
+F2     | github.com:443              | a host the egress list refuses                                                            | proxy answered 200                                  | proxy answered 200             | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address
+F3     | example.com:443             | another host the egress list refuses                                                      | proxy answered 403                                  | proxy answered 403             | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address
+F4     | github.com:443              | a host the egress list refuses, HTTPS inside the tunnel                                   | certificate not trusted (SELF_SIGNED_CERT_IN_CHAIN) | HTTP 403                       | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address
+
+Engine container: every attempt failed: yes.
+
+== 6. The project's egress proxy's own log: one line per decision ==
+  {"at":"2026-11-12T21:28:17.673Z","method":"CONNECT","host":"registry.npmjs.org","port":443,"decision":"allowed"}
+  {"at":"2026-11-12T21:28:17.921Z","method":"CONNECT","host":"registry.npmjs.org","port":443,"decision":"allowed"}
+  {"at":"2026-11-12T21:28:18.389Z","method":"CONNECT","host":"example.com","port":443,"decision":"refused"}
+  {"at":"2026-11-12T21:28:18.393Z","method":"GET","host":"registry.npmjs.org","port":80,"decision":"allowed"}
+  {"at":"2026-11-12T21:28:18.402Z","method":"GET","host":"example.com","port":80,"decision":"refused"}
+  {"at":"2026-11-12T21:28:19.698Z","method":"CONNECT","host":"registry.npmjs.org","port":443,"decision":"allowed"}
+  {"at":"2026-11-12T21:28:19.929Z","method":"CONNECT","host":"registry.npmjs.org","port":443,"decision":"allowed"}
+  {"at":"2026-11-12T21:28:20.366Z","method":"CONNECT","host":"example.com","port":443,"decision":"refused"}
+  {"at":"2026-11-12T21:28:20.368Z","method":"GET","host":"registry.npmjs.org","port":80,"decision":"allowed"}
+  {"at":"2026-11-12T21:28:20.373Z","method":"GET","host":"example.com","port":80,"decision":"refused"}
+  10 decisions logged. Attempts sent directly or through the session's proxy do not pass through it.
+
+The probe's own lines, one file per container, and the table in Markdown were written to the output folder.
+
+Whole run: 36 s.
+
+Clean-up: containers, network, volume, images, the stand-in listener and the temporary folder removed. Left behind: project containers: none; project networks: none; project volumes: none; comparison container: none; project images: none; temporary folder: none.
+exit code: 0
