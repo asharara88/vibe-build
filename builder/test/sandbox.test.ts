@@ -86,10 +86,13 @@ describe("sandbox manager: compose documents", () => {
   });
 
   it("package 0.5: only the user's extra plugin folders are carried into the project's Docker client folder; a chosen context is refused; up refuses the tools service", async () => {
-    const saved = process.env.DOCKER_CONFIG;
+    const saved = { DOCKER_CONFIG: process.env.DOCKER_CONFIG, DOCKER_HOST: process.env.DOCKER_HOST, DOCKER_CONTEXT: process.env.DOCKER_CONTEXT };
     const userDir = mkdtempSync(join(tmpdir(), "builder-user-docker-"));
     try {
       process.env.DOCKER_CONFIG = userDir;
+      // The refusal of a chosen context depends on DOCKER_HOST, so neither may come from the machine running the test.
+      delete process.env.DOCKER_HOST;
+      delete process.env.DOCKER_CONTEXT;
       // Made-up values only.
       writeFileSync(
         join(userDir, "config.json"),
@@ -110,8 +113,29 @@ describe("sandbox manager: compose documents", () => {
       writeFileSync(join(userDir, "config.json"), JSON.stringify({ currentContext: "made-up-context" }));
       expect(() => dockerEnv(sb)).toThrow(/docker context use default`, or set DOCKER_HOST/);
     } finally {
-      if (saved === undefined) delete process.env.DOCKER_CONFIG;
-      else process.env.DOCKER_CONFIG = saved;
+      for (const [k, v] of Object.entries(saved)) {
+        if (v === undefined) delete process.env[k];
+        else process.env[k] = v;
+      }
+    }
+  });
+
+  it("package 0.5: an empty DOCKER_CONFIG counts as not set, so the user's own folder under HOME is read", () => {
+    const saved = { DOCKER_CONFIG: process.env.DOCKER_CONFIG, HOME: process.env.HOME };
+    const home = mkdtempSync(join(tmpdir(), "builder-home-"));
+    const dir = mkdtempSync(join(tmpdir(), "builder-sb-"));
+    try {
+      mkdirSync(join(home, ".docker"));
+      writeFileSync(join(home, ".docker", "config.json"), JSON.stringify({ cliPluginsExtraDirs: ["/made-up/home-plugins"] }));
+      process.env.HOME = home;
+      process.env.DOCKER_CONFIG = "";
+      createSandbox({ ...base, profile: "server", dir }, "sample-only-password");
+      expect(JSON.parse(readFileSync(join(dir, "docker-client", "config.json"), "utf8"))).toEqual({ cliPluginsExtraDirs: ["/made-up/home-plugins"] });
+    } finally {
+      for (const [k, v] of Object.entries(saved)) {
+        if (v === undefined) delete process.env[k];
+        else process.env[k] = v;
+      }
     }
   });
 
