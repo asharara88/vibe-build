@@ -27,7 +27,7 @@
  */
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
-import { closeSync, constants, existsSync, lstatSync, openSync, readdirSync, readFileSync, readSync, rmSync, writeFileSync } from "node:fs";
+import { closeSync, constants, existsSync, lstatSync, openSync, readdirSync, readFileSync, readlinkSync, readSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { promisify } from "node:util";
 
@@ -134,14 +134,18 @@ export function entriesGitCannotSee(workTree: string): NotAllowedEntry[] {
 /** The entries, for a message: "src/.git (named .git), src/pipe (a named pipe)". */
 export const describeNotAllowed = (entries: NotAllowedEntry[]) => entries.map((e) => `${e.path} (${e.what})`).join(", ");
 
-/** Every file git ignores in the workspace, with its fingerprint. */
+/**
+ * Every file git ignores in the workspace, with its fingerprint. A symbolic link is fingerprinted by
+ * where it points ("link:" and its target, read without following it), so pointing it elsewhere counts
+ * as a change (found by the second review of package 2.1: every link had the same fingerprint).
+ */
 async function ignoredFiles(repo: ProjectRepo): Promise<Record<string, string>> {
   const out: Record<string, string> = {};
   for (const e of parseStatus(await git(repo, ["status", "--porcelain", "-z", "--untracked-files=all", "--ignored"]))) {
     if (e.code !== "!!") continue;
     const full = join(repo.workTree, e.path);
     const st = lstatSync(full, { throwIfNoEntry: false });
-    out[e.path] = st?.isFile() ? sha256File(full) : st?.isSymbolicLink() ? "symbolic link" : "not a file";
+    out[e.path] = st?.isFile() ? sha256File(full) : st?.isSymbolicLink() ? `link:${readlinkSync(full)}` : "not a file";
   }
   return out;
 }
@@ -230,17 +234,39 @@ export async function commitAll(repo: ProjectRepo, author: string, message: stri
  * Then the workspace is compared with the last commit again, and everything still different is
  * returned as `unrestorable` (an ignored file that was there and has changed, for example: git never
  * had it). If that list is not empty, the caller must not go on.
+ *
+ * What is new is removed before the tracked files are put back (found by the second review of package
+ * 2.1). The other way round, one reset did not put back a protected folder moved aside and replaced by
+ * a link to its moved copy: `git reset --hard` wrote nothing there, and `git clean` after it removed the
+ * link and the copy, so the protected files were missing until a second reset. A round is also
+ * repeated, three rounds at most, while it still changes what is left different.
+ *
+ * Not handled (known gap 58): a folder tree deeper than the machine's path limit. git cannot read it,
+ * and `git clean` fails, so the reset rejects with git's error and the tree stays.
  */
 export async function resetToLastCommit(repo: ProjectRepo): Promise<{ removedIgnored: string[]; removedNotAllowed: string[]; unrestorable: string[] }> {
-  await git(repo, ["reset", "--quiet", "--hard", "HEAD"]);
-  // -f twice: with one, git leaves an untracked folder that holds a repository of its own. No -x:
-  // ignored files stay (the session certificate among them); the new ones are removed below.
-  await git(repo, ["clean", "--quiet", "-d", "-f", "-f"]);
-  const first = await workspaceChanges(repo);
-  // rmSync removes a link itself, never what it points to.
-  for (const e of first.notAllowed) rmSync(join(repo.workTree, e.path), { force: true, recursive: true });
-  for (const p of first.ignoredNew) rmSync(join(repo.workTree, p), { force: true, recursive: true });
-  const left = await workspaceChanges(repo);
-  const unrestorable = [...new Set([...left.changed, ...left.ignoredNew, ...left.ignoredChanged, ...left.notAllowed.map((e) => e.path)])].sort();
-  return { removedIgnored: first.ignoredNew, removedNotAllowed: first.notAllowed.map((e) => e.path), unrestorable };
+  const removedIgnored = new Set<string>();
+  const removedNotAllowed = new Set<string>();
+  let unrestorable: string[] = [];
+  for (let round = 1; round <= 3; round++) {
+    // -f twice: with one, git leaves an untracked folder that holds a repository of its own. No -x:
+    // ignored files stay (the session certificate among them); the new ones are removed below.
+    await git(repo, ["clean", "--quiet", "-d", "-f", "-f"]);
+    // rmSync removes a link itself, never what it points to.
+    for (const e of entriesGitCannotSee(repo.workTree)) {
+      rmSync(join(repo.workTree, e.path), { force: true, recursive: true });
+      removedNotAllowed.add(e.path);
+    }
+    await git(repo, ["reset", "--quiet", "--hard", "HEAD"]);
+    for (const p of (await workspaceChanges(repo)).ignoredNew) {
+      rmSync(join(repo.workTree, p), { force: true, recursive: true });
+      removedIgnored.add(p);
+    }
+    const left = await workspaceChanges(repo);
+    const still = [...new Set([...left.changed, ...left.ignoredNew, ...left.ignoredChanged, ...left.notAllowed.map((e) => e.path)])].sort();
+    const unchanged = still.join("\0") === unrestorable.join("\0");
+    unrestorable = still;
+    if (still.length === 0 || unchanged) break;
+  }
+  return { removedIgnored: [...removedIgnored].sort(), removedNotAllowed: [...removedNotAllowed].sort(), unrestorable };
 }

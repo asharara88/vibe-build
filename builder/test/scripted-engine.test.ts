@@ -13,7 +13,7 @@ import { dirname, join, relative, resolve } from "node:path";
 import { promisify } from "node:util";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { EngineEvent } from "../src/engine/interface.js";
-import { entriesGitCannotSee, git, initProjectRepo, resetToLastCommit, workspaceChanges, type ProjectRepo } from "../src/engine/project-repo.js";
+import { commitAll, entriesGitCannotSee, git, initProjectRepo, resetToLastCommit, workspaceChanges, type ProjectRepo } from "../src/engine/project-repo.js";
 import {
   listSteps,
   readManifest,
@@ -525,6 +525,63 @@ describe("scripted engine: the class, against a stand-in runner (no container, n
     expect((await engineWith(r).runStep(step("01-data"), () => undefined)).failureReason).toMatch(/does not exist in the workspace/);
     expect(r.calls).toEqual([]);
   });
+
+  it("an async event handler whose promise rejects before the container is asked for fails the step; no container is asked for", async () => {
+    const r = new StandInRunner(repo.workTree, (s) => applierLines(s));
+    const res = await engineWith(r).runStep(step("01-data"), async (e) => {
+      if (e.type === "text") throw new Error("made-up failure in an async event handler");
+    });
+    expect(res).toMatchObject({ ok: false, failureReason: "handling the step's events failed: made-up failure in an async event handler", turns: 0 });
+    expect(r.calls).toEqual([]);
+  });
+
+  it("an ignored symbolic link that is pointed elsewhere counts as a change: the step fails, nothing is committed, and the reset reports it", async () => {
+    // An ignored link at the last commit, as installed packages have (node_modules/.bin).
+    const link = join(repo.workTree, "node_modules", ".bin", "tool");
+    mkdirSync(dirname(link), { recursive: true });
+    symlinkSync("../tool-one/cli.js", link);
+    writeFileSync(join(repo.workTree, "notes.txt"), "made-up\n");
+    await commitAll(repo, SCRIPTED_AUTHOR, "A made-up commit, with an ignored link in the workspace");
+    expect(await workspaceChanges(repo)).toEqual(CLEAN);
+    const head = await git(repo, ["rev-parse", "HEAD"]);
+    // The stand-in container points it elsewhere, beside the step's own files.
+    const r = new StandInRunner(repo.workTree, (s) => {
+      rmSync(link);
+      symlinkSync("../tool-two/cli.js", link);
+      return applierLines(s);
+    });
+    const res = await engineWith(r).runStep(step("01-data"), () => undefined);
+    expect(res).toMatchObject({ ok: false, failureReason: "files changed that git ignores, so the history would not show them: node_modules/.bin/tool" });
+    expect(res.changedFiles).toContain("node_modules/.bin/tool");
+    expect(await git(repo, ["rev-parse", "HEAD"])).toBe(head);
+    // git never had it, so the reset cannot put it back, and says so.
+    expect((await resetToLastCommit(repo)).unrestorable).toEqual(["node_modules/.bin/tool"]);
+  });
+
+  it("a folder tree deeper than the machine's path limit: the step fails saying the workspace could not be checked, nothing is committed; the reset cannot put it back (known gap 58)", async () => {
+    const deep = join(repo.workTree, "d2345678901234567890");
+    try {
+      const head = await git(repo, ["rev-parse", "HEAD"]);
+      // Planted as the stand-in container runs: 300 folders, one inside the other, made with relative
+      // steps (a path given whole that long is refused), by a short Node command on this machine.
+      const r = new StandInRunner(repo.workTree, (s) => {
+        const makeDeep = "const fs = require('node:fs'); process.chdir(process.argv[1]); for (let i = 0; i < 300; i++) { fs.mkdirSync('d2345678901234567890'); process.chdir('d2345678901234567890'); } fs.writeFileSync('f.txt', 'made-up\\n');";
+        execFileSync(process.execPath, ["-e", makeDeep, repo.workTree]);
+        return applierLines(s);
+      });
+      const res = await engineWith(r).runStep(step("01-data"), () => undefined);
+      expect(res).toMatchObject({ ok: false, failureReason: "the workspace could not be checked after the step (ENAMETOOLONG), so nothing was committed" });
+      expect(await git(repo, ["rev-parse", "HEAD"])).toBe(head);
+      // The remaining limit: git cannot read the tree, so the reset fails with git's error and the tree stays.
+      await expect(resetToLastCommit(repo)).rejects.toThrow();
+      expect(existsSync(deep)).toBe(true);
+    } finally {
+      // Node's rmSync fails on this tree (ENAMETOOLONG, measured); `rm -rf` removes it.
+      execFileSync("rm", ["-rf", deep]);
+    }
+    expect((await resetToLastCommit(repo)).unrestorable).toEqual([]);
+    expect(await workspaceChanges(repo)).toEqual(CLEAN);
+  });
 });
 
 // ---------------------------------------------------------------------------------------------------
@@ -720,7 +777,7 @@ describe("scripted engine: live, in the engine container (development profile)",
     expect(sha256Of(readFileSync(join(workspace, "src", "auth.ts")))).toBe(sha256Of(readFileSync(join(templateDir, "src", "auth.ts"))));
   }, 120_000);
 
-  it("a protected file replaced through a renamed folder: the read-only mount over the file does not stop it; the check after the step does (the step fails, nothing is committed, the reset puts the file back)", async () => {
+  it("a protected file replaced through a renamed folder, or its folder moved aside and replaced by a link to the moved copy: the read-only mount over the file does not stop it; the check after the step does (the step fails, nothing is committed, one reset puts the folder back)", async () => {
     // A made-up misbehaving engine, run in the engine service with the step's mounts, in place of the applier.
     const script = [
       "const fs = require('node:fs');",
@@ -746,6 +803,29 @@ describe("scripted engine: live, in the engine container (development profile)",
     expect((await resetToLastCommit(repo)).unrestorable).toEqual([]);
     expect(await workspaceChanges(repo)).toEqual(CLEAN);
     expect(sha256Of(readFileSync(join(workspace, "src", "lib", "roles.tsx")))).toBe(sha256Of(readFileSync(join(templateDir, "src", "lib", "roles.tsx"))));
+    expect(existsSync(join(workspace, "src", "lib-moved"))).toBe(false);
+    expect(await projectContainers()).toBe("");
+
+    // The second route (found by the second review): src/lib moved aside and a link to the moved copy
+    // put in its place. A reset that put the tracked files back before removing what is new wrote
+    // nothing there, and its clean then removed the link and the copy, so one reset left them missing.
+    const viaLink = [
+      "const fs = require('node:fs');",
+      "fs.renameSync('/workspace/src/lib', '/workspace/src/lib-moved');",
+      "fs.symlinkSync('lib-moved', '/workspace/src/lib');",
+      "console.log(JSON.stringify({ kind: 'start', example: 'test-protected', step: '01-protected', files: 1, label: 'made-up engine: src/lib moved aside and replaced by a link to it' }));",
+      "console.log(JSON.stringify({ kind: 'done', written: 0 }));",
+    ].join("\n");
+    const linking = new ScriptedEngine({ sandbox: sb, workspace, gitDir: repo.gitDir, changeSetsDir: sets, example: "test-protected", runner: engineRunning(["node", "-e", viaLink]) });
+    const res2 = await linking.runStep(stepOf("01-protected"), () => undefined);
+    expect(lstatSync(join(workspace, "src", "lib")).isSymbolicLink()).toBe(true);
+    expect(res2).toMatchObject({ ok: false, failureReason: "protected files changed: src/lib/access.ts, src/lib/roles.tsx" });
+    expect(await git(repo, ["rev-parse", "HEAD"])).toBe(head);
+    // One reset puts the folder back: what is new (the link, the moved copy) is removed first.
+    expect((await resetToLastCommit(repo)).unrestorable).toEqual([]);
+    expect(await workspaceChanges(repo)).toEqual(CLEAN);
+    expect(lstatSync(join(workspace, "src", "lib")).isDirectory()).toBe(true);
+    for (const f of ["roles.tsx", "access.ts"]) expect(sha256Of(readFileSync(join(workspace, "src", "lib", f))), f).toBe(sha256Of(readFileSync(join(templateDir, "src", "lib", f))));
     expect(existsSync(join(workspace, "src", "lib-moved"))).toBe(false);
     expect(await projectContainers()).toBe("");
   }, 120_000);
@@ -850,6 +930,40 @@ describe("scripted engine: live, in the engine container (development profile)",
     expect(lines).toEqual(["first"]);
     expect(Date.now() - t).toBeLessThan(30_000);
     expect(await projectContainers()).toBe("");
+  }, 120_000);
+
+  it("an event handler that fails asynchronously (its promise rejects) while the container runs: no rejection is left unhandled, the container is killed and removed, and the step fails saying so", async () => {
+    // A rejection left unhandled ends a Node process (the builder). It is counted here as well as by the test runner.
+    const unhandled: unknown[] = [];
+    const count = (reason: unknown) => void unhandled.push(reason);
+    process.on("unhandledRejection", count);
+    try {
+      // Example 1's steps are committed by now (an earlier test): the made-up two-file change is used.
+      const engine = new ScriptedEngine({ sandbox: sb, workspace, gitDir: repo.gitDir, changeSetsDir: sets, example: "test-refusals", delayMsPerWrite: 2000 });
+      const head = await git(repo, ["rev-parse", "HEAD"]);
+      // As a handler that awaits a write to the event store, and that write fails.
+      const res = await engine.runStep(stepOf("06-two-files"), async (e) => {
+        if (e.type === "tool_call") {
+          await new Promise((r) => setTimeout(r, 10));
+          throw new Error("made-up failure in an async event handler");
+        }
+      });
+      expect(res).toMatchObject({
+        ok: false,
+        failureReason: "handling the step's events failed, so the engine container was stopped: made-up failure in an async event handler",
+        turns: 1,
+        changedFiles: ["notes/a.txt"],
+      });
+      expect(await projectContainers()).toBe("");
+      expect(await git(repo, ["rev-parse", "HEAD"])).toBe(head);
+      expect((await resetToLastCommit(repo)).unrestorable).toEqual([]);
+      expect(await workspaceChanges(repo)).toEqual(CLEAN);
+      // Time for a rejection that was not caught to be reported.
+      await new Promise((r) => setTimeout(r, 500));
+      expect(unhandled).toEqual([]);
+    } finally {
+      process.off("unhandledRejection", count);
+    }
   }, 120_000);
 
   it("inside the engine container: user node, no settings of its own, no network but loopback, an empty certs folder, the change sets read-only", async () => {
