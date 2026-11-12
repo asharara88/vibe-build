@@ -6,7 +6,7 @@
 | Package | 0.6a of `docs/BUILD-PLAN.md`: "Isolation checked on the development profile, from inside the workload container: attempts to connect without the proxy, by address, on other ports, and by name lookup." It depends on package 0.5, tested again on 12 November at `e8dccc1`. Branch `claude/pkg-0.6a-isolation-checks`, started from `claude/stage-1` at `47093c5` |
 | Done means (plan) | "Each attempt and its result listed. Because this profile shares the host's network, the report says plainly what is not isolated. The server profile is described as 'designed, not shown'" |
 | Run on | The development machine (a cloud session), development profile. The project's app, tools, database and egress proxy containers share the host's network (known gap 1); the engine container has no network. Every attempt was made from inside a container: nothing the probe tests was run on the machine itself. Made-up data only. **No model was called** |
-| Result | **State: built, not tested.** No independent reviewer has read it yet. **Shown on the development profile** (`run-live.txt`, at commit `fe5ff7e`; after it only the live test's order of checks changed, commit `fb5dc07`): every attempt and its result, for the app container, the tools container, the engine container, and a comparison container that is not a project container (the table below). From the app and tools containers, every service listening on the host's own loopback address could be reached, the builder's own database and the cloud session's own services among them, and the project's egress proxy could be gone round: directly, and through the cloud session's proxy. The only thing that stopped a direct connection out was the cloud session's own network filter, not anything the builder does. From the engine container, all 33 attempts failed. **Designed, not shown**: the server profile (package 0.6b) |
+| Result | **State: built, not tested.** No independent reviewer has read it yet. **Shown on the development profile** (`run-live.txt`, at commit `fe5ff7e`; after it only the live test changed, in commits `fb5dc07` and `8868f43`): every attempt and its result, for the app container, the tools container, the engine container, and a comparison container that is not a project container (the table below). From the app and tools containers, every service listening on the host's own loopback address could be reached, the builder's own database and the cloud session's own services among them, and the project's egress proxy could be gone round: directly, and through the cloud session's proxy. The only thing that stopped a direct connection out was the cloud session's own network filter, not anything the builder does. From the engine container, all 33 attempts failed. **Designed, not shown**: the server profile (package 0.6b) |
 
 Plain words for the terms used here:
 - A **container** is a sealed box a program runs in, with only the files and settings put into it.
@@ -155,7 +155,7 @@ All 33 attempts failed (`run-live.txt`, and the live test in `npm test`):
 
 It has only the loopback interface, sees no listening port, and sees no copy of the session's certificate: the workspace's `certs` folder is hidden by an empty one. This is the scripted engine's container, given no network in package 2.1. As known gap 50 says, it shows nothing about the real engine of package 2.2, whose network is decided there.
 
-**The live test can fail.** It was run once with the engine service given the host's network instead of none (`run-test-live-control-engine-on-host-network.txt`, commit `fb5dc07`; the change was made for that run only and undone). It failed and listed the 15 attempts that got an answer.
+**The live test can fail.** It was run with the engine service given the host's network instead of none (`run-test-live-control-engine-on-host-network.txt`, commit `8868f43`; the change was made for that run only and undone). It failed and listed the 15 attempts that got an answer.
 
 ## The comparison container (Docker's default network)
 
@@ -201,14 +201,14 @@ All in `builder/`:
 
 | Check | Result | Commit | File |
 | --- | --- | --- | --- |
-| `npm run typecheck`, and the new script type-checked with the same settings | exit 0, both | `fb5dc07` | `run-typecheck.txt` |
-| `npx vitest run` (the whole suite, live Docker tests included) | 8 files, 150 tests passed (140 before this package, plus 10) | `fb5dc07` | `run-tests-all.txt` |
-| `npm run check:licences` | `RESULT: PASSED`; no package added | `fb5dc07` | `run-licences.txt` |
-| The new tests, each named | 10 passed | `fb5dc07` | `run-tests-isolation.txt` |
-| The live test with the engine on the host's network (a control) | failed, as it must: 15 attempts answered | `fb5dc07`, with one line changed for the run | `run-test-live-control-engine-on-host-network.txt` |
+| `npm run typecheck`, and the new script type-checked with the same settings | exit 0, both | `8868f43` | `run-typecheck.txt` |
+| `npx vitest run` (the whole suite, live Docker tests included) | 8 files, 150 tests passed (140 before this package, plus 10) | `8868f43` | `run-tests-all.txt` |
+| `npm run check:licences` | `RESULT: PASSED`; no package added | `8868f43` | `run-licences.txt` |
+| The new tests, each named | 10 passed | `8868f43` | `run-tests-isolation.txt` |
+| The live test with the engine on the host's network (a control) | failed, as it must: 15 attempts answered | `8868f43`, with one line changed for the run | `run-test-live-control-engine-on-host-network.txt` |
 | The demonstration | exit 0; nothing of the project left | `fe5ff7e` | `run-live.txt` |
 
-The checks were run at `fb5dc07`, the last commit that changes code. The demonstration was run at `fe5ff7e`; between the two only the order of the live test's checks changed.
+The checks were run at `8868f43`, the last commit that changes code. The demonstration was run at `fe5ff7e`; between the two only the live test changed: the order of its checks (`fb5dc07`), and where it makes its temporary folder, so that none is left when it is filtered out (`8868f43`).
 
 ## Files in this folder
 

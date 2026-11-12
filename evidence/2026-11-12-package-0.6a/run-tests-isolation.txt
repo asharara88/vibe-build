@@ -1,4 +1,4 @@
-# npx vitest run test/isolation.test.ts --reporter=verbose, from builder/, commit fb5dc07, 12 Nov 2026 19:43 UTC
+# npx vitest run test/isolation.test.ts --reporter=verbose, from builder/, commit 8868f43, 12 Nov 2026 19:47 UTC
 
  RUN  v5.1.0 <checkout>/builder
 
@@ -11,11 +11,11 @@
  ✓ test/isolation.test.ts > isolation probe: reading what it prints (unit) > never drops a line it does not understand: an unfinished run, a wrong count, an unknown result, a stray line and a stop are all problems 1ms
  ✓ test/isolation.test.ts > isolation probe: reading what it prints (unit) > takes the session proxy's host and port from its setting, never a user name or password 0ms
  ✓ test/isolation.test.ts > isolation probe: reading what it prints (unit) > draws one row per attempt in the probe's order and one column per container, 'not tried' where a container did not make it 1ms
- ✓ test/isolation.test.ts > isolation probe: live, the engine container (development profile) > from inside the engine container, which has no network, every attempt fails, outside and on the host alike 20477ms
+ ✓ test/isolation.test.ts > isolation probe: live, the engine container (development profile) > from inside the engine container, which has no network, every attempt fails, outside and on the host alike 20530ms
 
  Test Files  1 passed (1)
       Tests  10 passed (10)
-   Start at  19:43:24
-   Duration  20.77s (tests 100%)
+   Start at  19:47:59
+   Duration  20.71s (tests 100%)
 
 exit code: 0
