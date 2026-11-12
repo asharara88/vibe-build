@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { promisify } from "node:util";
-import { afterAll, describe, expect, it } from "vitest";
+import { describe, expect, it, onTestFinished } from "vitest";
 import { classifyError, countOtherSockets, parseListeners, parseSettings, planAttempts } from "../scripts/isolation-probe.mjs";
 import { cell, gotAnswer, parseProbeOutput, RESULT, renderMarkdownTable, renderTable, sessionProxyHostPort, summarise, type ProbeAttempt } from "../src/sandbox/isolation.js";
 import { createSandbox, dockerEnv, sandbox } from "../src/sandbox/manager.js";
@@ -165,29 +165,28 @@ describe("isolation probe: reading what it prints (unit)", () => {
 });
 
 describe("isolation probe: live, the engine container (development profile)", () => {
-  const dir = mkdtempSync(join(tmpdir(), "builder-isolation-live-"));
-  mkdirSync(join(dir, "workspace", "certs"), { recursive: true });
-  const sb = createSandbox(
-    {
-      projectId: "p_isolation_live",
-      dir,
-      profile: "development-cloud-session",
-      allowHosts: ["registry.npmjs.org"],
-      gatewayUrl: "http://127.0.0.1:4010",
-      builderDir,
-      hostProxy: { url: process.env.HTTPS_PROXY ?? "http://127.0.0.1:1", caBundlePath: "/root/.ccr/ca-bundle.crt" },
-      devDbPort: 5563,
-      engine: { workspace: join(dir, "workspace"), changeSets: join(builderDir, "scripted") },
-    },
-    "sample-only-password",
-  );
-
-  afterAll(async () => {
-    await sandbox.destroy(sb).catch(() => undefined);
-    rmSync(dir, { recursive: true, force: true });
-  });
-
   it("from inside the engine container, which has no network, every attempt fails, outside and on the host alike", async () => {
+    // Made inside the test, so that nothing is left behind when the test is filtered out.
+    const dir = mkdtempSync(join(tmpdir(), "builder-isolation-live-"));
+    mkdirSync(join(dir, "workspace", "certs"), { recursive: true });
+    const sb = createSandbox(
+      {
+        projectId: "p_isolation_live",
+        dir,
+        profile: "development-cloud-session",
+        allowHosts: ["registry.npmjs.org"],
+        gatewayUrl: "http://127.0.0.1:4010",
+        builderDir,
+        hostProxy: { url: process.env.HTTPS_PROXY ?? "http://127.0.0.1:1", caBundlePath: "/root/.ccr/ca-bundle.crt" },
+        devDbPort: 5563,
+        engine: { workspace: join(dir, "workspace"), changeSets: join(builderDir, "scripted") },
+      },
+      "sample-only-password",
+    );
+    onTestFinished(async () => {
+      await sandbox.destroy(sb).catch(() => undefined);
+      rmSync(dir, { recursive: true, force: true });
+    });
     const settings = JSON.stringify({ ...SETTINGS, sessionProxy: sessionProxyHostPort(process.env.HTTPS_PROXY), projectDbPort: 5563, timeoutMs: 3000 });
     const lines: string[] = [];
     const r = sandbox.runStreaming(sb, "engine", ["node", "/probe/isolation-probe.mjs", settings], {
