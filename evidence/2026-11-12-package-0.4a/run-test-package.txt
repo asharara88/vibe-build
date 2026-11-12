@@ -1,0 +1,12 @@
+Licence check for ../../../tmp/fixture/demo
+Rule: ../../../home/user/vibe-build/builder/licence-rule.json
+Packages checked: 3 installed, of which 2 shipped (not development-only).
+Permitted licences: MIT, Apache-2.0, BSD-2-Clause, BSD-3-Clause, ISC, 0BSD, BlueOak-1.0.0, CC0-1.0, Python-2.0, PostgreSQL, Unlicense
+Named exceptions in use:
+  none
+Named exceptions not installed here: lightningcss, spdx-exceptions, spdx-ranges
+PROBLEMS: 2
+  fake-gpl@1.0.0 | GPL-3.0-only | its licence is outside the permitted list and the package is not a named exception
+  fake-mpl-tool@1.0.0 | MPL-2.0 | its licence is outside the permitted list and the package is not a named exception
+RESULT: FAILED
+exit code: 1

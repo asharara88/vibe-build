@@ -1,0 +1,18 @@
+ ✓ test/licence-rule.test.ts > licence expressions > accepts a permitted licence and combinations made only of permitted licences 2ms
+ ✓ test/licence-rule.test.ts > licence expressions > refuses anything else 1ms
+ ✓ test/licence-rule.test.ts > the rule > passes when every package is permitted 1ms
+ ✓ test/licence-rule.test.ts > the rule > fails on a development-only package outside the list: there is no weaker rule for development tools 1ms
+ ✓ test/licence-rule.test.ts > the rule > lists every problem, not only the first 1ms
+ ✓ test/licence-rule.test.ts > the rule > accepts the named exceptions for development use 1ms
+ ✓ test/licence-rule.test.ts > the rule > does not extend an approval to another package with the same licence 1ms
+ ✓ test/licence-rule.test.ts > the rule > fails when a package approved for development use is among the shipped dependencies 0ms
+ ✓ test/licence-rule.test.ts > the rule > fails when an approved package later declares a different licence 1ms
+ ✓ test/licence-rule.test.ts > the rule > fails a build package whose version differs from its main package, or whose main package is absent 1ms
+ ✓ test/licence-rule.test.ts > the rule > does not let the family name excuse a different licence 0ms
+ ✓ test/licence-rule.test.ts > the real check, run against a folder with a test package added > passes on a folder whose packages are all permitted 765ms
+ ✓ test/licence-rule.test.ts > the real check, run against a folder with a test package added > fails when a shipped test package outside the rule is added, and names it 758ms
+ ✓ test/licence-rule.test.ts > the real check, run against a folder with a test package added > fails when a development-only test package outside the rule is added 876ms
+ ✓ test/licence-rule.test.ts > the real check, run against a folder with a test package added > fails when a test package declares no licence at all 729ms
+ ✓ test/licence-rule.test.ts > the real check, run against a folder with a test package added > passes on the builder itself, with the notices file up to date 2102ms
+ Test Files  1 passed (1)
+      Tests  16 passed (16)

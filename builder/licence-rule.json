@@ -1,0 +1,51 @@
+{
+  "about": "The one licence rule for this component (hard rule 2; build plan package 0.4). Every installed package, shipped or development, must carry a licence on the permitted list, or be named below. An exception is the owner's written approval of one named package for one named use, recorded in docs/DECISIONS.md. It never covers another package with the same licence.",
+  "permitted": [
+    "MIT",
+    "Apache-2.0",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "0BSD",
+    "BlueOak-1.0.0",
+    "CC0-1.0",
+    "Python-2.0",
+    "PostgreSQL",
+    "Unlicense"
+  ],
+  "exceptions": [
+    {
+      "name": "lightningcss",
+      "family": "lightningcss-",
+      "licence": "MPL-2.0",
+      "use": "development",
+      "approved": "2026-11-12",
+      "record": "docs/DECISIONS.md, 12 Nov 2026, licence exceptions approved by the owner",
+      "attribution": "lightningcss, from the parcel-bundler/lightningcss project. Its source code is subject to the terms of the Mozilla Public License, v. 2.0.",
+      "source": "https://github.com/parcel-bundler/lightningcss",
+      "licence_text": "https://mozilla.org/MPL/2.0/",
+      "family_note": "The per-machine build packages named lightningcss-<machine> are published from the same source at the same version under the same licence; which one is installed depends on the machine."
+    },
+    {
+      "name": "spdx-exceptions",
+      "licence": "CC-BY-3.0",
+      "use": "development",
+      "approved": "2026-11-12",
+      "record": "docs/DECISIONS.md, 12 Nov 2026, licence exceptions approved by the owner",
+      "attribution": "From version 2.0 of the SPDX specification: Copyright (c) 2010-2015 Linux Foundation and its Contributors. Licensed under the Creative Commons Attribution License 3.0 Unported. All other rights are expressly reserved.",
+      "source": "https://github.com/kemitchell/spdx-exceptions.json",
+      "licence_text": "http://spdx.org/licenses/CC-BY-3.0"
+    },
+    {
+      "name": "spdx-ranges",
+      "licence": "(MIT AND CC-BY-3.0)",
+      "use": "development",
+      "approved": "2026-11-12",
+      "record": "docs/DECISIONS.md, 12 Nov 2026, licence exceptions approved by the owner",
+      "attribution": "The Linux Foundation and its contributors license the SPDX standard under the terms of the Creative Commons Attribution License 3.0 Unported (SPDX: CC-BY-3.0). The authors of the spdx-ranges package license their work under the terms of the MIT License.",
+      "source": "https://github.com/kemitchell/spdx-ranges.js",
+      "licence_text": "http://spdx.org/licenses/CC-BY-3.0"
+    }
+  ],
+  "not_yet_listed": "The Claude Agent SDK was approved by the owner on 11 Nov 2026 (docs/DECISIONS.md). It is not installed in this component yet. Package 2.2 adds its entry here, with the licence string exactly as the installed package declares it."
+}
