@@ -51,7 +51,7 @@ Each row is one message. The key is the message's name in the code; the owner ca
 
 ## Suggested changes, for the owner to accept or reject
 
-Found by fresh reviewers on 11 and 12 November 2026. Not yet applied: the template's files are under the licence gate L11 of the build plan, and this package is a document only. Once the owner accepts a suggestion and L11 is true, the change is made in `templates/next/messages/ar.json` and this list is regenerated.
+Found by fresh reviewers on 11 and 12 November 2026. Not yet applied: this package is a document only, and the suggestions wait on the owner. (The template's files were under the licence gate L11 of the build plan, which is true since 12 Nov 2026.) Once the owner accepts a suggestion, the change is made in `templates/next/messages/ar.json` and this list is regenerated.
 
 | Key | Current Arabic | Suggested Arabic | Why |
 | --- | --- | --- | --- |
