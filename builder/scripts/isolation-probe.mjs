@@ -326,13 +326,17 @@ function connectAttempt(op, ms) {
 function httpsTunnelAttempt(op, ms, sessionCert) {
   return withLimit(ms, (finish, cleanup) =>
     tunnel({ ...op, target: `${op.host}:${op.port}` }, finish, cleanup, (socket) => {
+      // No agent: with none, Node writes the request over the socket `createConnection` returns, which is
+      // TLS inside the proxy's tunnel. With `agent: false` it would make a fresh agent, which ignores
+      // `createConnection` and opens a new, direct connection to host:port (review of 0.6a, finding 8).
+      // `servername` and the trusted certificates are also given here, as before; with no agent they are
+      // not used, and the TLS socket below carries its own.
       const req = https.request(
         {
           host: op.host,
           port: op.port,
           path: op.path,
           method: "GET",
-          agent: false,
           servername: op.host,
           ...trust(sessionCert),
           createConnection: () => tls.connect({ socket, servername: op.host, ...trust(sessionCert) }),

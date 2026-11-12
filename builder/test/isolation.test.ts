@@ -1,14 +1,21 @@
 import { execFile } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
+import { generateKeyPairSync, sign } from "node:crypto";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import type { Server } from "node:http";
+import https from "node:https";
+import type { AddressInfo, Socket } from "node:net";
+import net from "node:net";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { promisify } from "node:util";
 import { describe, expect, it, onTestFinished } from "vitest";
-import { classifyError, countOtherSockets, parseListeners, parseSettings, planAttempts } from "../scripts/isolation-probe.mjs";
+import { classifyError, countOtherSockets, parseListeners, parseSettings, planAttempts, runAttempt, type PlannedAttempt } from "../scripts/isolation-probe.mjs";
 import { cell, gotAnswer, parseProbeOutput, RESULT, renderMarkdownTable, renderTable, sessionProxyHostPort, summarise, type ProbeAttempt } from "../src/sandbox/isolation.js";
 import { createSandbox, dockerEnv, sandbox } from "../src/sandbox/manager.js";
 
-// Package 0.6a. The unit tests call the probe's pure functions only: no attempt is made from this machine.
+// Package 0.6a. The unit tests call the probe's functions only. Those that make an attempt make it only
+// against made-up servers the test itself starts on the loopback address (127.0.0.1 and "localhost"):
+// nothing beyond this machine's loopback address is contacted from here.
 const run = promisify(execFile);
 const builderDir = resolve(import.meta.dirname, "..");
 const probeFile = join(builderDir, "scripts", "isolation-probe.mjs");
@@ -81,6 +88,108 @@ describe("isolation probe: its own settings and words (unit)", () => {
     expect(without.some((a) => a.id === "C9" || a.id.startsWith("F") || a.toward === "session-proxy")).toBe(false);
     // One extra listener, C9, and F1 to F4 fewer.
     expect(without.length).toBe(withProxy.length - 1 - 1 - 4);
+  });
+});
+
+/** DER, the encoding of a certificate: a tag, a length, a body. Enough of it for one made-up certificate. */
+const der = (tag: number, ...parts: Buffer[]) => {
+  const body = Buffer.concat(parts);
+  const n = body.length;
+  return Buffer.concat([Buffer.from([tag, ...(n < 0x80 ? [n] : n < 0x100 ? [0x81, n] : [0x82, n >> 8, n & 0xff])]), body]);
+};
+const derSeq = (...parts: Buffer[]) => der(0x30, ...parts);
+const derOid = (dotted: string) => {
+  const [a = 0, b = 0, ...rest] = dotted.split(".").map(Number);
+  const out = [40 * a + b];
+  for (let v of rest) {
+    const enc = [v & 0x7f];
+    while ((v >>= 7)) enc.unshift((v & 0x7f) | 0x80);
+    out.push(...enc);
+  }
+  return der(0x06, Buffer.from(out));
+};
+const derTime = (d: Date) => der(0x17, Buffer.from(d.toISOString().replace(/[-:T]/g, "").slice(2, 14) + "Z"));
+
+/**
+ * A made-up certificate for `host`, signed by itself, made with Node's own crypto for this test run only
+ * (no file is kept, no package added). Its key never leaves the test.
+ */
+function madeUpCertificate(host: string): { cert: string; key: string } {
+  const { privateKey, publicKey } = generateKeyPairSync("ec", { namedCurve: "prime256v1" });
+  const name = derSeq(der(0x31, derSeq(derOid("2.5.4.3"), der(0x0c, Buffer.from(host)))));
+  const ecdsaSha256 = derSeq(derOid("1.2.840.10045.4.3.2"));
+  const now = Date.now();
+  const tbs = derSeq(
+    der(0xa0, der(0x02, Buffer.from([2]))),
+    der(0x02, Buffer.from([1])),
+    ecdsaSha256,
+    name,
+    derSeq(derTime(new Date(now - 3_600_000)), derTime(new Date(now + 86_400_000))),
+    name,
+    publicKey.export({ type: "spki", format: "der" }),
+    der(0xa3, derSeq(derSeq(derOid("2.5.29.17"), der(0x04, derSeq(der(0x82, Buffer.from(host))))))),
+  );
+  const body = derSeq(tbs, ecdsaSha256, der(0x03, Buffer.concat([Buffer.from([0]), sign("sha256", tbs, privateKey)])));
+  const cert = `-----BEGIN CERTIFICATE-----\n${(body.toString("base64").match(/.{1,64}/g) ?? []).join("\n")}\n-----END CERTIFICATE-----\n`;
+  return { cert, key: privateKey.export({ type: "pkcs8", format: "pem" }).toString() };
+}
+
+/** Start a made-up server on the loopback address; it is closed, with every connection it holds, when the test ends. */
+async function onLoopback(server: net.Server | Server, host = "127.0.0.1"): Promise<number> {
+  const sockets = new Set<Socket>();
+  server.on("connection", (c: Socket) => {
+    sockets.add(c);
+    c.on("close", () => sockets.delete(c));
+  });
+  await new Promise<void>((r) => server.listen(0, host, r));
+  onTestFinished(async () => {
+    for (const c of sockets) c.destroy();
+    await new Promise((r) => server.close(r));
+  });
+  return (server.address() as AddressInfo).port;
+}
+
+const madeUpAttempt = (op: PlannedAttempt["op"]): PlannedAttempt => ({ id: "T1", group: "made-up", toward: "outside", what: "made-up", target: "made-up", how: "made-up", op });
+
+describe("isolation probe: its attempts, against made-up servers on the loopback address (unit)", () => {
+  it("sends the HTTPS request of a tunnel attempt inside the proxy's tunnel, never straight to the target (review finding 8)", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "builder-isolation-cert-"));
+    onTestFinished(() => rmSync(dir, { recursive: true, force: true }));
+    const { cert, key } = madeUpCertificate("localhost");
+    const certFile = join(dir, "made-up-ca.crt");
+    writeFileSync(certFile, cert);
+    const answering = (name: string) => https.createServer({ cert, key }, (_req, res) => res.writeHead(418, { server: name }).end(name));
+    // Server A listens at the request's own target, host and port. Server B is reached only through the tunnel.
+    const direct = answering("A-direct-to-the-target");
+    let directConnections = 0;
+    direct.on("connection", () => directConnections++);
+    const directPort = await onLoopback(direct, "localhost");
+    const insidePort = await onLoopback(answering("B-inside-the-tunnel"));
+    // A made-up proxy: it answers 200 to any CONNECT and joins the tunnel to server B, whatever the target.
+    const connects: string[] = [];
+    const proxyPort = await onLoopback(
+      net.createServer((c) => {
+        c.on("error", () => undefined);
+        c.once("data", (d: Buffer) => {
+          connects.push(d.toString("latin1").split("\r\n")[0] ?? "");
+          const up = net.connect(insidePort, "127.0.0.1", () => {
+            c.write("HTTP/1.1 200 Connection established\r\n\r\n");
+            c.pipe(up).pipe(c);
+          });
+          up.on("error", () => c.destroy());
+          c.on("close", () => up.destroy());
+        });
+      }),
+    );
+    const s = parseSettings(JSON.stringify({ ...SETTINGS, sessionProxy: null, timeoutMs: 3000 }));
+    const r = await runAttempt(madeUpAttempt({ type: "https-tunnel", proxy: { host: "127.0.0.1", port: proxyPort }, host: "localhost", port: directPort, path: "/" }), s, certFile);
+    // All at once, so that a failure shows every part: what the proxy was asked, who answered, and whether A was reached.
+    expect({ connects, result: r.result, answeredBy: /server: ([^;]+)/.exec(r.detail)?.[1] ?? r.detail, directConnections }).toEqual({
+      connects: [`CONNECT localhost:${directPort} HTTP/1.1`],
+      result: "HTTP 418",
+      answeredBy: "B-inside-the-tunnel",
+      directConnections: 0,
+    });
   });
 });
 
