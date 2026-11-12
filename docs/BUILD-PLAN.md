@@ -4,6 +4,7 @@
 | --- | --- |
 | File | `docs/BUILD-PLAN.md` |
 | Written | 11 November 2026, for the owner, Ahmed Sharara. Fifth version, with the owner's four rounds of amendments of the same day |
+| Amended | 12 November 2026, on the owner's instruction after his review of commit `e0e22e6`: package 1.2's "Done means" now names the exact proof rows that finish it (B1 to B6). Nothing else in the plan was changed |
 | Starting point | Branch `claude/walking-skeleton` at commit `6fca006`. Its code is an **unapproved starting baseline**: built, partly tested, not accepted by the owner |
 | Authority | This is the owner's standing instruction for long-running work. It replaces "do one task, then stop". The hard rules in `CLAUDE.md` and `HANDOVER.md` section 11 are unchanged and win over anything written here |
 
@@ -163,7 +164,7 @@ A package starts only when everything in its "Depends on" column is true. Other 
 | ID | Package | Depends on | Done means |
 | --- | --- | --- | --- |
 | 1.1 | **Design note 5.5 amended** in five places: (a) a call cut off part-way keeps its full hold and is marked unreconciled, because the output count arrives late in the stream; (b) if the prompt cannot be counted, the call is refused, with no estimate from its size; (c) the hold allows for fast mode and the long-prompt rate when either could apply; (d) a successful answer that cannot be read keeps its full hold; (e) if a finished call cannot be saved, its hold stays open and the project makes no further calls until it is reconciled | Nothing | The amendments are in the note under a dated list, and the proof table in 7.2 has a row for each |
-| 1.2 | **Holds stored in the database** under a lock on the project's row: open, settle, expire, and recovery when the gateway starts | 1.1, L9 | The rows in design note 7.2, each shown from the event log |
+| 1.2 | **Holds stored in the database** under a lock on the project's row: open, settle, expire, and recovery when the gateway starts | 1.1, L9 | Proof rows **B1 to B6** of design note 7.2, and only those, each shown from the event log against a stand-in provider. Rows B7 (package 1.3), B8 to B13 (1.4) and B14 (1.5) are not part of 1.2 |
 | 1.3 | **The pre-step check** and the step hold | 1.2 | A step refused before it starts when its budget does not fit, with the message shown |
 | 1.4 | **Failure tests:** several calls at once against room for one; the gateway killed mid-call; the database refusing a write after the provider answered; a stream cut after output began; an unreadable answer | 1.2, 1.3 | Each passes, and in every one **both** of these hold at every moment: (1) recorded spend plus open holds is never above the approved cap; (2) recorded spend plus open holds is never below what the provider was owed. No settled call costs more than its hold |
 | 1.5 | **The unreconciled list.** Holds kept at full value are listed for the owner. A hold is closed only by a recorded owner action that states the actual cost and the evidence for it, such as the provider's usage record. The actual cost is then what is charged | 1.2 | The list shown with one example of each kind, and one reconciliation recorded with its evidence |
