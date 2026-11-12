@@ -1,0 +1,460 @@
+// The isolation probe (build plan package 0.6a).
+//
+// It runs ONLY inside a container (hard rule 9): it refuses to start where Docker's marker file
+// `/.dockerenv` is missing. It is started by scripts/demo-isolation.ts and by the live test in
+// test/isolation.test.ts, mounted read-only at /probe/isolation-probe.mjs. It uses nothing but Node's
+// own modules.
+//
+//   node /probe/isolation-probe.mjs '<settings as JSON>'
+//
+// Settings: {"sessionProxy": "host:port" or null, "projectDbPort": n, "egressPort": n,
+//            "gatewayPort": n, "builderDbPort": n, "exampleAddress": "a.b.c.d", "timeoutMs": n}
+// The session proxy is given as host and port only; anything that looks like a user name or a password
+// is refused, so the probe can never print one.
+//
+// Every attempt is harmless: a TCP connection that is opened and closed at once, a plain HTTP request
+// (GET, no body), a proxy's CONNECT, or a name lookup. Each has a short time limit. Nothing else is sent.
+//
+// It prints one JSON line per fact on stdout:
+//   {"kind":"info","name":...,"value":...}           what the container sees (no setting's value is printed)
+//   {"kind":"attempt","id","group","toward","what","target","how","result","code","detail"}
+//   {"kind":"end","attempts":n}
+//   {"kind":"error","reason":...}                    (exit 1)
+import dns from "node:dns";
+import { existsSync, readFileSync } from "node:fs";
+import http from "node:http";
+import https from "node:https";
+import net from "node:net";
+import os from "node:os";
+import tls from "node:tls";
+import { pathToFileURL } from "node:url";
+
+/** Where a copy of the cloud session's certificate could be found inside a project container. */
+export const SESSION_CERT_PATHS = ["/certs/session-ca.crt", "/workspace/certs/session-ca.crt"];
+
+export const GROUPS = {
+  A: "Without the proxy, by name",
+  B: "Without the proxy, by address",
+  C: "On other ports, and services on the host",
+  D: "By name lookup",
+  E: "Through the project's egress proxy",
+  F: "Through the cloud session's proxy, bypassing the project's egress proxy",
+};
+
+const HOST_PORT = /^([a-zA-Z0-9.-]{1,253}|\[[0-9a-fA-F:]{2,39}\]):(\d{1,5})$/;
+const IPV4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/;
+
+/** Read and check the settings. Throws with a plain message on anything unexpected. */
+export function parseSettings(text) {
+  let raw;
+  try {
+    raw = JSON.parse(text ?? "");
+  } catch {
+    throw new Error("The settings must be one JSON object, given as the first argument.");
+  }
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new Error("The settings must be one JSON object.");
+  const port = (name) => {
+    const v = raw[name];
+    if (!Number.isInteger(v) || v < 1 || v > 65535) throw new Error(`"${name}" must be a port number (1 to 65535).`);
+    return v;
+  };
+  let sessionProxy = null;
+  if (raw.sessionProxy !== null && raw.sessionProxy !== undefined) {
+    // Host and port only: a user name or password (anything with "@" or "/") is refused, never printed.
+    const m = typeof raw.sessionProxy === "string" ? HOST_PORT.exec(raw.sessionProxy) : null;
+    if (!m || Number(m[2]) < 1 || Number(m[2]) > 65535) throw new Error('"sessionProxy" must be "host:port", with nothing else, or null.');
+    sessionProxy = { host: m[1].replace(/^\[|\]$/g, ""), port: Number(m[2]) };
+  }
+  const exampleAddress = raw.exampleAddress ?? "93.184.215.14";
+  const parts = IPV4.exec(exampleAddress);
+  if (!parts || parts.slice(1).some((p) => Number(p) > 255)) throw new Error('"exampleAddress" must be an IPv4 address.');
+  const timeoutMs = raw.timeoutMs ?? 5000;
+  if (!Number.isInteger(timeoutMs) || timeoutMs < 100 || timeoutMs > 30000) throw new Error('"timeoutMs" must be a whole number from 100 to 30000.');
+  return {
+    sessionProxy,
+    projectDbPort: port("projectDbPort"),
+    egressPort: port("egressPort"),
+    gatewayPort: port("gatewayPort"),
+    builderDbPort: port("builderDbPort"),
+    exampleAddress,
+    timeoutMs,
+  };
+}
+
+/** The words a result can be, and the error codes behind each failure. */
+export function classifyError(code, context = "connection") {
+  if (context === "lookup") {
+    if (["ENOTFOUND", "ENODATA", "EAI_NONAME", "EAI_NODATA"].includes(code)) return "name not found";
+    if (["EREFUSED", "ESERVFAIL", "EFORMERR", "ENOTIMP"].includes(code)) return "lookup refused by the name server";
+    if (["EAI_AGAIN", "ETIMEOUT", "ETIMEDOUT", "ECONNREFUSED", "ENETUNREACH", "EHOSTUNREACH", "TIMEOUT"].includes(code)) return "no name server answered";
+    return "error";
+  }
+  if (code === "ECONNREFUSED") return "refused";
+  if (["ETIMEDOUT", "ETIMEOUT", "TIMEOUT"].includes(code)) return "timed out";
+  if (["ENOTFOUND", "EAI_NONAME", "ENODATA", "EAI_NODATA"].includes(code)) return "name not found";
+  if (code === "EAI_AGAIN") return "no name server answered";
+  if (["ENETUNREACH", "EHOSTUNREACH", "EADDRNOTAVAIL"].includes(code)) return "network unreachable";
+  if (["ECONNRESET", "EPIPE", "ECONNABORTED"].includes(code)) return "connection reset";
+  if (
+    [
+      "SELF_SIGNED_CERT_IN_CHAIN",
+      "DEPTH_ZERO_SELF_SIGNED_CERT",
+      "UNABLE_TO_GET_ISSUER_CERT",
+      "UNABLE_TO_GET_ISSUER_CERT_LOCALLY",
+      "UNABLE_TO_VERIFY_LEAF_SIGNATURE",
+      "CERT_UNTRUSTED",
+      "CERT_HAS_EXPIRED",
+      "ERR_TLS_CERT_ALTNAME_INVALID",
+    ].includes(code)
+  )
+    return "certificate not trusted";
+  return "error";
+}
+
+/** Listening TCP sockets in /proc/net/tcp or /proc/net/tcp6 text: [{address, port}]. */
+export function parseListeners(text, family = 4) {
+  const out = [];
+  for (const line of (text ?? "").split("\n").slice(1)) {
+    const f = line.trim().split(/\s+/);
+    if (f.length < 4 || f[3] !== "0A") continue; // 0A: listening
+    const [addrHex, portHex] = (f[1] ?? "").split(":");
+    if (!addrHex || !portHex) continue;
+    const port = parseInt(portHex, 16);
+    let address;
+    if (family === 4 && addrHex.length === 8) {
+      // Four bytes, least significant first.
+      address = [6, 4, 2, 0].map((i) => parseInt(addrHex.slice(i, i + 2), 16)).join(".");
+    } else {
+      address = /^0+$/.test(addrHex) ? "::" : addrHex === "00000000000000000000000001000000" ? "::1" : "ipv6";
+    }
+    out.push({ address, port });
+  }
+  return out;
+}
+
+/** The number of sockets in /proc/net/tcp text that are not listening (connections open on the network the container shares). */
+export function countOtherSockets(text) {
+  return (text ?? "").split("\n").slice(1).filter((l) => {
+    const f = l.trim().split(/\s+/);
+    return f.length >= 4 && f[3] !== "0A";
+  }).length;
+}
+
+/**
+ * Every attempt, in order. Pure: it only lists what will be tried. `extraListeners` are the listening
+ * ports found inside the container that are not among the named services; each gets a connection attempt.
+ */
+export function planAttempts(s, extraListeners = []) {
+  const plan = [];
+  const add = (id, group, toward, what, target, how, op) => plan.push({ id, group: GROUPS[group], toward, what, target, how, op });
+  const ex = s.exampleAddress;
+
+  add("A1", "A", "outside", "a host the egress list allows, HTTPS", "registry.npmjs.org:443", "HTTPS GET /-/ping, sent directly, no proxy", { type: "https", host: "registry.npmjs.org", port: 443, path: "/-/ping" });
+  add("A2", "A", "outside", "a host the egress list allows, plain HTTP", "registry.npmjs.org:80", "HTTP GET /-/ping, sent directly, no proxy", { type: "http", host: "registry.npmjs.org", port: 80, path: "/-/ping" });
+  add("A3", "A", "outside", "a host the egress list refuses, HTTPS", "example.com:443", "HTTPS GET /, sent directly, no proxy", { type: "https", host: "example.com", port: 443, path: "/" });
+  add("A4", "A", "outside", "a host the egress list refuses, plain HTTP", "example.com:80", "HTTP GET /, sent directly, no proxy", { type: "http", host: "example.com", port: 80, path: "/" });
+  add("A5", "A", "outside", "another host the egress list refuses, plain HTTP", "github.com:80", "HTTP GET /, sent directly, no proxy", { type: "http", host: "github.com", port: 80, path: "/" });
+
+  add("B1", "B", "outside", "a public address, HTTPS port", "1.1.1.1:443", "TCP connection, opened and closed", { type: "tcp", host: "1.1.1.1", port: 443 });
+  add("B2", "B", "outside", "example.com's address, HTTP port", `${ex}:80`, "TCP connection, opened and closed", { type: "tcp", host: ex, port: 80 });
+  add("B3", "B", "outside", "example.com's address, plain HTTP", `${ex}:80`, "HTTP GET / with the name example.com, no proxy", { type: "http", host: ex, port: 80, path: "/", hostHeader: "example.com" });
+  add("B4", "B", "outside", "the cloud's machine-information address (link-local)", "169.254.169.254:80", "HTTP GET /, no extra headers, no proxy", { type: "http", host: "169.254.169.254", port: 80, path: "/" });
+
+  add("C1", "C", "outside", "an outside address, port 22 (remote login)", "1.1.1.1:22", "TCP connection, opened and closed", { type: "tcp", host: "1.1.1.1", port: 22 });
+  add("C2", "C", "outside", "an outside address, port 25 (mail)", "1.1.1.1:25", "TCP connection, opened and closed", { type: "tcp", host: "1.1.1.1", port: 25 });
+  add("C3", "C", "outside", "an outside address, port 53 (name service over TCP)", "1.1.1.1:53", "TCP connection, opened and closed", { type: "tcp", host: "1.1.1.1", port: 53 });
+  add("C4", "C", "outside", "an outside address, port 8080", "1.1.1.1:8080", "TCP connection, opened and closed", { type: "tcp", host: "1.1.1.1", port: 8080 });
+  add("C5", "C", "host", "the builder's own database (PostgreSQL)", `127.0.0.1:${s.builderDbPort}`, "TCP connection, opened and closed", { type: "tcp", host: "127.0.0.1", port: s.builderDbPort });
+  add("C6", "C", "host", "the model gateway's port", `127.0.0.1:${s.gatewayPort}`, "TCP connection, opened and closed", { type: "tcp", host: "127.0.0.1", port: s.gatewayPort });
+  add("C7", "C", "host", "the project's database", `127.0.0.1:${s.projectDbPort}`, "TCP connection, opened and closed", { type: "tcp", host: "127.0.0.1", port: s.projectDbPort });
+  add("C8", "C", "host", "the project's egress proxy", `127.0.0.1:${s.egressPort}`, "TCP connection, opened and closed", { type: "tcp", host: "127.0.0.1", port: s.egressPort });
+  if (s.sessionProxy)
+    add("C9", "C", "host", "the cloud session's proxy", `${s.sessionProxy.host}:${s.sessionProxy.port}`, "TCP connection, opened and closed", { type: "tcp", host: s.sessionProxy.host, port: s.sessionProxy.port });
+  for (const l of extraListeners) {
+    const host = l.address === "0.0.0.0" || l.address === "::" ? "127.0.0.1" : l.address;
+    add(`X${l.port}`, "C", "host", "another listening port, seen inside the container", `${host}:${l.port}`, "TCP connection, opened and closed", { type: "tcp", host, port: l.port });
+  }
+
+  add("D1", "D", "lookup", "an outside name the egress list allows", "registry.npmjs.org", "lookup with the container's own resolver", { type: "lookup", name: "registry.npmjs.org" });
+  add("D2", "D", "lookup", "an outside name the egress list refuses", "example.com", "lookup with the container's own resolver", { type: "lookup", name: "example.com" });
+  add("D3", "D", "lookup", "an internal-looking name: the database's name on the server profile", "db", "lookup with the container's own resolver", { type: "lookup", name: "db" });
+  add("D4", "D", "lookup", "an internal-looking name: the cloud's machine-information service", "metadata.google.internal", "lookup with the container's own resolver", { type: "lookup", name: "metadata.google.internal" });
+  add("D5", "D", "lookup", "an allowed name, asking an outside name server directly", "registry.npmjs.org @1.1.1.1", "question sent to 1.1.1.1 port 53 (UDP)", { type: "resolve", name: "registry.npmjs.org", server: "1.1.1.1" });
+  add("D6", "D", "lookup", "a refused name, asking an outside name server directly", "example.com @1.1.1.1", "question sent to 1.1.1.1 port 53 (UDP)", { type: "resolve", name: "example.com", server: "1.1.1.1" });
+
+  const eg = { host: "127.0.0.1", port: s.egressPort };
+  add("E1", "E", "egress-proxy", "an allowed host, tunnel", "registry.npmjs.org:443", `CONNECT through 127.0.0.1:${s.egressPort}`, { type: "connect", proxy: eg, target: "registry.npmjs.org:443" });
+  add("E2", "E", "egress-proxy", "an allowed host, HTTPS inside the tunnel", "registry.npmjs.org:443", `CONNECT through 127.0.0.1:${s.egressPort}, then HTTPS GET /-/ping`, { type: "https-tunnel", proxy: eg, host: "registry.npmjs.org", port: 443, path: "/-/ping" });
+  add("E3", "E", "egress-proxy", "a refused host, tunnel", "example.com:443", `CONNECT through 127.0.0.1:${s.egressPort}`, { type: "connect", proxy: eg, target: "example.com:443" });
+  add("E4", "E", "egress-proxy", "an allowed host, plain HTTP", "registry.npmjs.org:80", `HTTP GET http://registry.npmjs.org/-/ping through 127.0.0.1:${s.egressPort}`, { type: "http-proxy", proxy: eg, url: "http://registry.npmjs.org/-/ping" });
+  add("E5", "E", "egress-proxy", "a refused host, plain HTTP", "example.com:80", `HTTP GET http://example.com/ through 127.0.0.1:${s.egressPort}`, { type: "http-proxy", proxy: eg, url: "http://example.com/" });
+
+  if (s.sessionProxy) {
+    const sp = s.sessionProxy;
+    const via = `CONNECT through the cloud session's proxy (${sp.host}:${sp.port})`;
+    add("F1", "F", "session-proxy", "a host the egress list allows", "registry.npmjs.org:443", via, { type: "connect", proxy: sp, target: "registry.npmjs.org:443" });
+    add("F2", "F", "session-proxy", "a host the egress list refuses", "github.com:443", via, { type: "connect", proxy: sp, target: "github.com:443" });
+    add("F3", "F", "session-proxy", "another host the egress list refuses", "example.com:443", via, { type: "connect", proxy: sp, target: "example.com:443" });
+    add("F4", "F", "session-proxy", "a host the egress list refuses, HTTPS inside the tunnel", "github.com:443", `${via}, then HTTPS GET /robots.txt`, { type: "https-tunnel", proxy: sp, host: "github.com", port: 443, path: "/robots.txt" });
+  }
+  return plan;
+}
+
+const oneLine = (s, n = 110) => String(s ?? "").replace(/\s+/g, " ").trim().slice(0, n);
+const codeOf = (err) => (err && typeof err === "object" && "code" in err && err.code ? String(err.code) : "ERROR");
+
+/** What an HTTP answer says about where it came from: the server header, a redirect, a refusal's own words. */
+function httpDetail(status, headers, body) {
+  const bits = [];
+  if (headers.server) bits.push(`server: ${oneLine(headers.server, 40)}`);
+  if (headers.location) bits.push(`location: ${oneLine(headers.location, 60)}`);
+  if (headers["x-deny-reason"]) bits.push(`x-deny-reason: ${oneLine(headers["x-deny-reason"], 60)}`);
+  if (status >= 400 && body) bits.push(`says: "${oneLine(body)}"`);
+  return bits.join("; ");
+}
+
+/** Run `start(finish)` with a time limit; `finish` settles once with a result. */
+function withLimit(ms, start) {
+  return new Promise((resolve) => {
+    let done = false;
+    const cleanups = [];
+    const finish = (r) => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      for (const c of cleanups) {
+        try {
+          c();
+        } catch {
+          /* already closed */
+        }
+      }
+      resolve(r);
+    };
+    const timer = setTimeout(() => finish({ result: "timed out", code: "TIMEOUT", detail: `no answer within ${ms} ms` }), ms);
+    start(finish, (c) => cleanups.push(c));
+  });
+}
+
+function tcpAttempt(op, ms) {
+  return withLimit(ms, (finish, cleanup) => {
+    const s = net.connect({ host: op.host, port: op.port });
+    cleanup(() => s.destroy());
+    s.on("connect", () => finish({ result: "connected", code: null, detail: "" }));
+    s.on("error", (e) => finish({ result: classifyError(codeOf(e)), code: codeOf(e), detail: "" }));
+  });
+}
+
+/** The certificates an HTTPS attempt trusts: the container's own, plus a session certificate if one is found inside. */
+function trust(sessionCert) {
+  return sessionCert ? { ca: [...tls.rootCertificates, readFileSync(sessionCert, "utf8")] } : {};
+}
+
+function readAnswer(res, finish) {
+  let body = "";
+  res.setEncoding("utf8");
+  res.on("data", (d) => {
+    if (body.length < 2048) body += d;
+  });
+  res.on("end", () => finish({ result: `HTTP ${res.statusCode}`, code: null, detail: httpDetail(res.statusCode ?? 0, res.headers, body) }));
+  res.on("error", (e) => finish({ result: `HTTP ${res.statusCode}`, code: codeOf(e), detail: httpDetail(res.statusCode ?? 0, res.headers, body) }));
+}
+
+function httpAttempt(op, ms, secure, sessionCert) {
+  return withLimit(ms, (finish, cleanup) => {
+    const mod = secure ? https : http;
+    // agent: false, so no proxy setting and no shared connection is used: the request goes straight out.
+    const req = mod.request(
+      {
+        host: op.host,
+        port: op.port,
+        path: op.path,
+        method: "GET",
+        agent: false,
+        headers: { host: op.hostHeader ?? op.host, "user-agent": "isolation-probe", connection: "close" },
+        ...(secure ? { servername: op.host, ...trust(sessionCert) } : {}),
+      },
+      (res) => readAnswer(res, finish),
+    );
+    cleanup(() => req.destroy());
+    req.on("error", (e) => finish({ result: classifyError(codeOf(e)), code: codeOf(e), detail: "" }));
+    req.end();
+  });
+}
+
+function httpViaProxyAttempt(op, ms) {
+  return withLimit(ms, (finish, cleanup) => {
+    const url = new URL(op.url);
+    const req = http.request(
+      { host: op.proxy.host, port: op.proxy.port, path: op.url, method: "GET", agent: false, headers: { host: url.host, "user-agent": "isolation-probe", connection: "close" } },
+      (res) => readAnswer(res, finish),
+    );
+    cleanup(() => req.destroy());
+    req.on("error", (e) => finish({ result: classifyError(codeOf(e)), code: codeOf(e), detail: "" }));
+    req.end();
+  });
+}
+
+/** Ask a proxy to open a tunnel; `then(socket, finish)` continues once it answers 200. */
+function tunnel(op, finish, cleanup, then) {
+  const s = net.connect({ host: op.proxy.host, port: op.proxy.port });
+  cleanup(() => s.destroy());
+  let buf = Buffer.alloc(0);
+  const onData = (d) => {
+    buf = Buffer.concat([buf, d]);
+    const end = buf.indexOf("\r\n\r\n");
+    if (end < 0) return;
+    s.off("data", onData);
+    const head = buf.subarray(0, end).toString("latin1");
+    const status = Number((/^HTTP\/1\.[01] (\d{3})/.exec(head) ?? [])[1] ?? 0);
+    const rest = buf.subarray(end + 4).toString("utf8");
+    if (status !== 200 || !then) {
+      finish({ result: status ? `proxy answered ${status}` : "error", code: status ? null : "BAD_ANSWER", detail: status >= 400 && rest ? `says: "${oneLine(rest)}"` : "" });
+      return;
+    }
+    then(s);
+  };
+  s.on("data", onData);
+  s.on("connect", () => s.write(`CONNECT ${op.target} HTTP/1.1\r\nHost: ${op.target}\r\nUser-Agent: isolation-probe\r\n\r\n`));
+  s.on("error", (e) => finish({ result: classifyError(codeOf(e)), code: codeOf(e), detail: "the proxy itself could not be reached" }));
+}
+
+function connectAttempt(op, ms) {
+  return withLimit(ms, (finish, cleanup) => tunnel(op, finish, cleanup, null));
+}
+
+function httpsTunnelAttempt(op, ms, sessionCert) {
+  return withLimit(ms, (finish, cleanup) =>
+    tunnel({ ...op, target: `${op.host}:${op.port}` }, finish, cleanup, (socket) => {
+      const req = https.request(
+        {
+          host: op.host,
+          port: op.port,
+          path: op.path,
+          method: "GET",
+          agent: false,
+          servername: op.host,
+          ...trust(sessionCert),
+          createConnection: () => tls.connect({ socket, servername: op.host, ...trust(sessionCert) }),
+          headers: { host: op.host, "user-agent": "isolation-probe", connection: "close" },
+        },
+        (res) => readAnswer(res, finish),
+      );
+      cleanup(() => req.destroy());
+      req.on("error", (e) => finish({ result: classifyError(codeOf(e)), code: codeOf(e), detail: "the proxy answered 200; the error came after" }));
+      req.end();
+    }),
+  );
+}
+
+function lookupAttempt(op, ms) {
+  return withLimit(ms, (finish) => {
+    dns.lookup(op.name, { all: true }, (err, addresses) => {
+      if (err) finish({ result: classifyError(codeOf(err), "lookup"), code: codeOf(err), detail: "" });
+      else finish({ result: `found ${addresses.length} address${addresses.length === 1 ? "" : "es"}`, code: null, detail: addresses.slice(0, 3).map((a) => a.address).join(", ") });
+    });
+  });
+}
+
+function resolveAttempt(op, ms) {
+  return withLimit(ms, (finish) => {
+    const r = new dns.promises.Resolver({ timeout: Math.max(100, ms - 500), tries: 1 });
+    r.setServers([op.server]);
+    r.resolve4(op.name).then(
+      (addresses) => finish({ result: `found ${addresses.length} address${addresses.length === 1 ? "" : "es"}`, code: null, detail: addresses.slice(0, 3).join(", ") }),
+      (err) => finish({ result: classifyError(codeOf(err), "lookup"), code: codeOf(err), detail: "" }),
+    );
+  });
+}
+
+export async function runAttempt(a, s, sessionCert) {
+  const ms = s.timeoutMs;
+  switch (a.op.type) {
+    case "tcp":
+      return tcpAttempt(a.op, ms);
+    case "http":
+      return httpAttempt(a.op, ms, false, null);
+    case "https":
+      return httpAttempt(a.op, ms, true, sessionCert);
+    case "http-proxy":
+      return httpViaProxyAttempt(a.op, ms);
+    case "connect":
+      return connectAttempt(a.op, ms);
+    case "https-tunnel":
+      return httpsTunnelAttempt(a.op, ms, sessionCert);
+    case "lookup":
+      return lookupAttempt(a.op, ms);
+    case "resolve":
+      return resolveAttempt(a.op, ms);
+    default:
+      return { result: "error", code: "UNKNOWN_ATTEMPT", detail: a.op.type };
+  }
+}
+
+const print = (o) => process.stdout.write(JSON.stringify(o) + "\n");
+const readOr = (p, fallback = "") => {
+  try {
+    return readFileSync(p, "utf8");
+  } catch {
+    return fallback;
+  }
+};
+
+async function main() {
+  if (!existsSync("/.dockerenv")) {
+    print({ kind: "error", reason: "The isolation probe runs only inside a container; /.dockerenv is missing here." });
+    process.exit(1);
+  }
+  let s;
+  try {
+    s = parseSettings(process.argv[2]);
+  } catch (e) {
+    print({ kind: "error", reason: e instanceof Error ? e.message : String(e) });
+    process.exit(1);
+  }
+  const ifaces = Object.entries(os.networkInterfaces())
+    .map(([name, addrs]) => `${name} (${(addrs ?? []).map((a) => a.address).join(", ")})`)
+    .join("; ");
+  const resolv = readOr("/etc/resolv.conf")
+    .split("\n")
+    .filter((l) => /^\s*nameserver\s/.test(l))
+    .map((l) => l.trim().split(/\s+/)[1])
+    .join(", ");
+  const tcp4 = readOr("/proc/net/tcp");
+  const listeners = [...parseListeners(tcp4, 4), ...parseListeners(readOr("/proc/net/tcp6"), 6)];
+  const sessionCert = SESSION_CERT_PATHS.find((p) => existsSync(p)) ?? null;
+  print({ kind: "info", name: "user id", value: String(process.getuid?.() ?? "unknown") });
+  print({ kind: "info", name: "network interfaces", value: ifaces || "none" });
+  print({ kind: "info", name: "name servers in /etc/resolv.conf", value: resolv || "none" });
+  print({ kind: "info", name: "listening TCP ports seen in /proc/net", value: listeners.map((l) => `${l.address}:${l.port}`).sort().join(", ") || "none" });
+  print({ kind: "info", name: "other TCP connections seen in /proc/net/tcp", value: String(countOtherSockets(tcp4)) });
+  // Names only, never values: the app's container holds its database password and sign-in secret.
+  print({ kind: "info", name: "settings that name a proxy or a certificate (names only)", value: Object.keys(process.env).filter((k) => /proxy|cert|_ca_/i.test(k)).sort().join(", ") || "none" });
+  print({ kind: "info", name: "a copy of the session certificate inside", value: sessionCert ?? "none" });
+  // example.com's address for B2 and B3: looked up here if the lookup works, otherwise the one given.
+  const found = await withLimit(s.timeoutMs, (finish) =>
+    dns.lookup("example.com", { family: 4 }, (err, address) => finish(err ? { code: codeOf(err) } : { address })),
+  ).then((r) => (r.result === "timed out" ? { code: "TIMEOUT" } : r));
+  if (found.address) s = { ...s, exampleAddress: found.address };
+  print({
+    kind: "info",
+    name: "example.com's address used by B2 and B3",
+    value: found.address ? `${found.address}, from a lookup inside this container` : `${s.exampleAddress}, as given in the settings: example.com could not be looked up here (${found.code})`,
+  });
+
+  const named = new Set([s.builderDbPort, s.gatewayPort, s.projectDbPort, s.egressPort, ...(s.sessionProxy ? [s.sessionProxy.port] : [])]);
+  const seen = new Set();
+  const extra = listeners
+    .filter((l) => !named.has(l.port) && l.address !== "ipv6")
+    .filter((l) => (seen.has(l.port) ? false : (seen.add(l.port), true)))
+    .sort((x, y) => x.port - y.port);
+  const plan = planAttempts(s, extra);
+  for (const a of plan) {
+    const r = await runAttempt(a, s, a.op.type === "https" || a.op.type === "https-tunnel" ? sessionCert : null);
+    const how = (a.op.type === "https" || a.op.type === "https-tunnel") && sessionCert ? `${a.how}; trusting also ${sessionCert}` : a.how;
+    print({ kind: "attempt", id: a.id, group: a.group, toward: a.toward, what: a.what, target: a.target, how, result: r.result, code: r.code, detail: r.detail });
+  }
+  print({ kind: "end", attempts: plan.length });
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) await main();
