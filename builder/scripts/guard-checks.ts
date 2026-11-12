@@ -152,6 +152,15 @@ try {
     if (name === "manager") await shot(v.page, "06-action-done-manager-en.png");
   }
 
+  console.log("\n4b. The same, from the Arabic page: a refused employee lands on the Arabic \"no access\" page");
+  {
+    await employee.page.goto(`${baseUrl}/ar/example/action`, { waitUntil: "networkidle" });
+    await employee.page.locator("form button[type=submit]").click();
+    await employee.page.getByTestId("no-access").waitFor({ timeout: 15_000 }).catch(() => undefined);
+    check("action by button from the Arabic page, employee", "/ar/no-access", new URL(employee.page.url()).pathname);
+    await shot(employee.page, "08-action-refused-employee-ar.png");
+  }
+
   console.log("\n5. The same form action, sent directly as the form would send it, by each visitor");
   // The form's hidden fields are read from the page as the manager sees it; the others then send them as their own.
   await manager.page.goto(`${baseUrl}/en/example/action`, { waitUntil: "networkidle" });

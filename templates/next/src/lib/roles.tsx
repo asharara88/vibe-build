@@ -1,8 +1,8 @@
 /**
  * Rule 5: every screen, form action and data route checks the user's role before anything else.
  *
- * The guards here stop an unauthorised request themselves. The code of a page, an action or a
- * route is only ever called with a permitted user; it cannot forget to look at a flag, because
+ * The guards here stop an unauthorised request themselves. The code given to a guard is only
+ * ever called with a permitted user; it cannot forget to look at a flag, because
  * there is no flag. Each page, action and route is written through one of these, and the build
  * fails if one is not (scripts/check-guards.ts):
  *
@@ -15,8 +15,9 @@
  *
  * What a refused person gets: not signed in, the sign-in page (a route answers 401); signed in
  * with the wrong role or with a role this app does not recognise, a plain "no access" page in
- * their language (a route answers 403). An unrecognised role is refused, never treated as the
- * lowest role.
+ * their language (a route answers 403, with its message in both languages). An unrecognised role
+ * is refused, never treated as the lowest role. A page file's other exports (generateMetadata
+ * and the like) would run before the guard, which is why the build check refuses them.
  *
  * Protected: the build engine must not change this file.
  */
@@ -100,7 +101,7 @@ export function guardedRoute<Ctx>(allowed: readonly Role[], handle: (request: Re
   return async function guardedRouteCall(request: Request, context: Ctx): Promise<Response> {
     const decision = decide(await whoIsAsking(), allowed);
     if (!decision.allow && decision.reason === "not_signed_in") return refusal(401, "not_signed_in", "Sign in first.", "سجّل الدخول أولاً.");
-    if (!decision.allow) return refusal(403, "no_access", "Your role does not have access to this.", "دورك لا يملك صلاحية الوصول إلى هذا.");
+    if (!decision.allow) return refusal(403, "no_access", "Your role does not have access to this.", "دورك لا يملك صلاحية الوصول إلى هذا المحتوى.");
     return handle(request, decision.user, context);
   };
 }

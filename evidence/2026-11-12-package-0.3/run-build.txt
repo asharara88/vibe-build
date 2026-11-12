@@ -1,5 +1,5 @@
 $ npm run build   (in templates/next/, with the placeholder settings the Dockerfile uses)
-Guard check (rule 5): 25 code files read under src/.
+Guard check (rule 5): 38 code files read in the component.
 Pages, form actions and data routes, each with its guard and what the guard is given:
   action  src/app/[locale]/example/action/actions.ts  runExampleAction = guardedAction(["manager", "hr_admin"])
   page    src/app/[locale]/example/action/page.tsx  guardedPage(ROLES)
@@ -28,6 +28,8 @@ Route (app)
 ├ ƒ /api/auth/[...all]
 └ ƒ /api/example/roles
 
+
+ƒ Proxy (Middleware)
 
 ○  (Static)   prerendered as static content
 ●  (SSG)      prerendered as static HTML (uses generateStaticParams)

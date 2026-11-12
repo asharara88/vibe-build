@@ -5,16 +5,24 @@
  *   tsx scripts/check-guards.ts --dir X    check the app in folder X (used by the tests)
  *
  * What it reads (the files are parsed, not searched as text):
- *   - every page file under src/app: its default export must be guardedPage(...) or publicPage(...);
+ *   - every page file under src/app: its default export must be guardedPage(...) or publicPage(...),
+ *     and it may export nothing else but a few fixed settings with plain values (no
+ *     generateMetadata, no metadata: code there would run for every visitor);
  *   - every route file under src/app: each HTTP method it exports must be
- *     `export const GET = guardedRoute(...)` or publicRoute(...);
- *   - every file marked "use server": each thing it exports must be guardedAction(...) or
- *     publicAction(...); and no function anywhere may be marked "use server" on its own.
- * The guard names must be imported from "@/lib/roles" and not declared again in the file.
+ *     `export const GET = guardedRoute(...)` or publicRoute(...), and nothing else but those settings;
+ *   - every code file of the component, inside src/ or not: a file whose opening directives include
+ *     "use server" may export only `export const name = guardedAction(...)` or publicAction(...);
+ *     and no function anywhere may carry "use server" among its own opening directives.
+ * The guard names must be imported from "@/lib/roles" and not declared again in the file; an
+ * export must be `const`, so that it cannot be swapped for something else afterwards.
+ * It also refuses: a top-level app/ or pages/ folder, or src/pages/ (Next.js would serve those);
+ * the special files that answer with data by themselves (manifest, sitemap, robots, social and
+ * icon images written as code); a change to where "@/" points in tsconfig.json; pageExtensions in
+ * next.config.ts; and a build script that does not run this check first.
  *
  * What it does not read: layouts and the other special files (they must not show data); what a
  * guard is given (a page for every role is still "guarded"); and src/lib/roles.tsx itself, which
- * is protected from the build engine. It is run by `npm run build`, so an unguarded page, action
+ * the build engine is not to change. It is run by `npm run build`, so an unguarded page, action
  * or route fails the build.
  *
  * Protected: the build engine must not change this file.
@@ -38,6 +46,11 @@ const GUARDS = {
 } as const;
 const ALL_GUARDS: string[] = Object.values(GUARDS).flat();
 const METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"];
+/** Settings a page or route file may also export, each with a plain value: no code of its own. */
+const SETTINGS = ["dynamic", "dynamicParams", "revalidate", "fetchCache", "runtime", "preferredRegion", "maxDuration"];
+/** Special files that answer a request with data by themselves, with no page around them. */
+const SELF_ANSWERING = ["manifest", "sitemap", "robots", "opengraph-image", "twitter-image", "icon", "apple-icon"];
+const SKIP_DIRS = new Set(["node_modules", ".next", ".git"]);
 const CODE = /\.(ts|tsx|js|jsx|mjs|cjs|mts|cts)$/;
 
 const problems: string[] = [];
@@ -49,7 +62,7 @@ function walk(dir: string, out: string[] = []): string[] {
   for (const name of readdirSync(dir).sort()) {
     const full = path.join(dir, name);
     if (statSync(full).isDirectory()) {
-      if (name !== "node_modules") walk(full, out);
+      if (!SKIP_DIRS.has(name)) walk(full, out);
     } else if (CODE.test(name)) out.push(full);
   }
   return out;
@@ -67,11 +80,19 @@ function* nodes(value: unknown): Generator<Node> {
   for (const v of Object.values(n)) yield* nodes(v);
 }
 
-const isUseServer = (stmt: unknown): boolean => {
-  const s = stmt as Node | undefined;
-  const e = s?.expression as Node | undefined;
-  return s?.type === "ExpressionStatement" && e?.type === "StringLiteral" && e.value === "use server";
-};
+/** The opening directives of a file or a function body: the plain strings before its first other statement. */
+function directives(stmts: Node[]): string[] {
+  const out: string[] = [];
+  for (const s of stmts) {
+    const e = s.expression as Node | undefined;
+    if (s.type !== "ExpressionStatement" || e?.type !== "StringLiteral") break;
+    out.push(e.value as string);
+  }
+  return out;
+}
+const marksServer = (stmts: Node[]): boolean => directives(stmts).includes("use server");
+/** A plain value: text, a number, true or false. */
+const plain = (expr: unknown): boolean => ["StringLiteral", "NumericLiteral", "BooleanLiteral"].includes((expr as Node | undefined)?.type ?? "");
 
 /** The name of the guard a value is made with, if it is a direct call to one: guardedPage(...) and so on. */
 function guardOf(expr: unknown): string | null {
@@ -103,7 +124,10 @@ function check(file: string): void {
   const inApp = rel(file).startsWith("src/app/");
   const isPage = inApp && base === "page";
   const isRoute = inApp && base === "route";
-  const serverFile = body.length > 0 && isUseServer(body[0]);
+  const serverFile = marksServer(body);
+  if (inApp && SELF_ANSWERING.includes(base)) {
+    problems.push(`${rel(file)} is a special file that answers with data by itself, with no guard around it. It is not allowed; a static file in public/ can be used instead.`);
+  }
 
   // Which guard names this file really takes from the guards' own file, and which it declares itself.
   const imported = new Set<string>();
@@ -133,12 +157,29 @@ function check(file: string): void {
   for (const n of nodes(body)) {
     // The body of a function, whatever kind of function it is (the parser names them differently).
     const inner = Array.isArray(n.stmts) ? (n.stmts as Node[]) : [];
-    if (inner.length > 0 && isUseServer(inner[0])) {
+    if (n !== (module as Node) && marksServer(inner)) {
       problems.push(`${rel(file)} has a function marked "use server" inside it. A form action goes in a file marked "use server" and is written with guardedAction.`);
     }
   }
 
   if (isPage) {
+    for (const stmt of body) {
+      if (stmt.type === "ExportAllDeclaration" || (stmt.type === "ExportNamedDeclaration" && ((stmt.specifiers as Node[]) ?? []).length > 0)) {
+        problems.push(`${rel(file)} re-exports names. A page file exports only its page, written with guardedPage.`);
+      }
+      if (stmt.type !== "ExportDeclaration") continue;
+      const decl = stmt.declaration as Node;
+      if (decl.type === "TsTypeAliasDeclaration" || decl.type === "TsInterfaceDeclaration") continue;
+      const ds = decl.type === "VariableDeclaration" ? ((decl.declarations as Node[]) ?? []) : [];
+      const settingsOnly =
+        decl.type === "VariableDeclaration" &&
+        decl.kind === "const" &&
+        ds.every((d) => (d.id as Node).type === "Identifier" && SETTINGS.includes((d.id as Node).value as string) && plain(d.init));
+      if (!settingsOnly) {
+        const name = ds.length > 0 && (ds[0]!.id as Node).type === "Identifier" ? ((ds[0]!.id as Node).value as string) : (((decl.identifier as Node | undefined)?.value as string | undefined) ?? "(unnamed)");
+        problems.push(`${rel(file)} exports "${name}" beside its page. Code there runs for every visitor, before any guard; a page file exports only its page and, if needed, a setting with a plain value (${SETTINGS.join(", ")}).`);
+      }
+    }
     const def = body.find((s) => s.type === "ExportDefaultExpression" || s.type === "ExportDefaultDeclaration");
     const guard = def?.type === "ExportDefaultExpression" ? guardOf(def.expression) : null;
     if (!def) problems.push(`${rel(file)} is a page with no default export.`);
@@ -179,8 +220,17 @@ function check(file: string): void {
           continue;
         }
         const name = id.value as string;
-        // A route file may also export Next.js settings such as "dynamic"; only its methods are handlers.
-        if (isRoute && !METHODS.includes(name)) continue;
+        if (decl.kind !== "const") {
+          problems.push(`${rel(file)} exports "${name}" with "${String(decl.kind)}". An export is "const", so that it cannot be replaced afterwards by something without a guard.`);
+          continue;
+        }
+        // A route file may also export Next.js settings such as "dynamic", with a plain value; only its methods are handlers.
+        if (isRoute && !METHODS.includes(name)) {
+          if (!(SETTINGS.includes(name) && plain(d.init))) {
+            problems.push(`${rel(file)} exports "${name}". A route file exports only its methods, each written with guardedRoute, and settings with a plain value (${SETTINGS.join(", ")}).`);
+          }
+          continue;
+        }
         const guard = guardOf(d.init);
         if (!genuine(guard, kind)) {
           problems.push(`${rel(file)} exports "${name}" without a guard. Write it as "export const ${name} = ${GUARDS[kind][0]}(...)" with the guard imported from "@/lib/roles".`);
@@ -191,13 +241,52 @@ function check(file: string): void {
 }
 
 if (!existsSync(path.join(src, "app"))) problems.push("src/app was not found, so there was nothing to check. A check that read nothing has not passed.");
-for (const legacy of ["pages", "src/pages"]) {
-  if (existsSync(path.join(root, legacy))) problems.push(`${legacy}/ exists. This template uses the app router only; pages and routes there are not checked, so they are not allowed.`);
+for (const other of ["app", "pages", "src/pages"]) {
+  if (existsSync(path.join(root, other))) problems.push(`${other}/ exists. Next.js would serve pages and routes from it, and only src/app is checked, so it is not allowed.`);
 }
-const files = walk(src).filter((f) => rel(f) !== "src/lib/roles.tsx");
+
+// The settings that decide which files Next.js serves, and what "@/lib/roles" is.
+function readJson(file: string): unknown {
+  try {
+    return JSON.parse(readFileSync(file, "utf8"));
+  } catch {
+    return undefined;
+  }
+}
+const tsconfigPath = path.join(root, "tsconfig.json");
+if (existsSync(tsconfigPath)) {
+  const opts = ((readJson(tsconfigPath) as { compilerOptions?: Record<string, unknown> } | undefined)?.compilerOptions ?? null) as Record<string, unknown> | null;
+  const paths = opts?.paths;
+  if (opts === null || JSON.stringify(paths) !== JSON.stringify({ "@/*": ["./src/*"] }) || (opts.baseUrl !== undefined && opts.baseUrl !== ".")) {
+    problems.push('tsconfig.json does not map "@/" to src/ and only that, so "@/lib/roles" might not be the guards\' own file.');
+  }
+}
+const pkg = readJson(path.join(root, "package.json")) as { scripts?: Record<string, string> } | undefined;
+if (pkg !== undefined && !(pkg.scripts?.build ?? "").startsWith("tsx scripts/check-guards.ts && ")) {
+  problems.push('package.json\'s build script does not start with "tsx scripts/check-guards.ts && ", so a build would not run this check.');
+}
+for (const name of ["next.config.ts", "next.config.mjs", "next.config.js"]) {
+  const f = path.join(root, name);
+  if (!existsSync(f)) continue;
+  try {
+    const m = parseSync(readFileSync(f, "utf8"), { syntax: "typescript", target: "es2022" }) as unknown as Node;
+    for (const n of nodes(m)) {
+      const key = n.type === "KeyValueProperty" ? (n.key as Node) : undefined;
+      if (key && ((key.type === "Identifier" && key.value === "pageExtensions") || (key.type === "StringLiteral" && key.value === "pageExtensions"))) {
+        problems.push(`${name} sets pageExtensions, which changes which files are pages; the check knows only the usual ones.`);
+      }
+    }
+  } catch {
+    problems.push(`${name} could not be read as code, so it could not be checked.`);
+  }
+}
+
+// Every code file of the component: pages and routes count only under src/app, but a "use server"
+// file or function counts wherever it is.
+const files = walk(root).filter((f) => rel(f) !== "src/lib/roles.tsx");
 for (const f of files) check(f);
 
-console.log(`Guard check (rule 5): ${files.length} code files read under src/.`);
+console.log(`Guard check (rule 5): ${files.length} code files read in the component.`);
 console.log("Pages, form actions and data routes, each with its guard and what the guard is given:");
 for (const r of rows) console.log(r);
 if (rows.length === 0) problems.push("No page, action or route was found. A check that read nothing has not passed.");

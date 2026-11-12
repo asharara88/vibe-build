@@ -7,22 +7,33 @@
 | Answers | Register finding P-3 (`docs/reviews/2026-11-11-pull-request-2.md`): the guard returned a "denied" flag for the page to act on, treated an unrecognised role as the lowest role, and covered pages only |
 | Run on | The development machine (a cloud session). The template's own tests, type check, build and checks ran on the host in `templates/next/`. The live checks built and ran the template in containers on the development profile, which shares the host's network; as before, creating the tables and sample users ran from the host (known gap 29). Made-up sample users only |
 | Done means (plan) | (1) "A restricted example page with a test for each role." (2) "A check that fails the build when a page, action or route has no guard." (3) "The existing home page uses the guard the new way" |
-| Result | (1) **Shown**: runs 1 and 2. (2) **Shown**: runs 3 and 4. (3) **Shown**: run 3 lists the home page with its guard, and run 2 shows it behaving for each kind of visitor. **State: built, not tested**, until an independent reviewer has read the commit that is merged |
+| Result | (1) **Shown**: runs 1 and 2. The decision is tested for each role in `npm test`; the pages themselves, for each kind of visitor, by the live run. (2) **Shown** for the ways of writing listed under "What the build check reads": runs 3 and 4. (3) **Shown**: run 3 lists the home page with its guard, and run 2 shows it behaving for each kind of visitor. **State: built, not tested**, until an independent reviewer has read the commit that is merged. A first review found the check could be got round in six ways that Next.js really serves, closed since (the review is at the end of this file) |
 
 A *guard* is the piece of code that decides whether the person asking may see or do something. A *form action* is code on the server that a form's button runs. A *data route* is an address that answers with data instead of a page.
 
 ## What was built, in `templates/next/`
 
 - **The decision, on its own** (`src/lib/access.ts`): who is asking (nobody; someone whose account has no role this app recognises; a user with a role) and whether the roles named allow them. No framework in it, so it is tested directly.
-- **Three guards** (`src/lib/roles.tsx`, replacing `roles.ts`): `guardedPage`, `guardedAction` and `guardedRoute`. Each takes the roles it is for and the code to run, and calls that code only with a permitted user. There is no "denied" flag any more for a page to forget. Not signed in: the sign-in page (a route answers 401). Wrong role, or a role not recognised: the "no access" page in the reader's language (a route answers 403 with the message in both languages).
+- **Three guards** (`src/lib/roles.tsx`, replacing `roles.ts`): `guardedPage`, `guardedAction` and `guardedRoute`. Each takes the roles it is for and the code to run, and calls that code only with a permitted user. There is no "denied" flag any more for a page to forget. (Code that a page file exports beside its page, such as `generateMetadata`, would run before the guard; the build check refuses it.) Not signed in: the sign-in page (a route answers 401). Wrong role, or a role not recognised: the "no access" page in the reader's language (a route answers 403 with the message in both languages).
 - **For the few things that need no role**, `publicPage`, `publicAction` and `publicRoute`, each with its reason written beside it: the sign-in page, the page that only sends a visitor on, the "no access" message, and the sign-in library's own routes.
 - **An unrecognised role is refused.** Before, it was read as "employee". Also changed: a new account used to be given the role "employee" by default; it is now given `none`, which is not a role, so every guard refuses it until someone gives it a role.
 - **The "no access" page** (`src/components/NoAccess.tsx`), in English and Arabic: which role you have, who the page is for, and what to do.
-- **A check that runs before every build** (`scripts/check-guards.ts`; `npm run build` runs it first): it parses every page, every file of form actions and every data route, and fails unless each is written through a guard that comes from the guards' own file.
+- **A check that runs before every build** (`scripts/check-guards.ts`; `npm run build` runs it first). What it reads and refuses is listed in the next section.
 - **Examples** that the tests use: a page for HR admins only, a form action for managers and HR admins on a page every role can open, and a data route for managers and HR admins. The build step that adds an app's own screens replaces them.
 - **The template's first automated tests** (`tests/`, run by `npm test`, with Node's own test runner, no new package): the decision for each role, and the build check on small made-up apps.
-- The home page, the sign-in page and the sign-in routes are rewritten through the guards. `@swc/core`, the parser the check uses, was already installed as part of Next.js; it is now also listed by name at the same version, so no package was added (the lock file's own entry is the only one changed).
+- The home page, the sign-in page and the sign-in routes are rewritten through the guards. `@swc/core`, the parser the check uses, was already installed (it comes with `next-intl`); it is now also listed by name at the same version, so no package was added (the lock file's own entry is the only one changed).
+- **The request file `proxy.ts` is moved into `src/`.** At the template's root, where it had been since the template was first built, Next.js never ran it, because the app is under `src/`; the framework's own documentation says it sits beside the app folder. So the address's language was never set for a form action: a refused action on an Arabic page landed on the English "no access" page, and `/` answered "not found". The build output now lists it (`run-build.txt`, "Proxy").
 - In `builder/`: `scripts/guard-checks.ts`, the live checks below, run by `scripts/demo-template.ts --guard`.
+
+## What the build check reads
+
+The files are parsed, not searched as text.
+
+- **Every page file under `src/app`:** its default export must be `guardedPage(...)` or `publicPage(...)`, with the guard imported by name from `@/lib/roles` and not declared again in the file. It may export nothing else except a fixed list of settings with plain values (`dynamic`, `revalidate` and five others): no `generateMetadata`, no `metadata`, because code there runs for every visitor before any guard.
+- **Every route file under `src/app`:** each HTTP method it exports must be `export const GET = guardedRoute(...)` (or `publicRoute`), with `const`, so it cannot be replaced afterwards; nothing else but the same plain settings.
+- **Every code file of the component, inside `src/` or not:** a file whose opening directives include `"use server"` (wherever among them) may export only `export const name = guardedAction(...)` or `publicAction`; and no function anywhere may carry `"use server"` among its own opening directives.
+- **It refuses:** a top-level `app/` or `pages/` folder, or `src/pages/` (Next.js would serve pages from them); the special files that answer with data by themselves (`manifest`, `sitemap`, `robots`, social and icon images written as code); a change to where `@/` points in `tsconfig.json`; `pageExtensions` in the Next.js settings; and a build script that does not run the check first.
+- **It does not read:** layouts and the other special files that wrap pages (`layout`, `template`, `default`, `error`, `not-found`, `loading`), which must not show data; what roles a guard names; the guards' own file; anything under `node_modules`.
 
 ## Run 1: the template's tests (`npm test`)
 
@@ -70,12 +81,22 @@ ok 6 - a data route without a guard fails the check
     ok 3 - the same, for a function written with an arrow, and for one inside an event handler
     ok 4 - passes when the action is written with its guard
 ok 7 - a form action without a guard fails the check
+# Subtest: found by the review of the first version, and kept fixed
+    ok 1 - an action file whose opening directives put "use strict" before "use server"
+    ok 2 - an action file outside src/
+    ok 3 - an action or a route exported with "let", which could be replaced afterwards
+    ok 4 - a page file that exports anything beside its page, such as generateMetadata or metadata
+    ok 5 - a route file that exports something other than its methods and plain settings
+    ok 6 - a top-level app/ folder, which Next.js would serve in place of src/app
+    ok 7 - special files that answer with data by themselves
+    ok 8 - a change to where "@/" points, a build script that skips the check, and pageExtensions
+ok 8 - found by the review of the first version, and kept fixed
 # Subtest: a check that read nothing has not passed
     ok 1 - fails on a folder with no app in it
-ok 8 - a check that read nothing has not passed
-# tests 27
-# suites 8
-# pass 27
+ok 9 - a check that read nothing has not passed
+# tests 35
+# suites 9
+# pass 35
 # fail 0
 # cancelled 0
 # skipped 0
@@ -85,7 +106,7 @@ exit code: 0
 
 ## Run 2: each kind of visitor against the running template
 
-Five kinds of visitor: the three sample roles; a person who has just signed up, whose account has no role the app recognises; and nobody. The form action is tried twice: through the page's button, by the roles that can see the page; and by sending the form directly, by every visitor, including those who are never shown the form.
+Five kinds of visitor: the three sample roles; a person who has just signed up, whose account has no role the app recognises; and nobody. The form action is tried twice: through the page's button, by the roles that can see the page (from the English page, and once from the Arabic page); and by sending the form directly, by every visitor, including those who are never shown the form. Check 4 shows the button doing what it should for each role; the "done" message it reads can be shown by anyone who types its address, so check 5, where the action itself is refused, is the stronger of the two.
 
 ```text
 The role guard, tried by each kind of visitor (scripts/guard-checks.ts):
@@ -118,6 +139,9 @@ PASS  action by button, employee: expected sent to /en/no-access; saw sent to /e
 PASS  action by button, manager: expected done, for the role Manager; saw done, for the role Manager
 PASS  action by button, HR admin: expected done, for the role HR admin; saw done, for the role HR admin
 
+4b. The same, from the Arabic page: a refused employee lands on the Arabic "no access" page
+PASS  action by button from the Arabic page, employee: expected /ar/no-access; saw /ar/no-access
+
 5. The same form action, sent directly as the form would send it, by each visitor
 (hidden fields of the form: 1)
 PASS  action sent directly, employee: expected 303 to /en/no-access; saw 303 to /en/no-access
@@ -141,6 +165,7 @@ Screenshots are in `screens/` beside this file:
 | `05-action-refused-employee-en.png` | An employee pressing the button of an action that is not for employees |
 | `06-action-done-manager-en.png` | A manager pressing the same button |
 | `07-no-access-ar-phone.png` | The "no access" page in Arabic at a phone's width |
+| `08-action-refused-employee-ar.png` | An employee pressing the action's button on the Arabic page, landing on the Arabic "no access" page |
 
 The same run first repeated the template's earlier demonstration (sign-in, validation, home in both languages, phone width); those screenshots are in `screens-template/` and the whole output is `run-live.txt`.
 
@@ -148,7 +173,7 @@ The same run first repeated the template's earlier demonstration (sign-in, valid
 
 ```text
 $ npm run check:guards   (in templates/next/)
-Guard check (rule 5): 25 code files read under src/.
+Guard check (rule 5): 38 code files read in the component.
 Pages, form actions and data routes, each with its guard and what the guard is given:
   action  src/app/[locale]/example/action/actions.ts  runExampleAction = guardedAction(["manager", "hr_admin"])
   page    src/app/[locale]/example/action/page.tsx  guardedPage(ROLES)
@@ -182,9 +207,32 @@ The whole output is `run-build-with-an-unguarded-page.txt`. The build of the tem
 
 - **That every page of a future app is guarded for the right roles.** The check reads how a file is written, not which roles it names: a page written with `guardedPage` for every role passes. Which roles a screen is for comes from the app's brief, and is checked by the acceptance test, which is a later package.
 - **A "forbidden" status for a refused page.** The page a refused person gets is sent with the ordinary status (200). The framework's way of sending 403 for a page is still marked experimental and is not used. Data routes do answer 401 and 403.
-- **Layouts and the framework's other special files.** They are not checked. A layout must not show data; the template's layout shows only the app's name and the language switch.
-- **Other ways code can run on the server** that are not a page, a form action or a data route: the request file `proxy.ts`, and anything a later framework version adds.
+- **Layouts and the framework's other special files that wrap pages.** They are not checked. A layout must not show data; the template's layout shows only the app's name and the language switch.
+- **Other ways code can run on the server** that are not a page, a form action or a data route: the request file `src/proxy.ts`, which only sets the language, and anything a later framework version adds.
+- **Changes to the build itself.** The check refuses a build script that skips it, a changed `@/` and `pageExtensions`; it cannot stop someone changing the check itself or the Next.js settings in other ways. That the build engine may not change these files is a rule of the engine, which is a later package; nothing enforces it yet.
+- **Every message is sent to every visitor.** The template's whole message catalogue, in the visitor's language, goes to the browser, signed in or not. It holds no data, only wording.
+- **Two small things on the "no access" page.** For an account with no role, "Go to the home page" leads back to the same message; on `/no-access` a visitor who is not signed in also sees "Sign out".
 - **That nobody can make an account.** The sign-in library's sign-up route is open: run 2 used it to make the visitor with no role. Such an account sees nothing but the "no access" message, but it exists. Whether sign-up should be closed is a decision for the owner with the reviewing engineer (known gap 47).
-- **The Arabic of the new messages.** It was written by Claude Code and has not been read by a native speaker; the wording list for the owner (`docs/arabic-wording-list.md`) is regenerated with them.
+- **The Arabic of the new messages.** It was written by Claude Code. The reviewer below reads Arabic and found nothing wrong; three of its suggestions are taken. It has not been read by the owner; the wording list for the owner (`docs/arabic-wording-list.md`) is regenerated with them. Two Arabic sentences, the data route's refusal messages, are in `src/lib/roles.tsx`, not in the message files, so they are not in that list.
 - **Records.** Nothing here is about who changed what: the who-and-when stamps are rule 4, not this package.
 - **A server.** Everything ran on the development profile, where containers share the machine's network.
+
+## The review of the first version (commit `e7f4d39`) and what was done
+
+A fresh reviewer, who wrote none of this, ran every check and the live run (all matching), about 80 made-up apps against the build check, six builds of copies with files added, and two instances of the template in containers with probe files. **The guard itself held against everything tried at run time:** roles set in the database to near misses (wrong case, spaces, lists, empty, `admin`) were all refused; a sign-up asking for the role `hr_admin` got `none`; the example action was refused for every visitor whether sent by its form or called directly as the browser's code does, from six addresses; guarded pages were not stored for reuse. **But the build check could be got round in ways Next.js really serves**, and two record statements were false. The review bot, on the same commit, found two of the same ways.
+
+| # | Finding | Blocking | Done |
+| --- | --- | --- | --- |
+| B1 | Form actions the check passed and that ran for a visitor who was not signed in: a file whose directives put `"use strict"` before `"use server"` (also found by the review bot); the same inside a function; a `"use server"` file outside `src/`; an action exported with `let` and then replaced | Yes | The whole run of opening directives is read, in files and in functions; every code file of the component is read, not only `src/`; an export must be `const`. Tested, each case |
+| B2 | A data route exported with `let` and then replaced by an unguarded one, served to a visitor not signed in | Yes | An export must be `const`. Tested |
+| B3 | A page file exporting `generateMetadata` beside its guarded page: the title and description reached a visitor not signed in, an employee and an account with no role | Yes | A page file exports only its page and plain settings. Tested, with `metadata` and a setting that is not plain |
+| B4 | A top-level `app/` folder: the check passed on `src/app`, and Next.js served only the top-level one (also found by the review bot) | Yes | Refused, like `pages/`. Tested |
+| B5 | False: a refused form action did not land on the "no access" page in the reader's language: from an Arabic page it went to the English one. The request file `proxy.ts` sat at the template's root, where Next.js never ran it (true since the template was first built) | Yes | Moved into `src/`. A check from the Arabic page is added to the live run and passes; the 26 earlier checks still pass |
+| B6 | False: `@swc/core` was said to come with Next.js; it comes with `next-intl` | Yes (records) | Corrected here and in `docs/DECISIONS.md` |
+| | Sentences overstated because of B1 to B4 (in this file, the README, the check's own header and `docs/STATUS.md`) | Yes (records) | Reworded; what the check reads and does not read is now listed in its own section above |
+| | A change to where `@/` points in `tsconfig.json` let a fake guard be bundled; a build script could drop the check | No | Both refused by the check. Tested |
+| | `src/app/manifest.ts` answered a visitor not signed in | No | The special files that answer with data by themselves are refused. Tested |
+| | The demonstration run left a temporary folder holding each run's generated secrets | No | The run now removes its folder at the end. Folders left by earlier runs are still in `/tmp` (removing them was refused in this session; the owner can clear them) |
+| | Three Arabic sentences awkward; two refusal sentences in the code not in the wording list | No | Three suggestions taken; the two sentences named above |
+| | The "done" message of the example can be shown by anyone who types its address; the "no access" page's links for a no-role account and a visitor not signed in; every message sent to every visitor | No | Recorded above under "What this does not show" |
+| | Stale or imprecise: the guards' file named `roles.ts` in a comment; known gap 48's count of messages and its mention of `proxy.ts`; the README's claim that protected files are "mounted read-only"; the status file saying the template has no automated tests | No | Each corrected |

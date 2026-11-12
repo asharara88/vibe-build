@@ -117,6 +117,52 @@ describe("a form action without a guard fails the check", () => {
   });
 });
 
+describe("found by the review of the first version, and kept fixed", () => {
+  it('an action file whose opening directives put "use strict" before "use server"', () => {
+    fails({ "src/app/[locale]/x/actions.ts": `"use strict";\n"use server";\nexport async function wipe() {}\n` }, 'src/app/[locale]/x/actions.ts exports "wipe" without a guard');
+    fails(
+      { "src/components/F.tsx": `export function F() {\n  async function wipe() {\n    "use strict";\n    "use server";\n  }\n  return <form action={wipe} />;\n}\n` },
+      'src/components/F.tsx has a function marked "use server" inside it',
+    );
+  });
+  it("an action file outside src/", () => {
+    fails({ "server-outside/actions.ts": `"use server";\nexport async function wipe() {}\n` }, 'server-outside/actions.ts exports "wipe" without a guard');
+  });
+  it('an action or a route exported with "let", which could be replaced afterwards', () => {
+    fails(
+      { "src/app/[locale]/x/actions.ts": `"use server";\nimport { guardedAction } from "@/lib/roles";\nexport let wipe = guardedAction(["hr_admin"], async () => {});\nwipe = async () => {};\n` },
+      'src/app/[locale]/x/actions.ts exports "wipe" with "let"',
+    );
+    fails(
+      { "src/app/api/x/route.ts": `import { guardedRoute } from "@/lib/roles";\nexport let GET = guardedRoute(["hr_admin"], () => Response.json({}));\nGET = async () => Response.json({ open: true });\n` },
+      'src/app/api/x/route.ts exports "GET" with "let"',
+    );
+  });
+  it("a page file that exports anything beside its page, such as generateMetadata or metadata", () => {
+    const page = `import { guardedPage } from "@/lib/roles";\nexport default guardedPage(["hr_admin"], async () => null);\n`;
+    fails({ "src/app/[locale]/x/page.tsx": `${page}export async function generateMetadata() { return { title: "secret" }; }\n` }, 'src/app/[locale]/x/page.tsx exports "generateMetadata" beside its page');
+    fails({ "src/app/[locale]/y/page.tsx": `${page}export const metadata = { title: "secret" };\n` }, 'src/app/[locale]/y/page.tsx exports "metadata" beside its page');
+    fails({ "src/app/[locale]/z/page.tsx": `${page}export const dynamic = load();\n` }, 'src/app/[locale]/z/page.tsx exports "dynamic" beside its page');
+    passes({ "src/app/[locale]/ok/page.tsx": `${page}export const dynamic = "force-dynamic";\nexport const revalidate = 0;\n` });
+  });
+  it("a route file that exports something other than its methods and plain settings", () => {
+    fails({ "src/app/api/x/route.ts": `import { guardedRoute } from "@/lib/roles";\nexport const GET = guardedRoute(["manager"], () => Response.json({}));\nexport const generateStaticParams = async () => [];\n` }, 'src/app/api/x/route.ts exports "generateStaticParams"');
+  });
+  it("a top-level app/ folder, which Next.js would serve in place of src/app", () => {
+    fails({ "app/open/page.tsx": `export default function Open() { return null; }\n` }, "app/ exists");
+  });
+  it("special files that answer with data by themselves", () => {
+    fails({ "src/app/manifest.ts": `export default function manifest() { return { name: "x" }; }\n` }, "src/app/manifest.ts is a special file that answers with data by itself");
+    fails({ "src/app/sitemap.ts": `export default function sitemap() { return []; }\n` }, "src/app/sitemap.ts is a special file");
+  });
+  it('a change to where "@/" points, a build script that skips the check, and pageExtensions', () => {
+    fails({ "tsconfig.json": JSON.stringify({ compilerOptions: { paths: { "@/lib/roles": ["./src/lib/fake"], "@/*": ["./src/*"] } } }) }, 'tsconfig.json does not map "@/" to src/ and only that');
+    fails({ "package.json": JSON.stringify({ scripts: { build: "next build" } }) }, "build script does not start with");
+    passes({ "package.json": JSON.stringify({ scripts: { build: "tsx scripts/check-guards.ts && next build" } }), "tsconfig.json": JSON.stringify({ compilerOptions: { paths: { "@/*": ["./src/*"] } } }) });
+    fails({ "next.config.ts": `export default { pageExtensions: ["tsx", "secret.ts"] };\n` }, "next.config.ts sets pageExtensions");
+  });
+});
+
 describe("a check that read nothing has not passed", () => {
   it("fails on a folder with no app in it", () => {
     const dir = path.join(tmp, "empty");

@@ -9,7 +9,7 @@
  */
 import { execFile } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { cpSync, mkdtempSync } from "node:fs";
+import { cpSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { promisify } from "node:util";
@@ -18,7 +18,7 @@ import { createSandbox, sandbox } from "../src/sandbox/manager.js";
 const run = promisify(execFile);
 const [templateDirArg, outDirArg] = process.argv.slice(2);
 if (!templateDirArg || !outDirArg) {
-  console.error("usage: demo-template.ts <templateDir> <outDir>");
+  console.error("usage: demo-template.ts <templateDir> <outDir> [--guard]");
   process.exit(1);
 }
 const templateDir = resolve(templateDirArg);
@@ -103,5 +103,7 @@ try {
 } finally {
   await sandbox.destroy(sb);
   await sandbox.removeImage(sb);
-  log("Containers, network, volume and image removed.");
+  // The temporary folder holds this run's generated secrets: it goes too.
+  rmSync(dir, { recursive: true, force: true });
+  log("Containers, network, volume, image and the temporary folder removed.");
 }

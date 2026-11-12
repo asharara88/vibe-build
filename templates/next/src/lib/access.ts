@@ -2,7 +2,7 @@
  * Rule 5, the decision itself: who is asking, and may they?
  *
  * This file is plain logic with no framework in it, so that it can be tested on its own.
- * The guards in roles.ts are the only callers. An unrecognised role is refused: it is never
+ * The guards in roles.tsx are the only callers. An unrecognised role is refused: it is never
  * treated as the lowest role.
  *
  * Protected: the build engine must not change this file.

@@ -39,12 +39,22 @@ ok 6 - a data route without a guard fails the check
     ok 3 - the same, for a function written with an arrow, and for one inside an event handler
     ok 4 - passes when the action is written with its guard
 ok 7 - a form action without a guard fails the check
+# Subtest: found by the review of the first version, and kept fixed
+    ok 1 - an action file whose opening directives put "use strict" before "use server"
+    ok 2 - an action file outside src/
+    ok 3 - an action or a route exported with "let", which could be replaced afterwards
+    ok 4 - a page file that exports anything beside its page, such as generateMetadata or metadata
+    ok 5 - a route file that exports something other than its methods and plain settings
+    ok 6 - a top-level app/ folder, which Next.js would serve in place of src/app
+    ok 7 - special files that answer with data by themselves
+    ok 8 - a change to where "@/" points, a build script that skips the check, and pageExtensions
+ok 8 - found by the review of the first version, and kept fixed
 # Subtest: a check that read nothing has not passed
     ok 1 - fails on a folder with no app in it
-ok 8 - a check that read nothing has not passed
-# tests 27
-# suites 8
-# pass 27
+ok 9 - a check that read nothing has not passed
+# tests 35
+# suites 9
+# pass 35
 # fail 0
 # cancelled 0
 # skipped 0

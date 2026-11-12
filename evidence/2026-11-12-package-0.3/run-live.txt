@@ -1,7 +1,7 @@
 Template copied from <repository>/templates/next to the project workspace.
 Compose project builder_demo_template: db, egress, app. Secrets written to the sandbox's secrets folder only.
 Building the app image inside Docker (development profile: build steps use the session proxy)...
-Image built in 45 s.
+Image built in 14 s.
 Creating the tables (drizzle-kit push) and the three sample users (seed)...
   created: employee@example.test (employee)
   created: manager@example.test (manager)
@@ -49,6 +49,9 @@ The role guard, tried by each kind of visitor (scripts/guard-checks.ts):
   PASS  action by button, manager: expected done, for the role Manager; saw done, for the role Manager
   PASS  action by button, HR admin: expected done, for the role HR admin; saw done, for the role HR admin
   
+  4b. The same, from the Arabic page: a refused employee lands on the Arabic "no access" page
+  PASS  action by button from the Arabic page, employee: expected /ar/no-access; saw /ar/no-access
+  
   5. The same form action, sent directly as the form would send it, by each visitor
   (hidden fields of the form: 1)
   PASS  action sent directly, employee: expected 303 to /en/no-access; saw 303 to /en/no-access
@@ -60,5 +63,5 @@ The role guard, tried by each kind of visitor (scripts/guard-checks.ts):
   
   RESULT: PASSED
 
-Whole run: 119 s.
-Containers, network, volume and image removed.
+Whole run: 87 s.
+Containers, network, volume, image and the temporary folder removed.

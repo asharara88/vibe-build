@@ -44,9 +44,9 @@ Each row is one message. The key is the message's name in the code; the owner ca
 | `no_access.go_home` | Go to the home page | الانتقال إلى الصفحة الرئيسية |
 | `no_access.list_separator` | ,  | ،  |
 | `example.restricted_title` | Example: a page for HR admins only | مثال: صفحة لمسؤولي الموارد البشرية فقط |
-| `example.restricted_body` | You can see this page, {name}, because your role is HR admin. No other role can. It is an example of the role check; the build step that adds this app's own screens replaces it. | يمكنك رؤية هذه الصفحة يا {name} لأن دورك هو مسؤول الموارد البشرية. لا يستطيع أي دور آخر رؤيتها. هذه الصفحة مثال على التحقق من الدور، وتستبدلها خطوة البناء التي تضيف شاشات هذا التطبيق. |
+| `example.restricted_body` | You can see this page, {name}, because your role is HR admin. No other role can. It is an example of the role check; the build step that adds this app's own screens replaces it. | يمكنك رؤية هذه الصفحة يا {name} لأن دورك هو مسؤول الموارد البشرية. لا يستطيع أي دور آخر رؤيتها. هذه الصفحة مثال على التحقق من الدور، وستُستبدل في خطوة البناء التي تضيف شاشات هذا التطبيق. |
 | `example.action_title` | Example: an action for managers and HR admins | مثال: إجراء للمديرين ومسؤولي الموارد البشرية |
-| `example.action_body` | Every signed-in role can open this page. Only a manager or an HR admin can use the button. Your role is {role}. | يستطيع كل دور مسجّل الدخول فتح هذه الصفحة. الزر متاح فقط للمدير أو لمسؤول الموارد البشرية. دورك هو {role}. |
+| `example.action_body` | Every signed-in role can open this page. Only a manager or an HR admin can use the button. Your role is {role}. | يستطيع كل مستخدم مسجّل الدخول، أيّاً كان دوره، فتح هذه الصفحة. الزر متاح فقط للمدير أو لمسؤول الموارد البشرية. دورك هو {role}. |
 | `example.action_button` | Run the example action | تنفيذ الإجراء التجريبي |
 | `example.action_done` | Done. The example action ran for the role {role}. Nothing was stored. | تم. نُفّذ الإجراء التجريبي للدور {role}. لم يُحفظ أي شيء. |
 | `roles.employee` | Employee | موظف |
