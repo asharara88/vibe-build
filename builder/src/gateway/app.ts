@@ -10,7 +10,7 @@
  * - A hold is settled in two cases only: the call ended with usage figures that could be read
  *   and trusted (settled to the actual cost), or the provider's own error says it turned the
  *   request away before doing any work (settled at nothing). Any other ending keeps the hold
- *   open at its full amount: money is never released on a guess.
+ *   open at its full amount: money is not released on a guess.
  * - Refuses what a hold cannot bound: a prompt that cannot be counted, a model with no price,
  *   more output than the profile allows, routing or tools that are billed outside the token rates.
  *
@@ -24,6 +24,7 @@ import { expireHolds, keepHold, openHold, recoverHolds, settleHold } from "../st
 import { projectForToken, type Project } from "../store/projects.js";
 import { costUsd, emptyUsage, mergeUsage, USAGE_COUNTS, usageIsReadable, type Usage } from "./cost.js";
 import { betasNotAllowed, computeHold, countRequestBody, DEFAULT_PROFILES, guardRequest, type MeteredRequest, type ProfileLimits } from "./hold.js";
+import { spellsKey } from "./key-reader.js";
 import { PRICE_TABLE_DATE, PRICES } from "./prices.js";
 
 export interface GatewayOptions {
@@ -73,10 +74,9 @@ function rejectedBeforeWork(status: number, text: string): boolean {
   }
 }
 
-/** How many times backslash escapes are undone when looking for the key. 16 rounds undo 65,536 backslashes in a row. */
-const UNESCAPE_ROUNDS = 16;
-/** Deeper than any answer the provider documents; a value nested further is cut off, not walked. */
+/** Deeper than any answer the provider documents; when a body has to be cleaned and written out again, a value nested further is cut off, not walked. */
 const MAX_DEPTH = 200;
+const LONE_SURROGATE = /[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[\udc00-\udfff]/g;
 /** An answer body longer than this is not searched: it is withheld, and on a metered call its hold is kept. */
 const MAX_BODY_CHARS = 8_000_000;
 const WITHHELD_BODY = JSON.stringify({ type: "error", error: { type: "api_error", message: "The gateway withheld the provider's answer body: it could not be checked." } });
@@ -108,37 +108,16 @@ export function createGateway(opts: GatewayOptions) {
   const deadlineMargin = opts.holdDeadlineMarginMs ?? DEFAULT_DEADLINE_MARGIN;
   const allowedBetas = new Set(opts.allowedBetas ?? []);
   const key = opts.modelApiKey;
+  /** Whether the key can be read out of a text, by the rules set out in key-reader.ts. */
+  const carriesKey = (text: string): boolean => spellsKey(text, key);
   /**
-   * Whether a text carries the key behind backslash escapes, however many times over: \uXXXX,
-   * \xXX, or a backslash before any character (so "\u" and "\x" not followed by a number too).
-   * Other forms (base64, percent-encoding, HTML entities, other backslash forms) are not looked for.
-   */
-  const hidesKey = (text: string): boolean => {
-    if (!key || !text.includes("\\")) return false;
-    let t = text;
-    for (let i = 0; i < UNESCAPE_ROUNDS; i++) {
-      // One pass, the longest form first, so that "\u002d" is a "-" and "\ux" is "ux".
-      const next = t.replace(/\\u([0-9a-fA-F]{4})|\\x([0-9a-fA-F]{2})|\\([\s\S])/g, (_m, u: string | undefined, x: string | undefined, c: string | undefined) =>
-        u !== undefined ? String.fromCharCode(parseInt(u, 16)) : x !== undefined ? String.fromCharCode(parseInt(x, 16)) : (c ?? ""),
-      );
-      if (next.includes(key)) return true;
-      if (next === t) return false;
-      t = next;
-    }
-    return true; // still changing after that many rounds: not a text to pass on
-  };
-  /** Whether a text, exactly as it would be sent or stored, carries the key: literally, or behind those escapes. */
-  const carriesKey = (text: string): boolean => !!key && (text.includes(key) || hidesKey(text));
-  /**
-   * The real key is kept out of what is stored and relayed, even if something upstream echoes it
-   * back. The literal spelling is cut out; a text that carries it behind escapes is withheld whole.
-   * A text is also judged as it will be written into JSON: a tab written as "\t" in front of
-   * "est..." spells "test...", so a key that begins with such a letter could reappear there.
+   * One text inside a parsed value. The plain spelling of the key is cut out; a text out of
+   * which the key can still be read, as it will be written into JSON, is replaced whole.
    */
   const redact = (text: string): string => {
     if (!key) return text;
     const cut = text.includes(key) ? text.split(key).join("[redacted]") : text;
-    return hidesKey(cut) || carriesKey(JSON.stringify(cut)) ? "[redacted]" : cut;
+    return carriesKey(JSON.stringify(cut)) ? "[redacted]" : cut;
   };
   /**
    * The same, for anything about to be stored or passed back: every string inside a parsed
@@ -152,35 +131,24 @@ export function createGateway(opts: GatewayOptions) {
     return value;
   };
   /**
-   * A whole answer body about to go back to the caller. A body that is JSON is judged twice, as
-   * raw text and as parsed: only if both are clean does the text the gateway read go back as it
-   * is; otherwise the cleaned parsed value is written out. Whatever is about to be returned is
-   * then judged once more as text, and withheld if the key is still found in it.
+   * A whole answer body about to go back to the caller. If the key cannot be read out of it,
+   * the text the gateway read goes back as it is. If it can, the body is cleaned where that is
+   * possible (a JSON body is parsed, each text in it cleaned, and written out again; any other
+   * body has the plain spelling cut out), searched again, and withheld if the key is still there.
+   * A body too long to search is withheld.
    */
   const safeBody = (raw: string): string => {
     if (!key) return raw;
     if (raw.length > MAX_BODY_CHARS) return WITHHELD_BODY;
-    const out = cleanBody(raw);
-    return carriesKey(out) ? WITHHELD_BODY : out;
-  };
-  const cleanBody = (raw: string): string => {
+    if (!carriesKey(raw)) return raw;
+    let out: string;
     try {
-      let parsed: unknown;
-      try {
-        parsed = JSON.parse(raw);
-      } catch {
-        return redact(raw);
-      }
-      const cleaned = scrub(parsed);
-      // The provider's own bytes go back only if neither reading finds anything: the parsed
-      // value is clean, AND the raw text is clean. A JSON reader keeps one of two members with
-      // the same name and drops the other; the raw text still holds both.
-      if (JSON.stringify(cleaned) === JSON.stringify(parsed) && redact(raw) === raw) return raw;
-      return JSON.stringify(cleaned);
+      out = JSON.stringify(scrub(JSON.parse(raw)));
     } catch {
-      // Too deeply nested to write out again, or anything else unexpected: nothing of it goes back.
-      return WITHHELD_BODY;
+      // Not JSON, or too deeply nested to write out again.
+      out = raw.split(key).join("[redacted]");
     }
+    return carriesKey(out) ? WITHHELD_BODY : out;
   };
   /**
    * What is about to be written to the event log: cleaned, with any NUL character (which the
@@ -188,8 +156,9 @@ export function createGateway(opts: GatewayOptions) {
    * If the key is still found in that text, only the fallback is stored.
    */
   const storable = (fields: Record<string, unknown>, fallback: Record<string, unknown>): Record<string, unknown> => {
+    // The database's JSON type refuses a NUL character and half of a surrogate pair on its own.
     const noNul = (v: unknown, depth = 0): unknown => {
-      if (typeof v === "string") return v.includes("\u0000") ? v.split("\u0000").join("[NUL]") : v;
+      if (typeof v === "string") return (v.includes("\u0000") ? v.split("\u0000").join("[NUL]") : v).replace(LONE_SURROGATE, "\ufffd");
       if (depth > MAX_DEPTH + 2) return v;
       if (Array.isArray(v)) return v.map((x) => noNul(x, depth + 1));
       if (v !== null && typeof v === "object") return Object.fromEntries(Object.entries(v).map(([k, x]) => [noNul(k) as string, noNul(x, depth + 1)]));
@@ -198,11 +167,11 @@ export function createGateway(opts: GatewayOptions) {
     const cleaned = noNul(scrub(fields)) as Record<string, unknown>;
     return carriesKey(JSON.stringify(cleaned)) ? { ...fallback, withheld: "the rest of this record carried the model key and was not stored" } : cleaned;
   };
-  /** Response headers passed back to the caller: none that carries the key, in any letter case. */
+  /** Response headers passed back to the caller: not one out of whose name or value the key can be read, in any letter case. */
   const safeHeaders = (h: Headers): Headers => {
     const out = copyHeaders(h);
     const lower = key.toLowerCase();
-    for (const [k, v] of [...out.entries()]) if (key && (v.toLowerCase().includes(lower) || k.toLowerCase().includes(lower) || hidesKey(v))) out.delete(k);
+    for (const [k, v] of [...out.entries()]) if (key && (v.toLowerCase().includes(lower) || k.toLowerCase().includes(lower) || carriesKey(v) || carriesKey(k))) out.delete(k);
     return out;
   };
   const app = new Hono();

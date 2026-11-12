@@ -98,12 +98,14 @@ function standInProvider() {
     if (mode === "nul-500") return c.body(`{"type":"error","error":{"type":"api_error","message":"a\\u0000b"}}`, 500, { "content-type": "application/json" });
     if (mode === "served-constructor") return ok(PLAIN_USAGE, "constructor");
     if (mode === "huge-200") return c.body(`{"id":"msg_test","type":"message","model":"${body.model}","pad":"${"a".repeat(8_100_000)}","content":[],"usage":${JSON.stringify(PLAIN_USAGE)}}`, 200, { "content-type": "application/json" });
-    if (mode === "backslash-run") return c.body(`{"id":"msg_test","type":"message","model":"${body.model}","content":[{"type":"text","text":"${"\\".repeat(30_000)}"}],"usage":${JSON.stringify(PLAIN_USAGE)}}`, 200, { "content-type": "application/json" });
+    if (mode === "backslash-run") return c.body(`{"id":"msg_test","type":"message","model":"${body.model}","big":12345678901234567890,  "content":[{"type":"text","text":"${"\\".repeat(30_000)}"}],"usage":${JSON.stringify(PLAIN_USAGE)}}`, 200, { "content-type": "application/json" });
+    if (mode === "surrogate-500") return c.body(`{"type":"error","error":{"type":"api_error","message":"a\\ud800b"}}`, 500, { "content-type": "application/json" });
     // The same name twice in one object: a JSON reader keeps the second and drops the first.
     if (mode === "echo-key-shadowed-500") return c.body(`{"type":"error","error":{"type":"api_error","message":"bad key ${k}","message":"nothing here"}}`, 500, { "content-type": "application/json" });
     if (mode === "echo-key-shadowed-escaped-500") return c.body(`{"type":"error","error":{"type":"api_error","message":"bad key ${escapedKey}","message":"nothing here"}}`, 500, { "content-type": "application/json" });
     if (mode === "echo-key-shadowed-200") return c.body(`{"id":"msg_test","type":"message","model":"${body.model}","note":"${k}","note":"x","content":[],"usage":${JSON.stringify(PLAIN_USAGE)}}`, 200, { "content-type": "application/json" });
     if (mode === "many-backslashes") return c.body(`{"id":"msg_test","type":"message","model":"${body.model}","content":[{"type":"text","text":"${"\\".repeat(80)}"}],  "usage":${JSON.stringify(PLAIN_USAGE)}}`, 200, { "content-type": "application/json" });
+    if (mode === "deep-500-key") return c.body(`{"type":"error","note":"${k}","error":${"[".repeat(20_000)}${"]".repeat(20_000)}}`, 500, { "content-type": "application/json" });
     if (mode === "deep-500") return c.body(`{"type":"error","error":${"[".repeat(20_000)}${"]".repeat(20_000)}}`, 500, { "content-type": "application/json" });
     if (mode === "model-missing") return c.json({ id: "msg_test", type: "message", content: [], usage: PLAIN_USAGE });
     if (mode === "model-empty") return c.json({ id: "msg_test", type: "message", model: "", content: [], usage: PLAIN_USAGE });
@@ -632,7 +634,7 @@ describe("holds: found by review, and kept fixed", () => {
     expect((await listEvents(pool, id, "hold.opened"))[0]!.payload).toMatchObject({ arithmetic: { max_tokens: PLAIN_MAX_TOKENS } });
   });
 
-  it("never stores or relays the real key, even when the provider's error echoes it", async () => {
+  it("does not store or relay the real key when the provider's error echoes it", async () => {
     const { id, token } = await newProject(5);
     const res = await call(token, plain("echo-key-500"));
     expect(res.status).toBe(500);
@@ -921,13 +923,24 @@ describe("holds: found by the third review, and kept fixed", () => {
     }
   });
 
-  it("an answer nested too deeply to check is withheld, and its hold is kept with a note in the log", async () => {
+  it("an answer nested very deeply does not make the call fail: its hold is kept with a note in the log", async () => {
+    // As first written (fourth review) this test also expected the body to be withheld. Since the sixth
+    // review a body out of which the key cannot be read goes back as it was read, however deeply nested;
+    // one that carries the key and cannot be written out again is still withheld (second half).
     const { id, token } = await newProject(5);
     const res = await call(token, plain("deep-500"));
     expect(res.status).toBe(500);
     const text = await res.text();
-    expect(text.length).toBeLessThan(5_000);
+    expect(text).toBe(`{"type":"error","error":${"[".repeat(20_000)}${"]".repeat(20_000)}}`);
     await keptOnly(id, "server error");
+    const withKey = await newProject(5);
+    const res2 = await call(withKey.token, plain("deep-500-key"));
+    expect(res2.status).toBe(500);
+    const text2 = await res2.text();
+    expect(text2).not.toContain(REAL_KEY);
+    expect(text2.length).toBeLessThan(5_000);
+    await keptOnly(withKey.id, "server error");
+    expect(JSON.stringify(await listEvents(pool, withKey.id))).not.toContain(REAL_KEY);
   });
 
   it("an answer that does not name the model that served it keeps its hold", async () => {
@@ -1063,7 +1076,12 @@ describe("holds: found by the fifth review, and kept fixed", () => {
   });
 
   it("a backslash in front of a u or an x of the key is undone like one in front of any other character", async () => {
-    const UX_KEY = "sk-ant-api03-Aux9-example-xu";
+    // The second key was found by the sixth review: "u0041" and "x41" inside the key itself, so that
+    // a backslash put in front of them can be read two ways ("\\x41" as "A", or as "x41").
+    for (const UX_KEY of ["sk-ant-api03-Aux9-example-xu", "sk-u0041bc-x41zz"]) await uxCase(UX_KEY);
+  });
+
+  const uxCase = async (UX_KEY: string) => {
     const g = await listen(createGateway({ pool, modelApiKey: UX_KEY, upstreamUrl, profiles: PROFILES, onFault: (m) => faults.push(m) }));
     const plainSpelling = (t: string) => t.replace(/\\/g, "");
     try {
@@ -1079,13 +1097,19 @@ describe("holds: found by the fifth review, and kept fixed", () => {
     } finally {
       g.server.close();
     }
-  });
+  };
 
-  it("an answer with 30,000 backslashes in a row and no key in it goes back as it was read", async () => {
+  it("an answer with 30,000 backslashes in a row and no key in it goes back exactly as it was read", async () => {
     const { token } = await newProject(5);
     const text = await (await call(token, plain("backslash-run"))).text();
-    expect(text).toContain("\\".repeat(30_000));
-    expect(text).not.toContain("[redacted]");
+    // The whole body, character for character: the long number and the odd spacing would not survive being written out again.
+    expect(text).toBe(`{"id":"msg_test","type":"message","model":"claude-opus-5-5","big":12345678901234567890,  "content":[{"type":"text","text":"${"\\".repeat(30_000)}"}],"usage":${JSON.stringify(PLAIN_USAGE)}}`);
+  });
+
+  it("an answer holding half of a surrogate pair, which the database refuses, still gets its ending written down", async () => {
+    const { id, token } = await newProject(5);
+    expect((await call(token, plain("surrogate-500"))).status).toBe(500);
+    await keptWith(id, "server error");
   });
 
   it("an answer holding a character the database refuses still gets its ending written down", async () => {
