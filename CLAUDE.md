@@ -12,6 +12,7 @@ This repository holds **the builder**: a system that turns a plain-language busi
 1. Read `docs/STATUS.md`. If it does not exist yet, read `HANDOVER.md` in full.
 2. Before you start, say in two or three plain sentences what you are about to do and what the owner will see at the end.
 3. Before you end, update `docs/STATUS.md`: what was done, what was verified and how, what is next, what is blocked and on whom. Nothing else carries over between sessions.
+4. Then follow `docs/BUILD-PLAN.md`, section 3.
 
 ## The owner
 
@@ -51,7 +52,13 @@ Ahmed Sharara is the founder and the only person on the project. He does not rea
 
 ## Commands
 
-No product commands yet. Add the real ones here as they come to exist: start, test, check, deploy.
+All run inside `builder/`.
 
-- Cloud session set-up: `service docker start`. The Docker daemon is not running when a session begins (measured 11 Nov 2026). On 12 Nov 2026 this command failed (exit code 2) until Docker's start script was patched; the `vibe-build` cloud environment's setup script applies the patch. In a session where it still fails, run `sed -i '/^\s*ulimit .*[^e]$/ s/$/ || true/' /etc/init.d/docker` first. See `docs/ENVIRONMENT-CHECK.md`.
+- `bash scripts/dev-db.sh`: create the local databases (development machine only, peer authentication, no password).
+- `npm run typecheck`, `npm test`, `npm run check:licences`: the fast checks. Run all three before every push.
+- `npm run db:migrate`: apply migrations to the database named by `BUILDER_DATABASE_URL`.
+- `npm run gateway`: start the model gateway; needs `BUILDER_MODEL_API_KEY`.
+- `npx tsx scripts/demo-cap.ts`: the cap demonstration against a stand-in provider.
+
+- Cloud session set-up: the Docker daemon is not running when a session begins. `service docker start` sometimes does not keep it running; `nohup dockerd > /tmp/dockerd.log 2>&1 &` does (measured 11 Nov 2026). On 12 Nov 2026 `service docker start` failed outright (exit code 2) because its start script stops when it may not raise two system limits; the `vibe-build` cloud environment's setup script patches that, and in a session where it still fails, `sed -i '/^\s*ulimit .*[^e]$/ s/$/ || true/' /etc/init.d/docker` does the same (`docs/ENVIRONMENT-CHECK.md`, last section). Then `service postgresql start` and, inside `builder/`, `bash scripts/dev-db.sh`.
 - Containers in a cloud session need `--network host`, the proxy variables and the proxy certificate at `/root/.ccr/ca-bundle.crt` mounted, or they have no internet. See `docs/ENVIRONMENT-CHECK.md`.

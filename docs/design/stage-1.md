@@ -2,7 +2,8 @@
 
 | | |
 | --- | --- |
-| Status | **Approved by the owner on 11 November 2026, as written.** The owner's answers to section 9 are recorded in `docs/DECISIONS.md`; the demo candidate (question 5) is still undecided, and the model key (question 7) is still to be created. The walking skeleton (section 7) is the next task |
+| Status | **Approved by the owner on 11 November 2026, subject to three corrections, which are made in this version:** (1) the acceptance tests are never present in the engine's container and live outside the project's working copy and git history (2.4, 2.5, 2.7, 6.1, 7.2); (2) the budget cap works by worst-case holds settled to actual cost, with a pre-step check (2.4, 5.5, 7.2); (3) the second engine is OpenAI's Codex SDK, the owner's decision (1, 2.8, 8, 9). The owner's answers to section 9 are in `docs/DECISIONS.md`; the demo candidate (question 5) is still undecided, and the model key (question 7) is still to be created |
+| Not covered by that approval | Changes made since. The five amendments to 5.5 were approved by the owner through the build plan. The other changes are listed at the end of 5.5 and in 7.2. **None of them has the owner's recorded approval**; some are marked there as awaiting his decision, and the points under "Known limits of the hold" are open |
 | Written | 11 November 2026, by Claude Code, from `HANDOVER.md` (the owner's edited version of the same day, which adds Decision F and gate item 9) and the checks recorded in `docs/SOURCES.md` and `docs/ENVIRONMENT-CHECK.md` |
 | Reader | The owner: section 1, then section 9 (the questions). An incoming engineer: everything |
 
@@ -24,7 +25,7 @@ Marks used, as in the handover: **Verified** means checked against the source in
 
 - The engine can build on the template inside a container, without the model key ever entering that container.
 - Every model call goes through one gateway that counts the cost and stops at a cap.
-- An acceptance check written from the brief, kept out of the engine's reach, can drive the running app and produce evidence.
+- An acceptance check written from the brief, stored where the engine's container cannot see it at all, can drive the running app and produce evidence.
 - The exported app starts on its own with one command.
 - The whole thing runs on the development machine we have, within its limits.
 
@@ -32,11 +33,11 @@ Marks used, as in the handover: **Verified** means checked against the source in
 
 **Where I disagree with the handover.** In seven places, set out in section 2.9, most of them small. The three that matter: the first is that the handover's "Powered by Claude" wording is not quite what Anthropic permits: the permitted form is "{our name} Powered by Claude". The second is that the build engine's licence is a commercial licence, not a permissive one, so hard rule 2 needs your written exception. The third concerns processing inside the UAE: today no verified option keeps the model's processing in the country, and that matters for the regulated buyers in the handover.
 
-**On staying adaptable (the owner's Decision F).** I agree with the two seams and the profiles, and I propose that the second engine proven before the gate be a small loop of our own against an OpenAI-compatible endpoint, because that is the engine a UAE-only profile would need, and the Codex SDK would add a second provider account without answering that question (section 2.8).
+**On staying adaptable (the owner's Decision F).** I agree with the two seams and the profiles. **The second engine proven before the gate is OpenAI's Codex SDK, by the owner's decision on 11 November 2026.** My original recommendation, kept as history in section 2.8, was a small loop of our own against an OpenAI-compatible endpoint, because that is what a UAE-only profile would need. The Codex SDK proves the engine seam with a mature agent; it does not answer whether the builder can run on an in-country model, and that question stays open (`docs/KNOWN-GAPS.md`, gap 33).
 
 **What I need from you.** The decisions in section 9, in order. The first two unblock everything: approve this note, and approve the licence exception for the build engine. The third unblocks the demo-server decision. The model key is needed before the skeleton can make its first model call.
 
-**What this note does not do.** It gives no dates. It does not say the system is secure, ready or reviewed. Section 6 says what is protected in Stage 1 and what is not, and the register in `docs/KNOWN-GAPS.md` is already fourteen entries long.
+**What this note does not do.** It gives no dates. It does not say the system is secure, ready or reviewed. Section 6 says what is protected in Stage 1 and what is not, and the register in `docs/KNOWN-GAPS.md` is already more than thirty entries long.
 
 ---
 
@@ -56,10 +57,11 @@ The parts are as in the handover, section 8.1, with their boundaries made firmer
 | Build engine | Writes the app's code for one step, inside the project's container | Replaceable; see 2.4 |
 | Sandbox manager | Creates, starts, stops one isolated set of containers per project | Replaceable; see 2.5 |
 | Quality gate | Automated checks for the ten rules and the house standard, after every step | Runs inside the project's containers, outside the engine's process |
-| Acceptance runner | Runs the checklist against the running app | Separate process. Never sees the engine's conversation |
+| Acceptance runner | Runs the checklist against the running app | Separate container. Sees the acceptance store and the running app only. Never sees the engine's conversation or workspace |
+| Acceptance store | Holds each project's acceptance tests outside the project's working copy and git history | Owned by the builder. Written by the acceptance writer, read by the runner and the exporter. Never mounted in the engine's container |
 | Preview proxy | Lets the user open the running app | Read-only path to the app container |
 | Project store and event log | Projects, briefs, plans, steps, checks, usage. Append-only events | PostgreSQL. Events are never updated or deleted |
-| Exporter | Hands over the app as a repository that runs alone | Produces a git repository with the acceptance checks inside it |
+| Exporter | Hands over the app as a repository that runs alone | Produces a git repository and, at that moment, copies the acceptance tests in from the acceptance store |
 
 ### 2.2 The four requirements of the control layer
 
@@ -102,9 +104,10 @@ Verified today (sources in `docs/SOURCES.md`):
 How it is used here:
 
 - One SDK call per approved plan step, in the project's engine container, with the optimiser's instruction as the prompt and a turn limit.
-- Permission mode `dontAsk`. Allowed tools: read, edit, write, glob, grep, and shell commands limited to the project's package manager, test runner and formatter. Denied: web search, web fetch, and any edit under the protected paths (the acceptance checks, the sign-in and role code, the quality-rule machinery). Protected paths are also mounted read-only, so the operating system enforces what the permission rules state.
+- Permission mode `dontAsk`. Allowed tools: read, edit, write, glob, grep, and shell commands limited to the project's package manager, test runner and formatter. Denied: web search, web fetch, and any edit under the protected paths (the sign-in and role code, the quality-rule machinery). Code the engine must read but never change is mounted read-only, so the operating system enforces what the permission rules state.
+- **The acceptance tests are not in the engine's container at all.** A read-only mount would still let the engine read them, and an engine that has read the tests can build to the tests rather than to the brief. So they are not mounted, not in the workspace, and not in the project's git history (2.7). The engine container also has no network path to the acceptance store: its only route out is the egress proxy, whose allow-list names the gateway and the package registry.
 - Hooks: a `PreToolUse` hook that writes every tool call to the event log and denies anything touching a protected path; a `Stop` hook that records the session's usage.
-- `ANTHROPIC_BASE_URL` points at the gateway. The container holds no key. The gateway adds the key, records the usage from each response, and refuses the call if the project's cap is reached.
+- `ANTHROPIC_BASE_URL` points at the gateway. The container holds no key. Before each call the gateway places a worst-case hold against the project's budget and refuses the call if there is no room; after the call it settles the hold to the actual cost (5.5). Before a step starts, the orchestrator asks the gateway whether the step's budget fits; a step does not start without room to finish.
 - Settings loading is switched off and the configuration directory is per project, as the hosting guide says for isolation between tenants. Stage 1 has one tenant, but the habit is free now and costly later.
 
 Alternatives weighed:
@@ -126,9 +129,10 @@ The engine is specific to Claude. The interface around it has four operations: s
 Stage 1 design, Docker on one machine:
 
 - One Docker Compose project per builder project, on its own **internal** Docker network (no route out). Up to five containers: the app, its PostgreSQL database, the engine (present only while a step is being built), the acceptance runner (present only while checks run), and the **egress proxy**, which is attached to the project network and to the outside and is the only way out. The builder itself is one more container per server, not per project.
+- **What each container can see on disk.** The engine: the project's workspace (read-write) and the protected code it must read (read-only). The app: its own image. The acceptance runner: the project's acceptance tests from the builder's acceptance store (read-only) and nothing of the workspace. The engine and the runner never share a mount, so there is no path by which the engine can read a test.
 - The egress proxy allows exactly two destinations: the model gateway and the package registry for the chosen stack. Everything else is refused and logged. This replaces the secure-deployment guide's `--network none` plus Unix socket, which is the stronger pattern; the difference is recorded as gap 14 in `docs/KNOWN-GAPS.md` and the sandbox manager's interface allows the stronger pattern later.
 - Engine and app containers run as a non-root user with `--cap-drop ALL`, `--security-opt no-new-privileges`, a memory limit, a process limit, and a read-only root filesystem with a writable workspace mount. **Measured:** all of these flags, including the read-only root, work on the development machine.
-- The engine's workspace is the project's git checkout. Protected paths are a separate read-only mount.
+- The engine's workspace is the project's git checkout. Protected code is a separate read-only mount. The acceptance store lives outside every workspace, in the builder's own data directory, one folder per project, owned by the builder's user and never committed to the project's repository.
 - The user's text and uploaded spreadsheet are untrusted input. They enter the engine only as files in the workspace and as quoted text inside the optimiser's instruction template, never as instructions in their own right.
 
 **Development finding that changes the picture (measured).** In a cloud development session, the machine reaches the internet only through a proxy on its own loopback address. A container on Docker's default network has no internet at all, and the proxy cannot be reached from a bridge network. The only working arrangement is: the container shares the host's network, receives the proxy address, and has the proxy's certificate mounted. That means **in development the project containers are not network-isolated from the host.** It is acceptable with made-up data and no key in the container. It is recorded as gaps 1 and 2 in `docs/KNOWN-GAPS.md`. On a demo server there is no such proxy, and the egress-proxy design above applies as written. The sandbox manager must therefore have two profiles, `development-cloud-session` and `server`, and the design note of each milestone says which one its evidence was produced under.
@@ -152,7 +156,7 @@ Later stages: the secure-deployment guide compares containers, gVisor and virtua
 | Licence check | license-checker-rseidelsohn (BSD-3-Clause) | pip-licenses (MIT) |
 | Database | PostgreSQL 16 in both (the current major is 18; 16 is what the development machine has, and the version is pinned either way) | |
 
-All licences above were verified today against each project's own repository or package index (`docs/SOURCES.md`). Every one is permissive. htmx's "Zero-Clause BSD" is a BSD-family licence and permissive; I list it so the owner sees it.
+All licences above were verified today against each project's own repository or package index (`docs/SOURCES.md`). Every one listed here is permissive; the packages they bring with them were not checked at the time, and some are not (see the licence row in the table below, and known gaps 32 and 40). htmx's "Zero-Clause BSD" is a BSD-family licence and permissive; I list it so the owner sees it.
 
 How the criteria fall, before measurement:
 
@@ -160,7 +164,8 @@ How the criteria fall, before measurement:
 | --- | --- |
 | Quality rules true by construction | P. Django's documentation states a built-in authentication system with users, groups and permissions, form and field validation, and migrations (verified). Who-and-when stamps are a convention in both. In Next.js each is a library or a convention the template must impose |
 | Acceptance score and model cost on example 1 | Unknown until measured. Models write both well; Next.js has the larger body of recent code |
-| Standard PostgreSQL, containers, permissive licences | Both |
+| Standard PostgreSQL, containers | Both |
+| Permissive licences only | Neither, as found so far: the Django candidate needs `psycopg` (LGPL-3.0); the TypeScript template ships `caniuse-lite` (CC-BY-4.0, approved by the owner on 12 Nov 2026) and carried LGPL packages through `sharp` (found 12 Nov 2026, known gap 40), which package R1 removes |
 | Maintained and widely used; engineers hireable | Both. Django is older and changes less; Next.js changes more |
 | Translation and right-to-left | P built in; T needs next-intl and care with layout |
 | One language across builder and apps | T if the builder is TypeScript. The Agent SDK exists in both languages, so the builder could be Python and match P |
@@ -175,15 +180,16 @@ Ruby on Rails (MIT) was considered as the batteries-included candidate and set a
 **Position: agree, and make the separation physical.**
 
 - The acceptance checklist is written by the analyst from the confirmed brief, before any code exists, as numbered items in the app spec: what the user does, what they should see.
-- Each item becomes a Playwright test. The tests are **generated by a separate model call through the gateway**, from the checklist and the app spec only. That call never sees the engine's conversation, and the engine never sees the tests: they live under `acceptance/`, a path the engine's permission rules deny and that is mounted read-only in the engine's container.
-- The acceptance runner is a separate container that sees the running app and the `acceptance/` directory. It records a screenshot per item and Playwright's trace, and writes pass or fail per item to the event log. A check is reported as passed only when it ran and passed; a check that did not run is reported as "did not run", never as passed.
-- If a check is wrong, the fix goes back through the analyst as a change to the brief, which regenerates the checklist and the tests. Nobody edits a test by hand.
-- `acceptance/` travels with the export, so the customer can run the same checks.
+- Each item becomes a Playwright test. The tests are **generated by a separate model call through the gateway**, from the checklist and the app spec only, by the acceptance writer, a builder process. That call never sees the engine's conversation.
+- **Where the tests live.** The acceptance writer writes them straight into the builder's **acceptance store**: a directory outside every project workspace, one folder per project, owned by the builder. They are never placed in the project's working copy and never committed to the project's git history while the project is being built. The engine's container has no mount of the store and no network route to it. Read-only mounts are kept for code the engine must read; they are not used for the tests, because read-only does not prevent reading, and an engine that has read the tests can build to the tests instead of to the brief.
+- The acceptance runner is a separate container with two things in view: the running app, over the project network, and the project's folder in the acceptance store, mounted read-only. It has no mount of the workspace. It records a screenshot per item and Playwright's trace, and writes pass or fail per item to the event log. A check is reported as passed only when it ran and passed; a check that did not run is reported as "did not run", never as passed.
+- If a check is wrong, the fix goes back through the analyst as a change to the brief, which regenerates the checklist and the tests in the store. Nobody edits a test by hand. The store keeps every version, so the record shows which tests each acceptance run used.
+- **The tests join the app at export.** The exporter copies the project's folder from the store into `acceptance/` in the exported repository and commits it there, so the customer receives and can run the same checks. The export commit is the first time the tests appear in any git history.
 - The user's own sign-off is recorded as an event and is the final approval. Automated checks make it quick; they do not replace it.
 
 ### 2.8 Decision F: staying adaptable
 
-**Position: agree with the two seams, the profiles and certification by the protocol. One recommendation on which second engine, and two cautions.**
+**Position: agree with the two seams, the profiles and certification by the protocol. The second engine is decided: OpenAI's Codex SDK (owner, 11 November 2026). Two cautions follow.**
 
 The handover separates two things that are often confused: the **model source** (who serves a model: Anthropic directly, a router, or a cloud inside the UAE) and the **build engine** (the agent that writes code). A router alone does not make the builder adaptable, because the Claude Agent SDK can only drive Claude models (the handover records Anthropic's statement that routing Claude Code to non-Claude models through a gateway is not supported; today's check of that page is in `docs/SOURCES.md`).
 
@@ -196,21 +202,26 @@ How the design already carries the two seams:
 
 **Profiles.** A profile is a named bundle: one engine adapter, one model per role (analyst, optimiser, acceptance writer, engine), and the endpoints each may reach. The gateway enforces the endpoints; the event log records the profile on every project; the test protocol's results are stored per profile. Stage 1 has one profile, `standard`. A `uae-only` profile is defined as a shape with no contents until a model and endpoint that process inside the country are verified, which today they are not (section 2.9, point 3).
 
-**Which second engine for the gate.** The handover names two candidates: OpenAI's Codex SDK, and a loop of our own for open models.
+**Which second engine for the gate: decided.** The handover named two candidates: OpenAI's Codex SDK, and a loop of our own for open models. **The owner chose the Codex SDK on 11 November 2026** (`docs/DECISIONS.md`). What that means in the design:
 
-| Option | For | Against |
-| --- | --- | --- |
-| **A loop of our own against an OpenAI-compatible endpoint. Recommended.** | It is the engine a `uae-only` profile would need, since the in-country provider named in the handover exposes that format. It has no vendor licence question. It can be pointed at any provider that speaks the format, including Anthropic's own models for a like-for-like comparison | More work: file tools, shell handling and a turn loop must be written, kept small, and reviewed. The result will be weaker than a mature agent, and the comparison must say so |
-| OpenAI's Codex SDK | Same shape as the Claude Agent SDK: its README says it "wraps the codex CLI" and "spawns the CLI and exchanges JSONL events over stdin/stdout" (verified). Package `@openai/codex-sdk`, Apache-2.0 (verified). A mature agent | A second provider account, key and spend line. It answers "does the seam work" but not "can the builder run on an in-country model" |
+- The second engine adapter wraps `@openai/codex-sdk` (Apache-2.0, verified), which "wraps the codex CLI" and "spawns the CLI and exchanges JSONL events over stdin/stdout" (verified). The adapter implements the same four operations as the Claude adapter: start a step, stream progress, stop, report usage.
+- It needs an OpenAI account, key and spend line. Under hard rule 4 the price and its source are shown to the owner before any sign-up, when milestone 7b comes. OpenAI's API terms are read then and recorded.
+- The gateway's second dialect (the OpenAI-compatible format) is what the Codex engine speaks, so the gateway meters and caps it exactly as it does the Claude engine. The Codex container holds a project token, never a key.
+- **What it does not answer:** whether the builder can run on a model that processes inside the UAE. The Codex SDK drives OpenAI's models. That question stays open as gap 33 in `docs/KNOWN-GAPS.md`, and the `uae-only` profile stays an empty shape until a model, endpoint and engine that process in the country are verified.
 
-Recommendation: the loop of our own, kept deliberately small, used for the two gate examples and labelled with its measured score and nothing more. If the owner prefers the Codex SDK for a quicker proof, the adapter is thin and the recommendation does not block it; the licence check comes first either way.
+**History: the original recommendation.** Before the owner decided, this note recommended a small loop of our own against an OpenAI-compatible endpoint, kept deliberately small and labelled with its measured score, because that is the engine a `uae-only` profile would need, it has no vendor licence question, and it can be pointed at any provider that speaks the format. Against it: more code to write and review, and a weaker result than a mature agent. The owner weighed a quicker, stronger proof of the seam above the in-country question for this gate, which is his call to make. The loop of our own remains the candidate for the `uae-only` profile when that work starts.
+
+| Option | For | Against | Outcome |
+| --- | --- | --- | --- |
+| A loop of our own against an OpenAI-compatible endpoint | What a `uae-only` profile needs; no vendor licence question; any provider that speaks the format | More code; weaker than a mature agent | Recommended originally; not chosen for the gate; kept for the `uae-only` profile |
+| **OpenAI's Codex SDK** | Same shape as the Claude Agent SDK; mature agent; thin adapter; Apache-2.0 | Second provider account and spend; does not answer the in-country question | **Chosen by the owner** |
 
 **Two cautions.**
 
 1. Engine-neutral assets cost discipline, not code. The analyst, question bank, template, generators, quality gate and acceptance checks must never carry an instruction phrased for one model. The optimiser's rule slots (B4) are the one place engine-specific phrasing is allowed, and they are stored per profile. This is checked in review, not by a tool.
 2. The handover's point that "the more the template and generators do, the less the result depends on the strength of the model" strengthens the proposal in section 2.3 to move the data step to a deterministic generator early. A weaker in-country model is exactly the case where a generator pays.
 
-Gate item 9 (two test examples built with a second engine, difference reported) becomes milestone 7b in section 8.
+Gate item 9 (two test examples built with the Codex SDK, difference reported) becomes milestone 7b in section 8.
 
 ### 2.9 Where I disagree with the handover
 
@@ -274,7 +285,7 @@ GitHub Actions can run the harness's quick checks on every pull request (lint, u
 
 One small server with Docker, a web address, and a login in front of the builder. The owner opens it in a browser. Requirement: about 4 processors, 8 GB memory, 80 GB disk, Linux. Rationale: the hosting guide's floor is 1 GiB per agent; one project at a time needs the builder, one engine, one app, one database, one acceptance runner, and the egress proxy. 8 GB leaves room for two projects at once.
 
-**Prices, read from the providers' own pages on 11 November 2026** after the owner allowed the sites. Where a provider's price table is drawn by a script in the browser and not present in the page itself, this session could not read it, and the row says so rather than carrying a number from elsewhere.
+**Prices, read from the providers' own pages on 11 November 2026**, once the owner had allowed those sites on the development machine's network. Where a provider's price table is drawn by a script in the browser and not present in the page itself, this session could not read it, and the row says so rather than carrying a number from elsewhere. **The owner has not yet chosen a demo server**; the choice is open as item 5 in `docs/OPEN-DECISIONS.md`, and nothing is created until he names an option and its price.
 
 | Option | Location | Price from the provider's page | Notes |
 | --- | --- | --- | --- |
@@ -286,7 +297,7 @@ One small server with Docker, a web address, and a login in front of the builder
 | UAE-based providers (Core42, Khazna, Moro Hub) | UAE | Core42 publishes no public price for a small machine (verified). Khazna's and Moro's sites did not answer this session | Enterprise pricing on request |
 | Hosted sandbox service (E2B cloud or similar) | Varies | Not checked | Stage 1 alternative only, behind the sandbox manager's interface. Would not give the owner a web address for the builder itself |
 
-**Recommendation.** For the Stage 1 demo environment, which holds the builder and made-up data only: **Hetzner CPX32 at €30.49 per month excl. VAT**, hourly billed, because its price is verified from the provider's page and it is the lowest. Its servers are in Europe, the USA and Singapore, not the UAE. If the owner wants to say during the demo that the demo server itself is in the UAE, Oracle's Dubai region or AWS's UAE region are confirmed to exist, and the owner reads the price in a browser before approving it. Nothing is created until the owner says yes to a named option and its price (hard rule 4). The question is in `docs/OPEN-DECISIONS.md`.
+**Recommendation.** For the Stage 1 demo environment, which holds the builder and made-up data only: **Hetzner CPX32 at €30.49 per month excl. VAT**, hourly billed, because its price is verified from the provider's page and it is the lowest. Its servers are in Europe, the USA and Singapore, not the UAE. If the owner wants to say during the demo that the demo server itself is in the UAE, Oracle's Dubai region or AWS's UAE region are confirmed to exist, and the owner reads the price in a browser before approving it. Prices change; whichever option is chosen, its price is read again from the provider's page on the day of approval and recorded in `docs/SOURCES.md` with that date. Nothing is created until the owner says yes to a named option and its price (hard rule 4).
 
 The model key lives on the demo server as an environment variable read only by the gateway process, which runs outside every project container.
 
@@ -312,11 +323,21 @@ The handover's hosting source says model usage typically costs ten times the con
 
 USD per million tokens, from Anthropic's pricing page on 11 November 2026:
 
-| Model | Input | Cache hit | Output |
-| --- | --- | --- | --- |
-| Claude Opus 5.5 | $4.00 | $0.20 | $20.00 |
-| Claude Sonnet 5.5 | $2.00 | $0.10 | $10.00 |
-| Claude Haiku 5.5 (prompts up to 100k tokens) | $0.10 | $0.01 | $0.50 |
+| Model | Input | Cache write, 5 minutes | Cache write, 1 hour | Cache hit | Output |
+| --- | --- | --- | --- | --- | --- |
+| Claude Opus 5.5 | $4.00 | $5.00 | $8.00 | $0.20 | $20.00 |
+| Claude Sonnet 5.5 | $2.00 | $2.50 | $4.00 | $0.10 | $10.00 |
+| Claude Haiku 5.5, prompts up to 100,000 tokens | $0.10 | $0.125 | $0.20 | $0.01 | $0.50 |
+| Claude Haiku 5.5, prompts over 100,000 tokens (the long-prompt rate) | $0.50 | $0.625 | $1.00 | $0.05 | $2.50 |
+| Claude Fable 5.2 (priced in the gateway's table; not planned for use) | $8.00 | $10.00 | $16.00 | $0.20 | $40.00 |
+
+Every figure in this table was read from the pricing page on 11 November 2026 and is recorded in `docs/SOURCES.md`; the gateway's own table (`builder/src/gateway/prices.ts`) carries the same figures.
+
+**The long-prompt rate (verified).** The page says Claude Haiku 5.5 "is priced by prompt length: a request whose prompt is over 100,000 tokens pays higher prices", that the prompt length "counts all of its input tokens, including cache reads and cache writes", and that the other current models have no such rate. The higher prices apply to the output as well as the input.
+
+**Fast mode (verified for two models).** The page's fast-mode table lists Claude Opus 5.5 at $8 input and $40 output and Claude Fable 5.2 at $16 and $80, which is twice the standard rate in each case, and says "prompt caching multipliers apply on top of fast mode pricing", so the cache rates double too. The page lists no fast mode for Claude Sonnet 5.5 or Claude Haiku 5.5. The gateway doubles every rate whenever an answer reports fast mode, for any model; for a model the page does not list, that doubling is an assumption (gap 23).
+
+**The rates the worst-case hold uses** (section 5.5): for the input, the one-hour cache-write rate, the dearest input rate; for both input and output, the long-prompt rate for a model that has one, unless the counted prompt is under the threshold by the margin package 1.2 sets; and the fast-mode factor on both parts wherever the profile allows fast mode.
 
 ### 5.3 What is unknown until measured
 
@@ -330,10 +351,81 @@ Everything that matters: tokens per step, steps per app, retry rate, and cache h
 
 ### 5.5 The per-project cap
 
-- Each project has a cap in dollars, set when the project is created, with a default the owner chooses (section 9).
-- The gateway sums the project's recorded cost before every call. If the next call would exceed the cap, the gateway refuses it and the orchestrator shows the user: "This project has reached its budget of $X. Nothing more will be built until the budget is raised." The step is marked failed with the reason named. No silent degradation.
-- Every engine call also carries a turn limit, because the SDK has no overall timeout (verified).
-- The owner sets a monthly spending limit in the Anthropic Console as the outer cap. The plan's monthly API credits ($100 on Max, $200 on Ultra, verified) are spent first.
+Each project has a cap in dollars, set when the project is created, with a default the owner chooses (section 9). Summing what has already been spent does not show that the next call fits, so the cap works by **holds**: money set aside before a call and settled afterwards. The budget equation, checked before every call, is:
+
+> spent (settled cost of finished calls) + open holds (calls in flight, and holds kept for calls not yet reconciled) + this call's hold ≤ cap.
+
+**The hold is meant to be the most this call can cost, worked out from the request and not from history.** The gateway computes it from the request itself before forwarding anything. Review on 12 November found ways a call could still cost more than the hold as written here; they are under "Known limits of the hold" below, with what package 1.2 is to do about each:
+
+| Part of the hold | How it is bounded |
+| --- | --- |
+| Input | The request's prompt tokens, counted by the provider's token-counting call (free, unmetered). **If the prompt cannot be counted, the call is refused**; no estimate from the request's size is used (amendment b). Priced at the dearest input rate that could apply to this model and this prompt: the one-hour cache-write rate, taken at the long-prompt price for a model that has one (for Claude Haiku 5.5 that is $1.00 per million tokens, not $0.20), unless the counted prompt is under the threshold by the margin package 1.2 sets (amendment c) |
+| Output | The request's `max_tokens`, which the model cannot exceed, priced at the dearest output rate that could apply: the long-prompt output rate for a model that has one, on the same test as the input (amendment c). The gateway refuses a request whose `max_tokens` is above the profile's ceiling, so a hold cannot be made absurd |
+| Fast mode | Doubles both parts whenever the request asks for it **or the profile allows the provider to serve it** (amendment c), so the hold covers fast mode at twice the standard rate. Twice is what the pricing page lists for Claude Opus 5.5 and Claude Fable 5.2; for any other model it is an assumption (known gap 23) |
+
+**The life of a hold.**
+
+1. **Open.** Check-and-hold runs inside one database transaction that locks the project's row, so two calls arriving together are judged one after the other, whatever gateway process they came through. If the equation fails, the call is refused with the message below and a `gateway.refused` event. If it passes, a `hold.opened` event is written with the amount and a deadline, and the call is forwarded.
+2. **Settle.** When the provider's answer ends and its usage figures can be read, the gateway prices them, writes the `model.call` event with the actual cost, and closes the hold (`hold.settled`). The difference between the hold and the actual cost returns to the budget at that moment. **If the answer succeeded but its usage cannot be read** (an unexpected shape, a missing usage block), the hold keeps its full worst-case amount and the call is marked `unreconciled` (amendment d). *Unreconciled* means: the gateway does not know what the provider will bill for this call, so it charges the worst case against the budget until the owner establishes the true figure. **A kept hold stays open:** it counts as an open hold in the budget equation and in the invariants below until the owner closes it (step 3).
+3. **Interrupted calls.** If the client disconnects or the provider's stream fails part-way, **the hold keeps its full worst-case amount and the call is marked `unreconciled`** (amendment a). The output count arrives late in a stream, so what was seen before the cut is not a measure of what the provider will bill; the usage seen so far is recorded for information only and releases nothing. The same holds when nothing at all was seen. Money is never released on a guess. Unreconciled calls are listed for the owner (package 1.5 of the build plan) and are closed only by a recorded owner action stating the actual cost and its evidence, such as the provider's usage record.
+4. **Expired holds.** Every hold carries a deadline: the call's own time limit plus a margin (ten minutes for a plain call, thirty for a streamed one). A hold still open at its deadline is kept at its full worst-case amount, marked `expired` and listed as unreconciled, stays open, and the call is cut off. On start-up the gateway finds holds left open by a crash and treats them the same way, so a restart can never leak budget. *Awaiting the owner's confirmation:* the first holds design, recorded in `docs/DECISIONS.md` on 11 November, had an expired hold **settled** at its full amount, which closes it and charges the worst case for good with no action by the owner. The text here keeps it **open** until the owner reconciles it, to match package 1.5 of the build plan ("a hold is closed only by a recorded owner action"). Neither reading releases any money. The question is in `docs/STATUS.md`; proof rows B5, B6, B9 and B14 are written for the kept-open reading, and each would change if the owner chooses the other.
+5. **A finished call that cannot be saved.** If the provider has answered but the event log refuses the write (the database is down or full), the hold stays open at its full amount, the project is marked `frozen`, and **the project makes no further calls until the call is reconciled** by the owner's recorded action (amendment e). The gateway raises a fault: a message saying that money was spent that could not be recorded. Nothing the provider billed can go unrecorded and uncharged against the budget. **Where this is recorded while the database is refusing writes is not yet designed, and needs an engineer's judgement** (known gap 35). It is built in package 1.4, with the failure test that shows it (proof row B10), not in package 1.2. The proposal, to be reviewed: the gateway fails closed, meaning that while the event log cannot be written it forwards no metered call for any project; it keeps the unsaved call's record and the frozen mark in a small journal file of its own beside the gateway, outside every project container; and when the database accepts writes again it writes the journal into the log before anything else, so the hold, the freeze and the fault appear in the record and on the unreconciled list.
+6. **Record.** Holds are rows in the database and events in the log, not memory, so they survive a restart and hold across more than one gateway process.
+
+**Known limits of the hold, found in review on 12 November 2026.** As written above, the hold could be less than a call costs in four cases, and one case is not defined at all. None of this is on the integration branch. In each case package 1.2 builds the stricter choice (refuse the request, keep the hold, or add a margin to the count), which can only make the cap tighter; the reviewing engineer reads these with the gateway at checkpoint 2.
+
+| Limit | Source, read 12 Nov 2026 | What package 1.2 does about it |
+| --- | --- | --- |
+| A request that sets `inference_geo` to "us" is billed at 1.1 times every rate, on top of fast mode and the long-prompt rate | Pricing page | The gateway refuses any request that sets `inference_geo` to anything but the default, until the hold includes the factor |
+| The token count is "an estimate" and the billed input "might differ by a small amount" | Token-counting page | A margin is added to the counted prompt; its size is set from measurement in 1.2 and checked against the real provider in package 2.3 |
+| Server-side tools are billed on top of tokens (web search: $10 per 1,000 searches) | Pricing page | The gateway refuses any request that includes a server-side tool. The engine in Stage 1 is not expected to need one; that is an assumption until package 2.2 |
+| Fast mode for a model the pricing page does not list is assumed to cost twice the standard rate | Pricing page lists it for some models only | The gateway refuses fast mode for a model whose fast-mode price is not in its table |
+| **An error answer from the provider is not defined:** the steps above do not say whether its hold is kept or released, and no proof row covers it | Found in review | The hold is released only when the provider's answer shows the request was rejected before any work was done; in every other case, such as a server error, it is kept, unreconciled. A call that never answers or is cut part-way is amendment (a) and belongs to package 1.4 |
+
+**No proof row exists yet for any of these five.** Package 1.2 is finished by rows B1 to B6 and only those, so as the plan stands the refusals and the margin would be built without being part of what finishes the package. Adding rows for them would add to package 1.2's "Done means", which is the owner's to decide (`docs/STATUS.md`, the question on what finishes package 1.2).
+
+**The pre-step check.** A step must not start without room to finish, so each step carries a **step budget**: the worst case for the whole step, which is the step's turn limit multiplied by the worst-case hold of one call at the profile's `max_tokens` ceiling and the largest prompt the step may send. Before the orchestrator starts a step, it asks the gateway to open a step hold for that amount under the same equation. If it does not fit, the step does not start, and the user sees why and what raising the cap would allow. While the step runs, each call's hold is taken from the step hold rather than from the project's free budget; when the step ends, the unused part of the step hold is released. Step budgets are set from measurement once the skeleton has numbers; until then the turn limit and `max_tokens` ceiling are deliberately small, so the first step budgets are small and visible.
+
+**What the user sees** when a call or a step is refused: "This project has reached its budget of $X (spent $Y, with $Z held for work in progress or awaiting reconciliation; this call needed up to $W). The gateway will forward nothing more until the budget is raised." The orchestrator marks the step failed with that reason. No silent degradation.
+
+**Other limits.** Every engine call also carries a turn limit, because the SDK has no overall timeout (verified). The owner sets a monthly spending limit in the Anthropic Console as the outer cap. The plan's monthly API credits ($100 on Max, $200 on Ultra, verified) are spent first.
+
+**The two invariants** that every failure test must show at every moment (build plan, package 1.4): recorded spend plus open holds is never above the approved cap; and recorded spend plus open holds is never below what the provider was owed. No settled call costs more than its hold.
+
+**State of the code.** The gateway built on 11 November 2026 (`evidence/2026-11-11-skeleton-1/`) implements an earlier version of this: serialised check, in-flight calls counted, but with the next call estimated from recent history instead of bounded from the request, holds kept in memory, and no step hold. It is brought in line with this section before the engine adapter uses it (gaps 20 and 21; build plan packages 1.2 to 1.5).
+
+**Amendments to this section, 11 November 2026** (approved by the owner through `docs/BUILD-PLAN.md`, package 1.1; recorded in `docs/DECISIONS.md`):
+
+| | Amendment | Where it now stands |
+| --- | --- | --- |
+| (a) | A call cut off part-way keeps its full hold and is marked unreconciled, because the output count arrives late in the stream. The earlier text settled such a call with the usage seen so far | Step 3 of the life of a hold |
+| (b) | If the prompt cannot be counted, the call is refused. The earlier text estimated from the request's size | The hold table, "Input" |
+| (c) | The hold allows for fast mode and the long-prompt rate when either could apply, not only when the request asks for them | The hold table, "Input", "Output" and "Fast mode" |
+| (d) | A successful answer whose usage cannot be read keeps its full hold and is marked unreconciled | Step 2 of the life of a hold |
+| (e) | If a finished call cannot be saved, its hold stays open, the project is frozen, and no further call is made until the owner reconciles it | Step 5 of the life of a hold |
+
+**Other changes to this note made with or after those five (to this section, to 5.2 and 7.2, and one to the comparison table under decision D), each for the owner to see.** They are not among the five amendments the owner approved through the build plan; the first three follow from them, the fourth awaits his confirmation, and the rest were found in review: some are corrections, some are new, and some are the owner's to approve, as each row says.
+
+| Date | Change | Why | Standing |
+| --- | --- | --- | --- |
+| 11 Nov 2026 | A hold that is kept (amendments a, d, e, and an expired hold) **stays open**: it counts as an open hold in the budget equation and in the two invariants until the owner closes it | Without this, a kept hold would be neither spend nor an open hold and would drop out of the invariants | Follows from the amendments and from package 1.5 |
+| 11 Nov 2026 | Section 5.2's table gained the cache-write rates, the long-prompt row and the fast-mode paragraph | The hold in 5.5 relies on rates the note did not show | Correction; figures verified from the pricing page |
+| 11 Nov 2026 | Proof row (e) divided between packages 1.4 and 1.5 | The reconciliation half needs package 1.5 | Correction |
+| 11 Nov 2026 | **An expired hold is kept open and unreconciled, where the first holds design settled it at its full amount** | To match package 1.5 | **Awaits the owner's confirmation** (step 4; `docs/STATUS.md`) |
+| 12 Nov 2026 | The output part of the hold uses the long-prompt output rate where one could apply; the Input row and 5.2 now state the same test | A fresh reviewer found the Output row said only "the output rate", which would hold too little for Claude Haiku 5.5 over the threshold | Correction within amendment (c) |
+| 12 Nov 2026 | Step 5 says that where the fault and the freeze are recorded during a database failure is not yet designed, with a proposal | A fresh reviewer found the note had the gateway writing to the database at the moment the database refuses writes | Open design point; needs an engineer's judgement (gap 35) |
+| 12 Nov 2026 | 5.2 states what the pricing page says about the long-prompt rate and fast mode, and marks the one remaining assumption | The earlier sentence said the fast-mode factor "can only over-count", which was an assumption stated as fact | Correction |
+| 12 Nov 2026 | The budget rows of the proof table in 7.2 split into B1 to B14, each with one package | Finding 2 of the independent assistant's review supplied by the owner on 12 November | In answer to that review; the assignment is the owner's to approve or change. B14 asks one thing more than the plan's wording for package 1.5: that the frozen project of B10 runs again after reconciliation |
+| 12 Nov 2026 | 5.2's table gained a row for Claude Fable 5.2 | The gateway's price table prices that model, so the note has to show its rates | Correction; figures verified from the pricing page |
+| 11 and 12 Nov 2026 | The refusal message under "What the user sees" now mentions money held "for work in progress or awaiting reconciliation" | Kept holds count against the budget, so the message has to say so | Follows from the amendments |
+| 12 Nov 2026 | The Input and Output rows use the long-prompt rate "unless the counted prompt is under the threshold by the margin package 1.2 sets" | The count is taken before the call and the threshold decides the rate; a margin is needed and its size is not yet set | New; the margin is set from measurement in package 1.2 |
+| 12 Nov 2026 | Proof rows B1, B2, B5, B6, B7 and B8 say more than the eight rows they replaced: B1 names the settle event; B2 the refusal before forwarding; B5 that the hold stays an open hold; B6 start-up recovery; B8 the count of calls. **B7 asks more than the plan's wording for package 1.3**: besides the refusal with its message, that each call's hold is drawn from the step hold and the unused part released | The rows have to be checkable one by one | The owner's to approve or change, with the row assignment |
+| 12 Nov 2026 | Row B5 says "marked unreconciled", not "listed" | The owner's list is package 1.5, which comes after 1.2 | Correction |
+| 12 Nov 2026 | **Which package builds what.** Package 1.2 builds opening, settling, expiry and start-up recovery (B1 to B6). Package 1.4 builds what happens when a call is cut off, is unreadable or cannot be saved (amendments a, d, e) together with the tests that show it (B8 to B13). B14 (package 1.5) needs those cases, so **1.5 can be finished only after 1.4**, although the plan lists 1.5 as depending on 1.2 alone | The earlier text did not say, and had the engineer's question attached to 1.2 | Decided by Claude Code as a matter of how it is built; whether to add the 1.4 dependency to the plan is the owner's to say |
+| 12 Nov 2026 | "Known limits of the hold" added above | A fresh reviewer checked the hold against the provider's pricing and token-counting pages and found four ways it could fall short, and one case not defined | **Open design points, not approved** |
+| 11 and 12 Nov 2026 | The paragraph "The two invariants" was added to 5.5, and step 3 gained the rule that a kept hold is closed only by the owner's recorded action stating the actual cost and its evidence | The invariants come from the plan's package 1.4 and the closing rule from its package 1.5; the note has to state both | Taken from the plan's own wording; listed here for completeness |
+| 12 Nov 2026 | Proof row B4 split into two cases | No model has both a long-prompt rate and a listed fast-mode price, so the row could not be shown as first written | It changes what finishes package 1.2, so it is the owner's to approve or change, with the row assignment |
+| 12 Nov 2026 | In the comparison table under decision D, "permissive licences: Both" replaced by a row saying neither candidate is free of non-permissive licences as found so far | `caniuse-lite` and the LGPL packages of `sharp` were found in the TypeScript template after the table was written; the sentence above the table that said every component is permissive was corrected with it | Correction of a fact. The stack decision is unchanged and is the owner's |
 
 ---
 
@@ -346,9 +438,9 @@ Stage 1 is a single-user prototype with made-up data. It is **not secure, not re
 | What | How |
 | --- | --- |
 | The model key | Held by the gateway process only. Never in a project container, never in the repository, never in logs or screenshots. On the development machine it is an environment variable on the owner's personal cloud environment with our own name, `BUILDER_MODEL_API_KEY` |
-| Spend | Per-project cap in the gateway; turn limit per engine call; monthly limit in the Console |
-| The acceptance checks | Denied to the engine by permission rule and by a read-only mount; generated by a separate process; reported passed only when run |
-| The sign-in and role code, the quality-rule machinery | Same protection as the acceptance checks |
+| Spend | Per-project cap in the gateway enforced by worst-case holds settled to actual cost, with a pre-step check (5.5); turn limit per engine call; monthly limit in the Console |
+| The acceptance checks | Stored in the builder's acceptance store, outside the project's working copy and git history; never mounted in the engine's container, which also has no network route to the store; mounted read-only in the acceptance runner only; generated by a separate process; reported passed only when run; copied into the app at export |
+| The sign-in and role code, the quality-rule machinery | Code the engine must read but never change: denied to the engine's edit tools by permission rule and mounted read-only |
 | The host machine | Engine and app run in containers as a non-root user with capabilities dropped, memory and process limits, read-only root filesystem |
 | Outbound traffic from project containers, on a server | Internal Docker network plus an egress proxy that allows only the gateway and the package registry |
 | The record | Append-only event log; every model call, tool call, approval and check result |
@@ -369,7 +461,7 @@ Stage 1 is a single-user prototype with made-up data. It is **not secure, not re
 
 ### 6.3 First entries for the known-gaps register
 
-Written to `docs/KNOWN-GAPS.md` today, fourteen entries: host networking in development sessions (gaps 1 and 2); the key never entering a container, with a note to record any shortcut before taking it (3); environment variables readable by environment users (4); Docker Hub rate limits (5); password handling in the template (6); no verified in-country model processing for the UAE (7); the SDK's commercial licence (8); no SDK session timeout (9); session pause and command limits (10); `CLAUDE.md` is not enforcement (11); pricing pages unreachable (12); several documentation hosts unreachable (13); the egress proxy is weaker than the guide's no-network pattern (14).
+Written to `docs/KNOWN-GAPS.md` on 11 November 2026, the first fourteen entries: host networking in development sessions (gaps 1 and 2); the key never entering a container, with a note to record any shortcut before taking it (3); environment variables readable by environment users (4); Docker Hub rate limits (5); password handling in the template (6); no verified in-country model processing for the UAE (7); the SDK's commercial licence (8, since decided); no SDK session timeout (9); session pause and command limits (10); `CLAUDE.md` is not enforcement (11); provider price tables drawn by scripts (12, since narrowed); several documentation hosts unreachable (13, since narrowed); the egress proxy is weaker than the guide's no-network pattern (14). Entries 15 onwards were added as the skeleton was built; the register is the living list.
 
 ---
 
@@ -382,10 +474,10 @@ The thinnest path from a fixed brief to a running app with one acceptance check 
 1. **Fixed brief.** The worked mapping for example 1 in `docs/spec/B2-question-bank.md` is written by hand as an app spec: three roles, the leave-request entity with its fields, two screens, two actions, one rule, and the acceptance items from "Done means". The analyst is not involved; its conversation is a later milestone.
 2. **Template.** A minimal house template for the stack: sign-in with email and password, three seeded sample users with roles, one protected page per role, who-and-when stamps on every table, a Mailpit mail catcher, and the licence check. Only as much of the ten rules as the two steps below need.
 3. **Sandbox.** The sandbox manager creates the project's containers from the template under the `development-cloud-session` profile.
-4. **Gateway.** The gateway runs outside the containers, holds the key, records usage and enforces a cap set deliberately low for the first run so the cap is seen to work.
+4. **Gateway.** The gateway runs outside the containers, holds the key, records usage and enforces the cap by holds (5.5), set deliberately low for one run so the cap is seen to work, both at a call and at the pre-step check.
 5. **Two engine steps.** The optimiser is a fixed template for now. Step one: the data step, creating the leave-request table and migration. Step two: the submitter's screen, a list of my requests and a form to add one, with validation. Each step is one SDK call with a turn limit, `dontAsk` mode, the allow list, the deny list, and the logging hook. The user's approval between steps is a prompt in the harness.
-6. **One acceptance check.** Generated by a separate call from the app spec's first acceptance item: an employee signs in, submits a five-day request, and sees it in their list with status "waiting". Run by Playwright in its own container against the running app. Screenshot recorded.
-7. **Export.** The project's repository is copied out, the builder is stopped, and the app is started from the export with its one documented command on the same machine. The acceptance check runs against it again.
+6. **One acceptance check.** Generated by a separate call from the app spec's first acceptance item: an employee signs in, submits a five-day request, and sees it in their list with status "waiting". Written into the acceptance store, never into the workspace. Run by Playwright in its own container, which mounts the store folder read-only and sees the running app. Screenshot recorded.
+7. **Export.** The exporter copies the project's repository out and, at that moment, copies the acceptance check in from the store as `acceptance/` and commits it. The builder is stopped, and the app is started from the export with its one documented command on the same machine. The acceptance check runs against it again, from the exported copy.
 8. **Report.** One page per stack: screenshots, the acceptance result, the event log's row count, and the cost per step and in total for each of the two models tried.
 
 ### 7.2 What it proves
@@ -395,11 +487,32 @@ The thinnest path from a fixed brief to a running app with one acceptance check 
 | The engine builds on the template inside a container | The step's commit in the project repository; the tool-call log |
 | The key never enters the container | The container's environment and filesystem inspected after the run, with the inspection command and its output |
 | Every model call goes through the gateway and is metered | The gateway's usage rows match the SDK's reported usage for each call |
-| The cap stops a build | A run with the cap set below the second step's cost, and the named failure shown |
-| The acceptance check is independent | The check's generation log shows its inputs: app spec and app address only. The engine's deny list and mount show `acceptance/` is unreachable |
-| The export runs alone | The app started from the export with the builder stopped, and the check passing against it |
+| The budget cap works as section 5.5 says | The fourteen rows B1 to B14 in the table below, each from the event log against a stand-in provider, each assigned to exactly one package of the build plan |
+| The acceptance check is independent | The check's generation log shows its inputs: app spec and app address only. The engine container's mounts, listed by the container runtime, show no acceptance mount. The project's git history, listed, shows no acceptance file before the export commit. The runner container's mounts show the store folder read-only and no workspace |
+| The export runs alone, with its tests | The app started from the export with the builder stopped; the exported repository's history shows `acceptance/` arriving in the export commit; the check passing against the exported app from the exported copy |
 | The development machine suffices | Wall-clock time of the whole run, memory peak, and disk used |
 | Which stack and which model | Acceptance result, rule compliance by inspection, and cost, side by side |
+
+**The budget cap's proof rows.** Each row belongs to one package of `docs/BUILD-PLAN.md` and to no other, so a package is finished by its own rows and never waits on a later one. "Shown" for these rows means run against a stand-in provider, which shows how the gateway behaves; it does not show how the real provider behaves (build plan, section 8, rule 3).
+
+| Row | Package | Claim | Evidence, from the event log |
+| --- | --- | --- | --- |
+| B1 | 1.2 | A hold is opened before every forwarded call and settled to the actual cost | For each call in a run: `hold.opened` with its worst-case amount shown beside the arithmetic (prompt count, `max_tokens`, the rates used), then `hold.settled` with the actual cost; the actual cost is never above the hold; the difference returns to the budget |
+| B2 | 1.2 | A call whose hold does not fit is refused at the call | Cap set so that spend plus open holds plus this hold exceeds it: the call is refused with the message shown, a `gateway.refused` event is written, no hold is opened, nothing is forwarded |
+| B3 | 1.2 | A prompt that cannot be counted is refused (amendment b) | The token-counting path made to fail: refused with the reason named, no hold opened, nothing forwarded |
+| B4 | 1.2 | The hold covers fast mode and the long-prompt rate when either could apply (amendment c) | Two cases, each with the `hold.opened` amount shown beside the arithmetic from the table in 5.2. (1) A model with a long-prompt rate (Claude Haiku 5.5) and a prompt at or near the threshold: the hold is at the long-prompt rates. (2) A model with a listed fast-mode price (Claude Opus 5.5) and a profile that allows fast mode: the hold is at twice the standard rates. No model today has both, so the two are shown separately |
+| B5 | 1.2 | A hold past its deadline is kept, not released | One hold driven past its deadline: kept at its full amount, marked `expired`, still counted as an open hold, marked unreconciled |
+| B6 | 1.2 | Holds are database rows that survive the gateway stopping | The gateway stopped cleanly with a hold open and started again: the hold is found at start-up, kept at its full amount, still counted as an open hold; spend plus open holds reads the same before and after |
+| B7 | 1.3 | A step does not start without room to finish | Cap set below a step's budget: the step is refused before it starts, with the message shown. In a step that does start: each call's hold is drawn from the step hold, and the unused part is released when the step ends |
+| B8 | 1.4 | Calls in flight at the same time cannot pass the cap together | Several calls sent at once against room for one: exactly one forwarded, the rest refused; check-and-hold seen to run one after another under the project-row lock |
+| B9 | 1.4 | The gateway killed in the middle of a call leaks no budget | The gateway process killed while a call is in flight, then started: the hold is found, kept at its full amount, marked unreconciled |
+| B10 | 1.4 | A finished call that cannot be saved freezes the project (amendment e, first half) | The event log made to refuse the write after the provider answered: the hold stays open, the project is marked frozen, the next call is refused with the reason named, a fault is raised |
+| B11 | 1.4 | A stream cut after output began keeps its full hold (amendment a) | One call cut off mid-stream after output began, and one with no answer at all: each hold kept in full, still open, marked unreconciled; the usage seen recorded for information only |
+| B12 | 1.4 | A successful answer that cannot be read keeps its hold (amendment d) | The stand-in provider answers 200 with no usage block: the hold is kept in full, still open, the call marked unreconciled |
+| B13 | 1.4 | The two invariants hold throughout | For each of B8 to B12, a trace of recorded spend plus open holds at every step: never above the approved cap, never below what the provider was owed; no settled call costs more than its hold |
+| B14 | 1.5 | Unreconciled holds are closed only by the owner's recorded action | The unreconciled list shown with one example of each kind (interrupted, unreadable, expired, unsaveable); one reconciliation recorded with the actual cost and its evidence, after which the actual cost is what is charged and the frozen project of B10 runs again (amendment e, second half) |
+
+*Amendment to this table, 12 November 2026, in answer to an independent assistant's review supplied by the owner:* the eight budget rows of the earlier table were split into B1 to B14 and each given one package, because package 1.2's "Done means" pointed at rows that belonged to packages depending on 1.2. Nothing was removed: every claim in the earlier rows is in a B row.
 
 ### 7.3 What it does not prove
 
@@ -421,7 +534,7 @@ In order. Each names what the owner is shown. No dates. Each ends with a pull re
 | 5 | **Changes** | A change request going back through the analyst, the brief and plan updated, the change built, and the full acceptance test passing again |
 | 6 | **Record, cost and export in full** | A project's complete record browsed in the interface; its cost per step; the exported repository started on a clean machine with one command and its README |
 | 7 | **Test protocol** | The ten answer sheets for the owner's review first. Then a trial run of two examples for the owner to set the pass target. Then the full protocol: the report with raw, brief and tuned scores, the drift and phrasing findings, the first optimiser rules, and the (H) marks removed or kept. Repeated tuned runs for consistency |
-| 7b | **Second engine** (gate item 9) | Two test examples built through the second engine adapter, scored against the same acceptance tests as their tuned runs, with the difference in score and cost reported plainly and no claim beyond what was measured |
+| 7b | **Second engine: OpenAI's Codex SDK** (gate item 9; the owner's choice, 11 Nov 2026) | First, the OpenAI account's price and terms shown to the owner for his yes (hard rule 4). Then two test examples built through the Codex adapter, behind the same gateway and cap, scored against the same acceptance tests as their tuned runs, with the difference in score and cost reported plainly and no claim beyond what was measured. The report says in one line that this proves the engine seam and not in-country processing (gap 33) |
 | 8 | **Demo** | The demo environment running the builder behind a login; the chosen demo candidate built live end to end and changed twice; the rehearsed script; a labelled recording as fallback |
 | 9 | **Gate review** | Each Stage 1 gate item in `HANDOVER.md` section 6 marked done with its evidence, and `docs/KNOWN-GAPS.md` current with the reviewing engineer's starting points |
 
@@ -433,9 +546,9 @@ The spreadsheet upload (in scope for Stage 1) joins at milestone 2, because it i
 
 In order. One at a time. Each has a recommendation and its reason. Answers are recorded in `docs/DECISIONS.md`.
 
-**1. Approve this design note?**
-- (a) Approve as written; start the walking skeleton. **Recommended.** Reason: it commits to nothing irreversible, and every open point is measured by the skeleton rather than argued.
-- (b) Approve with changes. Say which.
+**1. Approve this design note?** **Answered: approved on 11 November 2026, subject to three corrections** (acceptance tests out of the engine's container and git history; the cap by worst-case holds with a pre-step check; the Codex SDK as the second engine), which this version makes.
+- (a) Approve as written; start the walking skeleton. Was recommended.
+- (b) Approve with changes. Say which. **This is what the owner did.**
 - (c) Do not approve. Say what is missing.
 
 **2. Licence exception for the build engine?** The Claude Agent SDK is governed by Anthropic's Commercial Terms of Service, not a permissive open-source licence. Hard rule 2 needs your written exception.
@@ -480,9 +593,9 @@ In order. One at a time. Each has a recommendation and its reason. Answers are r
 
 **10. The `main` branch.** Not a choice unless you object. A branch is a named line of history in the repository, and `main` is the one everything is compared against. The repository was empty, so a `main` branch was created holding only `HANDOVER.md` and `CLAUDE.md`, the starting point the handover describes, so that a pull request could be opened. Say if you would rather it were done differently.
 
-**11. Which second engine for gate item 9?**
-- (a) A small loop of our own against an OpenAI-compatible endpoint. **Recommended.** Reason: it is the engine a UAE-only profile would need, and it has no vendor licence question. Its weakness is reported as measured.
-- (b) OpenAI's Codex SDK. Quicker proof of the seam; its repository is Apache-2.0; needs a second provider account and spend line; does not answer the in-country question.
-- (c) Both, if the budget allows after the protocol's trial run.
+**11. Which second engine for gate item 9?** **Decided by the owner on 11 November 2026: (b), OpenAI's Codex SDK.** The options as they were put, kept as history:
+- (a) A small loop of our own against an OpenAI-compatible endpoint. Was recommended. Reason given: it is the engine a UAE-only profile would need, and it has no vendor licence question; its weakness would be reported as measured. Not chosen; kept as the candidate for the UAE-only profile.
+- (b) OpenAI's Codex SDK. **Chosen.** Quicker proof of the seam with a mature agent; its package is Apache-2.0; needs a second provider account and spend line, to be priced and approved before milestone 7b; does not answer the in-country question (gap 33).
+- (c) Both, if the budget allows after the protocol's trial run. Not chosen.
 
 Not asked now: the product name (no rush; `builder` until then), the pass target for the protocol (set after the trial run, as the handover says), the legal owner (Ahmed Sharara personally for now), and the default model (measured in the skeleton, not decided).

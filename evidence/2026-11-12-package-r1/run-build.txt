@@ -1,0 +1,14 @@
+Route (app)
+┌ ○ /_not-found
+├ ƒ /[locale]
+├ ƒ /[locale]/home
+├   /[locale]/sign-in
+│ ├ ● /en/sign-in
+│ └ ● /ar/sign-in
+└ ƒ /api/auth/[...all]
+
+
+○  (Static)   prerendered as static content
+●  (SSG)      prerendered as static HTML (uses generateStaticParams)
+ƒ  (Dynamic)  server-rendered on demand
+

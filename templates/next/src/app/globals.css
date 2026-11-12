@@ -1,0 +1,17 @@
+@import "tailwindcss";
+
+/* Rule 10: the layout works on a phone. Tailwind's defaults are mobile-first; nothing here fixes a width. */
+:root {
+  color-scheme: light;
+}
+html,
+body {
+  min-height: 100%;
+}
+body {
+  @apply bg-slate-50 text-slate-900 antialiased;
+}
+/* Right-to-left pages (Arabic) read the direction from <html dir>. Logical properties keep spacing correct. */
+[dir="rtl"] {
+  text-align: start;
+}
