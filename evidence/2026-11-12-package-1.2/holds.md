@@ -392,6 +392,10 @@ A seventh fresh reviewer read the changes since `83443c9` with the claim stated 
 | | The reader's tests catch a reader that misses the key, not one that reads too much (which would withhold innocent bodies, not leak) | No | Left as it is; recorded here |
 | | A comment described a branch of the code that the reviewer could not reach; known gap 45 said the "very text" stored is searched, though the store adds the hold's own fields around it | No | The comment and the gap reworded |
 
+## The re-reads after the seventh review
+
+The seventh reviewer read the answers to its findings twice more. Of `bdb4c28` (the three false sentences corrected): all three true as written; one new blocking item, the example added to the trade paragraph, which was wrong as written. Of `f5d0a4b` (the example removed, the 43/112 comparison kept, three sentences reworded): "nothing blocking left; every sentence you asked about is true as written". No change to what the code does was made after `f25c0e8`.
+
 ## What this does not show
 
 - **Nothing about the real provider.** Whether its token count is close enough for the margin, whether its bills match the gateway's arithmetic, how it fails: all untested until package 2.3.
