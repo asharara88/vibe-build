@@ -165,7 +165,7 @@ How the criteria fall, before measurement:
 | Quality rules true by construction | P. Django's documentation states a built-in authentication system with users, groups and permissions, form and field validation, and migrations (verified). Who-and-when stamps are a convention in both. In Next.js each is a library or a convention the template must impose |
 | Acceptance score and model cost on example 1 | Unknown until measured. Models write both well; Next.js has the larger body of recent code |
 | Standard PostgreSQL, containers | Both |
-| Permissive licences only | Neither, as found so far: the Django candidate needs `psycopg` (LGPL-3.0); the TypeScript template ships `caniuse-lite` (CC-BY-4.0, approved by the owner on 12 Nov 2026) and carries LGPL packages through `sharp` (found 12 Nov 2026, known gap 40) |
+| Permissive licences only | Neither, as found so far: the Django candidate needs `psycopg` (LGPL-3.0); the TypeScript template ships `caniuse-lite` (CC-BY-4.0, approved by the owner on 12 Nov 2026) and carried LGPL packages through `sharp` (found 12 Nov 2026, known gap 40), which package R1 removes |
 | Maintained and widely used; engineers hireable | Both. Django is older and changes less; Next.js changes more |
 | Translation and right-to-left | P built in; T needs next-intl and care with layout |
 | One language across builder and apps | T if the builder is TypeScript. The Agent SDK exists in both languages, so the builder could be Python and match P |

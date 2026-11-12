@@ -1,0 +1,32 @@
+Lock file check (/tmp/old-lock.json): 432 entries read.
+PROBLEMS: 28
+  @img/colour is listed. It is part of the image library sharp, which is not to be installed.
+  @img/sharp-darwin-arm64 is listed. It is part of the image library sharp, which is not to be installed.
+  @img/sharp-darwin-x64 is listed. It is part of the image library sharp, which is not to be installed.
+  @img/sharp-freebsd-wasm32 is listed. It is part of the image library sharp, which is not to be installed.
+  @img/sharp-libvips-darwin-arm64 is listed. It is part of the image library sharp, which is not to be installed.
+  @img/sharp-libvips-darwin-x64 is listed. It is part of the image library sharp, which is not to be installed.
+  @img/sharp-libvips-linux-arm is listed. It is part of the image library sharp, which is not to be installed.
+  @img/sharp-libvips-linux-arm64 is listed. It is part of the image library sharp, which is not to be installed.
+  @img/sharp-libvips-linux-ppc64 is listed. It is part of the image library sharp, which is not to be installed.
+  @img/sharp-libvips-linux-riscv64 is listed. It is part of the image library sharp, which is not to be installed.
+  @img/sharp-libvips-linux-s390x is listed. It is part of the image library sharp, which is not to be installed.
+  @img/sharp-libvips-linux-x64 is listed. It is part of the image library sharp, which is not to be installed.
+  @img/sharp-libvips-linuxmusl-arm64 is listed. It is part of the image library sharp, which is not to be installed.
+  @img/sharp-libvips-linuxmusl-x64 is listed. It is part of the image library sharp, which is not to be installed.
+  @img/sharp-linux-arm is listed. It is part of the image library sharp, which is not to be installed.
+  @img/sharp-linux-arm64 is listed. It is part of the image library sharp, which is not to be installed.
+  @img/sharp-linux-ppc64 is listed. It is part of the image library sharp, which is not to be installed.
+  @img/sharp-linux-riscv64 is listed. It is part of the image library sharp, which is not to be installed.
+  @img/sharp-linux-s390x is listed. It is part of the image library sharp, which is not to be installed.
+  @img/sharp-linux-x64 is listed. It is part of the image library sharp, which is not to be installed.
+  @img/sharp-linuxmusl-arm64 is listed. It is part of the image library sharp, which is not to be installed.
+  @img/sharp-linuxmusl-x64 is listed. It is part of the image library sharp, which is not to be installed.
+  @img/sharp-wasm32 is listed. It is part of the image library sharp, which is not to be installed.
+  @img/sharp-webcontainers-wasm32 is listed. It is part of the image library sharp, which is not to be installed.
+  @img/sharp-win32-arm64 is listed. It is part of the image library sharp, which is not to be installed.
+  @img/sharp-win32-ia32 is listed. It is part of the image library sharp, which is not to be installed.
+  @img/sharp-win32-x64 is listed. It is part of the image library sharp, which is not to be installed.
+  sharp is listed as a real package (0.35.5). Only the link to vendor/no-sharp is allowed.
+RESULT: FAILED
+exit code: 1
