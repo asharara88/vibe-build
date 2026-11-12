@@ -1,0 +1,26 @@
+$ license-checker-rseidelsohn --production --onlyAllow "<permitted list>" --excludePrivatePackages --summary
+Package "@img/sharp-libvips-linux-x64@1.3.4" is licensed under "LGPL-3.0-or-later" which is not permitted by the --onlyAllow flag. Exiting.
+exit code: 1
+
+$ the same, with caniuse-lite excluded, to see what it refuses next
+Package "@img/sharp-libvips-linux-x64@1.3.4" is licensed under "LGPL-3.0-or-later" which is not permitted by the --onlyAllow flag. Exiting.
+exit code: 1
+
+$ license-checker-rseidelsohn --failOn "<strong copyleft list>" --excludePrivatePackages --summary   (the rule the committed check applies to development tools)
+├─ MIT: 156
+├─ ISC: 59
+├─ Apache-2.0: 22
+├─ BlueOak-1.0.0: 11
+├─ BSD-3-Clause: 4
+├─ LGPL-3.0-or-later: 2
+├─ Apache-2.0 AND MIT: 2
+├─ BSD-2-Clause: 2
+├─ MPL-2.0: 2
+├─ 0BSD: 2
+├─ Apache-2.0 AND LGPL-3.0-or-later AND MIT: 1
+├─ CC-BY-4.0: 1
+├─ CC-BY-3.0: 1
+├─ CC0-1.0: 1
+└─ (MIT AND CC-BY-3.0): 1
+
+exit code: 0
