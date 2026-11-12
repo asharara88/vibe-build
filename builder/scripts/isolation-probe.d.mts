@@ -25,6 +25,7 @@ export interface PlannedAttempt {
 }
 
 export const SESSION_CERT_PATHS: string[];
+export const BODY_READ_MS: number;
 export const GROUPS: Record<"A" | "B" | "C" | "D" | "E" | "F", string>;
 export function parseSettings(text: string | undefined): ProbeSettings;
 export function classifyError(code: string, context?: "connection" | "lookup"): string;

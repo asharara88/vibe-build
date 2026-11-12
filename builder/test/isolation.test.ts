@@ -1,7 +1,7 @@
 import { execFile } from "node:child_process";
 import { generateKeyPairSync, sign } from "node:crypto";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import type { Server } from "node:http";
+import http, { type Server } from "node:http";
 import https from "node:https";
 import type { AddressInfo, Socket } from "node:net";
 import net from "node:net";
@@ -9,7 +9,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { promisify } from "node:util";
 import { describe, expect, it, onTestFinished } from "vitest";
-import { classifyError, countOtherSockets, parseListeners, parseSettings, planAttempts, runAttempt, type PlannedAttempt } from "../scripts/isolation-probe.mjs";
+import { BODY_READ_MS, classifyError, countOtherSockets, parseListeners, parseSettings, planAttempts, runAttempt, type PlannedAttempt } from "../scripts/isolation-probe.mjs";
 import { cell, gotAnswer, parseProbeOutput, RESULT, renderMarkdownTable, renderTable, sessionProxyHostPort, summarise, type ProbeAttempt } from "../src/sandbox/isolation.js";
 import { createSandbox, dockerEnv, sandbox } from "../src/sandbox/manager.js";
 
@@ -190,6 +190,39 @@ describe("isolation probe: its attempts, against made-up servers on the loopback
       answeredBy: "B-inside-the-tunnel",
       directConnections: 0,
     });
+  });
+
+  it("an HTTP answer whose body is held open is still that HTTP status, settled once the headers came (review finding 10)", async () => {
+    // A made-up server that sends a 200 status, its headers and one byte, then holds the body open.
+    const port = await onLoopback(
+      http.createServer((_req, res) => {
+        res.writeHead(200, { server: "made-up-slow-body" });
+        res.write("x");
+      }),
+    );
+    const op = { type: "http" as const, host: "127.0.0.1", port, path: "/" };
+    // The limit is longer than the brief read of the body: the body's read ends first.
+    const t0 = Date.now();
+    const brief = await runAttempt(madeUpAttempt(op), parseSettings(JSON.stringify({ ...SETTINGS, timeoutMs: 4000 })), null);
+    expect({ result: brief.result, detail: brief.detail }).toEqual({ result: "HTTP 200", detail: `server: made-up-slow-body; the body did not finish within ${BODY_READ_MS} ms of the answer` });
+    expect(Date.now() - t0).toBeLessThan(3500);
+    // The limit is shorter than the brief read: the limit ends it, and the result is still the status.
+    const limited = await runAttempt(madeUpAttempt(op), parseSettings(JSON.stringify({ ...SETTINGS, timeoutMs: 300 })), null);
+    expect({ result: limited.result, detail: limited.detail }).toEqual({ result: "HTTP 200", detail: "server: made-up-slow-body; the body did not finish within the time limit (300 ms)" });
+    // A body that finishes is read whole, as before.
+    const whole = await onLoopback(http.createServer((_req, res) => res.writeHead(403, { server: "made-up" }).end("made-up refusal")));
+    expect(await runAttempt(madeUpAttempt({ ...op, port: whole }), parseSettings(JSON.stringify(SETTINGS)), null)).toEqual({ result: "HTTP 403", code: null, detail: 'server: made-up; says: "made-up refusal"' });
+  });
+
+  it("a proxy that closes the connection without answering a CONNECT has its own result, at once, not 'timed out'", async () => {
+    // A made-up proxy that reads the CONNECT and closes the connection without a word.
+    const port = await onLoopback(net.createServer((c) => c.once("data", () => c.end())));
+    const s = parseSettings(JSON.stringify({ ...SETTINGS, timeoutMs: 3000 }));
+    const t0 = Date.now();
+    const r = await runAttempt(madeUpAttempt({ type: "connect", proxy: { host: "127.0.0.1", port }, target: "made-up.invalid:443" }), s, null);
+    expect(r).toEqual({ result: "proxy closed without an answer", code: "PROXY_CLOSED", detail: "" });
+    expect(Date.now() - t0).toBeLessThan(2000);
+    expect(r.result).toMatch(RESULT);
   });
 });
 

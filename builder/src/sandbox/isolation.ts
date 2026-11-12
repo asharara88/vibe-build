@@ -31,7 +31,7 @@ export interface ProbeReport {
 
 /** Every result word the probe can give. Anything else is reported as a problem. */
 export const RESULT =
-  /^(connected|refused|timed out|name not found|no name server answered|lookup refused by the name server|network unreachable|certificate not trusted|connection reset|error|HTTP \d{3}|proxy answered \d{3}|found \d+ address(es)?)$/;
+  /^(connected|refused|timed out|name not found|no name server answered|lookup refused by the name server|network unreachable|certificate not trusted|connection reset|proxy closed without an answer|error|HTTP \d{3}|proxy answered \d{3}|found \d+ address(es)?)$/;
 
 const TOWARD = new Set<Toward>(["outside", "host", "lookup", "egress-proxy", "session-proxy"]);
 

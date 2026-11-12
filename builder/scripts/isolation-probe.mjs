@@ -213,11 +213,16 @@ function httpDetail(status, headers, body) {
   return bits.join("; ");
 }
 
-/** Run `start(finish)` with a time limit; `finish` settles once with a result. */
+/**
+ * Run `start(finish, cleanup, atLimit)` with a time limit; `finish` settles once with a result. When the
+ * limit comes first, the result is "timed out", unless `atLimit(f)` was called: then it is `f()` (an HTTP
+ * attempt whose status and headers have come is an HTTP status, whatever its body does).
+ */
 function withLimit(ms, start) {
   return new Promise((resolve) => {
     let done = false;
     const cleanups = [];
+    let limitResult = () => ({ result: "timed out", code: "TIMEOUT", detail: `no answer within ${ms} ms` });
     const finish = (r) => {
       if (done) return;
       done = true;
@@ -231,8 +236,12 @@ function withLimit(ms, start) {
       }
       resolve(r);
     };
-    const timer = setTimeout(() => finish({ result: "timed out", code: "TIMEOUT", detail: `no answer within ${ms} ms` }), ms);
-    start(finish, (c) => cleanups.push(c));
+    const timer = setTimeout(() => finish(limitResult()), ms);
+    start(
+      finish,
+      (c) => cleanups.push(c),
+      (f) => (limitResult = f),
+    );
   });
 }
 
@@ -250,18 +259,31 @@ function trust(sessionCert) {
   return sessionCert ? { ca: [...tls.rootCertificates, readFileSync(sessionCert, "utf8")] } : {};
 }
 
-function readAnswer(res, finish) {
+/** How long the body is read, once the status and headers have come, for the detail only. */
+export const BODY_READ_MS = 1000;
+
+/**
+ * An HTTP answer. It settles when the status and headers arrive: from then on the result is the HTTP status,
+ * whatever the body does. The body is read only briefly, for the detail (a refusal's own words); if it does
+ * not finish in that time, or within the attempt's limit, the detail says so (review of 0.6a, finding 10).
+ */
+function readAnswer(res, finish, cleanup, atLimit, ms) {
+  const status = res.statusCode ?? 0;
   let body = "";
+  const settle = (code, note) => finish({ result: `HTTP ${status}`, code, detail: [httpDetail(status, res.headers, body), note].filter(Boolean).join("; ") });
+  atLimit(() => ({ result: `HTTP ${status}`, code: null, detail: [httpDetail(status, res.headers, body), `the body did not finish within the time limit (${ms} ms)`].filter(Boolean).join("; ") }));
+  const brief = setTimeout(() => settle(null, `the body did not finish within ${BODY_READ_MS} ms of the answer`), BODY_READ_MS);
+  cleanup(() => clearTimeout(brief));
   res.setEncoding("utf8");
   res.on("data", (d) => {
     if (body.length < 2048) body += d;
   });
-  res.on("end", () => finish({ result: `HTTP ${res.statusCode}`, code: null, detail: httpDetail(res.statusCode ?? 0, res.headers, body) }));
-  res.on("error", (e) => finish({ result: `HTTP ${res.statusCode}`, code: codeOf(e), detail: httpDetail(res.statusCode ?? 0, res.headers, body) }));
+  res.on("end", () => settle(null, ""));
+  res.on("error", (e) => settle(codeOf(e), ""));
 }
 
 function httpAttempt(op, ms, secure, sessionCert) {
-  return withLimit(ms, (finish, cleanup) => {
+  return withLimit(ms, (finish, cleanup, atLimit) => {
     const mod = secure ? https : http;
     // agent: false, so no proxy setting and no shared connection is used: the request goes straight out.
     const req = mod.request(
@@ -274,7 +296,7 @@ function httpAttempt(op, ms, secure, sessionCert) {
         headers: { host: op.hostHeader ?? op.host, "user-agent": "isolation-probe", connection: "close" },
         ...(secure ? { servername: op.host, ...trust(sessionCert) } : {}),
       },
-      (res) => readAnswer(res, finish),
+      (res) => readAnswer(res, finish, cleanup, atLimit, ms),
     );
     cleanup(() => req.destroy());
     req.on("error", (e) => finish({ result: classifyError(codeOf(e)), code: codeOf(e), detail: "" }));
@@ -283,11 +305,11 @@ function httpAttempt(op, ms, secure, sessionCert) {
 }
 
 function httpViaProxyAttempt(op, ms) {
-  return withLimit(ms, (finish, cleanup) => {
+  return withLimit(ms, (finish, cleanup, atLimit) => {
     const url = new URL(op.url);
     const req = http.request(
       { host: op.proxy.host, port: op.proxy.port, path: op.url, method: "GET", agent: false, headers: { host: url.host, "user-agent": "isolation-probe", connection: "close" } },
-      (res) => readAnswer(res, finish),
+      (res) => readAnswer(res, finish, cleanup, atLimit, ms),
     );
     cleanup(() => req.destroy());
     req.on("error", (e) => finish({ result: classifyError(codeOf(e)), code: codeOf(e), detail: "" }));
@@ -295,16 +317,22 @@ function httpViaProxyAttempt(op, ms) {
   });
 }
 
-/** Ask a proxy to open a tunnel; `then(socket, finish)` continues once it answers 200. */
+/**
+ * Ask a proxy to open a tunnel; `then(socket)` continues once it answers 200. A proxy that closes the
+ * connection before a whole answer has its own result, at once, not "timed out" at the limit.
+ */
 function tunnel(op, finish, cleanup, then) {
   const s = net.connect({ host: op.proxy.host, port: op.proxy.port });
   cleanup(() => s.destroy());
   let buf = Buffer.alloc(0);
+  const closed = () => finish({ result: "proxy closed without an answer", code: "PROXY_CLOSED", detail: buf.length ? "part of an answer came first" : "" });
   const onData = (d) => {
     buf = Buffer.concat([buf, d]);
     const end = buf.indexOf("\r\n\r\n");
     if (end < 0) return;
     s.off("data", onData);
+    s.off("end", closed);
+    s.off("close", closed);
     const head = buf.subarray(0, end).toString("latin1");
     const status = Number((/^HTTP\/1\.[01] (\d{3})/.exec(head) ?? [])[1] ?? 0);
     const rest = buf.subarray(end + 4).toString("utf8");
@@ -315,6 +343,8 @@ function tunnel(op, finish, cleanup, then) {
     then(s);
   };
   s.on("data", onData);
+  s.on("end", closed);
+  s.on("close", closed);
   s.on("connect", () => s.write(`CONNECT ${op.target} HTTP/1.1\r\nHost: ${op.target}\r\nUser-Agent: isolation-probe\r\n\r\n`));
   s.on("error", (e) => finish({ result: classifyError(codeOf(e)), code: codeOf(e), detail: "the proxy itself could not be reached" }));
 }
@@ -324,7 +354,7 @@ function connectAttempt(op, ms) {
 }
 
 function httpsTunnelAttempt(op, ms, sessionCert) {
-  return withLimit(ms, (finish, cleanup) =>
+  return withLimit(ms, (finish, cleanup, atLimit) =>
     tunnel({ ...op, target: `${op.host}:${op.port}` }, finish, cleanup, (socket) => {
       // No agent: with none, Node writes the request over the socket `createConnection` returns, which is
       // TLS inside the proxy's tunnel. With `agent: false` it would make a fresh agent, which ignores
@@ -342,7 +372,7 @@ function httpsTunnelAttempt(op, ms, sessionCert) {
           createConnection: () => tls.connect({ socket, servername: op.host, ...trust(sessionCert) }),
           headers: { host: op.host, "user-agent": "isolation-probe", connection: "close" },
         },
-        (res) => readAnswer(res, finish),
+        (res) => readAnswer(res, finish, cleanup, atLimit, ms),
       );
       cleanup(() => req.destroy());
       req.on("error", (e) => finish({ result: classifyError(codeOf(e)), code: codeOf(e), detail: "the proxy answered 200; the error came after" }));
