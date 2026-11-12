@@ -126,6 +126,7 @@ The sample users' names are in English on the Arabic pages ("Sample Employee"); 
 - `npm run check:licences`: passed (exit 0). No package was added or removed.
 - The applier was never run on this machine: only in the engine container, by the live tests and the demonstration.
 - The new scripts are outside the type check's folders; they were type-checked separately with the same settings (exit 0).
+- All three were run again at `10d9af1`, which only makes the class's tests remove their temporary folders: the same results (117 of 117; type check and licence check passed).
 
 ## What this does not show
 
