@@ -10,7 +10,7 @@ import { join, resolve } from "node:path";
 import { promisify } from "node:util";
 import { describe, expect, it, onTestFinished } from "vitest";
 import { BODY_READ_MS, classifyError, countOtherSockets, parseAbstractUnix, parseListeners, parseSettings, parseUdpBound, planAttempts, runAttempt, type PlannedAttempt } from "../scripts/isolation-probe.mjs";
-import { ANSWER_WORDING, cell, columnCell, gotAnswer, parseProbeOutput, readMachineSide, RESULT, renderMarkdownTable, renderTable, sessionProxyHostPort, summarise, type ProbeAttempt } from "../src/sandbox/isolation.js";
+import { ANSWER_WORDING, cell, columnCell, DIFFERS_BY_CONTAINER, gotAnswer, parseProbeOutput, readMachineSide, RESULT, renderMarkdownTable, renderTable, sessionProxyHostPort, summarise, type ProbeAttempt } from "../src/sandbox/isolation.js";
 import { createSandbox, dockerEnv, sandbox, type Sandbox } from "../src/sandbox/manager.js";
 
 // Package 0.6a. The unit tests call the probe's functions only. Those that make an attempt make it only
@@ -433,6 +433,29 @@ describe("isolation probe: reading what it prints (unit)", () => {
     ]);
     expect(columnCell({ ...column, ownLoopback: false }, own.attempts[0])).toBe("refused (ECONNREFUSED)");
     expect(renderTable([column]).split("\n").slice(2).map((l) => l.split(" ")[0])).toEqual(["A1", "C5", "X2024", "G2024", "E1", "F1"]);
+  });
+
+  it("when containers give an attempt different targets (B2 and B3 can), the row says so and each cell gives its own target and description", () => {
+    // Made-up addresses from the documentation ranges: one container looked example.com up, the other used the address given.
+    const lookedUp = parseProbeOutput([
+      attempt({ id: "B2", target: "192.0.2.10:80", what: "example.com's address, HTTP port", result: "connected", code: null }),
+      attempt({ id: "B1", target: "198.51.100.1:443", what: "a public address, HTTPS port", result: "connected", code: null }),
+      JSON.stringify({ kind: "end", attempts: 2 }),
+    ]);
+    const given = parseProbeOutput([
+      attempt({ id: "B2", target: "203.0.113.14:80", what: "the address given for example.com (not checked), HTTP port" }),
+      attempt({ id: "B1", target: "198.51.100.1:443", what: "a public address, HTTPS port", result: "connected", code: null }),
+      JSON.stringify({ kind: "end", attempts: 2 }),
+    ]);
+    const columns = [
+      { label: "first", report: lookedUp },
+      { label: "second", report: given },
+    ];
+    expect(renderMarkdownTable(columns).split("\n").slice(2)).toEqual([
+      "| B1 | 198.51.100.1:443 | a public address, HTTPS port | connected | connected |",
+      `| B2 | ${DIFFERS_BY_CONTAINER} | ${DIFFERS_BY_CONTAINER} | connected; this container: 192.0.2.10:80, example.com's address, HTTP port | refused (ECONNREFUSED); this container: 203.0.113.14:80, the address given for example.com (not checked), HTTP port |`,
+    ]);
+    expect(renderTable(columns).split("\n")[3]).toContain("refused (ECONNREFUSED); this container: 203.0.113.14:80");
   });
 });
 

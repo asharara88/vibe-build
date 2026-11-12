@@ -153,24 +153,48 @@ export interface Column {
 /** An attempt aimed at a 127.x.x.x address, as its target or as the proxy it goes through. */
 const AT_LOOPBACK = /(^|[\s(])127\.\d{1,3}\.\d{1,3}\.\d{1,3}:\d+/;
 
-/** One cell of a column: the result, and, where the column's loopback address is the container's own and the attempt aimed at it, that it did. */
-export function columnCell(c: Column, a: ProbeAttempt | undefined): string {
-  const text = cell(a);
-  return a && c.ownLoopback && AT_LOOPBACK.test(`${a.target} ${a.how}`) ? `${text}, at its own loopback address` : text;
+/** A row of the table: an attempt's id, and its target and description where every container that made it agrees. */
+export interface Row {
+  id: string;
+  target: string;
+  what: string;
+  /** True when the containers that made this attempt gave it different targets or descriptions (B2 and B3 can). */
+  differs: boolean;
+}
+
+/** What a row's target and description read when they differ between containers; each cell then gives its own. */
+export const DIFFERS_BY_CONTAINER = "differs by container: see each cell";
+
+/**
+ * One cell of a column: the result, and, where the column's loopback address is the container's own and the
+ * attempt aimed at it, that it did. When the row's target differs between containers, the cell also gives
+ * this container's own target and description.
+ */
+export function columnCell(c: Column, a: ProbeAttempt | undefined, row?: Row): string {
+  let text = cell(a);
+  if (a && c.ownLoopback && AT_LOOPBACK.test(`${a.target} ${a.how}`)) text = `${text}, at its own loopback address`;
+  if (a && row?.differs) text = `${text}; this container: ${a.target}, ${a.what}`;
+  return text;
 }
 
 /** The rows of the table: every attempt any container made, in the order the probe makes them. */
-function rows(columns: Column[]): ProbeAttempt[] {
-  const seen = new Map<string, ProbeAttempt>();
-  for (const c of columns) for (const a of c.report.attempts) if (!seen.has(a.id)) seen.set(a.id, a);
+function rows(columns: Column[]): Row[] {
+  const byId = new Map<string, ProbeAttempt[]>();
+  for (const c of columns) for (const a of c.report.attempts) byId.set(a.id, [...(byId.get(a.id) ?? []), a]);
   const order = (id: string) => ["A", "B", "C", "X", "G", "D", "E", "F"].indexOf(id[0] ?? "") * 100000 + Number(id.slice(1) || 0);
-  return [...seen.values()].sort((x, y) => order(x.id) - order(y.id));
+  const out: Row[] = [];
+  for (const [id, made] of byId) {
+    const first = made[0]!;
+    const differs = made.some((a) => a.target !== first.target || a.what !== first.what);
+    out.push(differs ? { id, target: DIFFERS_BY_CONTAINER, what: DIFFERS_BY_CONTAINER, differs } : { id, target: first.target, what: first.what, differs });
+  }
+  return out.sort((x, y) => order(x.id) - order(y.id));
 }
 
 /** A plain-text table: one row per attempt, one column per container. */
 export function renderTable(columns: Column[]): string {
   const header = ["id", "target", "what", ...columns.map((c) => c.label)];
-  const body = rows(columns).map((r) => [r.id, r.target, r.what, ...columns.map((c) => columnCell(c, c.report.attempts.find((a) => a.id === r.id)))]);
+  const body = rows(columns).map((r) => [r.id, r.target, r.what, ...columns.map((c) => columnCell(c, c.report.attempts.find((a) => a.id === r.id), r))]);
   const widths = header.map((h, i) => Math.max(h.length, ...body.map((b) => (b[i] ?? "").length)));
   const line = (cells: string[]) => cells.map((c, i) => c.padEnd(widths[i] ?? 0)).join(" | ").trimEnd();
   return [line(header), widths.map((w) => "-".repeat(w)).join("-|-"), ...body.map(line)].join("\n");
@@ -180,7 +204,7 @@ export function renderTable(columns: Column[]): string {
 export function renderMarkdownTable(columns: Column[]): string {
   const esc = (s: string) => s.replace(/\|/g, "\\|");
   const out = [`| Id | Target | What | ${columns.map((c) => esc(c.label)).join(" | ")} |`, `| --- | --- | --- | ${columns.map(() => "---").join(" | ")} |`];
-  for (const r of rows(columns)) out.push(`| ${r.id} | ${esc(r.target)} | ${esc(r.what)} | ${columns.map((c) => esc(columnCell(c, c.report.attempts.find((a) => a.id === r.id)))).join(" | ")} |`);
+  for (const r of rows(columns)) out.push(`| ${r.id} | ${esc(r.target)} | ${esc(r.what)} | ${columns.map((c) => esc(columnCell(c, c.report.attempts.find((a) => a.id === r.id), r))).join(" | ")} |`);
   return out.join("\n");
 }
 
