@@ -68,7 +68,7 @@
     "sent": "Your request was saved. Its status is Waiting.",
     "dates": "{start} to {end}",
     "days_value": "Working days requested: {days}",
-    "reason_value": "Reason: {reason}",
+    "reason_value": "Reason: <bdi>{reason}</bdi>",
     "sent_on": "Sent on {when}",
     "first_day": "First day of leave",
     "last_day": "Last day of leave",

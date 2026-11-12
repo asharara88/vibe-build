@@ -88,10 +88,12 @@ def main():
     changed = [k for k in sen if k not in en or sen[k] != en[k] or sar.get(k) != ar.get(k)]
     s_missing = [k for k in sen if k not in sar] + [k for k in sar if k not in sen]
     L += ["## Texts the scripted engine adds (package 2.1)", "",
-          f"The scripted engine is a stand-in for the AI builder: it writes the same fixed changes every time, for test example 1 (leave requests), and calls no model. Its changes carry their own copies of the two message files. These are the texts in its last step's copies (`builder/scripted/example-1/{step}/files/messages/`) that are new or different from the template's: {len(changed)} of them. Missing in either language: {len(s_missing)}. They were written by Claude Code; nobody who reads Arabic has checked them yet. The first row is the sentence added to the sample-data banner, which every screen of an app built by the scripted engine shows.",
+          f"The scripted engine is a stand-in for the AI builder: it writes the same fixed changes every time, for test example 1 (leave requests), and calls no model. Its changes carry their own copies of the two message files. These are the texts in its last step's copies (`builder/scripted/example-1/{step}/files/messages/`) that are new or different from the template's: {len(changed)} of them. Missing in either language: {len(s_missing)}. They were written by Claude Code; nobody who reads Arabic has checked them yet. The first row is the sentence added to the sample-data banner, which every screen of an app built by the scripted engine shows. A pair of tags such as `<bdi>…</bdi>` is not shown on screen: it marks text the person typed, which the app keeps apart so that it reads in its own direction; the tags must stay as they are in both languages.",
           "", "| Key | English | Arabic |", "| --- | --- | --- |"]
+    # Tags are written so that they show in the document instead of being read as HTML.
+    esc = lambda v: str(v).replace("<", "&lt;").replace(">", "&gt;")
     for k in changed:
-        L.append(f"| `{k}` | {sen[k]} | {sar.get(k, '**missing**')} |")
+        L.append(f"| `{k}` | {esc(sen[k])} | {esc(sar[k]) if k in sar else '**missing**'} |")
     L += ["", "## Record", "",
           f"Generated on {today} by `docs/tools/arabic-wording-list.py`. Keys compared one by one: {len(en)} English, {len(ar)} Arabic, {len(missing_ar) + len(missing_en)} missing in either direction. Empty messages in either language: {len(empty)}. Messages whose Arabic is identical to the English: {len(same)}" + (" (" + ", ".join(f"`{k}`" for k in same) + "; the language's own name is shown in its own language on purpose, so a reader who cannot read Arabic can find the switch)." if same else ".")]
     OUT.write_text("\n".join(L) + "\n", encoding="utf-8")

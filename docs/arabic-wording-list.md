@@ -78,7 +78,7 @@ Found by fresh reviewers on 11 and 12 November 2026. Not yet applied: this packa
 
 ## Texts the scripted engine adds (package 2.1)
 
-The scripted engine is a stand-in for the AI builder: it writes the same fixed changes every time, for test example 1 (leave requests), and calls no model. Its changes carry their own copies of the two message files. These are the texts in its last step's copies (`builder/scripted/example-1/02-submitter-screen/files/messages/`) that are new or different from the template's: 35 of them. Missing in either language: 0. They were written by Claude Code; nobody who reads Arabic has checked them yet. The first row is the sentence added to the sample-data banner, which every screen of an app built by the scripted engine shows.
+The scripted engine is a stand-in for the AI builder: it writes the same fixed changes every time, for test example 1 (leave requests), and calls no model. Its changes carry their own copies of the two message files. These are the texts in its last step's copies (`builder/scripted/example-1/02-submitter-screen/files/messages/`) that are new or different from the template's: 35 of them. Missing in either language: 0. They were written by Claude Code; nobody who reads Arabic has checked them yet. The first row is the sentence added to the sample-data banner, which every screen of an app built by the scripted engine shows. A pair of tags such as `<bdi>…</bdi>` is not shown on screen: it marks text the person typed, which the app keeps apart so that it reads in its own direction; the tags must stay as they are in both languages.
 
 | Key | English | Arabic |
 | --- | --- | --- |
@@ -93,7 +93,7 @@ The scripted engine is a stand-in for the AI builder: it writes the same fixed c
 | `leave.sent` | Your request was saved. Its status is Waiting. | حُفظ طلبك. حالته: قيد الانتظار. |
 | `leave.dates` | {start} to {end} | من {start} إلى {end} |
 | `leave.days_value` | Working days requested: {days} | عدد أيام العمل المطلوبة: {days} |
-| `leave.reason_value` | Reason: {reason} | السبب: {reason} |
+| `leave.reason_value` | Reason: &lt;bdi&gt;{reason}&lt;/bdi&gt; | السبب: &lt;bdi&gt;{reason}&lt;/bdi&gt; |
 | `leave.sent_on` | Sent on {when} | أُرسل في {when} |
 | `leave.first_day` | First day of leave | أول يوم في الإجازة |
 | `leave.last_day` | Last day of leave | آخر يوم في الإجازة |
@@ -114,7 +114,7 @@ The scripted engine is a stand-in for the AI builder: it writes the same fixed c
 | `leave.problem_days_missing` | Enter the number of working days you are asking for. | أدخل عدد أيام العمل التي تطلبها. |
 | `leave.problem_days_not_whole` | Working days requested must be a whole number, such as 5. | يجب أن يكون عدد أيام العمل المطلوبة عدداً صحيحاً، مثل 5. |
 | `leave.problem_days_too_few` | Working days requested must be at least 1. | يجب ألا يقل عدد أيام العمل المطلوبة عن 1. |
-| `leave.problem_days_too_many` | Working days requested cannot be more than {max}, the number of calendar days from the first day of leave to the last. | لا يمكن أن يزيد عدد أيام العمل المطلوبة على {max}، وهو عدد الأيام من أول يوم في الإجازة إلى آخر يوم فيها. |
+| `leave.problem_days_too_many` | Working days requested cannot be more than {max}, the number of calendar days from the first day of leave to the last. | لا يمكن أن يزيد عدد أيام العمل المطلوبة على {max}، وهو عدد الأيام التقويمية من أول يوم في الإجازة إلى آخر يوم فيها. |
 | `leave.problem_reason_too_long` | The reason is too long. Keep it to {max} characters or fewer. | السبب طويل جداً. اجعله {max} حرف أو أقل. |
 | `leave.save_failed` | Your request was not saved because the server had a problem. Try again in a moment; if it keeps happening, tell your administrator. | لم يُحفظ طلبك لأن الخادم واجه مشكلة. حاول بعد قليل، وإذا تكرر ذلك أخبر المسؤول. |
 

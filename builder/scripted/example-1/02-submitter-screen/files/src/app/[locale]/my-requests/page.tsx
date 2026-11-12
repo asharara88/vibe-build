@@ -23,8 +23,12 @@ export default guardedPage(["employee"], async ({ user, locale, searchParams }) 
     .from(leaveRequest)
     .where(eq(leaveRequest.employee, user.userId))
     .orderBy(desc(leaveRequest.createdAt));
+  // The first and last days are calendar dates with no time of day: shown as written, with no
+  // time-zone shift. "Sent on" is a moment in time: shown with its time and its zone named (UTC),
+  // because the app has no time-zone setting yet.
   const day = new Intl.DateTimeFormat(locale, { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
   const show = (d: string) => day.format(new Date(`${d}T00:00:00Z`));
+  const moment = new Intl.DateTimeFormat(locale, { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone: "UTC", timeZoneName: "short" });
   const newLink = (
     <Link href="/my-requests/new" className="inline-flex min-h-11 items-center rounded-md bg-slate-900 px-4 text-white" data-testid="new-request-link">
       {t("new_request_link")}
@@ -60,8 +64,15 @@ export default guardedPage(["employee"], async ({ user, locale, searchParams }) 
                 </span>
               </div>
               <p className="mt-1 text-sm text-slate-700">{t("days_value", { days: r.days })}</p>
-              {r.reason ? <p className="mt-1 text-sm text-slate-600">{t("reason_value", { reason: r.reason })}</p> : null}
-              <p className="mt-1 text-xs text-slate-500">{t("sent_on", { when: day.format(r.createdAt) })}</p>
+              {r.reason ? (
+                // The reason is the person's own text, in either script: <bdi> keeps its direction apart from the sentence around it.
+                <p className="mt-1 text-sm text-slate-600" data-testid="leave-request-reason">
+                  {t.rich("reason_value", { reason: r.reason, bdi: (chunks) => <bdi>{chunks}</bdi> })}
+                </p>
+              ) : null}
+              <p className="mt-1 text-xs text-slate-500" data-testid="leave-request-sent-on">
+                {t("sent_on", { when: moment.format(r.createdAt) })}
+              </p>
             </li>
           ))}
         </ul>

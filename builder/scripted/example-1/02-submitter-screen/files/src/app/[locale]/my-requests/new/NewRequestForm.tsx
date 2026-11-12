@@ -17,7 +17,23 @@ export function NewRequestForm() {
   const [busy, setBusy] = useState(false);
 
   const say = (p: Problem) => ("max" in p ? t(`problem_${p.code}`, { max: p.max }) : t(`problem_${p.code}`));
-  const set = (field: Field) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setValues((v) => ({ ...v, [field]: e.target.value }));
+  // When a value changes, the messages already shown are checked again against the new values: a
+  // message goes as soon as its value is corrected, and one that depends on two fields (the most
+  // days allowed, a last day before the first) follows the other field. No new message appears
+  // before Submit.
+  const set = (field: Field) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const next = { ...values, [field]: e.target.value };
+    setValues(next);
+    setProblems((shown) => {
+      const fields = Object.keys(shown) as Field[];
+      if (fields.length === 0) return shown;
+      const checked = checkLeaveRequest(next);
+      const now = checked.ok ? {} : checked.problems;
+      const kept: Partial<Record<Field, Problem>> = {};
+      for (const f of fields) if (now[f]) kept[f] = now[f];
+      return kept;
+    });
+  };
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();

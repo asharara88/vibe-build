@@ -2,10 +2,12 @@
  * Screenshots of the app the scripted engine built for example 1 (package 2.1), as a person would see it.
  * Usage: npx tsx scripts/screenshot-scripted.ts <baseUrl> <outDir> <samplePassword>
  *
- * Signed in as the sample employee: My requests, empty; the new-request form refusing a wrong value;
- * a five-day request (Monday 3 to Friday 7 May 2027, a made-up week) filled in and sent; My requests
- * showing it as waiting, in English, in Arabic, and at a phone's width. Each line printed is a check
- * with what was expected and what was seen; the exit code is 1 if any check failed.
+ * Signed in as the sample employee: My requests, empty; the new-request form refusing a wrong value,
+ * its message following a change to the other field and going once the value is corrected; a five-day
+ * request (Monday 3 to Friday 7 May 2027, a made-up week) filled in and sent; My requests showing it
+ * as waiting, with the reason kept apart in its own direction and the time it was sent with its zone
+ * named, in English, in Arabic, and at a phone's width. Each line printed is a check with what was
+ * expected and what was seen; the exit code is 1 if any check failed.
  *
  * The browser runs on the machine that hosts the builder, as the earlier screenshot scripts do; the
  * app runs in its container. The acceptance runner of package 3.1 runs in a container of its own.
@@ -67,7 +69,22 @@ try {
   check("nothing was sent: still on the form", "/en/my-requests/new", new URL(page.url()).pathname);
   await shot(page, "03-scripted-form-error-en.png");
 
+  // The message is checked again as values change (no Submit): it follows the other field, then goes.
+  const alertsNow = async () => (await alert.allTextContents()).join(" | ");
+  const settle = async (want: (seen: string) => boolean) => {
+    for (let i = 0; i < 50 && !want(await alertsNow()); i++) await page.waitForTimeout(100);
+    return alertsNow();
+  };
+  await page.fill("#endDate", "2027-05-05");
+  check(
+    "the message follows the other field: last day changed to Wednesday 5 May, days still 9",
+    "Working days requested cannot be more than 3, the number of calendar days from the first day of leave to the last.",
+    await settle((t) => t.includes("more than 3")),
+  );
+  await page.fill("#endDate", "2027-05-07");
   await page.fill("#days", "5");
+  check("the message goes once the value is corrected (last day back to Friday 7 May, days 5): messages shown", "(none)", (await settle((t) => t === "")) || "(none)");
+  check("the days field is no longer marked wrong (aria-invalid)", "false", (await page.getAttribute("#days", "aria-invalid")) ?? "(missing)");
   await page.fill("#reason", "Made-up family visit.");
   await shot(page, "04-scripted-form-five-days-en.png");
   await page.getByRole("button", { name: "Submit" }).click();
@@ -79,6 +96,9 @@ try {
   check("the request's status, as shown (English)", "Waiting", ((await page.getByTestId("leave-request-status").first().textContent()) ?? "").trim());
   console.log(`      (the request as listed: ${((await rows.first().innerText()) ?? "").replace(/\s*\n\s*/g, " / ")})`);
   check("the confirmation", "Your request was saved. Its status is Waiting.", ((await page.getByTestId("request-sent").textContent()) ?? "").trim());
+  check("the reason, kept apart in its own direction (<bdi>)", "Made-up family visit.", ((await page.getByTestId("leave-request-reason").first().locator("bdi").textContent()) ?? "").trim());
+  const sentOn = ((await page.getByTestId("leave-request-sent-on").first().textContent()) ?? "").trim();
+  check(`"Sent on" names its time zone (shown: ${sentOn})`, "true", String(/^Sent on .+ UTC$/.test(sentOn)));
   await shot(page, "05-scripted-my-requests-waiting-en.png");
 
   await page.goto(`${baseUrl}/ar/my-requests`, { waitUntil: "networkidle" });
@@ -86,6 +106,7 @@ try {
   check("My requests in Arabic: direction of the page", "rtl", (await page.getAttribute("html", "dir")) ?? "");
   check("the request's status, as shown (Arabic)", "قيد الانتظار", ((await page.getByTestId("leave-request-status").first().textContent()) ?? "").trim());
   check("banner (Arabic) names the scripted engine", "true", String((await banner(page)).includes("بناه المحرّك المُبرمَج مسبقاً")));
+  check("the reason in Arabic, kept apart in its own direction (<bdi>)", "Made-up family visit.", ((await page.getByTestId("leave-request-reason").first().locator("bdi").textContent()) ?? "").trim());
   await shot(page, "06-scripted-my-requests-waiting-ar.png");
 
   const phone = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, storageState: await desktop.storageState() });
