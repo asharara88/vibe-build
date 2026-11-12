@@ -107,7 +107,7 @@ One decision at a time, in this order. Each has a recommendation and its reason,
 
 | Meter | Figure |
 | --- | --- |
-| Model spend this month | $0.00. No real model call has been made |
+| Model spend this month | $0.00 through the builder. No real model call has been made by this project. Not counted here: a separate hosted prototype agent the owner is setting up outside the repository (`docs/DECISIONS.md`, 12 Nov), which spends on his own account and is not capped by the builder |
 | The model key | Not set up under the plan. A variable named `VIBEBUILD_KEY` exists on the owner's "Default" cloud environment since 12 Nov (question 3); unread and unused |
 | Monthly limit; per-project cap | Not yet set ($100 and $20 proposed); decided at checkpoint 1 |
 
