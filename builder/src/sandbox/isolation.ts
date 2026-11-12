@@ -2,7 +2,7 @@
  * Reading what the isolation probe prints (build plan package 0.6a).
  *
  * The probe (scripts/isolation-probe.mjs) runs inside a project container and prints one JSON line per
- * fact. This module turns those lines into a report, says which attempts got an answer of any kind, and
+ * fact. This module turns those lines into a report, says which attempts got an answer (ANSWER_WORDING), and
  * draws the table of every attempt per container. It makes no connection itself.
  */
 
@@ -31,17 +31,25 @@ export interface ProbeReport {
 
 /** Every result word the probe can give. Anything else is reported as a problem. */
 export const RESULT =
-  /^(connected|refused|timed out|name not found|no name server answered|lookup refused by the name server|network unreachable|certificate not trusted|connection reset|proxy closed without an answer|error|HTTP \d{3}|proxy answered \d{3}|found \d+ address(es)?)$/;
+  /^(connected|refused|timed out|name not found|no name server answered|lookup refused by the name server|network unreachable|certificate not trusted|secure connection failed|connection reset|proxy closed without an answer|not an HTTP answer|error|HTTP \d{3}|proxy answered \d{3}|found \d+ address(es)?)$/;
 
 const TOWARD = new Set<Toward>(["outside", "host", "lookup", "egress-proxy", "session-proxy"]);
 
+/** What counts as an answer, in the words used wherever answers are counted. */
+export const ANSWER_WORDING = "a connection opened, an HTTP status, a proxy's answer, or an address found";
+
 /**
- * True if the attempt got an answer of any kind: a connection was opened, an HTTP status came back, a
- * proxy answered, or a lookup found an address. An answer is not the same as reaching the target: a
- * filter on the way can answer (the report says which, from the answer's own words).
+ * True if the attempt got an answer: a connection opened, an HTTP status, a proxy's answer, or an address
+ * found. Every result the probe gives only after a connection opened counts, not only "connected":
+ * "certificate not trusted" and "secure connection failed" (a TLS server answered on an open connection),
+ * "connection reset", "proxy closed without an answer" and "not an HTTP answer" (review of 0.6a,
+ * finding 11). An answer is not the same as reaching the target: a filter on the way can answer (the
+ * report says which, from the answer's own words). Not counted: "refused" and "timed out" (no connection
+ * opened), a lookup that found no address, "network unreachable", and "error", which the probe gives for
+ * an error code it does not know and which can come before any connection opens.
  */
 export function gotAnswer(result: string): boolean {
-  return /^(connected|HTTP \d{3}|proxy answered \d{3}|found \d+ address)/.test(result);
+  return /^(connected|HTTP \d{3}|proxy answered \d{3}|found \d+ address|certificate not trusted|secure connection failed|connection reset|proxy closed without an answer|not an HTTP answer)/.test(result);
 }
 
 const str = (v: unknown) => typeof v === "string";

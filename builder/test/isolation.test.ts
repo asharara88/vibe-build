@@ -10,7 +10,7 @@ import { join, resolve } from "node:path";
 import { promisify } from "node:util";
 import { describe, expect, it, onTestFinished } from "vitest";
 import { BODY_READ_MS, classifyError, countOtherSockets, parseListeners, parseSettings, planAttempts, runAttempt, type PlannedAttempt } from "../scripts/isolation-probe.mjs";
-import { cell, gotAnswer, parseProbeOutput, RESULT, renderMarkdownTable, renderTable, sessionProxyHostPort, summarise, type ProbeAttempt } from "../src/sandbox/isolation.js";
+import { ANSWER_WORDING, cell, gotAnswer, parseProbeOutput, RESULT, renderMarkdownTable, renderTable, sessionProxyHostPort, summarise, type ProbeAttempt } from "../src/sandbox/isolation.js";
 import { createSandbox, dockerEnv, sandbox } from "../src/sandbox/manager.js";
 
 // Package 0.6a. The unit tests call the probe's functions only. Those that make an attempt make it only
@@ -49,12 +49,15 @@ describe("isolation probe: its own settings and words (unit)", () => {
     expect(classifyError("ENETUNREACH")).toBe("network unreachable");
     expect(classifyError("SELF_SIGNED_CERT_IN_CHAIN")).toBe("certificate not trusted");
     expect(classifyError("ECONNRESET")).toBe("connection reset");
+    expect(classifyError("EPROTO")).toBe("secure connection failed");
+    expect(classifyError("ERR_SSL_WRONG_VERSION_NUMBER")).toBe("secure connection failed");
+    expect(classifyError("HPE_INVALID_CONSTANT")).toBe("not an HTTP answer");
     expect(classifyError("SOMETHING_ELSE")).toBe("error");
     expect(classifyError("ENOTFOUND", "lookup")).toBe("name not found");
     expect(classifyError("EAI_AGAIN", "lookup")).toBe("no name server answered");
     expect(classifyError("ECONNREFUSED", "lookup")).toBe("no name server answered");
     expect(classifyError("EREFUSED", "lookup")).toBe("lookup refused by the name server");
-    const codes = ["ECONNREFUSED", "ETIMEDOUT", "TIMEOUT", "ENOTFOUND", "EAI_AGAIN", "ENETUNREACH", "ECONNRESET", "SELF_SIGNED_CERT_IN_CHAIN", "EREFUSED", "X"];
+    const codes = ["ECONNREFUSED", "ETIMEDOUT", "TIMEOUT", "ENOTFOUND", "EAI_AGAIN", "ENETUNREACH", "ECONNRESET", "SELF_SIGNED_CERT_IN_CHAIN", "EPROTO", "ERR_SSL_X", "HPE_X", "EREFUSED", "X"];
     for (const c of codes) for (const ctx of ["connection", "lookup"] as const) expect(classifyError(c, ctx)).toMatch(RESULT);
     for (const ok of ["connected", "HTTP 301", "proxy answered 403", "found 1 address", "found 12 addresses"]) expect(ok).toMatch(RESULT);
   });
@@ -227,7 +230,7 @@ describe("isolation probe: its attempts, against made-up servers on the loopback
 });
 
 describe("isolation probe: reading what it prints (unit)", () => {
-  it("reads a complete run, and counts which attempts got an answer of any kind", () => {
+  it("reads a complete run, and counts which attempts got an answer", () => {
     const lines = [
       JSON.stringify({ kind: "info", name: "network interfaces", value: "lo (127.0.0.1)" }),
       attempt({ id: "A1" }),
@@ -249,10 +252,13 @@ describe("isolation probe: reading what it prints (unit)", () => {
     expect(s.byToward["session-proxy"]).toEqual({ total: 0, answered: 0 });
   });
 
-  it("an answer of any kind is told apart from a failure", () => {
-    for (const r of ["connected", "HTTP 403", "proxy answered 200", "found 1 address"]) expect(gotAnswer(r), r).toBe(true);
-    for (const r of ["refused", "timed out", "name not found", "no name server answered", "network unreachable", "certificate not trusted", "connection reset", "error"])
-      expect(gotAnswer(r), r).toBe(false);
+  it(`an answer (${ANSWER_WORDING}) is told apart from a failure; every result given only after a connection opened is an answer (review finding 11)`, () => {
+    // Given only once a connection opened: a TLS server sent a certificate, a connection was reset, a proxy closed or sent something that is not HTTP.
+    const afterAConnection = ["certificate not trusted", "secure connection failed", "connection reset", "proxy closed without an answer", "not an HTTP answer"];
+    for (const r of ["connected", "HTTP 403", "proxy answered 200", "found 1 address", "found 12 addresses", ...afterAConnection]) expect(gotAnswer(r), r).toBe(true);
+    for (const r of ["refused", "timed out", "name not found", "no name server answered", "lookup refused by the name server", "network unreachable", "error"]) expect(gotAnswer(r), r).toBe(false);
+    // Every word either way is one the report accepts.
+    for (const r of afterAConnection) expect(r).toMatch(RESULT);
   });
 
   it("never drops a line it does not understand: an unfinished run, a wrong count, an unknown result, a stray line and a stop are all problems", () => {
@@ -342,8 +348,11 @@ describe("isolation probe: live, the engine container (development profile)", ()
     const report = parseProbeOutput(lines);
     expect(report.problems).toEqual([]);
     expect(report.ended).toBe(true);
-    // First, and all at once: every attempt that got an answer of any kind. There must be none.
+    // First, and all at once: every attempt that got an answer (a connection opened, an HTTP status, a
+    // proxy's answer, or an address found; any result given only after a connection opened). There must be none.
     expect(report.attempts.filter((a) => gotAnswer(a.result)).map((a) => `${a.id} ${a.target}: ${a.result}`)).toEqual([]);
+    // Nor an attempt whose error the probe could not name: it is not counted as an answer, so it must not pass unseen.
+    expect(report.attempts.filter((a) => a.result === "error").map((a) => `${a.id} ${a.target}: ${a.code}`)).toEqual([]);
     expect(report.attempts.filter((a) => a.toward === "outside").length).toBeGreaterThanOrEqual(13);
     // Nothing listens inside a container with no network, so the probe adds no attempt of its own.
     expect(report.attempts.map((a) => a.id)).toEqual(planAttempts(parseSettings(settings)).map((a) => a.id));

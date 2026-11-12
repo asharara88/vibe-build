@@ -28,7 +28,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { createInterface } from "node:readline";
 import { promisify } from "node:util";
-import { gotAnswer, parseProbeOutput, renderMarkdownTable, renderTable, sessionProxyHostPort, summarise, type Column, type ProbeReport } from "../src/sandbox/isolation.js";
+import { ANSWER_WORDING, gotAnswer, parseProbeOutput, renderMarkdownTable, renderTable, sessionProxyHostPort, summarise, type Column, type ProbeReport } from "../src/sandbox/isolation.js";
 import { composeDocument, createSandbox, dockerEnv, HARDENING, sandbox, type SandboxSpec } from "../src/sandbox/manager.js";
 
 const run = promisify(execFile);
@@ -125,7 +125,7 @@ function show(label: string, report: ProbeReport) {
     log(`         -> ${a.result}${a.code && !a.result.startsWith("HTTP") && !a.result.startsWith("proxy answered") ? ` (${a.code})` : ""}${a.detail ? `; ${a.detail}` : ""}`);
   }
   const s = summarise(report);
-  log(`  ${s.total} attempts; ${s.answered} got an answer of any kind (a connection opened, an HTTP status, a proxy's answer, an address found).`);
+  log(`  ${s.total} attempts; ${s.answered} got an answer (${ANSWER_WORDING}).`);
   for (const [t, v] of Object.entries(s.byToward)) if (v.total) log(`    toward ${t}: ${v.answered} of ${v.total} got an answer`);
   if (report.problems.length) log(`  PROBLEMS: ${report.problems.join(" / ")}`);
   log("");

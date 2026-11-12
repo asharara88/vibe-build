@@ -95,6 +95,8 @@ export function classifyError(code, context = "connection") {
   if (code === "EAI_AGAIN") return "no name server answered";
   if (["ENETUNREACH", "EHOSTUNREACH", "EADDRNOTAVAIL"].includes(code)) return "network unreachable";
   if (["ECONNRESET", "EPIPE", "ECONNABORTED"].includes(code)) return "connection reset";
+  // An answer that is not HTTP: Node's HTTP reader could not parse what came back on an open connection.
+  if (code.startsWith("HPE_")) return "not an HTTP answer";
   if (
     [
       "SELF_SIGNED_CERT_IN_CHAIN",
@@ -108,6 +110,8 @@ export function classifyError(code, context = "connection") {
     ].includes(code)
   )
     return "certificate not trusted";
+  // A secure (TLS) connection that failed after the TCP connection opened, for a reason other than the certificate.
+  if (code === "EPROTO" || code.startsWith("ERR_SSL_") || code.startsWith("ERR_TLS_")) return "secure connection failed";
   return "error";
 }
 
@@ -337,7 +341,7 @@ function tunnel(op, finish, cleanup, then) {
     const status = Number((/^HTTP\/1\.[01] (\d{3})/.exec(head) ?? [])[1] ?? 0);
     const rest = buf.subarray(end + 4).toString("utf8");
     if (status !== 200 || !then) {
-      finish({ result: status ? `proxy answered ${status}` : "error", code: status ? null : "BAD_ANSWER", detail: status >= 400 && rest ? `says: "${oneLine(rest)}"` : "" });
+      finish({ result: status ? `proxy answered ${status}` : "not an HTTP answer", code: status ? null : "BAD_ANSWER", detail: status >= 400 && rest ? `says: "${oneLine(rest)}"` : "" });
       return;
     }
     then(s);
