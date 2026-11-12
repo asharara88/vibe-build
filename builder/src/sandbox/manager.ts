@@ -12,11 +12,13 @@
  *   proxy on its own loopback address, which containers on a bridge network cannot reach. So the
  *   containers share the host's network, are told about the session proxy, and are given its
  *   certificate. This is development only (known gaps 1 and 2).
+ * In both, the engine container of package 2.1 (the scripted engine) has no network at all.
  */
-import { execFile } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import { copyFileSync, existsSync, lstatSync, mkdirSync, readFileSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { createInterface } from "node:readline";
 import { promisify } from "node:util";
 
 const run = promisify(execFile);
@@ -55,6 +57,19 @@ export interface SandboxSpec {
      * app's secrets file. Only what is named here reaches it: never the host's environment (package 0.5).
      */
     toolsEnv?: Record<string, string>;
+  };
+  /**
+   * The engine container (package 2.1: the scripted engine). It exists only while a step runs. It
+   * has no network, no settings file and no setting of its own, and sees three things: the workspace
+   * (read-write), an empty folder over the workspace's `certs` folder (so the session certificate the
+   * development build needs is not visible to it), and the scripted engine's change sets (read-only).
+   * A step's protected paths are mounted read-only over themselves for each run (`runStreaming`).
+   */
+  engine?: {
+    /** The project's workspace on the host, mounted read-write at /workspace. */
+    workspace: string;
+    /** The scripted engine's change sets on the host (builder/scripted), mounted read-only at /engine. */
+    changeSets: string;
   };
 }
 
@@ -109,6 +124,47 @@ function toolsService(spec: SandboxSpec, common: Record<string, unknown>, databa
   };
 }
 
+/** The empty folder mounted read-only over the workspace's `certs` folder in the engine container. */
+export const engineEmptyDir = (sandboxDir: string) => join(sandboxDir, "engine-empty");
+
+/** A bind mount in Compose's long form. A missing host path is an error, never created (`create_host_path: false`). */
+const bindMount = (source: string, target: string, readOnly: boolean) => ({
+  type: "bind",
+  source,
+  target,
+  read_only: readOnly,
+  bind: { create_host_path: false },
+});
+
+/**
+ * The engine service (package 2.1). The same in both profiles: no network at all, because the
+ * scripted engine calls no model and fetches nothing. The real engine (package 2.2) needs a route to
+ * the gateway; its network is decided there, and what 3.1 shows from this container about the
+ * network does not carry over to it (known gap 49). It runs as the unprivileged user `node`, with the
+ * hardening every project container gets, a read-only root, a small `/tmp`, no settings file and no
+ * environment entry, and without the base image's start-up script, which would add PWD and SHLVL.
+ * Under the "engine" profile, so it starts only when a step is run on purpose; `up` refuses it.
+ */
+function engineService(spec: SandboxSpec, common: Record<string, unknown>, image: string) {
+  if (!spec.engine) return null;
+  return {
+    image,
+    profiles: ["engine"],
+    ...common,
+    read_only: true,
+    tmpfs: ["/tmp:rw,noexec,nosuid,size=16m"],
+    user: "node",
+    network_mode: "none",
+    entrypoint: [],
+    working_dir: "/workspace",
+    volumes: [
+      bindMount(spec.engine.workspace, "/workspace", false),
+      bindMount(engineEmptyDir(spec.dir), "/workspace/certs", true),
+      bindMount(spec.engine.changeSets, "/engine", true),
+    ],
+  };
+}
+
 /** The app service shared by both profiles, before networking is added. */
 function appService(spec: SandboxSpec, common: Record<string, unknown>, databaseUrl: string) {
   if (!spec.app) return null;
@@ -151,6 +207,7 @@ export function composeDocument(spec: SandboxSpec): Record<string, unknown> {
   if (spec.profile === "server") {
     const app = appService(spec, common, "postgres://app:${DB_PASSWORD}@db:5432/app");
     const tools = toolsService(spec, common, "postgres://app:${DB_PASSWORD}@db:5432/app");
+    const engine = engineService(spec, common, images.node);
     return {
       name: composeProjectName(spec.projectId),
       networks: { internal: { internal: true }, egress: {} },
@@ -159,6 +216,7 @@ export function composeDocument(spec: SandboxSpec): Record<string, unknown> {
       services: {
         ...(app ? { app: { ...app, networks: ["internal"] } } : {}),
         ...(tools ? { tools: { ...tools, networks: ["internal"] } } : {}),
+        ...(engine ? { engine } : {}),
         db: {
           image: images.postgres,
           ...common,
@@ -195,6 +253,8 @@ export function composeDocument(spec: SandboxSpec): Record<string, unknown> {
   const app = appService(spec, common, `postgres://app:\${DB_PASSWORD}@127.0.0.1:${devPort}/app`);
   // The tools container is given no proxy setting: it needs the project's database and nothing else.
   const tools = toolsService(spec, common, `postgres://app:\${DB_PASSWORD}@127.0.0.1:${devPort}/app`);
+  // The engine is the one project container without the host's network on this profile: it needs none.
+  const engine = engineService(spec, common, images.node);
   return {
     name: composeProjectName(spec.projectId),
     secrets: { db_password: { file: "./secrets/db_password" } },
@@ -202,6 +262,7 @@ export function composeDocument(spec: SandboxSpec): Record<string, unknown> {
     services: {
       ...(app ? { app: { ...app, network_mode: "host" } } : {}),
       ...(tools ? { tools: { ...tools, network_mode: "host" } } : {}),
+      ...(engine ? { engine } : {}),
       db: {
         image: images.postgres,
         ...common,
@@ -308,6 +369,8 @@ export function createSandbox(spec: SandboxSpec, dbPassword: string, appSecrets:
     mkdirSync(join(spec.app.buildContext, "certs"), { recursive: true });
     copyFileSync(spec.hostProxy.caBundlePath, join(spec.app.buildContext, "certs", "session-ca.crt"));
   }
+  // The engine sees this empty folder in place of the workspace's certs folder (package 2.1).
+  if (spec.engine) mkdirSync(engineEmptyDir(spec.dir), { recursive: true, mode: 0o755 });
   const composeFile = join(spec.dir, "compose.yaml");
   writeFileSync(composeFile, toYaml(composeDocument(spec)));
   const appBuild = spec.app
@@ -385,16 +448,100 @@ export function dockerEnv(sb: Pick<Sandbox, "dir">): NodeJS.ProcessEnv {
   return env;
 }
 
-async function compose(sb: Sandbox, args: string[], timeoutMs = 180_000, withTools = true): Promise<string> {
-  // The tools profile is named on every command but `up`, so that a tools container is seen, and
-  // removed with the rest, while `up` never starts one.
-  const profile = withTools ? ["--profile", "tools"] : [];
+/**
+ * The profiles of the services that run one command at a time: tools (package 0.5) and engine
+ * (package 2.1). They are named on every command but `up`, so that such a container is seen, and
+ * removed with the rest, while `up` never starts one.
+ */
+const ONE_OFF_PROFILES = ["--profile", "tools", "--profile", "engine"];
+
+async function compose(sb: Sandbox, args: string[], timeoutMs = 180_000, withOneOff = true): Promise<string> {
+  const profile = withOneOff ? ONE_OFF_PROFILES : [];
   const { stdout } = await run("docker", ["compose", "-f", sb.composeFile, ...profile, ...args], {
     timeout: timeoutMs,
     maxBuffer: 10 * 1024 * 1024,
     env: dockerEnv(sb),
   });
   return stdout;
+}
+
+/** A command running in a one-off container, read line by line as it prints (package 2.1). */
+export interface StreamingRun {
+  /** The container's name, given with `--name`, so that it can be killed by name. */
+  container: string;
+  /** Settles when the command has ended: its exit code (null if it ended by a signal), and the end of what it printed on stderr. */
+  done: Promise<{ code: number | null; stderrTail: string }>;
+  /** Kill the container, wait for the command to end, and remove the container if anything is left. */
+  kill: () => Promise<void>;
+}
+
+export interface StreamingOptions {
+  /** The container's name. Letters, digits, `_`, `.` and `-`, starting with a letter or digit. */
+  container: string;
+  /** Called once for each line the command prints on stdout, as it is printed. */
+  onLine: (line: string) => void;
+  /** Extra bind mounts for this run only, in `source:target[:ro]` form. Each source must already exist. */
+  volumes?: string[];
+  /** The container is killed after this long. Default ten minutes. */
+  timeoutMs?: number;
+}
+
+const CONTAINER_NAME = /^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$/;
+const pause = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * Run a command in a fresh container of a service, as `runOnce` does, but read its output line by
+ * line while it runs and keep a handle that can kill it (package 2.1). `runOnce` waits for the end.
+ */
+function runStreaming(sb: Sandbox, service: string, cmd: string[], opts: StreamingOptions): StreamingRun {
+  if (!CONTAINER_NAME.test(opts.container)) throw new Error(`"${opts.container}" is not a container name Docker accepts.`);
+  for (const v of opts.volumes ?? []) {
+    const source = v.split(":")[0] ?? "";
+    // The short form of a mount would create a missing source as an empty folder owned by root.
+    if (!source.startsWith("/") || !existsSync(source)) throw new Error(`The mount source "${source}" does not exist; nothing is created for it.`);
+  }
+  const env = dockerEnv(sb);
+  const args = ["compose", "-f", sb.composeFile, ...ONE_OFF_PROFILES, "run", "--rm", "--no-deps", "-T", "--name", opts.container];
+  for (const v of opts.volumes ?? []) args.push("--volume", v);
+  args.push(service, ...cmd);
+  const child = spawn("docker", args, { env, stdio: ["ignore", "pipe", "pipe"] });
+  const lines = createInterface({ input: child.stdout });
+  lines.on("line", (line) => opts.onLine(line));
+  let stderrTail = "";
+  child.stderr.on("data", (d: Buffer) => {
+    stderrTail = (stderrTail + d.toString("utf8")).slice(-4000);
+  });
+  let settled = false;
+  const done = new Promise<{ code: number | null; stderrTail: string }>((resolve) => {
+    child.on("error", (err) => {
+      settled = true;
+      resolve({ code: null, stderrTail: stderrTail + String(err) });
+    });
+    // "close" comes after stdout has ended, so every line has been handed on by then.
+    child.on("close", (code) => {
+      settled = true;
+      resolve({ code, stderrTail });
+    });
+  });
+  const kill = async () => {
+    // The container may not exist yet if the run is still being prepared: try for a while.
+    for (let i = 0; i < 40 && !settled; i++) {
+      const killed = await run("docker", ["kill", opts.container], { env }).then(
+        () => true,
+        () => false,
+      );
+      if (killed) break;
+      await pause(250);
+    }
+    await Promise.race([done, pause(15_000)]);
+    // `--rm` removes a killed container; this removes it if anything was left.
+    await run("docker", ["rm", "-f", opts.container], { env }).catch(() => undefined);
+    if (!settled) child.kill("SIGKILL");
+    await done;
+  };
+  const timer = setTimeout(() => void kill(), opts.timeoutMs ?? 600_000);
+  void done.then(() => clearTimeout(timer));
+  return { container: opts.container, done, kill };
 }
 
 export const sandbox = {
@@ -420,15 +567,18 @@ export const sandbox = {
     if (!sb.appBuild) return;
     for (const image of [sb.appBuild.image, sb.appBuild.toolsImage]) await run("docker", ["image", "rm", "-f", image], { env: dockerEnv(sb) }).catch(() => undefined);
   },
-  /** Start services and wait for their health checks. The tools service is never started this way: it is refused by name. */
+  /** Start services and wait for their health checks. The tools and engine services are never started this way: they are refused by name. */
   up: async (sb: Sandbox, services: string[] = []): Promise<string> => {
-    // An async function, so that this refusal is a rejected promise like any other failure of up.
+    // An async function, so that these refusals are rejected promises like any other failure of up.
     if (services.includes("tools")) throw new Error("The tools service runs one command at a time, through runOnce; it is not started with up.");
+    if (services.includes("engine")) throw new Error("The engine service runs one step at a time, through runStreaming; it is not started with up.");
     return compose(sb, ["up", "-d", "--wait", ...services], 600_000, false);
   },
   /** Run a one-off command in a fresh container of a service (for migrations and seeding). */
   runOnce: (sb: Sandbox, service: string, cmd: string[]) => compose(sb, ["run", "--rm", "--no-deps", "-T", service, ...cmd], 600_000),
-  /** Stop and remove the project's containers, a one-off tools container left by an interrupted run included, and its networks and volumes. */
+  /** Run a one-off command in a fresh, named container of a service, reading its output line by line, with a handle to kill it (the engine's steps). */
+  runStreaming,
+  /** Stop and remove the project's containers, one-off tools and engine containers left by an interrupted run included, and its networks and volumes. */
   destroy: (sb: Sandbox) => compose(sb, ["down", "-v", "--remove-orphans"]),
   /** Run a command inside a running service. */
   exec: (sb: Sandbox, service: string, cmd: string[]) => compose(sb, ["exec", "-T", service, ...cmd]),
