@@ -1,11 +1,11 @@
-# npx vitest run, from builder/, commit 325ecd2, 12 Nov 2026 20:34 UTC
+# npx vitest run, from builder/, commit cf5d41f, 12 Nov 2026 21:24 UTC
 
  RUN  v5.1.0 <checkout>/builder
 
 
  Test Files  8 passed (8)
-      Tests  155 passed (155)
-   Start at  20:34:51
-   Duration  118.47s (tests 100%)
+      Tests  161 passed (161)
+   Start at  21:24:29
+   Duration  121.36s (tests 100%)
 
 exit code: 0

@@ -1,4 +1,4 @@
-# npx vitest run test/isolation.test.ts --reporter=verbose, from builder/, commit 325ecd2, 12 Nov 2026 20:37 UTC
+# npx vitest run test/isolation.test.ts --reporter=verbose, from builder/, commit cf5d41f, 12 Nov 2026 21:26 UTC
 
  RUN  v5.1.0 <checkout>/builder
 
@@ -6,21 +6,27 @@
  ✓ test/isolation.test.ts > isolation probe: its own settings and words (unit) > names each failure by its error code, and every name it can give is one the report accepts 1ms
  ✓ test/isolation.test.ts > isolation probe: its own settings and words (unit) > finds the listening ports in /proc/net/tcp text (made-up sample in the kernel's format) 1ms
  ✓ test/isolation.test.ts > isolation probe: its own settings and words (unit) > lists UDP sockets with no remote end and abstract Unix sockets (made-up samples in the kernel's format) 1ms
+ ✓ test/isolation.test.ts > isolation probe: its own settings and words (unit) > lists every network interface in a /sys/class/net folder, up or down, with its state (made-up folder) 5ms
  ✓ test/isolation.test.ts > isolation probe: its own settings and words (unit) > plans every attempt once, aims host attempts at the loopback address, and tries the session proxy only when given 2ms
- ✓ test/isolation.test.ts > isolation probe: its own settings and words (unit) > group G: one TCP attempt per port listening on the machine, at the gateway address of Docker's default network, with the address each port listens on as read on the machine 1ms
- ✓ test/isolation.test.ts > isolation probe: its attempts, against made-up servers on the loopback address (unit) > sends the HTTPS request of a tunnel attempt inside the proxy's tunnel, never straight to the target (review finding 8) 46ms
- ✓ test/isolation.test.ts > isolation probe: its attempts, against made-up servers on the loopback address (unit) > an HTTP answer whose body is held open is still that HTTP status, settled once the headers came (review finding 10) 1309ms
+ ✓ test/isolation.test.ts > isolation probe: its own settings and words (unit) > group G: one TCP attempt per port listening on the machine, at the gateway address of Docker's default network, with the address each port listens on as read on the machine 3ms
+ ✓ test/isolation.test.ts > isolation probe: its attempts, against made-up servers on the loopback address (unit) > sends the HTTPS request of a tunnel attempt inside the proxy's tunnel, never straight to the target (review finding 8) 50ms
+ ✓ test/isolation.test.ts > isolation probe: its attempts, against made-up servers on the loopback address (unit) > an HTTP answer whose body is held open is still that HTTP status, settled once the headers came (review finding 10) 1313ms
  ✓ test/isolation.test.ts > isolation probe: its attempts, against made-up servers on the loopback address (unit) > a proxy that closes the connection without answering a CONNECT has its own result, at once, not 'timed out' 2ms
- ✓ test/isolation.test.ts > isolation probe: reading what it prints (unit) > reads a complete run, and counts which attempts got an answer 2ms
+ ✓ test/isolation.test.ts > isolation probe: its attempts, against made-up servers on the loopback address (unit) > a server that accepts the connection and never answers: 'connected, then no answer within the limit', counted as an answer, not 'timed out' 1205ms
+ ✓ test/isolation.test.ts > isolation probe: its attempts, against made-up servers on the loopback address (unit) > a proxy that answers 200 to a CONNECT and then says nothing: the tunnel attempt is 'connected, then no answer within the limit', with the proxy's 200 in its detail 313ms
+ ✓ test/isolation.test.ts > isolation probe: reading what it prints (unit) > the harness passes the machine's listening sockets to the probe, and refuses plainly when there are more than the probe takes (64) 2ms
+ ✓ test/isolation.test.ts > isolation probe: reading what it prints (unit) > reads a complete run, and counts which attempts got an answer 1ms
  ✓ test/isolation.test.ts > isolation probe: reading what it prints (unit) > an answer (a connection opened, an HTTP status, a proxy's answer, or an address found) is told apart from a failure; every result given only after a connection opened is an answer (review finding 11) 1ms
  ✓ test/isolation.test.ts > isolation probe: reading what it prints (unit) > never drops a line it does not understand: an unfinished run, a wrong count, an unknown result, a stray line and a stop are all problems 1ms
- ✓ test/isolation.test.ts > isolation probe: reading what it prints (unit) > takes the session proxy's host and port from its setting, never a user name or password 1ms
- ✓ test/isolation.test.ts > isolation probe: reading what it prints (unit) > draws one row per attempt in the probe's order and one column per container, 'not tried' where a container did not make it 2ms
- ✓ test/isolation.test.ts > isolation probe: live, the engine container (development profile) > from inside the engine container, which has no network, every attempt fails, outside and on the host alike 20566ms
+ ✓ test/isolation.test.ts > isolation probe: reading what it prints (unit) > takes the session proxy's host and port from its setting, never a user name or password 0ms
+ ✓ test/isolation.test.ts > isolation probe: reading what it prints (unit) > draws one row per attempt in the probe's order and one column per container, 'not tried' where a container did not make it 3ms
+ ✓ test/isolation.test.ts > isolation probe: reading what it prints (unit) > marks attempts aimed at the container's own loopback address however the session proxy is written: 127.0.0.1, localhost or [::1] 1ms
+ ✓ test/isolation.test.ts > isolation probe: reading what it prints (unit) > when containers give an attempt different targets (B2 and B3 can), the row says so and each cell gives its own target and description 1ms
+ ✓ test/isolation.test.ts > isolation probe: live, the engine container (development profile) > from inside the engine container, which has no network, every attempt fails, outside and on the host alike 20631ms
 
  Test Files  1 passed (1)
-      Tests  15 passed (15)
-   Start at  20:37:02
-   Duration  22.10s (tests 100%)
+      Tests  21 passed (21)
+   Start at  21:26:41
+   Duration  23.78s (tests 100%)
 
 exit code: 0

@@ -1,10 +1,11 @@
 {"kind":"info","name":"user id","value":"100"}
-{"kind":"info","name":"network interfaces","value":"lo (127.0.0.1); eth0 (192.0.2.2)"}
+{"kind":"info","name":"network interfaces that are up and running, with their addresses (as Node lists them)","value":"lo (127.0.0.1); eth0 (192.0.2.2)"}
+{"kind":"info","name":"every network interface in /sys/class/net, up or down (name and state only)","value":"docker0 (down), eth0 (up), ifb0 (down), ifb1 (down), lo (unknown)"}
 {"kind":"info","name":"name servers in /etc/resolv.conf","value":"8.8.8.8, 8.8.4.4"}
 {"kind":"info","name":"listening TCP ports seen in /proc/net","value":"0.0.0.0:2024, 0.0.0.0:3128, 0.0.0.0:5562, 127.0.0.1:33427, 127.0.0.1:4010, 127.0.0.1:45887, 127.0.0.1:5432"}
-{"kind":"info","name":"other TCP sockets seen, in any state (/proc/net/tcp)","value":"36"}
+{"kind":"info","name":"other TCP sockets seen, in any state (/proc/net/tcp)","value":"43"}
 {"kind":"info","name":"UDP sockets with no remote end, seen in /proc/net/udp","value":"none"}
-{"kind":"info","name":"abstract Unix sockets seen in /proc/net/unix (listed only, not connected to)","value":"@docker_cli_cb94d06b0c25f3282190aa93e60e73fd"}
+{"kind":"info","name":"abstract Unix sockets seen in /proc/net/unix (listed only, not connected to)","value":"@docker_cli_c4a20c64f4c502a7f626445593e39674"}
 {"kind":"info","name":"Docker's socket inside (/var/run/docker.sock, /run/docker.sock)","value":"absent"}
 {"kind":"info","name":"settings that name a proxy or a certificate (names only)","value":"none"}
 {"kind":"info","name":"a copy of the session certificate inside","value":"none"}
@@ -36,11 +37,11 @@
 {"kind":"attempt","id":"G5562","group":"Toward the machine through the container network's gateway","toward":"host","what":"port 5562, listening on the machine at 0.0.0.0 (every address), as read on the machine","target":"172.17.0.1:5562","how":"TCP connection, opened and closed; nothing sent","result":"connected","code":null,"detail":""}
 {"kind":"attempt","id":"G33427","group":"Toward the machine through the container network's gateway","toward":"host","what":"port 33427, listening on the machine at 127.0.0.1 (loopback only), as read on the machine","target":"172.17.0.1:33427","how":"TCP connection, opened and closed; nothing sent","result":"refused","code":"ECONNREFUSED","detail":""}
 {"kind":"attempt","id":"G45887","group":"Toward the machine through the container network's gateway","toward":"host","what":"port 45887, listening on the machine at 127.0.0.1 (loopback only), as read on the machine","target":"172.17.0.1:45887","how":"TCP connection, opened and closed; nothing sent","result":"refused","code":"ECONNREFUSED","detail":""}
-{"kind":"attempt","id":"D1","group":"By name lookup","toward":"lookup","what":"an outside name the egress list allows","target":"registry.npmjs.org","how":"lookup with the container's own resolver","result":"found 12 addresses","code":null,"detail":"104.16.5.34, 104.16.2.34, 104.16.3.34"}
+{"kind":"attempt","id":"D1","group":"By name lookup","toward":"lookup","what":"an outside name the egress list allows","target":"registry.npmjs.org","how":"lookup with the container's own resolver","result":"found 12 addresses","code":null,"detail":"104.16.11.34, 104.16.3.34, 104.16.4.34"}
 {"kind":"attempt","id":"D2","group":"By name lookup","toward":"lookup","what":"an outside name the egress list refuses","target":"example.com","how":"lookup with the container's own resolver","result":"name not found","code":"ENOTFOUND","detail":""}
 {"kind":"attempt","id":"D3","group":"By name lookup","toward":"lookup","what":"an internal-looking name: the database's name on the server profile","target":"db","how":"lookup with the container's own resolver","result":"name not found","code":"ENOTFOUND","detail":""}
 {"kind":"attempt","id":"D4","group":"By name lookup","toward":"lookup","what":"an internal-looking name: the cloud's machine-information service","target":"metadata.google.internal","how":"lookup with the container's own resolver","result":"name not found","code":"ENOTFOUND","detail":""}
-{"kind":"attempt","id":"D5","group":"By name lookup","toward":"lookup","what":"an allowed name, asking an outside name server directly","target":"registry.npmjs.org @1.1.1.1","how":"question sent to 1.1.1.1 port 53 (UDP)","result":"found 12 addresses","code":null,"detail":"104.16.5.34, 104.16.2.34, 104.16.3.34"}
+{"kind":"attempt","id":"D5","group":"By name lookup","toward":"lookup","what":"an allowed name, asking an outside name server directly","target":"registry.npmjs.org @1.1.1.1","how":"question sent to 1.1.1.1 port 53 (UDP)","result":"found 12 addresses","code":null,"detail":"104.16.11.34, 104.16.3.34, 104.16.4.34"}
 {"kind":"attempt","id":"D6","group":"By name lookup","toward":"lookup","what":"a refused name, asking an outside name server directly","target":"example.com @1.1.1.1","how":"question sent to 1.1.1.1 port 53 (UDP)","result":"name not found","code":"ENOTFOUND","detail":""}
 {"kind":"attempt","id":"E1","group":"Through the project's egress proxy","toward":"egress-proxy","what":"an allowed host, tunnel","target":"registry.npmjs.org:443","how":"CONNECT through 127.0.0.1:3128","result":"proxy answered 200","code":null,"detail":""}
 {"kind":"attempt","id":"E2","group":"Through the project's egress proxy","toward":"egress-proxy","what":"an allowed host, HTTPS inside the tunnel","target":"registry.npmjs.org:443","how":"CONNECT through 127.0.0.1:3128, then HTTPS GET /-/ping","result":"HTTP 200","code":null,"detail":"server: cloudflare"}

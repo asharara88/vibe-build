@@ -1,5 +1,6 @@
 {"kind":"info","name":"user id","value":"1000"}
-{"kind":"info","name":"network interfaces","value":"lo (127.0.0.1)"}
+{"kind":"info","name":"network interfaces that are up and running, with their addresses (as Node lists them)","value":"lo (127.0.0.1)"}
+{"kind":"info","name":"every network interface in /sys/class/net, up or down (name and state only)","value":"lo (unknown)"}
 {"kind":"info","name":"name servers in /etc/resolv.conf","value":"8.8.8.8, 8.8.4.4"}
 {"kind":"info","name":"listening TCP ports seen in /proc/net","value":"none"}
 {"kind":"info","name":"other TCP sockets seen, in any state (/proc/net/tcp)","value":"0"}

@@ -1,4 +1,4 @@
-# Control: the live test run with the engine service given the host's network instead of none (builder/src/sandbox/manager.ts, line 157, changed for this run only and then restored with git checkout). Commit 325ecd2, 12 Nov 2026 20:40 UTC.
+# Control: the live test run with the engine service given the host's network instead of none (builder/src/sandbox/manager.ts, line 157, changed for this run only and then restored with git checkout). Commit cf5d41f, 12 Nov 2026 21:27 UTC.
 # The test is expected to FAIL here: it must not pass for a container that has a network.
 # The change, as git diff:
 diff --git a/builder/src/sandbox/manager.ts b/builder/src/sandbox/manager.ts
@@ -18,9 +18,9 @@ index 061b15d..ec4aea3 100644
 
  RUN  v5.1.0 <checkout>/builder
 
- ❯ test/isolation.test.ts (15 tests | 1 failed | 14 skipped) 1480ms
+ ❯ test/isolation.test.ts (21 tests | 1 failed | 20 skipped) 1561ms
    ❯ isolation probe: live, the engine container (development profile) (1)
-     × from inside the engine container, which has no network, every attempt fails, outside and on the host alike 1478ms
+     × from inside the engine container, which has no network, every attempt fails, outside and on the host alike 1559ms
 
 ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
 
@@ -52,22 +52,21 @@ AssertionError: expected [ …(18) ] to deeply equal []
 +   "F4 github.com:443: certificate not trusted",
 + ]
 
- ❯ test/isolation.test.ts:429:111
-    427|     // First, and all at once: every attempt that got an answer (a con…
-    428|     // proxy's answer, or an address found; any result given only afte…
-    429|     expect(report.attempts.filter((a) => gotAnswer(a.result)).map((a) …
+ ❯ test/isolation.test.ts:567:111
+    565|     // proxy's answer, or an address found; any result given only afte…
+    566|     // then no answer within the limit" among them). There must be non…
+    567|     expect(report.attempts.filter((a) => gotAnswer(a.result)).map((a) …
        |                                                                                                               ^
-    430|     // Nor an attempt whose error the probe could not name: it is not …
-    431|     expect(report.attempts.filter((a) => a.result === "error").map((a)…
+    568|     // Nor an attempt whose error the probe could not name: it is not …
+    569|     expect(report.attempts.filter((a) => a.result === "error").map((a)…
 
 ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
 
 
  Test Files  1 failed (1)
-      Tests  1 failed | 14 skipped (15)
-   Start at  20:40:56
-   Duration  1.64s (tests 96%, import 3%, transform 1%)
+      Tests  1 failed | 20 skipped (21)
+   Start at  21:27:47
+   Duration  1.77s (tests 95%, import 3%, transform 1%)
 
 exit code: 1
-# Restored with git checkout; git diff --stat -- builder afterwards: 
-(empty means the file is as committed)
+# Restored with git checkout; git diff --stat -- builder afterwards: empty (the file is as committed)

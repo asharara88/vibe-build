@@ -1,4 +1,4 @@
-# Controls: each new unit test of this round, run once with its fix removed. Commit 325ecd2, 12 Nov 2026 20:40 UTC, from builder/.
+# Controls: each new unit test of package 0.6a's review rounds, run once with its fix removed. Controls 1 to 4 (first review): commit 325ecd2, 12 Nov 2026 20:40 UTC; controls 5 and 6 (second review): commit cf5d41f, below. From builder/
 # Each test is expected to FAIL here. For each: the one change made for the run, the command, its output; then the file is restored with `git checkout` and checked unchanged.
 
 ####################################################################################################
@@ -231,3 +231,199 @@ AssertionError: expected { result: 'timed out', …(2) } to deeply equal { …(3
 exit code: 1
 # Restored with `git checkout -- scripts/isolation-probe.mjs`; `git diff --stat -- builder` afterwards: empty (the file is as committed)
 
+
+####################################################################################################
+# Second review round of package 0.6a: controls 5 and 6, at commit cf5d41f, 12 Nov 2026 21:27 UTC, from builder/. Controls 1 to 4 above were made at 325ecd2.
+
+####################################################################################################
+# 5. Second review round, confirmed finding: a connection that opened and then heard nothing until the limit. Removed: the limit's result once a connection opened, in httpAttempt, httpViaProxyAttempt and tunnel() (builder/scripts/isolation-probe.mjs). With it removed, such an attempt is "timed out" again.
+# The change, as `git diff`:
+diff --git a/builder/scripts/isolation-probe.mjs b/builder/scripts/isolation-probe.mjs
+index d89cb42..1e99f2b 100644
+--- a/builder/scripts/isolation-probe.mjs
++++ b/builder/scripts/isolation-probe.mjs
+@@ -421,10 +421,6 @@ function httpAttempt(op, ms, secure, sessionCert) {
+       (res) => readAnswer(res, finish, cleanup, atLimit, ms),
+     );
+     cleanup(() => req.destroy());
+-    req.on("socket", (sock) => {
+-      whenOpen(sock, () => openedThenSilent(atLimit, ms, secure ? "the connection opened; the secure handshake did not finish" : "the connection opened; no HTTP status came"));
+-      if (secure) sock.once("secureConnect", () => openedThenSilent(atLimit, ms, "the secure connection opened; no HTTP status came"));
+-    });
+     req.on("error", (e) => finish({ result: classifyError(codeOf(e)), code: codeOf(e), detail: "" }));
+     req.end();
+   });
+@@ -438,7 +434,6 @@ function httpViaProxyAttempt(op, ms) {
+       (res) => readAnswer(res, finish, cleanup, atLimit, ms),
+     );
+     cleanup(() => req.destroy());
+-    req.on("socket", (sock) => whenOpen(sock, () => openedThenSilent(atLimit, ms, "the connection to the proxy opened; no HTTP status came")));
+     req.on("error", (e) => finish({ result: classifyError(codeOf(e)), code: codeOf(e), detail: "" }));
+     req.end();
+   });
+@@ -475,7 +470,6 @@ function tunnel(op, finish, cleanup, then, atLimit, ms) {
+   s.on("end", closed);
+   s.on("close", closed);
+   s.on("connect", () => {
+-    openedThenSilent(atLimit, ms, "the connection to the proxy opened; it did not answer the CONNECT");
+     s.write(`CONNECT ${op.target} HTTP/1.1\r\nHost: ${op.target}\r\nUser-Agent: isolation-probe\r\n\r\n`);
+   });
+   s.on("error", (e) => finish({ result: classifyError(codeOf(e)), code: codeOf(e), detail: "the proxy itself could not be reached" }));
+# $ npx vitest run test/isolation.test.ts -t "accepts the connection and never answers"
+
+ RUN  v5.1.0 <checkout>/builder
+
+ ❯ test/isolation.test.ts (21 tests | 1 failed | 20 skipped) 1233ms
+   ❯ isolation probe: its attempts, against made-up servers on the loopback address (unit) (5)
+     × a server that accepts the connection and never answers: 'connected, then no answer within the limit', counted as an answer, not 'timed out' 1230ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/isolation.test.ts > isolation probe: its attempts, against made-up servers on the loopback address (unit) > a server that accepts the connection and never answers: 'connected, then no answer within the limit', counted as an answer, not 'timed out'
+AssertionError: expected { http: { …(4) }, …(3) } to deeply equal { http: { …(4) }, …(3) }
+
+- Expected
++ Received
+
+  {
+    "connect": {
+-     "code": "TIMEOUT_AFTER_CONNECT",
+-     "counted": true,
+-     "detail": "the connection to the proxy opened; it did not answer the CONNECT within the time limit (300 ms)",
+-     "result": "connected, then no answer within the limit",
++     "code": "TIMEOUT",
++     "counted": false,
++     "detail": "no answer within 300 ms",
++     "result": "timed out",
+    },
+    "http": {
+-     "code": "TIMEOUT_AFTER_CONNECT",
+-     "counted": true,
+-     "detail": "the connection opened; no HTTP status came within the time limit (300 ms)",
+-     "result": "connected, then no answer within the limit",
++     "code": "TIMEOUT",
++     "counted": false,
++     "detail": "no answer within 300 ms",
++     "result": "timed out",
+    },
+    "http-proxy": {
+-     "code": "TIMEOUT_AFTER_CONNECT",
+-     "counted": true,
+-     "detail": "the connection to the proxy opened; no HTTP status came within the time limit (300 ms)",
+-     "result": "connected, then no answer within the limit",
++     "code": "TIMEOUT",
++     "counted": false,
++     "detail": "no answer within 300 ms",
++     "result": "timed out",
+    },
+    "https": {
+-     "code": "TIMEOUT_AFTER_CONNECT",
+-     "counted": true,
+-     "detail": "the connection opened; the secure handshake did not finish within the time limit (300 ms)",
+-     "result": "connected, then no answer within the limit",
++     "code": "TIMEOUT",
++     "counted": false,
++     "detail": "no answer within 300 ms",
++     "result": "timed out",
+    },
+  }
+
+ ❯ test/isolation.test.ts:313:18
+    311|     }
+    312|     const opened = (detail: string) => ({ result: OPENED_THEN_SILENT, …
+    313|     expect(seen).toEqual({
+       |                  ^
+    314|       http: opened("the connection opened; no HTTP status came"),
+    315|       https: opened("the connection opened; the secure handshake did n…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 20 skipped (21)
+   Start at  21:27:20
+   Duration  1.48s (tests 91%, transform 5%, import 4%)
+
+exit code: 1
+# Restored with `git checkout -- scripts/isolation-probe.mjs`; `git diff --stat -- builder` afterwards: empty (the file is as committed)
+
+####################################################################################################
+# 6. Second review round, confirmed finding: a proxy that answered 200 to a CONNECT and then said nothing. Removed: the limit's results inside a tunnel attempt, in tunnel() (once the connection to the proxy opened, and once it answered 200) and in httpsTunnelAttempt (once the secure connection inside the tunnel opened) (builder/scripts/isolation-probe.mjs). With them removed, the attempt is "timed out" again, and the proxy's 200 is lost.
+# The change, as `git diff`:
+diff --git a/builder/scripts/isolation-probe.mjs b/builder/scripts/isolation-probe.mjs
+index d89cb42..a65f25a 100644
+--- a/builder/scripts/isolation-probe.mjs
++++ b/builder/scripts/isolation-probe.mjs
+@@ -468,14 +468,12 @@ function tunnel(op, finish, cleanup, then, atLimit, ms) {
+       finish({ result: status ? `proxy answered ${status}` : "not an HTTP answer", code: status ? null : "BAD_ANSWER", detail: status >= 400 && rest ? `says: "${oneLine(rest)}"` : "" });
+       return;
+     }
+-    openedThenSilent(atLimit, ms, "the proxy answered 200 to the CONNECT; nothing came back inside the tunnel");
+     then(s);
+   };
+   s.on("data", onData);
+   s.on("end", closed);
+   s.on("close", closed);
+   s.on("connect", () => {
+-    openedThenSilent(atLimit, ms, "the connection to the proxy opened; it did not answer the CONNECT");
+     s.write(`CONNECT ${op.target} HTTP/1.1\r\nHost: ${op.target}\r\nUser-Agent: isolation-probe\r\n\r\n`);
+   });
+   s.on("error", (e) => finish({ result: classifyError(codeOf(e)), code: codeOf(e), detail: "the proxy itself could not be reached" }));
+@@ -503,9 +501,6 @@ function httpsTunnelAttempt(op, ms, sessionCert) {
+           ...trust(sessionCert),
+           createConnection: () => {
+             const inside = tls.connect({ socket, servername: op.host, ...trust(sessionCert) });
+-            inside.once("secureConnect", () =>
+-              openedThenSilent(atLimit, ms, "the proxy answered 200 to the CONNECT and the secure connection inside the tunnel opened; no HTTP status came"),
+-            );
+             return inside;
+           },
+           headers: { host: op.host, "user-agent": "isolation-probe", connection: "close" },
+# $ npx vitest run test/isolation.test.ts -t "answers 200 to a CONNECT and then says nothing"
+
+ RUN  v5.1.0 <checkout>/builder
+
+ ❯ test/isolation.test.ts (21 tests | 1 failed | 20 skipped) 330ms
+   ❯ isolation probe: its attempts, against made-up servers on the loopback address (unit) (5)
+     × a proxy that answers 200 to a CONNECT and then says nothing: the tunnel attempt is 'connected, then no answer within the limit', with the proxy's 200 in its detail 328ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/isolation.test.ts > isolation probe: its attempts, against made-up servers on the loopback address (unit) > a proxy that answers 200 to a CONNECT and then says nothing: the tunnel attempt is 'connected, then no answer within the limit', with the proxy's 200 in its detail
+AssertionError: expected { …(5) } to deeply equal { …(5) }
+
+- Expected
++ Received
+
+  {
+-   "code": "TIMEOUT_AFTER_CONNECT",
++   "code": "TIMEOUT",
+    "connects": [
+      "CONNECT made-up.invalid:443 HTTP/1.1",
+    ],
+-   "counted": true,
+-   "detail": "the proxy answered 200 to the CONNECT; nothing came back inside the tunnel within the time limit (300 ms)",
+-   "result": "connected, then no answer within the limit",
++   "counted": false,
++   "detail": "no answer within 300 ms",
++   "result": "timed out",
+  }
+
+ ❯ test/isolation.test.ts:335:62
+    333|     const s = parseSettings(JSON.stringify({ ...SETTINGS, timeoutMs: 3…
+    334|     const r = await runAttempt(madeUpAttempt({ type: "https-tunnel", p…
+    335|     expect({ connects, ...r, counted: gotAnswer(r.result) }).toEqual({
+       |                                                              ^
+    336|       connects: ["CONNECT made-up.invalid:443 HTTP/1.1"],
+    337|       result: OPENED_THEN_SILENT,
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 20 skipped (21)
+   Start at  21:27:31
+   Duration  581ms (tests 72%, transform 14%, import 14%, worker 1%)
+
+exit code: 1
+# Restored with `git checkout -- scripts/isolation-probe.mjs`; `git diff --stat -- builder` afterwards: empty (the file is as committed)

@@ -1,4 +1,4 @@
-# npx tsx scripts/demo-isolation.ts ../evidence/2026-11-12-package-0.6a   (from builder/, commit 325ecd2, 12 Nov 2026 20:37 UTC)
+# npx tsx scripts/demo-isolation.ts ../evidence/2026-11-12-package-0.6a   (from builder/, commit cf5d41f, 12 Nov 2026 21:28 UTC)
 Package 0.6a: isolation checked on the development profile, from inside the project's containers.
 Compose project builder_demo_isolation, profile development-cloud-session. Egress list: registry.npmjs.org.
 The session proxy, as given to the probe: 127.0.0.1:45887 (host and port only).
@@ -11,7 +11,7 @@ The session proxy, as given to the probe: 127.0.0.1:45887 (host and port only).
   egress network: host; user: node; read-only root: true; capabilities dropped: ALL
 
 == 2. Images built, database and egress proxy started ==
-  App image built (user app), tools image built (user node), from the house template, in 6 s.
+  App image built (user app), tools image built (user node), from the house template, in 7 s.
   Container db: running (healthy)
   Container egress: running
   Stand-in listener on the gateway's address 127.0.0.1:4010: listening (accepts a connection and closes it; the real gateway is not running)
@@ -27,12 +27,13 @@ The session proxy, as given to the probe: 127.0.0.1:45887 (host and port only).
 
   -- app container (host network) --
   user id: 100
-  network interfaces: lo (127.0.0.1); eth0 (192.0.2.2)
+  network interfaces that are up and running, with their addresses (as Node lists them): lo (127.0.0.1); eth0 (192.0.2.2)
+  every network interface in /sys/class/net, up or down (name and state only): docker0 (down), eth0 (up), ifb0 (down), ifb1 (down), lo (unknown)
   name servers in /etc/resolv.conf: 8.8.8.8, 8.8.4.4
   listening TCP ports seen in /proc/net: 0.0.0.0:2024, 0.0.0.0:3128, 0.0.0.0:5562, 127.0.0.1:33427, 127.0.0.1:4010, 127.0.0.1:45887, 127.0.0.1:5432
-  other TCP sockets seen, in any state (/proc/net/tcp): 36
+  other TCP sockets seen, in any state (/proc/net/tcp): 43
   UDP sockets with no remote end, seen in /proc/net/udp: none
-  abstract Unix sockets seen in /proc/net/unix (listed only, not connected to): @docker_cli_cb94d06b0c25f3282190aa93e60e73fd
+  abstract Unix sockets seen in /proc/net/unix (listed only, not connected to): @docker_cli_c4a20c64f4c502a7f626445593e39674
   Docker's socket inside (/var/run/docker.sock, /run/docker.sock): absent
   settings that name a proxy or a certificate (names only): none
   a copy of the session certificate inside: none
@@ -92,7 +93,7 @@ The session proxy, as given to the probe: 127.0.0.1:45887 (host and port only).
   G45887 172.17.0.1:45887  [TCP connection, opened and closed; nothing sent]
          -> refused (ECONNREFUSED)
   D1     registry.npmjs.org  [lookup with the container's own resolver]
-         -> found 12 addresses; 104.16.5.34, 104.16.2.34, 104.16.3.34
+         -> found 12 addresses; 104.16.11.34, 104.16.3.34, 104.16.4.34
   D2     example.com  [lookup with the container's own resolver]
          -> name not found (ENOTFOUND)
   D3     db  [lookup with the container's own resolver]
@@ -100,7 +101,7 @@ The session proxy, as given to the probe: 127.0.0.1:45887 (host and port only).
   D4     metadata.google.internal  [lookup with the container's own resolver]
          -> name not found (ENOTFOUND)
   D5     registry.npmjs.org @1.1.1.1  [question sent to 1.1.1.1 port 53 (UDP)]
-         -> found 12 addresses; 104.16.5.34, 104.16.2.34, 104.16.3.34
+         -> found 12 addresses; 104.16.11.34, 104.16.3.34, 104.16.4.34
   D6     example.com @1.1.1.1  [question sent to 1.1.1.1 port 53 (UDP)]
          -> name not found (ENOTFOUND)
   E1     registry.npmjs.org:443  [CONNECT through 127.0.0.1:3128]
@@ -130,12 +131,13 @@ The session proxy, as given to the probe: 127.0.0.1:45887 (host and port only).
 
   -- tools container (host network) --
   user id: 1000
-  network interfaces: lo (127.0.0.1); eth0 (192.0.2.2)
+  network interfaces that are up and running, with their addresses (as Node lists them): lo (127.0.0.1); eth0 (192.0.2.2)
+  every network interface in /sys/class/net, up or down (name and state only): docker0 (down), eth0 (up), ifb0 (down), ifb1 (down), lo (unknown)
   name servers in /etc/resolv.conf: 8.8.8.8, 8.8.4.4
   listening TCP ports seen in /proc/net: 0.0.0.0:2024, 0.0.0.0:3128, 0.0.0.0:5562, 127.0.0.1:33427, 127.0.0.1:4010, 127.0.0.1:45887, 127.0.0.1:5432
-  other TCP sockets seen, in any state (/proc/net/tcp): 58
+  other TCP sockets seen, in any state (/proc/net/tcp): 76
   UDP sockets with no remote end, seen in /proc/net/udp: none
-  abstract Unix sockets seen in /proc/net/unix (listed only, not connected to): @docker_cli_92a9e9a9ba683bfc07d93393c2a0a61f
+  abstract Unix sockets seen in /proc/net/unix (listed only, not connected to): @docker_cli_9d4daa0cab37be6f1bc15245cc5760e0
   Docker's socket inside (/var/run/docker.sock, /run/docker.sock): absent
   settings that name a proxy or a certificate (names only): none
   a copy of the session certificate inside: /certs/session-ca.crt
@@ -195,7 +197,7 @@ The session proxy, as given to the probe: 127.0.0.1:45887 (host and port only).
   G45887 172.17.0.1:45887  [TCP connection, opened and closed; nothing sent]
          -> refused (ECONNREFUSED)
   D1     registry.npmjs.org  [lookup with the container's own resolver]
-         -> found 12 addresses; 104.16.5.34, 104.16.2.34, 104.16.3.34
+         -> found 12 addresses; 104.16.11.34, 104.16.3.34, 104.16.4.34
   D2     example.com  [lookup with the container's own resolver]
          -> name not found (ENOTFOUND)
   D3     db  [lookup with the container's own resolver]
@@ -203,7 +205,7 @@ The session proxy, as given to the probe: 127.0.0.1:45887 (host and port only).
   D4     metadata.google.internal  [lookup with the container's own resolver]
          -> name not found (ENOTFOUND)
   D5     registry.npmjs.org @1.1.1.1  [question sent to 1.1.1.1 port 53 (UDP)]
-         -> found 12 addresses; 104.16.5.34, 104.16.2.34, 104.16.3.34
+         -> found 12 addresses; 104.16.11.34, 104.16.3.34, 104.16.4.34
   D6     example.com @1.1.1.1  [question sent to 1.1.1.1 port 53 (UDP)]
          -> name not found (ENOTFOUND)
   E1     registry.npmjs.org:443  [CONNECT through 127.0.0.1:3128]
@@ -234,7 +236,8 @@ The session proxy, as given to the probe: 127.0.0.1:45887 (host and port only).
   -- engine container (no network) --
   (127.0.0.1 in this container is its own loopback address, not the machine's.)
   user id: 1000
-  network interfaces: lo (127.0.0.1)
+  network interfaces that are up and running, with their addresses (as Node lists them): lo (127.0.0.1)
+  every network interface in /sys/class/net, up or down (name and state only): lo (unknown)
   name servers in /etc/resolv.conf: 8.8.8.8, 8.8.4.4
   listening TCP ports seen in /proc/net: none
   other TCP sockets seen, in any state (/proc/net/tcp): 0
@@ -334,7 +337,8 @@ The session proxy, as given to the probe: 127.0.0.1:45887 (host and port only).
   -- comparison: default network, not a project container --
   (127.0.0.1 in this container is its own loopback address, not the machine's.)
   user id: 1000
-  network interfaces: lo (127.0.0.1); eth0 (172.17.0.2)
+  network interfaces that are up and running, with their addresses (as Node lists them): lo (127.0.0.1); eth0 (172.17.0.2)
+  every network interface in /sys/class/net, up or down (name and state only): eth0 (up), lo (unknown)
   name servers in /etc/resolv.conf: 8.8.8.8, 8.8.4.4
   listening TCP ports seen in /proc/net: none
   other TCP sockets seen, in any state (/proc/net/tcp): 0
@@ -395,7 +399,7 @@ The session proxy, as given to the probe: 127.0.0.1:45887 (host and port only).
   G45887 172.17.0.1:45887  [TCP connection, opened and closed; nothing sent]
          -> refused (ECONNREFUSED)
   D1     registry.npmjs.org  [lookup with the container's own resolver]
-         -> found 12 addresses; 104.16.5.34, 104.16.2.34, 104.16.3.34
+         -> found 12 addresses; 104.16.11.34, 104.16.3.34, 104.16.4.34
   D2     example.com  [lookup with the container's own resolver]
          -> name not found (ENOTFOUND)
   D3     db  [lookup with the container's own resolver]
@@ -403,7 +407,7 @@ The session proxy, as given to the probe: 127.0.0.1:45887 (host and port only).
   D4     metadata.google.internal  [lookup with the container's own resolver]
          -> name not found (ENOTFOUND)
   D5     registry.npmjs.org @1.1.1.1  [question sent to 1.1.1.1 port 53 (UDP)]
-         -> found 12 addresses; 104.16.5.34, 104.16.2.34, 104.16.3.34
+         -> found 12 addresses; 104.16.11.34, 104.16.3.34, 104.16.4.34
   D6     example.com @1.1.1.1  [question sent to 1.1.1.1 port 53 (UDP)]
          -> name not found (ENOTFOUND)
   E1     registry.npmjs.org:443  [CONNECT through 127.0.0.1:3128]
@@ -480,16 +484,16 @@ F4     | github.com:443              | a host the egress list refuses, HTTPS ins
 Engine container: every attempt failed: yes.
 
 == 6. The project's egress proxy's own log: one line per decision ==
-  {"at":"2026-11-12T20:37:50.085Z","method":"CONNECT","host":"registry.npmjs.org","port":443,"decision":"allowed"}
-  {"at":"2026-11-12T20:37:50.342Z","method":"CONNECT","host":"registry.npmjs.org","port":443,"decision":"allowed"}
-  {"at":"2026-11-12T20:37:50.813Z","method":"CONNECT","host":"example.com","port":443,"decision":"refused"}
-  {"at":"2026-11-12T20:37:50.817Z","method":"GET","host":"registry.npmjs.org","port":80,"decision":"allowed"}
-  {"at":"2026-11-12T20:37:50.828Z","method":"GET","host":"example.com","port":80,"decision":"refused"}
-  {"at":"2026-11-12T20:37:52.200Z","method":"CONNECT","host":"registry.npmjs.org","port":443,"decision":"allowed"}
-  {"at":"2026-11-12T20:37:52.416Z","method":"CONNECT","host":"registry.npmjs.org","port":443,"decision":"allowed"}
-  {"at":"2026-11-12T20:37:52.931Z","method":"CONNECT","host":"example.com","port":443,"decision":"refused"}
-  {"at":"2026-11-12T20:37:52.935Z","method":"GET","host":"registry.npmjs.org","port":80,"decision":"allowed"}
-  {"at":"2026-11-12T20:37:52.941Z","method":"GET","host":"example.com","port":80,"decision":"refused"}
+  {"at":"2026-11-12T21:28:17.673Z","method":"CONNECT","host":"registry.npmjs.org","port":443,"decision":"allowed"}
+  {"at":"2026-11-12T21:28:17.921Z","method":"CONNECT","host":"registry.npmjs.org","port":443,"decision":"allowed"}
+  {"at":"2026-11-12T21:28:18.389Z","method":"CONNECT","host":"example.com","port":443,"decision":"refused"}
+  {"at":"2026-11-12T21:28:18.393Z","method":"GET","host":"registry.npmjs.org","port":80,"decision":"allowed"}
+  {"at":"2026-11-12T21:28:18.402Z","method":"GET","host":"example.com","port":80,"decision":"refused"}
+  {"at":"2026-11-12T21:28:19.698Z","method":"CONNECT","host":"registry.npmjs.org","port":443,"decision":"allowed"}
+  {"at":"2026-11-12T21:28:19.929Z","method":"CONNECT","host":"registry.npmjs.org","port":443,"decision":"allowed"}
+  {"at":"2026-11-12T21:28:20.366Z","method":"CONNECT","host":"example.com","port":443,"decision":"refused"}
+  {"at":"2026-11-12T21:28:20.368Z","method":"GET","host":"registry.npmjs.org","port":80,"decision":"allowed"}
+  {"at":"2026-11-12T21:28:20.373Z","method":"GET","host":"example.com","port":80,"decision":"refused"}
   10 decisions logged. Attempts sent directly or through the session's proxy do not pass through it.
 
 The probe's own lines, one file per container, and the table in Markdown were written to the output folder.
