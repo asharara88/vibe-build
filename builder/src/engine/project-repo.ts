@@ -139,24 +139,27 @@ export const describeNotAllowed = (entries: NotAllowedEntry[]) => entries.map((e
  * where it points ("link:" and its target, read without following it), so pointing it elsewhere counts
  * as a change (found by the second review of package 2.1: every link had the same fingerprint).
  */
-async function ignoredFiles(repo: ProjectRepo): Promise<Record<string, string>> {
-  const out: Record<string, string> = {};
+// Maps, not plain objects: a file named `toString`, `constructor` or `__proto__` must count as itself
+// (found by the review bot on pull request #20).
+async function ignoredFiles(repo: ProjectRepo): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
   for (const e of parseStatus(await git(repo, ["status", "--porcelain", "-z", "--untracked-files=all", "--ignored"]))) {
     if (e.code !== "!!") continue;
     const full = join(repo.workTree, e.path);
     const st = lstatSync(full, { throwIfNoEntry: false });
-    out[e.path] = st?.isFile() ? sha256File(full) : st?.isSymbolicLink() ? `link:${readlinkSync(full)}` : "not a file";
+    out.set(e.path, st?.isFile() ? sha256File(full) : st?.isSymbolicLink() ? `link:${readlinkSync(full)}` : "not a file");
   }
   return out;
 }
 
 async function recordIgnoredBaseline(repo: ProjectRepo): Promise<void> {
-  writeFileSync(join(repo.gitDir, IGNORED_BASELINE), JSON.stringify(await ignoredFiles(repo), null, 2) + "\n");
+  // Object.fromEntries and JSON.parse both make own keys, `__proto__` included.
+  writeFileSync(join(repo.gitDir, IGNORED_BASELINE), JSON.stringify(Object.fromEntries(await ignoredFiles(repo)), null, 2) + "\n");
 }
 
-function readIgnoredBaseline(repo: ProjectRepo): Record<string, string> {
+function readIgnoredBaseline(repo: ProjectRepo): Map<string, string> {
   const f = join(repo.gitDir, IGNORED_BASELINE);
-  return existsSync(f) ? (JSON.parse(readFileSync(f, "utf8")) as Record<string, string>) : {};
+  return new Map(existsSync(f) ? Object.entries(JSON.parse(readFileSync(f, "utf8")) as Record<string, string>) : []);
 }
 
 export interface StatusEntry {
@@ -211,8 +214,8 @@ export async function workspaceChanges(repo: ProjectRepo): Promise<WorkspaceChan
   const changed = [...new Set(entries.filter((e) => e.code !== "!!").map((e) => e.path))].sort();
   const before = readIgnoredBaseline(repo);
   const now = await ignoredFiles(repo);
-  const ignoredNew = Object.keys(now).filter((p) => !(p in before)).sort();
-  const ignoredChanged = Object.keys(before).filter((p) => now[p] !== before[p]).sort();
+  const ignoredNew = [...now.keys()].filter((p) => !before.has(p)).sort();
+  const ignoredChanged = [...before.keys()].filter((p) => now.get(p) !== before.get(p)).sort();
   return { changed, ignoredNew, ignoredChanged, notAllowed: entriesGitCannotSee(repo.workTree) };
 }
 

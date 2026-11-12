@@ -516,6 +516,26 @@ describe("scripted engine: the class, against a stand-in runner (no container, n
     expect((await resetToLastCommit(repo)).unrestorable).toEqual(["certs/session-ca.crt"]);
   });
 
+  it("ignored files named toString, constructor and __proto__ count as themselves: the check reports them as new, and the reset removes them", async () => {
+    // Made-up names that a plain object would confuse with its own built-in properties (found by the review bot).
+    const names = ["toString", "constructor", "__proto__"];
+    const gi = join(repo.workTree, ".gitignore");
+    writeFileSync(gi, readFileSync(gi, "utf8") + names.map((n) => `/${n}`).join("\n") + "\n");
+    await commitAll(repo, SCRIPTED_AUTHOR, "A made-up commit: three more names ignored");
+    expect(await workspaceChanges(repo)).toEqual(CLEAN);
+    for (const n of names) writeFileSync(join(repo.workTree, n), "made-up\n");
+    expect((await workspaceChanges(repo)).ignoredNew).toEqual([...names].sort());
+    const back = await resetToLastCommit(repo);
+    expect(back.unrestorable).toEqual([]);
+    for (const n of names) expect(existsSync(join(repo.workTree, n)), n).toBe(false);
+    // And as part of the baseline: a file named __proto__ that was there at the commit, then changed, is seen.
+    writeFileSync(join(repo.workTree, "__proto__"), "made-up, at the commit\n");
+    writeFileSync(join(repo.workTree, "README.md"), "made-up, so that there is something to commit\n");
+    await commitAll(repo, SCRIPTED_AUTHOR, "A made-up commit: an ignored __proto__ in the workspace");
+    writeFileSync(join(repo.workTree, "__proto__"), "made-up, changed\n");
+    expect((await workspaceChanges(repo)).ignoredChanged).toEqual(["__proto__"]);
+  });
+
   it("the reset: a step that edited .gitignore so that the session certificate is no longer ignored does not get it removed", async () => {
     // Made-up: a .gitignore without its certificate line, then an untracked-looking certificate.
     const gi = join(repo.workTree, ".gitignore");
