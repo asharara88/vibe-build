@@ -1,0 +1,60 @@
+{
+  "app": {
+    "name": "Internal app",
+    "sample_banner": "Sample data. Everything you see here is made up. Built by the scripted engine: fixed changes, no AI model.",
+    "language": "Language",
+    "english": "English",
+    "arabic": "Arabic",
+    "sign_out": "Sign out"
+  },
+  "sign_in": {
+    "title": "Sign in",
+    "email": "Work email",
+    "password": "Password",
+    "submit": "Sign in",
+    "signing_in": "Signing in…",
+    "email_required": "Enter your work email address.",
+    "email_invalid": "That does not look like an email address. Check for a missing @ or a typo.",
+    "password_required": "Enter your password.",
+    "wrong_credentials": "The email or password is not right. Check both and try again.",
+    "server_error": "Signing in did not work because the server did not answer. Try again in a moment; if it keeps happening, tell your administrator."
+  },
+  "home": {
+    "title": "Home",
+    "signed_in_as": "Signed in as {name} ({role})",
+    "what_you_can_do": "What you can do",
+    "nothing_yet_title": "Nothing here yet",
+    "nothing_yet_body": "This app has no screens for your role yet. The next build step adds them."
+  },
+  "no_access": {
+    "title": "You do not have access to this page",
+    "role_not_allowed": "You are signed in as {role}. This page is only for: {allowed}.",
+    "role_not_recognised": "Your account has no role that this app recognises, so nothing can be shown to you.",
+    "action_refused": "Your role is not allowed to do that. Nothing was changed.",
+    "what_to_do": "If you think this is a mistake, ask your administrator.",
+    "go_home": "Go to the home page",
+    "list_separator": ", "
+  },
+  "example": {
+    "restricted_title": "Example: a page for HR admins only",
+    "restricted_body": "You can see this page, {name}, because your role is HR admin. No other role can. It is an example of the role check; the build step that adds this app's own screens replaces it.",
+    "action_title": "Example: an action for managers and HR admins",
+    "action_body": "Every signed-in role can open this page. Only a manager or an HR admin can use the button. Your role is {role}.",
+    "action_button": "Run the example action",
+    "action_done": "Done. The example action ran for the role {role}. Nothing was stored."
+  },
+  "roles": {
+    "employee": "Employee",
+    "manager": "Manager",
+    "hr_admin": "HR admin"
+  },
+  "common": {
+    "created_by_at": "Created by {who} on {when}",
+    "updated_by_at": "Last changed by {who} on {when}",
+    "confirm_title": "Are you sure?",
+    "confirm_body": "This cannot be undone.",
+    "confirm_yes": "Yes, do it",
+    "confirm_no": "No, go back",
+    "source": "Source: {source}. Period: {period}."
+  }
+}
