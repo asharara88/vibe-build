@@ -1,10 +1,12 @@
 # House template, TypeScript candidate. Two stages: build with development tools, run without them.
 FROM node:22-alpine AS build
 WORKDIR /app
-# On the development profile the build is given the cloud session's proxy and its certificate: some
-# HTTPS answers on that machine come with a certificate trusted only with a copy of it (package 0.6a,
-# 12 Nov 2026). That proxy is not the machine's only way out: requests sent with no proxy also got
-# answers (evidence/2026-11-12-package-0.6a/isolation-checks.md).
+# On the development profile the sandbox manager runs this build on the host's network, gives it the
+# cloud session's proxy as build arguments and puts the session's certificate in certs/. On that
+# machine an HTTPS request to the registry, sent directly from a container with no copy of the
+# certificate, got a certificate it did not trust; from one with a copy it got 200 (package 0.6a,
+# 12 Nov 2026, attempt A1). That proxy is not the machine's only way out: requests sent with no proxy
+# also got answers (evidence/2026-11-12-package-0.6a/isolation-checks.md).
 # The proxy's address is passed as a build argument that Docker predefines (HTTPS_PROXY, HTTP_PROXY):
 # it reaches the build steps and, because it is not declared here, it is not recorded in the image's
 # history. The certificate is copied into this build stage: the app image (the `run` stage) does not
