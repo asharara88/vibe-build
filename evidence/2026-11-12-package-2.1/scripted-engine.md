@@ -134,7 +134,7 @@ The same command as run 3, with the files of commit `69b0e28` (the code is the s
 
 ## Run 5: on the code of `076ff39` (`run-live-5-final.txt`, `screens/` 05 to 08)
 
-The same command as runs 3 and 4, with the files of commit `076ff39`: the engine's class and the history functions had changed since run 4, the change sets and the screen script had not. 12 Nov 2026; the request it sent is shown as sent at 18:21 UTC. Exit code 0. Whole run 91 seconds. The file's first line, which says this, was added after the merge; the lines below it are as first kept (commit `48a0ae0`). Against run 4's output only these lines differ:
+The command was not recorded at the time; it is inferred as the same as runs 3 and 4, from the template path in its output and from screens 05 to 08 being replaced. Run with the files of commit `076ff39`: the engine's class and the history functions had changed since run 4, the change sets and the screen script had not. 12 Nov 2026; the request it sent is shown as sent at 18:21 UTC. Exit code 0. Whole run 91 seconds. The file's first line, which says this, was added after the merge; the lines below it are as first kept (commit `48a0ae0`). Against run 4's output only these lines differ:
 
 - the names of the project's three commits, which each run makes afresh;
 - the times: images built 68 seconds from the start (67 in run 4), the whole run 91 seconds (89), and "Sent on November 12, 2026 at 18:21 UTC" (17:12);
@@ -173,7 +173,7 @@ Not run again: the merged commit `4a5248c` changed the history functions after t
 
 ## What this does not show
 
-- **Packages 3.1, 3.2, 2.2 and W2 are not built.** The acceptance store and runner, the exporter, the real engine and the test harness are what this package is for; none of them exists yet. That later packages can use it "with no spend" is designed, not shown: nothing uses it yet.
+- **Packages 3.1, 3.2, 2.2 and W2 are not built.** The acceptance store and runner, the exporter, the real engine and the test harness are what this package is for; none of them exists yet. Its "Done means" is shown as read in `docs/DECISIONS.md` (12 Nov): the engine works behind the interface at zero usage and labels what it makes. That a later package does use it with no spend is shown only when 3.1, 3.2 or W2 is built.
 - **The network, for the real engine.** The engine container has no network. Attempts made from it, in 3.1, to reach the acceptance store over the network or through the database will fail for that reason alone, and say nothing about package 2.2's engine, which needs a route to the gateway (known gap 50).
 - **The server profile.** Only the development profile was run. The engine service is the same in both (unit test), but it was not started on a server.
 - **The rest of example 1.** No employee record, no balance, no telling the manager, no manager or HR screens, and no mail catcher in the template (known gap 54). Acceptance item 1 is what this app can pass; items 2 to 6 cannot.
