@@ -1,0 +1,25 @@
+ ✓ test/licence-rule.test.ts > licence expressions > accepts a permitted licence and combinations made only of permitted licences 2ms
+ ✓ test/licence-rule.test.ts > licence expressions > refuses anything else 1ms
+ ✓ test/licence-rule.test.ts > the rule > passes when every package is permitted 1ms
+ ✓ test/licence-rule.test.ts > the rule > fails on a development-only package outside the list: there is no weaker rule for development tools 1ms
+ ✓ test/licence-rule.test.ts > the rule > lists every problem, not only the first 0ms
+ ✓ test/licence-rule.test.ts > the rule > accepts the named exceptions for development use 0ms
+ ✓ test/licence-rule.test.ts > the rule > does not extend an approval to another package with the same licence 1ms
+ ✓ test/licence-rule.test.ts > the rule > fails when a package approved for development use is among the shipped dependencies 0ms
+ ✓ test/licence-rule.test.ts > the rule > fails when an approved package later declares a different licence 1ms
+ ✓ test/licence-rule.test.ts > the rule > fails a build package whose version differs from its main package, or whose main package is absent 0ms
+ ✓ test/licence-rule.test.ts > the rule > covers only the build packages named one by one, not every name that starts the same way 0ms
+ ✓ test/licence-rule.test.ts > the rule > treats an old-style list of licences as all applying, each read on its own 0ms
+ ✓ test/licence-rule.test.ts > the rule > records which packages were accepted on one side of a choice of licences 0ms
+ ✓ test/licence-rule.test.ts > the rule > does not let a build package's name excuse a different licence 0ms
+ ✓ test/licence-rule.test.ts > the real check, run against a folder with a test package added > passes on a folder whose packages are all permitted 817ms
+ ✓ test/licence-rule.test.ts > the real check, run against a folder with a test package added > fails when a shipped test package outside the rule is added, and names it 798ms
+ ✓ test/licence-rule.test.ts > the real check, run against a folder with a test package added > fails when a development-only test package outside the rule is added 730ms
+ ✓ test/licence-rule.test.ts > the real check, run against a folder with a test package added > fails when a test package declares no licence at all 765ms
+ ✓ test/licence-rule.test.ts > the real check, run against a folder with a test package added > fails when a shipped test package outside the rule is marked private 691ms
+ ✓ test/licence-rule.test.ts > the real check, run against a folder with a test package added > fails when it reads nothing: an empty folder, or a folder that does not exist 913ms
+ ✓ test/licence-rule.test.ts > the real check, run against a folder with a test package added > fails when a declared dependency is not installed, since its licence cannot be read 847ms
+ ✓ test/licence-rule.test.ts > the real check, run against a folder with a test package added > fails when the notices file is out of date 2294ms
+ ✓ test/licence-rule.test.ts > the real check, run against a folder with a test package added > passes on the builder itself, with the notices file up to date 2277ms
+ Test Files  1 passed (1)
+      Tests  23 passed (23)
