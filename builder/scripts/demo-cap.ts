@@ -58,7 +58,11 @@ standIn.post("/v1/messages", async (c) => {
     const r = await pool.query<{ n: number }>("select count(*)::int as n from holds where project_id = $1 and state = 'open'", [project]);
     openHoldsAtForward.set(project, [...(openHoldsAtForward.get(project) ?? []), r.rows[0]!.n]);
   }
-  if (test === "never-answers") await new Promise((r) => setTimeout(r, 5000));
+  if (test === "never-answers") {
+    // No answer comes before the gateway's connection to the stand-in is closed (sections B5 and B6), as the test's stand-in does.
+    await new Promise<void>((resolve) => (c.req.raw.signal.aborted ? resolve() : c.req.raw.signal.addEventListener("abort", () => resolve(), { once: true })));
+    return c.json({ type: "error", error: { type: "api_error", message: "stand-in: no answer was meant to arrive" } }, 500);
+  }
   // Row B16: bill 4% more prompt tokens than were counted, all as one-hour cache writes (the dearest input rate), and all of max_tokens.
   if (test === "bill-above-count") {
     const counted = countOf(body.system);
@@ -212,39 +216,51 @@ log("\n== B5. A hold past its deadline is kept, not released ==");
 log("\n== B6. Holds are database rows that survive the gateway stopping: the first gateway runs as a process of its own ==");
 {
   const { id, token } = await project(0.2);
-  // The first gateway: its own process, started as the scripts are, with `node --import tsx` (test/b6-gateway-process.ts).
+  // The first gateway: its own process, with tsx loaded into Node (`node --import tsx test/b6-gateway-process.ts`).
   const child = spawn(process.execPath, ["--import", "tsx", "test/b6-gateway-process.ts"], {
     cwd: BUILDER_DIR,
     env: { ...process.env, BUILDER_TEST_DATABASE_URL: DATABASE_URL, B6_UPSTREAM_URL: provider.url, B6_GATEWAY_ID: "gw_demo_first", B6_MODEL_KEY: REAL_KEY },
     stdio: ["ignore", "pipe", "inherit"],
   });
-  const said: Array<Record<string, unknown>> = [];
-  let partial = "";
-  child.stdout.on("data", (d: Buffer) => {
-    partial += d.toString();
-    const parts = partial.split("\n");
-    partial = parts.pop() ?? "";
-    for (const line of parts) if (line.trim()) said.push(JSON.parse(line) as Record<string, unknown>);
-  });
-  const exited = new Promise<number | null>((resolve) => child.on("exit", (code) => resolve(code)));
-  const listening = () => said.find((s) => typeof s["listening"] === "string")?.["listening"] as string | undefined;
-  for (let i = 0; i < 500 && !listening(); i++) await new Promise((r) => setTimeout(r, 20));
-  const firstUrl = listening();
-  if (!firstUrl) throw new Error("the first gateway's process did not start");
-  log("  the first gateway, gw_demo_first, runs as a process of its own on the same database");
-  const reachedBefore = forwarded;
-  const inFlight = send(firstUrl, token, opus({ metadata: { test: "never-answers" } })).then(
-    (r) => `answered with HTTP ${r.status}`,
-    () => "the connection closed with no answer",
-  );
-  for (let i = 0; i < 500 && forwarded === reachedBefore; i++) await new Promise((r) => setTimeout(r, 20));
-  if (forwarded === reachedBefore) throw new Error("the call through the first gateway did not reach the stand-in");
-  log("  a call is in flight through gw_demo_first: its hold is open and the stand-in has the call, which it does not answer");
-  child.kill("SIGTERM");
-  const code = await exited;
-  log("  gw_demo_first is told to stop (the signal SIGTERM): it stops taking calls, gives calls in progress 0.3 seconds, closes its database connections and exits");
-  log(`  what the process said as it stopped: ${JSON.stringify(said.find((s) => s["stopping"]))}, then ${JSON.stringify(said.at(-1))}`);
-  log(`  the process exited with code ${code}; the call's caller: ${await inFlight}`);
+  try {
+    const said: Array<Record<string, unknown>> = [];
+    let partial = "";
+    child.stdout.on("data", (d: Buffer) => {
+      partial += d.toString();
+      const parts = partial.split("\n");
+      partial = parts.pop() ?? "";
+      for (const line of parts) if (line.trim()) said.push(JSON.parse(line) as Record<string, unknown>);
+    });
+    // "close" comes once the process has ended and its output has closed, so every line it printed has been read.
+    const exited = new Promise<number | null>((resolve) => child.on("close", (code) => resolve(code)));
+    const listening = () => said.find((s) => typeof s["listening"] === "string")?.["listening"] as string | undefined;
+    for (let i = 0; i < 500 && !listening(); i++) await new Promise((r) => setTimeout(r, 20));
+    const firstUrl = listening();
+    if (!firstUrl) throw new Error("the first gateway's process did not start");
+    log("  the first gateway, gw_demo_first, runs as a process of its own on the same database");
+    const reachedBefore = forwarded;
+    const inFlight = send(firstUrl, token, opus({ metadata: { test: "never-answers" } })).then(
+      (r) => `answered with HTTP ${r.status}`,
+      () => "the connection closed with no answer",
+    );
+    for (let i = 0; i < 500 && forwarded === reachedBefore; i++) await new Promise((r) => setTimeout(r, 20));
+    if (forwarded === reachedBefore) throw new Error("the call through the first gateway did not reach the stand-in");
+    log("  a call is in flight through gw_demo_first: its hold is open and the stand-in has the call; the stand-in does not answer it, and waits until the gateway's connection to it closes");
+    child.kill("SIGTERM");
+    log("  gw_demo_first is told to stop (the signal SIGTERM)");
+    for (let i = 0; i < 500 && !said.some((s) => s["stopping"]); i++) await new Promise((r) => setTimeout(r, 20));
+    if (!said.some((s) => s["stopping"])) throw new Error("the first gateway's process did not say it was stopping");
+    const afterStop = await send(firstUrl, token, opus()).then(
+      (r) => `answered with HTTP ${r.status}`,
+      (e: unknown) => `refused, the connection was not taken (${String((e as { cause?: { code?: unknown } }).cause?.code)})`,
+    );
+    log(`  it says it is stopping: ${JSON.stringify(said.find((s) => s["stopping"]))}; a new call sent to it now: ${afterStop}${said.some((s) => s["stopped"]) ? "" : ", before the process said it had stopped"}`);
+    const code = await exited;
+    log(`  then it says, with each value read as it stops: ${JSON.stringify(said.at(-1))}`);
+    log(`  the process exited with code ${code}; the first call's caller: ${await inFlight}`);
+  } finally {
+    if (child.exitCode === null) child.kill("SIGKILL");
+  }
   const before = await showBudget(id, "budget with the first gateway's process exited");
   const keeper = await startHoldKeeper(pool, "gw_demo_second");
   keeper.stop();
