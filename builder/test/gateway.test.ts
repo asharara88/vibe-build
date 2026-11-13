@@ -606,7 +606,8 @@ describe("holds: proof rows B1 to B6 of the design note", () => {
   it("B6: holds are database rows: a gateway that starts finds the hold an earlier one left open, and keeps it", async () => {
     const first = await listen(createGateway({ pool, modelApiKey: REAL_KEY, upstreamUrl, profiles: PROFILES, gatewayId: "gw_test_first", onFault: (m) => faults.push(m) }));
     const { id, token } = await newProject(PLAIN_HOLD * 1.5);
-    // A call is in flight when the first gateway stops.
+    // A call is in flight when the caller leaves and the first gateway's server is closed. Both gateways run in this
+    // one process, so the first one's request handler can still record the call's ending after the second has started.
     const controller = new AbortController();
     const inFlight = callAt(first.url, token, plain("very-slow"), "/v1/messages", {}, { signal: controller.signal }).catch(() => null);
     await waitForEvents(id, "hold.opened", 1);
@@ -642,7 +643,7 @@ describe("holds: proof rows B1 to B6 of the design note", () => {
 
 /**
  * Proof rows B15 to B19 of the design note (section 7.2, added 13 Nov 2026 by the owner's answer to
- * his question 1): one row for each case of known gap 41 that package 1.2 handles, by refusing the
+ * his question 1, as Claude Code reads it): one row for each case of known gap 41 that package 1.2 handles, by refusing the
  * request, by keeping the hold, or by a margin on the token count. Each test names its case as
  * gap 41 does. Against a stand-in: what the gateway does, not how the real provider bills.
  */
@@ -845,17 +846,31 @@ describe("holds: found by review, and kept fixed", () => {
   it("a bill above the hold is charged in full, recorded as a breach, and raises a fault", async () => {
     // The stand-in serves fast mode although the request did not ask and the profile does not allow it.
     const breaches: string[] = [];
+    const overHold = () => breaches.filter((m) => m.includes("cost more than its hold")).length;
     const g = await listen(createGateway({ pool, modelApiKey: REAL_KEY, upstreamUrl, profiles: PROFILES, onFault: (m) => breaches.push(m) }));
     try {
-      const { id, token } = await newProject(5);
-      const res = await callAt(g.url, token, { ...plain("fast-1h"), max_tokens: 300 });
+      // (1) Extended after the review of 13 Nov 2026: a cap with room for this one hold and no more.
+      // The hold is (42 + 203) x $8 + 300 x $20 per million = $0.00796, within the cap of $0.008.
+      const tight = await newProject(0.008);
+      const res = await callAt(g.url, tight.token, { ...plain("fast-1h"), max_tokens: 300 });
       expect(res.status).toBe(200);
-      const exceeded = await listEvents(pool, id, "hold.exceeded");
+      const exceeded = await listEvents(pool, tight.id, "hold.exceeded");
       expect(exceeded).toHaveLength(1);
       const p = exceeded[0]!.payload as { amount_usd: number; actual_usd: number };
+      near(p.amount_usd, (245 * 8 + 300 * 20) / 1e6);
       expect(p.actual_usd).toBeGreaterThan(p.amount_usd);
-      near((await getBudget(pool, id)).spent, p.actual_usd); // the truth is what is charged
-      expect(breaches.some((m) => m.includes("cost more than its hold"))).toBe(true);
+      const b = await getBudget(pool, tight.id);
+      near(b.spent, p.actual_usd); // the truth is what is charged
+      expect(b.spent).toBeGreaterThan(b.cap); // one bill above its hold has taken spend above the cap
+      expect(overHold()).toBe(1);
+      expect((await callAt(g.url, tight.token, plain())).status).toBe(402); // no room is left, so the next call is refused at admission
+      // (2) The fault itself stops nothing: on a project with room left, the call after the breach is admitted as usual.
+      const roomy = await newProject(5);
+      expect((await callAt(g.url, roomy.token, { ...plain("fast-1h"), max_tokens: 300 })).status).toBe(200);
+      expect(await listEvents(pool, roomy.id, "hold.exceeded")).toHaveLength(1);
+      expect(overHold()).toBe(2);
+      expect((await callAt(g.url, roomy.token, plain())).status).toBe(200);
+      expect(await listEvents(pool, roomy.id, "hold.settled")).toHaveLength(2);
     } finally {
       g.server.close();
     }
