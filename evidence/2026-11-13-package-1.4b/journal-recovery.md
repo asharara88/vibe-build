@@ -120,8 +120,8 @@ One adversarial review read the branch at `fa2b38c`, on its own copy, database a
 | --- | --- | --- |
 | `--no-hold` writes no event; nothing checks it when candidate holds exist; the status file did not say it freezes nothing | Recorded (gap 107); the status file now says "or none"; decision (8) waits for the owner's yes | — |
 | The start-up order | Found sound; nothing to do | — |
-| A running gateway never reads its journal again | Recorded (gap 130) | — |
-| The closure covers one gateway process only | Recorded (gap 131); the status file says "every project on its gateway" | — |
+| A running gateway never reads its journal again | Recorded (gap 142) | — |
+| The closure covers one gateway process only | Recorded (gap 143); the status file says "every project on its gateway" | — |
 | A set-aside entry after one cut short is joined to it | Fixed: written on a line of its own | (r4), X19 |
 | An id file left empty by a crash stops every later start | Fixed: written whole under a temporary name, forced to disk, then linked to its name (`folderIdIn`, `journal.ts:168`) | (r3), X18 |
 | `--list` briefly takes the folder's lock | Fixed: it reads PostgreSQL's list of locks held (`folderInUse`, `journal-recovery.ts:87`) | (i), X20 |
@@ -133,7 +133,7 @@ One adversarial review read the branch at `fa2b38c`, on its own copy, database a
 | The plan's row for 1.5 still says "Not opened yet" | Not this package's row (1.3's and 1.4's say the same); left for the record update after the open packages merge, so as not to clash with their rows | — |
 | Checked and fine (secrets, dependencies, names, claims, the copied review, decision (7)) | — | — |
 
-Gaps 91 and 105 to 109 are brought up to date with what remains, and gaps 130 and 131 are new: two rewrites at the same moment can still bring back a removed line or drop an appended one (gap 105).
+Gaps 91 and 105 to 109 are brought up to date with what remains, and gaps 142 and 143 are new: two rewrites at the same moment can still bring back a removed line or drop an appended one (gap 105).
 
 ### Package 1.4's test B10 (9), changed
 
@@ -149,4 +149,4 @@ The first whole-suite run after the fix failed one test, B10 (9) (`run-tests-ful
 
 - **Not tested** in the plan's sense: the review bot reads it next.
 - **No test races two real processes** on one folder; the order is fixed by wrapping the file system in one process. The review's own race of real processes (six rounds) is the review's run, not repeated here.
-- Two rewrites at the same moment (gap 105); a running gateway never reads its journal again (gap 130); more than one gateway (gap 131).
+- Two rewrites at the same moment (gap 105); a running gateway never reads its journal again (gap 142); more than one gateway (gap 143).
