@@ -50,6 +50,9 @@ export function costUsd(model: string, u: Usage): number | null {
   return Math.ceil(c * 1e6 - 1e-6) / 1e6;
 }
 
+/** Whether a usage part from the provider states the speed that served the call ("standard" or "fast"). */
+export const statesSpeed = (part: ProviderUsage): boolean => part.speed === "standard" || part.speed === "fast";
+
 /**
  * Merge a provider usage object into the accumulator. Values replace, they do not add:
  * message_delta.usage is cumulative for the message.

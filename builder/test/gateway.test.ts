@@ -87,6 +87,8 @@ function standInProvider() {
     if (mode === "fail-400-other") return c.text("<html>Bad Request from something in between</html>", 400);
     if (mode === "fail-429") return c.json({ type: "error", error: { type: "rate_limit_error", message: "stand-in rate limit" } }, 429);
     if (mode === "odd-speed") return ok({ ...PLAIN_USAGE, speed: "turbo" });
+    if (mode === "speed-fast-stated") return ok({ ...PLAIN_USAGE, speed: "fast" });
+    if (mode === "speed-standard-stated") return ok({ ...PLAIN_USAGE, speed: "standard" });
     if (mode === "cache-mismatch") return ok({ ...PLAIN_USAGE, cache_creation: { ephemeral_1h_input_tokens: 1_000_000 } });
     if (mode === "server-tool-usage") return ok({ ...PLAIN_USAGE, server_tool_use: { web_search_requests: 5 } });
     if (mode === "priority-tier") return ok({ ...PLAIN_USAGE, service_tier: "priority" });
@@ -169,6 +171,9 @@ function standInProvider() {
         "stream-named-no-data": [STREAM_FRAMES[0]!, STREAM_FRAMES[2]!, "event: message_delta\ndata:\n\n", STREAM_FRAMES[3]!],
         // Comment lines and a keep-alive with no name and no data are passed over, as before.
         "stream-with-comments": [": keep-alive\n\n", STREAM_FRAMES[0]!, ": another comment\n\n", `event: ping\ndata: {"type":"ping"}\n\n`, ...STREAM_FRAMES.slice(1)],
+        // Review of 13 Nov 2026: a stream on Claude Opus 5.5 whose usage leaves the speed out, and one that states it.
+        "stream-opus-no-speed": [start("claude-opus-5-5", { input_tokens: 1000, output_tokens: 1 }), delta({ output_tokens: 200 }), STREAM_FRAMES[3]!],
+        "stream-opus-speed-fast": [start("claude-opus-5-5", { input_tokens: 1000, output_tokens: 1, speed: "fast" }), delta({ output_tokens: 200 }), STREAM_FRAMES[3]!],
       };
       const frames =
         thirdReview[mode] ? thirdReview[mode]
@@ -1324,6 +1329,62 @@ describe("holds: found by the fifth review, and kept fixed", () => {
     const b = await newProject(5);
     await (await call(b.token, streamed("stream-with-comments"))).text();
     expect(await waitForEvents(b.id, "hold.settled", 1)).toHaveLength(1);
+  });
+});
+
+describe("holds: found by the review of 13 Nov 2026, and kept fixed", () => {
+  const SPEED_NOT_STATED = "the hold allowed for fast mode, and the usage does not state the speed that served the call";
+  /** The hold is kept at its full amount, with this reason, and nothing is charged. */
+  const keptFor = async (id: string, reason: string) => {
+    const kept = await waitForEvents(id, "hold.kept", 1);
+    expect(kept).toHaveLength(1);
+    expect((kept[0]!.payload as { reason: string }).reason).toBe(reason);
+    expect(await listEvents(pool, id, "hold.settled")).toHaveLength(0);
+    expect(await listEvents(pool, id, "model.call")).toHaveLength(0);
+    const holds = await listHolds(pool, id);
+    expect(holds[0]).toMatchObject({ state: "open", actual_usd: null });
+    const b = await getBudget(pool, id);
+    expect(b.spent).toBe(0);
+    near(b.openHolds, Number(holds[0]!.amount_usd));
+  };
+  const settledAt = async (id: string, cost: number) => {
+    const settled = await waitForEvents(id, "hold.settled", 1);
+    expect(settled).toHaveLength(1);
+    near((settled[0]!.payload as { actual_usd: number }).actual_usd, cost);
+    near((await getBudget(pool, id)).spent, cost);
+  };
+
+  it("fast mode: a plain answer whose usage leaves the speed out keeps a hold that allowed for fast mode; one that states the speed is settled at that speed", async () => {
+    // Asked for fast mode, on the profile that allows it: the hold carries the fast-mode factor.
+    const asked = await newProject(5, "fast");
+    expect((await call(asked.token, plain(undefined, { speed: "fast" }))).status).toBe(200); // the stand-in's usage has no speed
+    expect(((await listEvents(pool, asked.id, "hold.opened"))[0]!.payload as { arithmetic: { fast_mode_factor: number } }).arithmetic.fast_mode_factor).toBe(2);
+    await keptFor(asked.id, `the answer succeeded but its usage could not be read: ${SPEED_NOT_STATED}`);
+    // Not asked, but the profile allows fast mode on this model, so the hold carries the factor too.
+    const allowed = await newProject(5, "fast");
+    expect((await call(allowed.token, plain())).status).toBe(200);
+    await keptFor(allowed.id, `the answer succeeded but its usage could not be read: ${SPEED_NOT_STATED}`);
+    // The same answers stating the speed are settled at that speed's rates.
+    const fast = await newProject(5, "fast");
+    expect((await call(fast.token, plain("speed-fast-stated", { speed: "fast" }))).status).toBe(200);
+    await settledAt(fast.id, up6(2 * ((30 * 4 + 4 * 5 + 8 * 0.2 + 300 * 20) / 1e6)));
+    const standard = await newProject(5, "fast");
+    expect((await call(standard.token, plain("speed-standard-stated"))).status).toBe(200);
+    await settledAt(standard.id, PLAIN_COST);
+    // A hold without the factor (the standard profile) is settled as before when the speed is left out.
+    const plainProfile = await newProject(5);
+    expect((await call(plainProfile.token, plain())).status).toBe(200);
+    await settledAt(plainProfile.id, PLAIN_COST);
+  });
+
+  it("fast mode: the same on a stream", async () => {
+    const opusStream = (test: string) => ({ model: "claude-opus-5-5", max_tokens: 250, stream: true, system: "count:1500", messages: [], speed: "fast", metadata: { test } });
+    const a = await newProject(5, "fast");
+    await (await call(a.token, opusStream("stream-opus-no-speed"))).text();
+    await keptFor(a.id, `the stream ended without usage figures that could be read: ${SPEED_NOT_STATED}`);
+    const b = await newProject(5, "fast");
+    await (await call(b.token, opusStream("stream-opus-speed-fast"))).text();
+    await settledAt(b.id, up6(2 * ((1000 * 4 + 200 * 20) / 1e6)));
   });
 });
 

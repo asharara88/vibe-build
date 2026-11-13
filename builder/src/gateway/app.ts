@@ -23,7 +23,7 @@ import type pg from "pg";
 import { appendEvent } from "../store/events.js";
 import { expireHolds, keepHold, openHold, recoverHolds, settleHold } from "../store/holds.js";
 import { projectForToken, type Project } from "../store/projects.js";
-import { costUsd, emptyUsage, mergeUsage, USAGE_COUNTS, usageIsReadable, type Usage } from "./cost.js";
+import { costUsd, emptyUsage, mergeUsage, statesSpeed, USAGE_COUNTS, usageIsReadable, type ProviderUsage, type Usage } from "./cost.js";
 import { betasNotAllowed, computeHold, countRequestBody, DEFAULT_PROFILES, guardRequest, type MeteredRequest, type ProfileLimits } from "./hold.js";
 import { spellsKey } from "./key-reader.js";
 import { PRICE_TABLE_DATE, PRICES } from "./prices.js";
@@ -97,6 +97,8 @@ const LONE_SURROGATE = /[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[
 /** An answer body longer than this is not searched: it is withheld, and on a metered call its hold is kept. */
 const MAX_BODY_CHARS = 8_000_000;
 const WITHHELD_BODY = JSON.stringify({ type: "error", error: { type: "api_error", message: "The gateway withheld the provider's answer body: it could not be checked." } });
+/** Why a call whose hold allowed for fast mode is not settled when its usage leaves the speed out. */
+const SPEED_NOT_STATED = "the hold allowed for fast mode, and the usage does not state the speed that served the call";
 const MINUTE = 60_000;
 const DEFAULT_TIME_LIMIT = { plain: 10 * MINUTE, stream: 60 * MINUTE };
 /** Design note 5.5, step 4: ten minutes for a plain call, thirty for a streamed one. */
@@ -306,6 +308,9 @@ export function createGateway(opts: GatewayOptions) {
 
     // 3: work out the hold and check the budget equation, in one locked transaction.
     const arithmetic = computeHold(body, counted, profile, PRICE_TABLE_DATE);
+    // A hold that allowed for fast mode is settled only on usage that states the speed that served
+    // the call: without it, which rate is the bill is not known (review of 13 Nov 2026).
+    const fastHeld = arithmetic.fast_mode_factor > 1;
     const limitMs = stream ? timeLimit.stream : timeLimit.plain;
     // Counted from now, when the hold is about to open, so the margin is not eaten by the counting call.
     const deadline = new Date(Date.now() + limitMs + (stream ? deadlineMargin.stream : deadlineMargin.plain));
@@ -447,6 +452,7 @@ export function createGateway(opts: GatewayOptions) {
       let sawUnreadable = false; // a usage block that could not be trusted: the whole call counts as unread
       let sawStop = false; // the provider's own end-of-message marker
       let sawError = false; // an error event inside the stream
+      let speedStated = false; // a usage block in the stream said which speed served the call
       let buffer = "";
       const decoder = new TextDecoder();
       const consume = (text: string) => {
@@ -460,6 +466,7 @@ export function createGateway(opts: GatewayOptions) {
           // if either happens, which figure is the bill is not known.
           if (USAGE_COUNTS.some((f) => r.usage[f] < usage[f]) || (usage.speed === "fast" && r.usage.speed !== "fast")) sawUnreadable = true;
           usage = r.usage;
+          if (r.part && statesSpeed(r.part)) speedStated = true;
           if (r.model) servedModel = r.model;
           if (r.kind === "message_start") {
             if (sawInput) sawUnreadable = true; // a second start: which one is the bill is not known
@@ -492,8 +499,10 @@ export function createGateway(opts: GatewayOptions) {
               if (limit.signal.aborted) await keep("the call reached its time limit", usage, res.status, servedModel);
               else if (sawError) await keep("the provider reported an error inside the stream", usage, res.status, servedModel);
               else if (!sawStop) await keep("the stream ended without the provider's end-of-message marker, so its figures may be partial", usage, res.status, servedModel);
-              else if (sawInput && sawOutput && !sawUnreadable && usage.input_tokens + usage.cache_creation_input_tokens + usage.cache_read_input_tokens > 0) await settle(usage, res.status, servedModel);
-              else await keep("the stream ended without usage figures that could be read", usage, res.status, servedModel);
+              else if (sawInput && sawOutput && !sawUnreadable && usage.input_tokens + usage.cache_creation_input_tokens + usage.cache_read_input_tokens > 0) {
+                if (fastHeld && !speedStated) await keep(`the stream ended without usage figures that could be read: ${SPEED_NOT_STATED}`, usage, res.status, servedModel);
+                else await settle(usage, res.status, servedModel);
+              } else await keep("the stream ended without usage figures that could be read", usage, res.status, servedModel);
               ctrl.close();
               return;
             }
@@ -530,6 +539,7 @@ export function createGateway(opts: GatewayOptions) {
     }
     let usage: Usage | null = null;
     let servedModel = "";
+    let speedNotStated = false;
     try {
       const j = JSON.parse(text) as { usage?: unknown; model?: unknown };
       servedModel = typeof j.model === "string" ? j.model : "";
@@ -537,13 +547,16 @@ export function createGateway(opts: GatewayOptions) {
       if (servedModel !== "" && usageIsReadable(j.usage, ["input_tokens", "output_tokens"])) {
         const u = mergeUsage(emptyUsage(), j.usage);
         // An answer that says no prompt tokens at all were used is not a bill that can be trusted.
-        if (u.input_tokens + u.cache_creation_input_tokens + u.cache_read_input_tokens > 0) usage = u;
+        if (u.input_tokens + u.cache_creation_input_tokens + u.cache_read_input_tokens > 0) {
+          if (fastHeld && !statesSpeed(j.usage)) speedNotStated = true;
+          else usage = u;
+        }
       }
     } catch {
       /* not JSON: usage stays unread */
     }
     if (usage) await settle(usage, res.status, servedModel);
-    else await keep("the answer succeeded but its usage could not be read", emptyUsage(), res.status, servedModel);
+    else await keep(`the answer succeeded but its usage could not be read${speedNotStated ? `: ${SPEED_NOT_STATED}` : ""}`, emptyUsage(), res.status, servedModel);
     return new Response(safeBody(text), { status: res.status, headers: safeHeaders(res.headers) });
   });
 
@@ -599,8 +612,11 @@ function frameEnd(buffer: string): number {
   return Math.min(a, b);
 }
 
-/** Read usage (and the served model) from one SSE frame. message_start carries input usage; message_delta carries output. */
-export function readFrame(frame: string, acc: Usage): { usage: Usage; model?: string; kind?: "message_start" | "message_delta" | "message_stop" | "error" | "unreadable" } {
+/**
+ * Read usage (and the served model) from one SSE frame. message_start carries input usage; message_delta carries output.
+ * `part` is the usage block the frame itself carried, when it was read.
+ */
+export function readFrame(frame: string, acc: Usage): { usage: Usage; model?: string; kind?: "message_start" | "message_delta" | "message_stop" | "error" | "unreadable"; part?: ProviderUsage } {
   // Lines end as the event-stream format allows: CR LF, LF, or CR alone.
   const lines = frame.split(/\r\n|\n|\r/);
   const data = lines
@@ -624,11 +640,11 @@ export function readFrame(frame: string, acc: Usage): { usage: Usage; model?: st
       const m = ev.message;
       // The model must be given as text, and not empty: anything else is not a name the price table can be asked about.
       if (m !== null && typeof m === "object" && typeof m.model === "string" && m.model !== "" && usageIsReadable(m.usage, ["input_tokens"])) {
-        return { usage: mergeUsage(acc, m.usage), model: m.model, kind: "message_start" };
+        return { usage: mergeUsage(acc, m.usage), model: m.model, kind: "message_start", part: m.usage };
       }
       return { usage: acc, model: m !== null && typeof m === "object" && typeof m.model === "string" ? m.model : undefined, kind: "unreadable" };
     }
-    if (ev.type === "message_delta" && usageIsReadable(ev.usage, ["output_tokens"])) return { usage: mergeUsage(acc, ev.usage), kind: "message_delta" };
+    if (ev.type === "message_delta" && usageIsReadable(ev.usage, ["output_tokens"])) return { usage: mergeUsage(acc, ev.usage), kind: "message_delta", part: ev.usage };
     if (ev.type === "message_delta" && ev.usage !== undefined) return { usage: acc, kind: "unreadable" };
     if (ev.type === "message_stop") return { usage: acc, kind: "message_stop" };
     if (ev.type === "error") return { usage: acc, kind: "error" };
