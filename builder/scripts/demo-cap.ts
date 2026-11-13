@@ -6,10 +6,13 @@
  * A hold is a reservation worked out from the provider's token estimate plus an assumed margin,
  * not a proven ceiling on the bill. Nothing here shows how the real provider counts or bills.
  * Uses a stand-in model provider: no real key, no real provider, nothing spent.
+ * Section B6 starts its first gateway as a process of its own (test/b6-gateway-process.ts) and stops it.
  * Run: npx tsx scripts/demo-cap.ts   (the database named by BUILDER_TEST_DATABASE_URL, or the local builder_test)
  */
 import { serve, type ServerType } from "@hono/node-server";
 import { Hono } from "hono";
+import { spawn } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import { createGateway, startHoldKeeper } from "../src/gateway/app.js";
 import { DEFAULT_PROFILES } from "../src/gateway/hold.js";
 import { createPool } from "../src/store/db.js";
@@ -73,7 +76,10 @@ standIn.post("/v1/messages", async (c) => {
 });
 
 const PROFILES = { ...DEFAULT_PROFILES, fast: { maxTokensCeiling: 16_000, allowFastMode: true } };
-const pool = createPool(process.env.BUILDER_TEST_DATABASE_URL ?? "postgres:///builder_test?host=/var/run/postgresql");
+const DATABASE_URL = process.env.BUILDER_TEST_DATABASE_URL ?? "postgres:///builder_test?host=/var/run/postgresql";
+/** The builder's own folder, where section B6 starts its first gateway as a process of its own. */
+const BUILDER_DIR = fileURLToPath(new URL("..", import.meta.url));
+const pool = createPool(DATABASE_URL);
 await migrate(pool);
 const provider = await listen(standIn);
 const run = Date.now();
@@ -203,29 +209,50 @@ log("\n== B5. A hold past its deadline is kept, not released ==");
   quick.server.close();
 }
 
-log("\n== B6. Holds are database rows: a gateway that starts finds the hold an earlier one left open ==");
+log("\n== B6. Holds are database rows that survive the gateway stopping: the first gateway runs as a process of its own ==");
 {
-  const first = await listen(gatewayApp("gw_demo_first"));
   const { id, token } = await project(0.2);
-  const controller = new AbortController();
-  const inFlight = send(first.url, token, opus({ metadata: { test: "never-answers" } }), controller.signal).catch(() => null);
-  while ((await listEvents(pool, id, "hold.opened")).length === 0) await new Promise((r) => setTimeout(r, 20));
-  log("  a call is in flight through gateway gw_demo_first; the caller now leaves, and the first gateway's server is closed");
-  log("  (both gateways run in this one process, so the first gateway is not stopped: its request handler can still write the call's ending)");
-  controller.abort();
-  await inFlight;
-  await new Promise<void>((resolve) => first.server.close(() => resolve()));
-  const before = await showBudget(id, "budget with the first gateway's server closed");
+  // The first gateway: its own process, started as the scripts are, with `node --import tsx` (test/b6-gateway-process.ts).
+  const child = spawn(process.execPath, ["--import", "tsx", "test/b6-gateway-process.ts"], {
+    cwd: BUILDER_DIR,
+    env: { ...process.env, BUILDER_TEST_DATABASE_URL: DATABASE_URL, B6_UPSTREAM_URL: provider.url, B6_GATEWAY_ID: "gw_demo_first", B6_MODEL_KEY: REAL_KEY },
+    stdio: ["ignore", "pipe", "inherit"],
+  });
+  const said: Array<Record<string, unknown>> = [];
+  let partial = "";
+  child.stdout.on("data", (d: Buffer) => {
+    partial += d.toString();
+    const parts = partial.split("\n");
+    partial = parts.pop() ?? "";
+    for (const line of parts) if (line.trim()) said.push(JSON.parse(line) as Record<string, unknown>);
+  });
+  const exited = new Promise<number | null>((resolve) => child.on("exit", (code) => resolve(code)));
+  const listening = () => said.find((s) => typeof s["listening"] === "string")?.["listening"] as string | undefined;
+  for (let i = 0; i < 500 && !listening(); i++) await new Promise((r) => setTimeout(r, 20));
+  const firstUrl = listening();
+  if (!firstUrl) throw new Error("the first gateway's process did not start");
+  log("  the first gateway, gw_demo_first, runs as a process of its own on the same database");
+  const reachedBefore = forwarded;
+  const inFlight = send(firstUrl, token, opus({ metadata: { test: "never-answers" } })).then(
+    (r) => `answered with HTTP ${r.status}`,
+    () => "the connection closed with no answer",
+  );
+  for (let i = 0; i < 500 && forwarded === reachedBefore; i++) await new Promise((r) => setTimeout(r, 20));
+  if (forwarded === reachedBefore) throw new Error("the call through the first gateway did not reach the stand-in");
+  log("  a call is in flight through gw_demo_first: its hold is open and the stand-in has the call, which it does not answer");
+  child.kill("SIGTERM");
+  const code = await exited;
+  log("  gw_demo_first is told to stop (the signal SIGTERM): it stops taking calls, gives calls in progress 0.3 seconds, closes its database connections and exits");
+  log(`  what the process said as it stopped: ${JSON.stringify(said.find((s) => s["stopping"]))}, then ${JSON.stringify(said.at(-1))}`);
+  log(`  the process exited with code ${code}; the call's caller: ${await inFlight}`);
+  const before = await showBudget(id, "budget with the first gateway's process exited");
   const keeper = await startHoldKeeper(pool, "gw_demo_second");
   keeper.stop();
-  log("  a second gateway, gw_demo_second, starts on the same database and looks for open holds");
+  log("  a second gateway, gw_demo_second, starts on the same database, in this demonstration's own process, and looks for open holds");
   const h = (await listHolds(pool, id))[0]!;
-  log(`  the hold's row: state ${h.state}, amount ${usd(Number(h.amount_usd))}, opened by ${h.gateway}`);
+  log(`  the hold's row: state ${h.state}, amount ${usd(Number(h.amount_usd))}, opened by ${h.gateway}; reason for keeping it: ${h.kept_reason ?? "none written"}; found at a start-up: ${h.seen_at_startup}`);
   await showEvents(id);
-  const order = (await listEvents(pool, id)).map((e) => e.kind);
-  const keptAt = order.indexOf("hold.kept");
-  const foundAt = order.indexOf("hold.found_at_startup");
-  log(`  in the log, the first gateway's hold.kept comes ${keptAt < 0 ? "nowhere (it was not written)" : keptAt < foundAt ? "before" : "after"} the second gateway's hold.found_at_startup`);
+  log("  the first gateway's process had exited before the second gateway looked for open holds");
   const after = await showBudget(id, "budget after the second gateway started");
   log(`  spent + open holds the same before and after: ${before.spent + before.openHolds === after.spent + after.openHolds ? "yes" : "NO"}`);
   const second = await listen(gatewayApp("gw_demo_second"));

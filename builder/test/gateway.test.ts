@@ -1,7 +1,9 @@
 import { serve, type ServerType } from "@hono/node-server";
 import { Hono } from "hono";
+import { spawn } from "node:child_process";
 import { createServer as createHttpServer } from "node:http";
 import type { AddressInfo } from "node:net";
+import { fileURLToPath } from "node:url";
 import type pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createGateway, normalisePath, startHoldKeeper } from "../src/gateway/app.js";
@@ -13,6 +15,8 @@ import { createProject, getSpend, issueProjectToken } from "../src/store/project
 import { TEST_DB_URL, testPool, uniqueId } from "./helpers.js";
 
 const REAL_KEY = "test-real-key-never-leaves-the-gateway";
+/** The builder's own folder, where the gateway process of proof row B6 is started. */
+const BUILDER_DIR = fileURLToPath(new URL("..", import.meta.url));
 let pool: pg.Pool;
 let upstream: ServerType;
 let upstreamUrl: string;
@@ -139,6 +143,12 @@ function standInProvider() {
     if (mode === "redirect") return c.redirect("http://127.0.0.1:9/elsewhere", 307);
     if (mode === "slow-wait") await new Promise((r) => setTimeout(r, 300));
     if (mode === "very-slow") await new Promise((r) => setTimeout(r, 1500));
+    if (mode === "never-answers") {
+      // Proof row B6 with the first gateway as its own process: no answer comes before the gateway's
+      // connection to the stand-in is closed, which happens when that process exits.
+      await new Promise<void>((resolve) => (c.req.raw.signal.aborted ? resolve() : c.req.raw.signal.addEventListener("abort", () => resolve(), { once: true })));
+      return c.json({ type: "error", error: { type: "api_error", message: "stand-in: no answer was meant to arrive" } }, 500);
+    }
     if (mode === "no-usage") return c.json({ id: "msg_test", type: "message", model: body.model, content: [{ type: "text", text: "hello" }] });
     if (body.stream) {
       const slow = mode === "slow-stream";
@@ -625,7 +635,7 @@ describe("holds: proof rows B1 to B6 of the design note", () => {
     const before = await getBudget(pool, id);
     near(before.openHolds, PLAIN_HOLD);
 
-    // A new gateway process starts on the same database.
+    // A new gateway starts on the same database, in this same process (the next test runs the first gateway as a process of its own).
     const keeper = await startHoldKeeper(pool, "gw_test_restarted");
     keeper.stop();
     expect(keeper.found).toBeGreaterThanOrEqual(1);
@@ -646,6 +656,87 @@ describe("holds: proof rows B1 to B6 of the design note", () => {
     } finally {
       restarted.server.close();
     }
+  });
+
+  it("B6: a gateway process that stops cleanly with a call in flight leaves its hold open; a gateway started afterwards finds it, keeps it at its full amount and still counts it", async () => {
+    // Second re-read of 13 Nov 2026: the first gateway runs as a process of its own (test/b6-gateway-process.ts),
+    // started as the scripts are run, with `node --import tsx`, on this test database and against this file's stand-in.
+    const { id, token } = await newProject(PLAIN_HOLD * 1.5);
+    const child = spawn(process.execPath, ["--import", "tsx", "test/b6-gateway-process.ts"], {
+      cwd: BUILDER_DIR,
+      env: { ...process.env, BUILDER_TEST_DATABASE_URL: TEST_DB_URL, B6_UPSTREAM_URL: upstreamUrl, B6_GATEWAY_ID: "gw_test_b6_process", B6_MODEL_KEY: REAL_KEY },
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    const said: Array<Record<string, unknown>> = [];
+    let stderr = "";
+    let partial = "";
+    child.stdout.on("data", (d: Buffer) => {
+      partial += d.toString();
+      const parts = partial.split("\n");
+      partial = parts.pop() ?? "";
+      for (const line of parts) if (line.trim()) said.push(JSON.parse(line) as Record<string, unknown>);
+    });
+    child.stderr.on("data", (d: Buffer) => (stderr += d.toString()));
+    const exited = new Promise<number | null>((resolve) => child.on("exit", (code) => resolve(code)));
+    const until = async (what: string, ok: () => boolean) => {
+      for (let i = 0; i < 300 && !ok(); i++) await new Promise((r) => setTimeout(r, 20));
+      if (!ok()) throw new Error(`the gateway process did not reach "${what}": ${JSON.stringify(said)} ${stderr}`);
+    };
+    try {
+      await until("listening", () => said.some((s) => typeof s["listening"] === "string"));
+      const childUrl = said.find((s) => typeof s["listening"] === "string")!["listening"] as string;
+      // A call through the gateway process, to a stand-in that does not answer it.
+      const before = forwarded;
+      const inFlight = callAt(childUrl, token, plain("never-answers")).then(
+        (r) => `answered ${r.status}`,
+        () => "the connection closed with no answer",
+      );
+      await until("the call reached the stand-in", () => forwarded === before + 1);
+      expect((await listHolds(pool, id))[0]).toMatchObject({ state: "open", gateway: "gw_test_b6_process" });
+      // The gateway process is told to stop, as a service is: it stops taking calls, gives calls in progress
+      // 300 ms, closes its database connections and exits with code 0.
+      child.kill("SIGTERM");
+      expect(await exited).toBe(0);
+      expect(said.find((s) => s["stopping"])).toEqual({ stopping: { calls_in_progress: 1 } });
+      expect(said.at(-1)).toEqual({ stopped: { calls_in_progress: 1, every_connection_ended: false, server_closed_to_new_calls: true, database_connections_closed: true } });
+      expect(said.filter((s) => s["fault"])).toEqual([]);
+      expect(await inFlight).toBe("the connection closed with no answer");
+    } finally {
+      if (child.exitCode === null) child.kill("SIGKILL");
+    }
+
+    // The process has exited. The hold it opened is open at its full amount, with nothing written about the call's ending.
+    expect(await kinds(id)).toEqual(["hold.opened"]);
+    const held = (await listHolds(pool, id))[0]!;
+    expect(held).toMatchObject({ state: "open", gateway: "gw_test_b6_process", kept_reason: null, seen_at_startup: false, actual_usd: null });
+    near(Number(held.amount_usd), PLAIN_HOLD);
+    const before = await getBudget(pool, id);
+    expect(before.spent).toBe(0);
+    near(before.openHolds, PLAIN_HOLD);
+
+    // A gateway starts afterwards on the same database, in this test's process: first the look for open holds, as main.ts does.
+    const keeper = await startHoldKeeper(pool, "gw_test_b6_after");
+    keeper.stop();
+    expect(keeper.found).toBeGreaterThanOrEqual(1);
+    const found = await listEvents(pool, id, "hold.found_at_startup");
+    expect(found).toHaveLength(1);
+    expect(found[0]!.payload).toMatchObject({ opened_by: "gw_test_b6_process", found_by: "gw_test_b6_after", kept: true, still_open: true });
+    near((found[0]!.payload as { amount_usd: number }).amount_usd, PLAIN_HOLD);
+    const hold = (await listHolds(pool, id))[0]!;
+    expect(hold).toMatchObject({ state: "open", seen_at_startup: true, actual_usd: null });
+    near(Number(hold.amount_usd), PLAIN_HOLD);
+    const after = await getBudget(pool, id);
+    expect(after.spent + after.openHolds).toBe(before.spent + before.openHolds);
+    // It still counts the hold: a new call through it does not fit, and nothing reaches the stand-in.
+    const later = await listen(createGateway({ pool, modelApiKey: REAL_KEY, upstreamUrl, profiles: PROFILES, gatewayId: "gw_test_b6_after", onFault: (m) => faults.push(m) }));
+    try {
+      const forwardedBefore = forwarded;
+      expect((await callAt(later.url, token, plain())).status).toBe(402);
+      expect(forwarded).toBe(forwardedBefore);
+    } finally {
+      later.server.close();
+    }
+    expect(await kinds(id)).toEqual(["hold.opened", "hold.found_at_startup", "gateway.refused"]);
   });
 });
 
