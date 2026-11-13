@@ -192,3 +192,52 @@ export async function historyCheck(gitDir: string, needles: Needle[]): Promise<{
     commands: ["git rev-list --all", "git log --all --name-only --format=", "git grep -F -c -e <needle> <every revision>"],
   };
 }
+
+/**
+ * The names of the entries of a zip file, read from its central directory with Node's own modules (no
+ * zip64). Used on a run's Playwright trace, to show that it holds no frames of the screen: the owner's
+ * approval of the browser (13 Nov 2026) says no video is played or recorded in tests, and a trace's
+ * screencast is a series of still frames of the screen (review of 13 Nov 2026).
+ */
+export function zipEntryNames(zip: Buffer): string[] {
+  let end = -1;
+  for (let i = zip.length - 22; i >= Math.max(0, zip.length - 22 - 0xffff); i--) {
+    if (zip.readUInt32LE(i) === 0x06054b50) {
+      end = i;
+      break;
+    }
+  }
+  if (end < 0) throw new Error("not a zip file: it has no end of central directory");
+  const count = zip.readUInt16LE(end + 10);
+  let at = zip.readUInt32LE(end + 16);
+  if (count === 0xffff || at === 0xffffffff) throw new Error("a zip64 file, which this reader does not read");
+  const names: string[] = [];
+  for (let n = 0; n < count; n++) {
+    if (at + 46 > zip.length || zip.readUInt32LE(at) !== 0x02014b50) throw new Error(`not a zip file: entry ${n + 1} of its central directory is not where it says`);
+    const nameLength = zip.readUInt16LE(at + 28);
+    names.push(zip.toString("utf8", at + 46, at + 46 + nameLength));
+    at += 46 + nameLength + zip.readUInt16LE(at + 30) + zip.readUInt16LE(at + 32);
+  }
+  return names;
+}
+
+/**
+ * The frames of the screen among a trace's entries. Playwright 1.63.0 writes its screencast as
+ * `screencast/<page>-<time>.jpeg` (read: playwright-core/lib/coreBundle.js, where it names the file).
+ */
+export function traceScreenFrames(entryNames: string[]): string[] {
+  return entryNames.filter((n) => n.startsWith("screencast/") || /\.jpe?g$/i.test(n));
+}
+
+/** Every file named trace.zip under a run's results folder (the runner's own folder; no link is followed). */
+export function traceFiles(resultsDir: string): string[] {
+  const out: string[] = [];
+  const walk = (d: string) => {
+    for (const e of readdirSync(d, { withFileTypes: true })) {
+      if (e.isDirectory()) walk(join(d, e.name));
+      else if (e.isFile() && e.name === "trace.zip") out.push(join(d, e.name));
+    }
+  };
+  walk(resultsDir);
+  return out.sort();
+}

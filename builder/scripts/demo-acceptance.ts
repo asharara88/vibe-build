@@ -27,13 +27,13 @@
  * Development profile only. No model is called. Made-up data only. No secret's value is printed.
  */
 import { execFile } from "node:child_process";
-import { chmodSync, copyFileSync, lstatSync, mkdirSync, mkdtempSync, rmSync, statfsSync, writeFileSync } from "node:fs";
+import { chmodSync, copyFileSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statfsSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { promisify } from "node:util";
 import { buildRunnerImage, RUNNER_BASE_IMAGES, RUNNER_IMAGE } from "../src/acceptance/runner-image.js";
 import { runAcceptance, type AcceptanceReport } from "../src/acceptance/runner.js";
-import { FILE_PROBE, halves, historyCheck, inspectWhileRunning, parseProbe, searchFolders, searchText, type InspectSeen, type Needle } from "../src/acceptance/probes.js";
+import { FILE_PROBE, halves, historyCheck, inspectWhileRunning, parseProbe, searchFolders, searchText, traceFiles, traceScreenFrames, zipEntryNames, type InspectSeen, type Needle } from "../src/acceptance/probes.js";
 import { dataDirFromSetting, openStore, projectDir } from "../src/acceptance/store.js";
 import { exampleChecklist, writeStandInVersion } from "../src/acceptance/stand-in.js";
 import { git } from "../src/engine/project-repo.js";
@@ -176,6 +176,12 @@ try {
   if (passItem?.status !== "passed" || !passItem.screenshot) throw new Error("run A: item 1 did not pass");
   copyFileSync(passItem.screenshot.path, join(outDir, "screens", "01-item-1-passed-stand-in-test.png"));
   log(`  Screenshot kept: screens/01-item-1-passed-stand-in-test.png (SHA-256 ${passItem.screenshot.sha256}).`);
+  for (const t of traceFiles(runA.runFolder.results)) {
+    const entries = zipEntryNames(readFileSync(t));
+    const frames = traceScreenFrames(entries);
+    log(`  Trace ${t.slice(runA.runFolder.results.length + 1)}: ${entries.length} entries; frames of the screen (screencast/*.jpeg): ${frames.length}; still images: ${entries.filter((e) => /\.png$/i.test(e)).length} (the screenshots the run keeps).`);
+    if (frames.length) throw new Error("run A's trace holds frames of the screen, which the runner's configuration turns off");
+  }
   const reason = `stand-in test run ${runA.runId}`;
   // The runner's own mounts, from inside: a probe in the same service with the version and a fresh folder.
   const probeRes = mkdtempSync(join(tmpdir(), "builder-runner-probe-"));

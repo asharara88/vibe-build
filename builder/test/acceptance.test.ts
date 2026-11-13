@@ -9,6 +9,7 @@ import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, rea
 import { tmpdir } from "node:os";
 import { join, relative, resolve } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
+import { traceScreenFrames, zipEntryNames } from "../src/acceptance/probes.js";
 import { readRun, plainFileInside, type RunFacts } from "../src/acceptance/results.js";
 import { approvedPackages, BROWSER_ZIP_SHA256, checkedBrowserZip, RUNNER_BASE_IMAGES, RUNNER_DIR } from "../src/acceptance/runner-image.js";
 import { exampleChecklist, standInSources, STAND_IN_DIR } from "../src/acceptance/stand-in.js";
@@ -512,9 +513,10 @@ describe("the runner image's own files", () => {
     expect(df).not.toMatch(/curl|wget|storage\.googleapis\.com|docker push/);
   });
 
-  it("the runner's configuration: no retries, one worker, forbidOnly, trace and screenshots on, no video, the JSON report with this run's id and the manifest's fingerprint", () => {
+  it("the runner's configuration: no retries, one worker, forbidOnly, the trace on without its screencast (no frames of the screen), the screenshot on, no video, the JSON report with this run's id and the manifest's fingerprint", () => {
     const cfg = readFileSync(join(RUNNER_DIR, "playwright.config.mjs"), "utf8");
-    for (const s of ['testDir: "/acceptance"', "retries: 0", "workers: 1", "forbidOnly: true", 'trace: "on"', 'screenshot: "on"', 'video: "off"', '["json", { outputFile: "/results/results.json" }]', "metadata: { runId: process.env.RUN_ID", 'readFileSync("/run/secrets/sample-password"']) {
+    expect(cfg.match(/^\s*trace:.*$/gm)).toEqual(['    trace: { mode: "on", screenshots: false },']);
+    for (const s of ['testDir: "/acceptance"', "retries: 0", "workers: 1", "forbidOnly: true", 'screenshot: "on"', 'video: "off"', '["json", { outputFile: "/results/results.json" }]', "metadata: { runId: process.env.RUN_ID", 'readFileSync("/run/secrets/sample-password"']) {
       expect(cfg, s).toContain(s);
     }
   });
@@ -528,6 +530,46 @@ describe("the runner image's own files", () => {
     const cache2 = mkdtempSync(join(scratch, "cache-"));
     symlinkSync(join(cache, "chrome-headless-shell-linux64.zip"), join(cache2, "chrome-headless-shell-linux64.zip"));
     await expect(checkedBrowserZip({ BUILDER_BROWSER_CACHE: cache2 })).rejects.toThrow(/not a plain file/);
+  });
+
+  it("a trace's entries are read from its zip directory; frames of the screen (screencast/*.jpeg) are picked out; a file that is not a zip is refused", () => {
+    // A made-up zip of four stored entries, with a comment at its end, built byte by byte to the zip format.
+    const entries = ["trace.trace", "screencast/page@made-up-1700000000000.jpeg", "resources/made-up.png", "screenshots/made-up.png"];
+    const locals: Buffer[] = [];
+    const centrals: Buffer[] = [];
+    let offset = 0;
+    for (const name of entries) {
+      const n = Buffer.from(name, "utf8");
+      const data = Buffer.from("made-up");
+      const local = Buffer.alloc(30);
+      local.writeUInt32LE(0x04034b50, 0);
+      local.writeUInt32LE(data.length, 18);
+      local.writeUInt32LE(data.length, 22);
+      local.writeUInt16LE(n.length, 26);
+      const central = Buffer.alloc(46);
+      central.writeUInt32LE(0x02014b50, 0);
+      central.writeUInt32LE(data.length, 20);
+      central.writeUInt32LE(data.length, 24);
+      central.writeUInt16LE(n.length, 28);
+      central.writeUInt32LE(offset, 42);
+      locals.push(local, n, data);
+      centrals.push(central, n);
+      offset += 30 + n.length + data.length;
+    }
+    const directory = Buffer.concat(centrals);
+    const comment = Buffer.from("made-up comment");
+    const end = Buffer.alloc(22);
+    end.writeUInt32LE(0x06054b50, 0);
+    end.writeUInt16LE(entries.length, 8);
+    end.writeUInt16LE(entries.length, 10);
+    end.writeUInt32LE(directory.length, 12);
+    end.writeUInt32LE(offset, 16);
+    end.writeUInt16LE(comment.length, 20);
+    const names = zipEntryNames(Buffer.concat([...locals, directory, end, comment]));
+    expect(names).toEqual(entries);
+    expect(traceScreenFrames(names)).toEqual(["screencast/page@made-up-1700000000000.jpeg"]);
+    expect(traceScreenFrames(["trace.trace", "trace.network", "resources/made-up.png"])).toEqual([]);
+    expect(() => zipEntryNames(Buffer.from("made-up, not a zip file at all"))).toThrow(/not a zip file/);
   });
 });
 

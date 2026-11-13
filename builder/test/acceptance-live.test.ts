@@ -14,7 +14,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { FILE_PROBE, halves, historyCheck, inspectWhileRunning, parseProbe, type InspectSeen } from "../src/acceptance/probes.js";
+import { FILE_PROBE, halves, historyCheck, inspectWhileRunning, parseProbe, traceFiles, traceScreenFrames, zipEntryNames, type InspectSeen } from "../src/acceptance/probes.js";
 import { buildRunnerImage, BROWSER_ZIP, BROWSER_ZIP_SHA256, RUNNER_IMAGE } from "../src/acceptance/runner-image.js";
 import { runAcceptance } from "../src/acceptance/runner.js";
 import { exampleChecklist, writeStandInVersion } from "../src/acceptance/stand-in.js";
@@ -101,6 +101,12 @@ describe.skipIf(!dockerThere || !zipThere)(`acceptance runner: live, development
     expect(r.events.map((e) => e.kind)).toEqual(["acceptance.run.started", "acceptance.item", "acceptance.run.finished"]);
     for (const e of r.events) expect(e.payload).toMatchObject({ run_id: r.runId, version: "v001", manifest_sha256: version.manifestSha256, written_by: "stand-in" });
     expect(existsSync(r.runFolder.secretFile)).toBe(false);
+    // The trace is kept, without frames of the screen (the owner's condition: no video recorded; review of 13 Nov 2026).
+    const traces = traceFiles(r.runFolder.results);
+    expect(traces).toHaveLength(1);
+    const entries = zipEntryNames(readFileSync(traces[0]!));
+    expect(traceScreenFrames(entries)).toEqual([]);
+    expect(entries.filter((e) => e.endsWith(".trace")).length).toBeGreaterThan(0);
   }, 1_200_000);
 
   it("run B, stopped by a half-second time limit: every item 'did not run', never passed", async () => {

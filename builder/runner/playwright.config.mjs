@@ -29,7 +29,10 @@ export default {
   metadata: { runId: process.env.RUN_ID ?? "", manifestSha256 },
   use: {
     baseURL: process.env.BASE_URL,
-    trace: "on",
+    // The trace keeps its record of each action and its snapshots of the page, without its screencast: a
+    // series of still frames of the screen, about 18 a run (review of 13 Nov 2026). Playwright 1.63.0's
+    // option `screenshots: false` turns the screencast off (types/test.d.ts, `trace`).
+    trace: { mode: "on", screenshots: false },
     screenshot: "on",
     // No video is played or recorded in the acceptance runs (the owner's approval of the browser, 13 Nov 2026).
     video: "off",
