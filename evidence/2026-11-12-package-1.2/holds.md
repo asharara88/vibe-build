@@ -4,10 +4,10 @@
 | --- | --- |
 | Date | 12 November 2026 |
 | Package | 1.2 of `docs/BUILD-PLAN.md`: "Holds stored in the database under a lock on the project's row: open, settle, expire, and recovery when the gateway starts" |
-| Done means (plan, as amended 12 Nov) | "Proof rows B1 to B6 of design note 7.2, and only those, each shown from the event log against a stand-in provider." What finishes this package is also a question to the owner (`docs/STATUS.md`), so it is **not marked tested** on this evidence alone |
+| Done means (plan, as amended 13 Nov) | "Proof rows B1 to B6 and B15 to B19 of design note 7.2, and only those, each shown from the event log against a stand-in provider." Rows B15 to B19 were added on 13 Nov 2026 by the owner's answer to his question 1 ("apply budget cap as long aswe can change it later", read by Claude Code as option (a); `docs/DECISIONS.md`). Until then the plan read "B1 to B6 ..., and only those" |
 | Run on | The development machine (a cloud session), directly on the host: the builder's own gateway code, a local PostgreSQL database, and a **stand-in provider** in the same process. No model was called, no key exists, nothing was spent. (Three earlier tests in the suite send requests off the machine: one, of the egress proxy, sends a single request with no key to the provider's address and expects the refusal it gets; two check that the npm package registry can be reached. Nothing else in this package's runs leaves the machine.) No generated code and no engine ran |
 | What a stand-in can and cannot show | It shows what the gateway does with the answers it is given. It shows nothing about how the real provider counts, bills or fails (plan section 8, rule 3) |
-| State | **Built, not tested.** Independent reviews, each by a fresh reviewer told to break the cap, are set out below with their answers: of `ebbcca5`, of `15586fa`, of `1fb2c87`, of `cedaced`, of `583c689` and of `83443c9`. In the last four, no attack run was admitted past the cap (the limit checked when a call is admitted) and rows B1 to B6 were shown; their blocking findings were about the key and the records, not the cap. None of that shows that a bill stays within its hold: see "What the cap enforces, and what it does not", below. Which commit each review read, and whether the latest answers have been read again, is in the pull request's description |
+| State | **Built; not marked tested in this file.** On 13 Nov 2026 all eleven proof rows were run and passed against a stand-in, each by a named test and in the demonstration, and each row's test was shown to fail with its safeguard removed ("The eleven proof rows", below). The package is marked tested in the plan's progress table, not here. Independent reviews, each by a fresh reviewer told to break the cap, are set out below with their answers: of `ebbcca5`, of `15586fa`, of `1fb2c87`, of `cedaced`, of `583c689` and of `83443c9`. In the last four, no attack run was admitted past the cap (the limit checked when a call is admitted) and rows B1 to B6 were shown; their blocking findings were about the key and the records, not the cap. None of that shows that a bill stays within its hold: see "What the cap enforces, and what it does not", below. Which commit each review read, and whether the latest answers have been read again, is in the pull request's description |
 
 ## What was built
 
@@ -31,18 +31,38 @@
 
 So the hold is a reservation worked out from the provider's estimate plus an assumed margin, not a proven ceiling on the bill (known gaps 41 and 62).
 
-## The six proof rows
+## What this is and is not
 
-| Row | Claim | Where it is shown | Result |
+In plain words, as of 13 Nov 2026:
+
+- **It is a limit when a call is admitted.** The gateway forwards a call only if its own recorded spend, plus every open hold, plus this call's hold, is within the cap. Shown against a stand-in by rows B1, B2 and B6 below.
+- **It is not a proven ceiling on the bill.** A hold is a reservation worked out from the provider's estimate plus an assumed margin. A bill above its hold is charged in full and can take a project over its cap (shown against a stand-in by the test "a bill above the hold is charged in full, recorded as a breach, and raises a fault").
+- **Nothing stops a project after a fault yet.** A fault is a message written to the error output. The stop for a call that cannot be saved is package 1.4 (row B10); nothing in any package yet stops a project after a bill above its hold (known gap 35; whether something should is the owner's to decide).
+- **Expired holds are kept open, as built.** A hold past its deadline stays open at its full amount until the owner reconciles it. Whether it should instead be settled at its full amount is the owner's question 5, still open; rows B5 and B6 are written for the kept-open reading.
+- **"Shown" means run against a stand-in provider, with the run kept in this folder.** Nothing here shows how the real provider counts, bills or fails (plan section 8, rule 3).
+- **Assumed, not shown:** the size of the margin, the list of tools let through, the list of request fields forwarded, that output never exceeds `max_tokens`, and that an error in the provider's own shape means nothing was billed (known gaps 41 and 62).
+
+## The eleven proof rows
+
+Rows B1 to B6, and B15 to B19 (added 13 Nov 2026: one for each case of known gap 41 that this package handles, named as gap 41 names it). Every test named here is in `builder/test/gateway.test.ts`. Runs, all in this folder and all from commit `94b800c`: the demonstration, `run-2026-11-13-demonstration.txt` (one section per row); the eleven rows' tests on their own, `run-2026-11-13-proof-row-tests.txt` (13 tests, all passed); and the controls, `run-tests-with-fixes-removed.txt` (each row's test run once with its safeguard removed; every one failed; listed in Run 6 below). Each row's result is **shown, against a stand-in**.
+
+| Row | What it shows | The test, the demonstration section, the control | What it does not show |
 | --- | --- | --- | --- |
-| B1 | A hold is opened before every forwarded call and settled to the actual cost | Demonstration, section B1; test "B1" | Shown, against a stand-in |
-| B2 | A call whose hold does not fit is refused at the call | Demonstration, section B2; tests "B2" (one of them with six calls arriving together through two gateway instances: one admitted) | Shown, against a stand-in. The two instances in the test share one process and one set of database connections; the reviewer separately ran two real gateway processes with 40 calls at once and reported one admitted each time, which is the reviewer's run and is not saved here |
-| B3 | A prompt that cannot be counted is refused | Demonstration, section B3; test "B3" | Shown, against a stand-in |
-| B4 | The hold covers the long-prompt rate and fast mode when either could apply | Demonstration, section B4, two cases; tests "B4 (1)" and "B4 (2)" | Shown, against a stand-in |
-| B5 | A hold past its deadline is kept, not released | Demonstration, section B5; test "B5" | Shown, against a stand-in, for the kept-open reading the design note is written for (the owner's question on expired holds is open) |
-| B6 | Holds are database rows that survive the gateway stopping | Demonstration, section B6; test "B6" | Shown in this form: a call is in flight when its caller is cut off; the first gateway records that it keeps the hold and its server is then closed; a second gateway started on the same database finds the hold. Both run inside one process. A gateway process killed outright is package 1.4 (row B9); the reviewer reported doing that by hand with the same result, which is not saved here |
+| B1 | When each of two calls reaches the stand-in, its hold is already open in the database. `hold.opened` carries the arithmetic (prompt count, margin, `max_tokens`, rates); `hold.settled` gives the actual cost, never above the hold in these calls, and the difference goes back to the budget | Test "B1: a hold is opened before the call is forwarded and settled to the actual cost"; demonstration, section B1; controls 1 and 2 | That a real bill equals the stand-in's. "Actual cost never above the hold" is checked on these calls, not enforced |
+| B2 | A call whose hold does not fit is refused at admission: 402, the message shown, a `gateway.refused` event, no hold, nothing forwarded. Six calls arriving together through two gateway instances, against room for one hold: one admitted | Tests "B2: a call whose hold does not fit is refused at the call: no hold, nothing forwarded" and "B2: with calls arriving together against room for one hold, one is admitted, through one gateway or two"; section B2; control 3 | Two gateway processes: the test's two instances share one process (a reviewer's run of two processes is not saved here). That spend stays within the cap after admission: a bill above its hold can take it over |
+| B3 | A prompt that cannot be counted is refused with the reason named; no hold, nothing forwarded | Test "B3: a prompt that cannot be counted is refused, with the reason named"; section B3; control 4 | How the real counting call fails |
+| B4 | (1) Claude Haiku 5.5 with a prompt counted just under 100,000 tokens is held at the long-prompt rates, because the count plus the margin reaches the threshold. (2) Claude Opus 5.5 on a profile that allows fast mode is held at twice the standard rates, though the request does not ask for it | Tests "B4 (1): a model with a long-prompt rate is held at that rate when the prompt is at or near the threshold" and "B4 (2): on a profile that allows fast mode, a model with a fast-mode price is held at twice the standard rates"; section B4; controls 5 and 6 | A prompt counted below the threshold by more than the margin but billed above it (known gap 41) |
+| B5 | A hold past its deadline is kept open at its full amount, marked expired and unreconciled, and still counted: a further call is refused | Test "B5: a hold past its deadline is kept at its full amount, marked expired and unreconciled, and still counts"; section B5; control 7 | The other answer to the owner's question 5 (settle it at its full amount), which is not built |
+| B6 | A gateway that starts finds the hold an earlier gateway left open, keeps it at its full amount and still counts it; spend plus open holds reads the same before and after | Test "B6: holds are database rows: a gateway that starts finds the hold an earlier one left open, and keeps it"; section B6; control 8 | A gateway process killed outright (package 1.4, row B9): here both gateways run inside one process |
+| B15 | Known gap 41, "`inference_geo` "us" (1.1 times every rate)": a request with `inference_geo` "us" is refused before anything is forwarded (reason `inference_geo_not_allowed`, message shown, `gateway.refused`, no hold); the same request without it is forwarded | Test "B15: inference_geo "us" (1.1 times every rate): a request that sets it is refused before anything is forwarded"; section B15; control 9 | The provider's price for "us", which comes from its pricing page, not from a run |
+| B16 | Known gap 41, "the token count being an estimate": every hold carries the margin, checked by its own figures (5% of the count rounded up, plus 200 tokens: 42 counted, 203 added; 10,000 counted, 700 added). A stand-in bill 4% above the count, all at the dearest input rate and with all of `max_tokens`, is settled within the hold; by arithmetic, a hold without the margin would have been below that bill | Test "B16: the token count being an estimate: a margin is added to the counted prompt, and a bill a little above the count stays within the hold"; section B16; control 10 | **Only that a margin is applied.** Whether it is large enough for the real provider's count needs a real provider (package 2.3); its size is an assumption |
+| B17 | Known gap 41, "server-side tools billed on top of tokens": a request with a tool the provider runs itself (a web search type; a code execution type) and one asking for tool servers (`mcp_servers`) are each refused before anything is forwarded (reason `server_tool_not_allowed`, message shown, `gateway.refused`, no hold); the caller's own tools are forwarded | Test "B17: server-side tools billed on top of tokens: a request that includes one, or asks for tool servers, is refused before anything is forwarded"; section B17; controls 11 and 12 | That the tool types let through (`bash_` and `text_editor_` with a date, and the caller's own) are all run by the caller, or are what the engine sends (package 2.2) |
+| B18 | Known gap 41, "fast mode on a model whose price is assumed": on a profile that allows fast mode, fast mode asked for Claude Sonnet 5.5 or Claude Haiku 5.5 (no listed fast-mode price) is refused before anything is forwarded (reason `fast_mode_not_priced`, message shown, `gateway.refused`, no hold); asked for Claude Opus 5.5 (listed) it is forwarded and held at twice the standard rates | Test "B18: fast mode on a model whose price is assumed: a request for it is refused before anything is forwarded, even where the profile allows fast mode"; section B18; control 13 | The provider serving fast mode when it was not asked for: that is seen only after the call (known gap 62) |
+| B19 | Known gap 41, "What happens to a hold after an error answer was not defined": the provider's own rejection before work (a 400 `invalid_request_error`; in the test also a 429 `rate_limit_error`) settles the hold at nothing. A 500, a 529 (overloaded), a 408 and a 400 not in the provider's error shape each keep the hold open at its full amount, with the reason in a `hold.kept` event, still counted: a further call that would not fit beside it is refused | Test "B19: what happens to a hold after an error answer: released only when the provider's own answer shows the request was rejected before any work, kept in every other case"; section B19; control 14 | Whether the real provider ever bills a request it rejected; something between the gateway and the provider that sends the provider's exact error shape cannot be told apart from it (known gap 62). **The kept hold is not marked unreconciled** in this package, though design note 5.5's table of known limits says "kept, unreconciled" (known gap 62) |
 
-## Run 1: the demonstration (`npx tsx scripts/demo-cap.ts`, from `builder/`)
+## Run 1 (12 Nov 2026, rows B1 to B6, before the merge): the demonstration (`npx tsx scripts/demo-cap.ts`, from `builder/`)
+
+The run of 13 Nov, with all eleven rows, is `run-2026-11-13-demonstration.txt` (Run 4, at the end of this file).
 
 Everything below "event" is read back from the event log; "the hold's row" is read from the holds table.
 
@@ -142,7 +162,7 @@ Every call that reached the provider carried the gateway's key, never a project 
 
 "Actual cost never above the hold: yes" is a check on the two calls of section B1, against a stand-in that bills what it is told to; it says nothing about the real provider's bills. The B3 message above is the code's text at the time of this run; on 13 Nov it was reworded ("Brought up to date with the integration branch", below).
 
-## Run 2: the type check and every test, by name
+## Run 2 (12 Nov 2026): the type check and every test, by name
 
 ```text
 $ npm run typecheck
@@ -254,7 +274,7 @@ $ npx vitest run --reporter=verbose   (the whole suite; same tests as npm test)
 exit code: 0
 ```
 
-## Run 3: the licence check committed for `builder/` (`npm run check:licences`)
+## Run 3 (12 Nov 2026): the licence check committed for `builder/` (`npm run check:licences`)
 
 No dependency was added or removed by this package.
 
@@ -413,7 +433,8 @@ The seventh reviewer read the answers to its findings twice more. Of `bdb4c28` (
 ## What this does not show
 
 - **Nothing about the real provider.** Whether its token count is close enough for the margin, whether its bills match the gateway's arithmetic, how it fails: all untested until package 2.3.
-- **The margin on the count is an assumption** (5% of the count plus 200 tokens), not a measurement. So is the list of tools the gateway lets through. Both are in `docs/KNOWN-GAPS.md`.
+- **The margin on the count is an assumption** (5% of the count plus 200 tokens), not a measurement. So is the list of tools the gateway lets through. Both are in `docs/KNOWN-GAPS.md`. Row B16 shows only that the margin is applied.
+- **A hold kept after an error answer is not marked unreconciled** (row B19); only expiry sets that mark in this package. Which package marks it is not yet said (known gap 62).
 - **"No settled call costs more than its hold" is checked after the call, not enforced.** If the provider bills above a hold, the gateway records a `hold.exceeded` event and raises a fault; the actual cost is still what is charged, and it can take a project over its cap. A test shows this happening with a stand-in that serves fast mode unasked.
 - **A database error while settling, and the gateway's start-up code,** have no test. By reading, the first leaves the hold open.
 - **The list of request fields the gateway forwards is a first guess.** It is deliberately short; package 2.2 will show what the engine really sends, and each addition needs a reason.
@@ -440,3 +461,45 @@ Checks on the merged tree, run before this commit, in `builder/` after `npm ci`:
 | Licence check (`npm run check:licences`), now package 0.4's single rule | Passed, exit code 0 | `run-after-merge-licences.txt` |
 
 The demonstration was not run again; Run 1 above is from before the merge.
+
+## Finished to the owner's answer to question 1 (13 Nov 2026)
+
+The owner, asked his question 1 ("What finishes package 1.2?"), wrote: "apply budget cap as long aswe can change it later". Claude Code reads this as option (a): B1 to B6, plus one proof row for each of the five cases of known gap 41 that the package handles, on the condition that the cap and these finish criteria stay changeable later by a recorded decision. The owner has been told this reading and can correct it (`docs/DECISIONS.md`, 13 Nov).
+
+Changed:
+- **Design note 7.2:** rows B15 to B19 added, each case named as known gap 41 names it, with a dated amendment; 5.5's table of known limits names each row, and its error-answer row now says the kept hold is not marked unreconciled in this package (a correction).
+- **The plan's 1.2 row** now reads "Proof rows B1 to B6 and B15 to B19 of design note 7.2, and only those"; the plan's header records the amendment, and its progress table names the eleven rows.
+- **Tests** (`builder/test/gateway.test.ts`): B1 now has the stand-in look in the database when each of two calls reaches it; five new tests, B15 to B19. The stand-in gained three behaviours for them: a bill 4% above the count, an overloaded answer (529), and a note of the open holds at the moment of forwarding. No test was removed or weakened.
+- **Demonstration** (`builder/scripts/demo-cap.ts`): the same addition to B1, and sections B15 to B19.
+- **Two texts in the code** that called the hold the most a call can cost: the opening comment of `builder/src/gateway/app.ts`, and the refusal message for a request without `max_tokens` (reason `max_tokens_missing`, unchanged), which now reads "so its hold cannot be worked out". Nothing else in what the gateway does changed.
+
+### Run 4: the demonstration of the eleven rows
+
+`run-2026-11-13-demonstration.txt`, commit `94b800c`, against the stand-in and the database `builder_test_pkg12`; exit code 0. Sections B1 to B6 show what Run 1 showed, with one line added to B1 for each call ("when call 1 reached the stand-in provider, the database held 1 open hold(s) for this project"; the same for call 2). Sections B15 to B19 show, for each request refused, the status, the message shown, "calls that reached the provider: 0", the `gateway.refused` event with its reason, and "holds in the database for this project: 0", then a request that is let through; for B16 the hold's arithmetic, the bill and the arithmetic without the margin; for B19 each error answer's events, the hold's row and the budget, then a further call (200 after the provider's own rejection; 402 after each of the three kept holds). The last line: "Every call that reached the provider carried the gateway's key, never a project token: yes (17 calls)." The key there is a made-up text held by the stand-in run; no real key exists.
+
+### Run 5: the eleven rows' tests on their own
+
+`run-2026-11-13-proof-row-tests.txt`, commit `94b800c`: `npx vitest run test/gateway.test.ts -t 'proof rows' --reporter=verbose`; 13 tests (B2 and B4 have two each), all passed, exit code 0.
+
+### Run 6: each row's test with its safeguard removed (controls)
+
+`run-tests-with-fixes-removed.txt`, commit `94b800c`. For each control, one safeguard was removed by an exact text change (shown in the file as `git diff` shows it), the row's test was run, the file was restored with `git checkout --`, and `git diff --exit-code` was run: clean after every control, and no tracked file changed after the last. No control was committed.
+
+| Control | Row | Safeguard removed | The test failed at |
+| --- | --- | --- | --- |
+| 1 | B1 | A call forwarded before its hold is opened | Open holds seen when each call reached the stand-in: 0, 1, 0, 1, where 1, 1 is expected |
+| 2 | B1 | A call settled at its hold's amount, not its actual cost | The settled amount is not the actual cost |
+| 3 | B2 | The budget equation not checked | The third call answered 200, not 402; six calls arriving together all admitted, not one |
+| 4 | B3 | A prompt that cannot be counted estimated from the request's size | The call answered 200, not 502 |
+| 5 | B4 (1) | The long-prompt rate judged on the count alone, without the margin | The hold near the threshold not at the long-prompt rates |
+| 6 | B4 (2) | A profile that allows fast mode no longer doubles the hold | Fast-mode factor not 2 |
+| 7 | B5 | A hold past its deadline closed at nothing | The hold's row not open |
+| 8 | B6 | A gateway that starts closes, at nothing, the holds another left open | No open hold found at start-up |
+| 9 | B15 | `inference_geo` not checked | The request answered 200, not 400 |
+| 10 | B16 | No margin on the count | The margin is not 203 tokens on a count of 42 |
+| 11 | B17 | Every tool let through, whatever its type | The web search request answered 200, not 400 |
+| 12 | B17 | Tool servers (`mcp_servers`) let through | The tool-servers request answered 200, not 400 |
+| 13 | B18 | Fast mode let through on a model with no listed fast-mode price | The request answered 200, not 400 |
+| 14 | B19 | Every error answer settles its hold at nothing | After a server error the log shows the hold settled, where it should be kept |
+
+Every one of the 14 failed, each at the check named. This shows that each test sees its safeguard missing; it does not show that the tests catch every way the safeguard could be broken.

@@ -1,0 +1,850 @@
+Package 1.2: each proof row's test run with its safeguard removed (a control)
+
+Commit: 94b800c. Run on the development machine (a cloud session), on the host, against the stand-in provider and the test database builder_test_pkg12.
+For each control: one safeguard is removed from the code by an exact text change, shown below as git shows it; the row's test is run
+with `npx vitest run test/gateway.test.ts -t <the row>` (it is expected to FAIL); the file is restored with `git checkout --`; and
+`git diff --exit-code` is run to show that nothing is left changed. No control was committed.
+Tracked files changed before the first control: none
+
+====================================================================================================
+Control 1 of 14: row B1
+Safeguard removed: A call is forwarded before its hold is opened (one extra forward is made ahead of opening the hold)
+File: builder/src/gateway/app.ts
+
+The change, as `git diff` shows it:
+diff --git a/builder/src/gateway/app.ts b/builder/src/gateway/app.ts
+index 2564983..1814ce2 100644
+--- a/builder/src/gateway/app.ts
++++ b/builder/src/gateway/app.ts
+@@ -293,6 +293,7 @@ export function createGateway(opts: GatewayOptions) {
+     const limitMs = stream ? timeLimit.stream : timeLimit.plain;
+     // Counted from now, when the hold is about to open, so the margin is not eaten by the counting call.
+     const deadline = new Date(Date.now() + limitMs + (stream ? deadlineMargin.stream : deadlineMargin.plain));
++    await (await forward()).arrayBuffer().catch(() => undefined); // CONTROL: a call forwarded before its hold is opened
+     const opened = await openHold(opts.pool, {
+       projectId: project.id,
+       step,
+
+$ cd builder && npx vitest run test/gateway.test.ts -t 'B1: ' --reporter=verbose   (skipped tests left out below)
+
+ RUN  v5.1.0 /home/user/vibe-build/builder
+
+ × test/gateway.test.ts > holds: proof rows B1 to B6 of the design note > B1: a hold is opened before the call is forwarded and settled to the actual cost 72ms
+   → expected [ +0, 1, +0, 1 ] to deeply equal [ 1, 1 ]
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 78 skipped (79)
+   Start at  03:06:49
+   Duration  347ms (tests 39%, transform 32%, import 28%, worker 1%)
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/gateway.test.ts > holds: proof rows B1 to B6 of the design note > B1: a hold is opened before the call is forwarded and settled to the actual cost
+AssertionError: expected [ +0, 1, +0, 1 ] to deeply equal [ 1, 1 ]
+
+- Expected
++ Received
+
+  [
++   0,
+    1,
++   0,
+    1,
+  ]
+
+ ❯ test/gateway.test.ts:416:40
+    414|     // Two calls. The stand-in looks in the database the moment each c…
+    415|     for (let i = 0; i < 2; i++) expect((await call(token, { ...plain()…
+    416|     expect(openHoldsAtForward.get(id)).toEqual([1, 1]); // each call's…
+       |                                        ^
+    417|     expect(await kinds(id)).toEqual(["hold.opened", "model.call", "hol…
+    418|     const opened = (await listEvents(pool, id, "hold.opened")).map(
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+exit code: 1  (FAILED, as expected)
+Restored with `git checkout -- builder/src/gateway/app.ts`; `git diff --exit-code`: exit code 0 (clean)
+
+====================================================================================================
+Control 2 of 14: row B1
+Safeguard removed: A finished call is settled at its hold's amount, not at its actual cost (the difference is not returned)
+File: builder/src/gateway/app.ts
+
+The change, as `git diff` shows it:
+diff --git a/builder/src/gateway/app.ts b/builder/src/gateway/app.ts
+index 2564983..e2dcbb1 100644
+--- a/builder/src/gateway/app.ts
++++ b/builder/src/gateway/app.ts
+@@ -347,7 +347,7 @@ export function createGateway(opts: GatewayOptions) {
+           await keepHold(opts.pool, { projectId: project.id, holdId, step, reason: "the answer came from a model that has no price in the gateway's table", seen: fields });
+           return;
+         }
+-        const r = await settleHold(opts.pool, { projectId: project.id, holdId, step, actualUsd: cost ?? Number.NaN, call: fields });
++        const r = await settleHold(opts.pool, { projectId: project.id, holdId, step, actualUsd: arithmetic.hold_usd, call: fields }); // CONTROL: settled at the hold, not the actual cost
+         if (r.exceeded) fault("A settled call cost more than its hold.", { project: project.id, hold: holdId, hold_usd: r.amountUsd, actual_usd: cost });
+       } catch (err) {
+         // The hold stays open in the database at its full amount: nothing was released.
+
+$ cd builder && npx vitest run test/gateway.test.ts -t 'B1: ' --reporter=verbose   (skipped tests left out below)
+
+ RUN  v5.1.0 /home/user/vibe-build/builder
+
+ × test/gateway.test.ts > holds: proof rows B1 to B6 of the design note > B1: a hold is opened before the call is forwarded and settled to the actual cost 64ms
+   → expected 0.003818 to be less than 5e-7
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 78 skipped (79)
+   Start at  03:06:50
+   Duration  329ms (tests 38%, transform 32%, import 28%, worker 1%)
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/gateway.test.ts > holds: proof rows B1 to B6 of the design note > B1: a hold is opened before the call is forwarded and settled to the actual cost
+AssertionError: expected 0.003818 to be less than 5e-7
+ ❯ near test/gateway.test.ts:257:64
+    255| }
+    256| const kinds = async (id: string) => (await listEvents(pool, id)).map((…
+    257| const near = (a: number, b: number) => expect(Math.abs(a - b)).toBeLes…
+       |                                                                ^
+    258|
+    259| describe("model gateway: key and metering", () => {
+ ❯ test/gateway.test.ts:435:7
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+exit code: 1  (FAILED, as expected)
+Restored with `git checkout -- builder/src/gateway/app.ts`; `git diff --exit-code`: exit code 0 (clean)
+
+====================================================================================================
+Control 3 of 14: row B2
+Safeguard removed: The budget equation is not checked when a hold is opened
+File: builder/src/store/holds.ts
+
+The change, as `git diff` shows it:
+diff --git a/builder/src/store/holds.ts b/builder/src/store/holds.ts
+index e13dfc6..8a2d439 100644
+--- a/builder/src/store/holds.ts
++++ b/builder/src/store/holds.ts
+@@ -93,7 +93,7 @@ export async function openHold(
+   return inTransaction(pool, p.projectId, async (c) => {
+     await expireHoldsIn(c, p.projectId, new Date());
+     const budget = await readBudget(c, p.projectId);
+-    if (micro(budget.spent) + micro(budget.openHolds) + micro(p.amountUsd) > micro(budget.cap)) {
++    if (false) { // CONTROL: the budget equation is not checked
+       await event(
+         c,
+         p.projectId,
+
+$ cd builder && npx vitest run test/gateway.test.ts -t 'B2: ' --reporter=verbose   (skipped tests left out below)
+
+ RUN  v5.1.0 /home/user/vibe-build/builder
+
+ × test/gateway.test.ts > holds: proof rows B1 to B6 of the design note > B2: a call whose hold does not fit is refused at the call: no hold, nothing forwarded 84ms
+   → expected 200 to be 402 // Object.is equality
+ × test/gateway.test.ts > holds: proof rows B1 to B6 of the design note > B2: with calls arriving together against room for one hold, one is admitted, through one gateway or two 363ms
+   → expected [ …(6) ] to have a length of 1 but got 6
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 77 skipped (79)
+   Start at  03:06:51
+   Duration  707ms (tests 80%, import 11%, transform 9%, worker 1%)
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/gateway.test.ts > holds: proof rows B1 to B6 of the design note > B2: a call whose hold does not fit is refused at the call: no hold, nothing forwarded
+AssertionError: expected 200 to be 402 // Object.is equality
+
+- Expected
++ Received
+
+- 402
++ 200
+
+ ❯ test/gateway.test.ts:452:26
+    450|     const before = forwarded;
+    451|     const third = await call(token, plain());
+    452|     expect(third.status).toBe(402);
+       |                          ^
+    453|     const body = (await third.json()) as { error: { type: string; mess…
+    454|     expect(body.error.type).toBe("budget_reached");
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  test/gateway.test.ts > holds: proof rows B1 to B6 of the design note > B2: with calls arriving together against room for one hold, one is admitted, through one gateway or two
+AssertionError: expected [ …(6) ] to have a length of 1 but got 6
+
+- Expected
++ Received
+
+- 1
++ 6
+
+ ❯ test/gateway.test.ts:471:55
+    469|       const { id, token } = await newProject(PLAIN_HOLD * 1.5);
+    470|       const results = await Promise.all(Array.from({ length: 6 }, (_, …
+    471|       expect(results.filter((r) => r.status === 200)).toHaveLength(1);
+       |                                                       ^
+    472|       expect(results.filter((r) => r.status === 402)).toHaveLength(5);
+    473|       expect(await listEvents(pool, id, "hold.opened")).toHaveLength(1…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+exit code: 1  (FAILED, as expected)
+Restored with `git checkout -- builder/src/store/holds.ts`; `git diff --exit-code`: exit code 0 (clean)
+
+====================================================================================================
+Control 4 of 14: row B3
+Safeguard removed: A prompt that cannot be counted is estimated from the request's size instead of refused (the rule amendment b replaced)
+File: builder/src/gateway/app.ts
+
+The change, as `git diff` shows it:
+diff --git a/builder/src/gateway/app.ts b/builder/src/gateway/app.ts
+index 2564983..e9b1579 100644
+--- a/builder/src/gateway/app.ts
++++ b/builder/src/gateway/app.ts
+@@ -280,12 +280,10 @@ export function createGateway(opts: GatewayOptions) {
+         signal: AbortSignal.timeout(60_000),
+       });
+       const cj = cr.ok ? ((await cr.json()) as { input_tokens?: unknown }) : null;
+-      if (!cj || typeof cj.input_tokens !== "number" || !Number.isFinite(cj.input_tokens) || cj.input_tokens < 0) {
+-        return refuse(502, "prompt_not_counted", "prompt_not_counted", "The prompt could not be counted by the provider, so this call's hold cannot be worked out. The gateway did not forward it.", { count_status: cr.status });
+-      }
+-      counted = Math.ceil(cj.input_tokens);
+-    } catch (err) {
+-      return refuse(502, "prompt_not_counted", "prompt_not_counted", "The prompt could not be counted by the provider, so this call's hold cannot be worked out. The gateway did not forward it.", { error: errorSummary(err) });
++      // CONTROL: a prompt that cannot be counted is estimated from the request's size
++      counted = cj && typeof cj.input_tokens === "number" && Number.isFinite(cj.input_tokens) && cj.input_tokens >= 0 ? Math.ceil(cj.input_tokens) : Math.ceil(rawBody.length / 4);
++    } catch {
++      counted = Math.ceil(rawBody.length / 4); // CONTROL
+     }
+ 
+     // 3: work out the hold and check the budget equation, in one locked transaction.
+
+$ cd builder && npx vitest run test/gateway.test.ts -t 'B3: ' --reporter=verbose   (skipped tests left out below)
+
+ RUN  v5.1.0 /home/user/vibe-build/builder
+
+ × test/gateway.test.ts > holds: proof rows B1 to B6 of the design note > B3: a prompt that cannot be counted is refused, with the reason named 50ms
+   → expected 200 to be 502 // Object.is equality
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 78 skipped (79)
+   Start at  03:06:52
+   Duration  329ms (transform 36%, tests 34%, import 29%, worker 1%)
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/gateway.test.ts > holds: proof rows B1 to B6 of the design note > B3: a prompt that cannot be counted is refused, with the reason named
+AssertionError: expected 200 to be 502 // Object.is equality
+
+- Expected
++ Received
+
+- 502
++ 200
+
+ ❯ test/gateway.test.ts:486:26
+    484|       const before = forwarded;
+    485|       const res = await call(token, plain(undefined, { system }));
+    486|       expect(res.status).toBe(502);
+       |                          ^
+    487|       const body = (await res.json()) as { error: { type: string; mess…
+    488|       expect(body.error.type).toBe("prompt_not_counted");
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+exit code: 1  (FAILED, as expected)
+Restored with `git checkout -- builder/src/gateway/app.ts`; `git diff --exit-code`: exit code 0 (clean)
+
+====================================================================================================
+Control 5 of 14: row B4 (1)
+Safeguard removed: The long-prompt rate is judged on the counted prompt alone, without the margin, so a prompt counted just under the threshold is held at the lower rate
+File: builder/src/gateway/hold.ts
+
+The change, as `git diff` shows it:
+diff --git a/builder/src/gateway/hold.ts b/builder/src/gateway/hold.ts
+index ceb3744..a962b1b 100644
+--- a/builder/src/gateway/hold.ts
++++ b/builder/src/gateway/hold.ts
+@@ -179,7 +179,7 @@ export function computeHold(body: MeteredRequest, countedPromptTokens: number, p
+   const held = countedPromptTokens + margin;
+   const long = LONG_PROMPT[model];
+   // The long-prompt rate applies unless the prompt, with its margin, is still under the threshold.
+-  const useLong = long !== undefined && held >= long.thresholdTokens;
++  const useLong = long !== undefined && countedPromptTokens >= long.thresholdTokens; // CONTROL: judged on the count alone
+   const price = useLong ? long.price : base;
+   const fastAsked = body.speed === "fast";
+   const fast = fastAsked || (profile.allowFastMode && FAST_MODE_PRICED.has(model));
+
+$ cd builder && npx vitest run test/gateway.test.ts -t 'B4 \(1\)' --reporter=verbose   (skipped tests left out below)
+
+ RUN  v5.1.0 /home/user/vibe-build/builder
+
+ × test/gateway.test.ts > holds: proof rows B1 to B6 of the design note > B4 (1): a model with a long-prompt rate is held at that rate when the prompt is at or near the threshold 80ms
+   → expected { model: 'claude-haiku-5-5', …(15) } to match object { long_prompt_rates: true, …(3) }
+(12 matching properties omitted from actual)
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 78 skipped (79)
+   Start at  03:06:53
+   Duration  362ms (tests 45%, import 30%, transform 24%, worker 1%)
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/gateway.test.ts > holds: proof rows B1 to B6 of the design note > B4 (1): a model with a long-prompt rate is held at that rate when the prompt is at or near the threshold
+AssertionError: expected { model: 'claude-haiku-5-5', …(15) } to match object { long_prompt_rates: true, …(3) }
+(12 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "input_rate_usd_per_million": 1,
+-   "long_prompt_rates": true,
++   "input_rate_usd_per_million": 0.2,
++   "long_prompt_rates": false,
+    "long_prompt_threshold_tokens": 100000,
+-   "output_rate_usd_per_million": 2.5,
++   "output_rate_usd_per_million": 0.5,
+  }
+
+ ❯ test/gateway.test.ts:503:34
+    501|     expect((await call(token, haiku(1_000))).status).toBe(200); // far…
+    502|     const [near100k, small] = (await listEvents(pool, id, "hold.opened…
+    503|     expect(near100k!.arithmetic).toMatchObject({ long_prompt_rates: tr…
+       |                                  ^
+    504|     near(near100k!.amount_usd, ((99_900 + margin(99_900)) * 1 + 1000 *…
+    505|     expect(small!.arithmetic).toMatchObject({ long_prompt_rates: false…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+exit code: 1  (FAILED, as expected)
+Restored with `git checkout -- builder/src/gateway/hold.ts`; `git diff --exit-code`: exit code 0 (clean)
+
+====================================================================================================
+Control 6 of 14: row B4 (2)
+Safeguard removed: A profile that allows fast mode no longer doubles the hold; only a request that asks for fast mode does
+File: builder/src/gateway/hold.ts
+
+The change, as `git diff` shows it:
+diff --git a/builder/src/gateway/hold.ts b/builder/src/gateway/hold.ts
+index ceb3744..828690e 100644
+--- a/builder/src/gateway/hold.ts
++++ b/builder/src/gateway/hold.ts
+@@ -182,7 +182,7 @@ export function computeHold(body: MeteredRequest, countedPromptTokens: number, p
+   const useLong = long !== undefined && held >= long.thresholdTokens;
+   const price = useLong ? long.price : base;
+   const fastAsked = body.speed === "fast";
+-  const fast = fastAsked || (profile.allowFastMode && FAST_MODE_PRICED.has(model));
++  const fast = fastAsked; // CONTROL: the profile allowing fast mode is ignored
+   const factor = fast ? FAST_MODE_FACTOR : 1;
+   // A hold is rounded up to the next millionth of a dollar, never down.
+   const round6 = (n: number) => Math.round(n * 1e6) / 1e6;
+
+$ cd builder && npx vitest run test/gateway.test.ts -t 'B4 \(2\)' --reporter=verbose   (skipped tests left out below)
+
+ RUN  v5.1.0 /home/user/vibe-build/builder
+
+ × test/gateway.test.ts > holds: proof rows B1 to B6 of the design note > B4 (2): on a profile that allows fast mode, a model with a fast-mode price is held at twice the standard rates 59ms
+   → expected { model: 'claude-opus-5-5', …(15) } to match object { fast_mode_factor: 2, …(1) }
+(14 matching properties omitted from actual)
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 78 skipped (79)
+   Start at  03:06:54
+   Duration  344ms (tests 39%, import 32%, transform 26%, worker 2%)
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/gateway.test.ts > holds: proof rows B1 to B6 of the design note > B4 (2): on a profile that allows fast mode, a model with a fast-mode price is held at twice the standard rates
+AssertionError: expected { model: 'claude-opus-5-5', …(15) } to match object { fast_mode_factor: 2, …(1) }
+(14 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "fast_mode_because": "the profile allows it",
+-   "fast_mode_factor": 2,
++   "fast_mode_because": null,
++   "fast_mode_factor": 1,
+  }
+
+ ❯ test/gateway.test.ts:513:31
+    511|     expect((await call(token, plain())).status).toBe(200);
+    512|     const opened = (await listEvents(pool, id, "hold.opened"))[0]!.pay…
+    513|     expect(opened.arithmetic).toMatchObject({ fast_mode_factor: 2, fas…
+       |                               ^
+    514|     near(opened.amount_usd, 2 * PLAIN_HOLD);
+    515|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+exit code: 1  (FAILED, as expected)
+Restored with `git checkout -- builder/src/gateway/hold.ts`; `git diff --exit-code`: exit code 0 (clean)
+
+====================================================================================================
+Control 7 of 14: row B5
+Safeguard removed: A hold past its deadline is closed at nothing instead of kept open
+File: builder/src/store/holds.ts
+
+The change, as `git diff` shows it:
+diff --git a/builder/src/store/holds.ts b/builder/src/store/holds.ts
+index e13dfc6..c60298a 100644
+--- a/builder/src/store/holds.ts
++++ b/builder/src/store/holds.ts
+@@ -205,7 +205,7 @@ export async function keepHold(
+ 
+ async function expireHoldsIn(c: Queryable, projectId: string, now: Date): Promise<Hold[]> {
+   const r = await c.query<Hold>(
+-    `update holds set expired = true, unreconciled = true
++    `update holds set expired = true, unreconciled = true, state = 'settled', closed_at = now(), actual_usd = 0
+       where state = 'open' and not expired and deadline_at <= $1 and project_id = $2
+       returning *`,
+     [now, projectId],
+
+$ cd builder && npx vitest run test/gateway.test.ts -t 'B5: ' --reporter=verbose   (skipped tests left out below)
+
+ RUN  v5.1.0 /home/user/vibe-build/builder
+
+ × test/gateway.test.ts > holds: proof rows B1 to B6 of the design note > B5: a hold past its deadline is kept at its full amount, marked expired and unreconciled, and still counts 523ms
+   → expected { id: '644', …(13) } to match object { state: 'open', expired: true, …(2) }
+(10 matching properties omitted from actual)
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 78 skipped (79)
+   Start at  03:06:55
+   Duration  780ms (tests 82%, import 10%, transform 8%)
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/gateway.test.ts > holds: proof rows B1 to B6 of the design note > B5: a hold past its deadline is kept at its full amount, marked expired and unreconciled, and still counts
+AssertionError: expected { id: '644', …(13) } to match object { state: 'open', expired: true, …(2) }
+(10 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "actual_usd": null,
++   "actual_usd": "0.000000",
+    "expired": true,
+-   "state": "open",
++   "state": "settled",
+    "unreconciled": true,
+  }
+
+ ❯ test/gateway.test.ts:532:20
+    530|       expect(expired).toHaveLength(1);
+    531|       const hold = (await listHolds(pool, id))[0]!;
+    532|       expect(hold).toMatchObject({ state: "open", expired: true, unrec…
+       |                    ^
+    533|       near(Number(hold.amount_usd), PLAIN_HOLD);
+    534|       const ev = (await listEvents(pool, id, "hold.expired"))[0]!.payl…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+exit code: 1  (FAILED, as expected)
+Restored with `git checkout -- builder/src/store/holds.ts`; `git diff --exit-code`: exit code 0 (clean)
+
+====================================================================================================
+Control 8 of 14: row B6
+Safeguard removed: A gateway that starts closes, at nothing, every hold another gateway left open
+File: builder/src/store/holds.ts
+
+The change, as `git diff` shows it:
+diff --git a/builder/src/store/holds.ts b/builder/src/store/holds.ts
+index e13dfc6..7c81879 100644
+--- a/builder/src/store/holds.ts
++++ b/builder/src/store/holds.ts
+@@ -249,6 +249,7 @@ export async function expireHolds(pool: pg.Pool, now: Date = new Date()): Promis
+  */
+ export async function recoverHolds(pool: pg.Pool, gateway: string, now: Date = new Date()): Promise<{ found: Hold[]; newlyNoted: number; expired: Hold[] }> {
+   const expired = await expireHolds(pool, now);
++  await pool.query("update holds set state = 'settled', closed_at = now(), actual_usd = 0 where state = 'open' and gateway <> $1", [gateway]); // CONTROL
+   const r = await pool.query<Hold>("select * from holds where state = 'open' and gateway <> $1 order by project_id, id", [gateway]);
+   let newlyNoted = 0;
+   for (const h of r.rows) {
+
+$ cd builder && npx vitest run test/gateway.test.ts -t 'B6: ' --reporter=verbose   (skipped tests left out below)
+
+ RUN  v5.1.0 /home/user/vibe-build/builder
+
+ × test/gateway.test.ts > holds: proof rows B1 to B6 of the design note > B6: holds are database rows: a gateway that starts finds the hold an earlier one left open, and keeps it 51ms
+   → expected 0 to be greater than or equal to 1
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 78 skipped (79)
+   Start at  03:06:56
+   Duration  297ms (tests 39%, import 30%, transform 30%, worker 2%)
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/gateway.test.ts > holds: proof rows B1 to B6 of the design note > B6: holds are database rows: a gateway that starts finds the hold an earlier one left open, and keeps it
+AssertionError: expected 0 to be greater than or equal to 1
+ ❯ test/gateway.test.ts:562:26
+    560|     const keeper = await startHoldKeeper(pool, "gw_test_restarted");
+    561|     keeper.stop();
+    562|     expect(keeper.found).toBeGreaterThanOrEqual(1);
+       |                          ^
+    563|     // A further start finds the same hold still open and does not wri…
+    564|     (await startHoldKeeper(pool, "gw_test_restarted_again")).stop();
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+exit code: 1  (FAILED, as expected)
+Restored with `git checkout -- builder/src/store/holds.ts`; `git diff --exit-code`: exit code 0 (clean)
+
+====================================================================================================
+Control 9 of 14: row B15
+Safeguard removed: inference_geo is not checked
+File: builder/src/gateway/hold.ts
+
+The change, as `git diff` shows it:
+diff --git a/builder/src/gateway/hold.ts b/builder/src/gateway/hold.ts
+index ceb3744..e669941 100644
+--- a/builder/src/gateway/hold.ts
++++ b/builder/src/gateway/hold.ts
+@@ -117,7 +117,7 @@ export function guardRequest(body: MeteredRequest, profile: ProfileLimits): Refu
+       detail: { max_tokens: body.max_tokens, ceiling: profile.maxTokensCeiling },
+     };
+   }
+-  if (body.inference_geo !== undefined && body.inference_geo !== null && body.inference_geo !== "global") {
++  if (false) { // CONTROL: inference_geo not checked
+     return {
+       reason: "inference_geo_not_allowed",
+       message: "The request sets inference_geo, which changes the price of every token. The gateway forwards only the default routing until its holds include that factor.",
+
+$ cd builder && npx vitest run test/gateway.test.ts -t 'B15: ' --reporter=verbose   (skipped tests left out below)
+
+ RUN  v5.1.0 /home/user/vibe-build/builder
+
+ × test/gateway.test.ts > holds: proof rows B15 to B19 of the design note (the known limits of the hold, known gap 41) > B15: inference_geo "us" (1.1 times every rate): a request that sets it is refused before anything is forwarded 64ms
+   → expected 200 to be 400 // Object.is equality
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 78 skipped (79)
+   Start at  03:06:57
+   Duration  336ms (tests 40%, import 30%, transform 28%, worker 1%)
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/gateway.test.ts > holds: proof rows B15 to B19 of the design note (the known limits of the hold, known gap 41) > B15: inference_geo "us" (1.1 times every rate): a request that sets it is refused before anything is forwarded
+AssertionError: expected 200 to be 400 // Object.is equality
+
+- Expected
++ Received
+
+- 400
++ 200
+
+ ❯ refusedBeforeForwarding test/gateway.test.ts:596:24
+    594|     const refusedBefore = (await listEvents(pool, id, "gateway.refused…
+    595|     const res = await call(token, body);
+    596|     expect(res.status).toBe(400);
+       |                        ^
+    597|     const b = (await res.json()) as { error: { type: string; message: …
+    598|     expect(b.error.message).toMatch(messagePart);
+ ❯ test/gateway.test.ts:609:15
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+exit code: 1  (FAILED, as expected)
+Restored with `git checkout -- builder/src/gateway/hold.ts`; `git diff --exit-code`: exit code 0 (clean)
+
+====================================================================================================
+Control 10 of 14: row B16
+Safeguard removed: No margin is added to the counted prompt
+File: builder/src/gateway/hold.ts
+
+The change, as `git diff` shows it:
+diff --git a/builder/src/gateway/hold.ts b/builder/src/gateway/hold.ts
+index ceb3744..1e30640 100644
+--- a/builder/src/gateway/hold.ts
++++ b/builder/src/gateway/hold.ts
+@@ -46,7 +46,7 @@ export const LONG_PROMPT: Record<string, { thresholdTokens: number; price: Model
+  * The hold therefore adds a margin to the count. THE SIZE IS AN ASSUMPTION, not a measurement:
+  * no real provider has been called. It is checked against real usage in package 2.3.
+  */
+-export const COUNT_MARGIN = { fraction: 0.05, tokens: 200 };
++export const COUNT_MARGIN = { fraction: 0, tokens: 0 }; // CONTROL: no margin on the count
+ 
+ /**
+  * Tools the provider runs on its own servers are billed on top of tokens (web search is priced
+
+$ cd builder && npx vitest run test/gateway.test.ts -t 'B16: ' --reporter=verbose   (skipped tests left out below)
+
+ RUN  v5.1.0 /home/user/vibe-build/builder
+
+ × test/gateway.test.ts > holds: proof rows B15 to B19 of the design note (the known limits of the hold, known gap 41) > B16: the token count being an estimate: a margin is added to the counted prompt, and a bill a little above the count stays within the hold 73ms
+   → expected { model: 'claude-opus-5-5', …(15) } to match object { counted_prompt_tokens: 42, …(2) }
+(13 matching properties omitted from actual)
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 78 skipped (79)
+   Start at  03:06:58
+   Duration  346ms (tests 40%, import 36%, transform 22%, worker 1%)
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/gateway.test.ts > holds: proof rows B15 to B19 of the design note (the known limits of the hold, known gap 41) > B16: the token count being an estimate: a margin is added to the counted prompt, and a bill a little above the count stays within the hold
+AssertionError: expected { model: 'claude-opus-5-5', …(15) } to match object { counted_prompt_tokens: 42, …(2) }
+(13 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "count_margin_tokens": 203,
++   "count_margin_tokens": 0,
+    "counted_prompt_tokens": 42,
+-   "prompt_tokens_held": 245,
++   "prompt_tokens_held": 42,
+  }
+
+ ❯ test/gateway.test.ts:622:35
+    620|     expect((await call(token, plain("bill-above-count", { system: "cou…
+    621|     const opened = (await listEvents(pool, id, "hold.opened")).map((e)…
+    622|     expect(opened[0]!.arithmetic).toMatchObject({ counted_prompt_token…
+       |                                   ^
+    623|     expect(opened[1]!.arithmetic).toMatchObject({ counted_prompt_token…
+    624|     near(opened[0]!.amount_usd, (245 * 8 + PLAIN_MAX_TOKENS * 20) / 1e…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+exit code: 1  (FAILED, as expected)
+Restored with `git checkout -- builder/src/gateway/hold.ts`; `git diff --exit-code`: exit code 0 (clean)
+
+====================================================================================================
+Control 11 of 14: row B17
+Safeguard removed: Every tool in a request is let through, whatever its type (the tool servers check is left in place)
+File: builder/src/gateway/hold.ts
+
+The change, as `git diff` shows it:
+diff --git a/builder/src/gateway/hold.ts b/builder/src/gateway/hold.ts
+index ceb3744..23dff6c 100644
+--- a/builder/src/gateway/hold.ts
++++ b/builder/src/gateway/hold.ts
+@@ -139,7 +139,7 @@ export function guardRequest(body: MeteredRequest, profile: ProfileLimits): Refu
+     for (const t of body.tools as Array<Record<string, unknown> | null>) {
+       const type = t && typeof t === "object" ? t["type"] : undefined;
+       if (type === undefined || type === null || type === "custom") continue;
+-      if (typeof type === "string" && CLIENT_EXECUTED_TOOL_TYPE.test(type)) continue;
++      continue; // CONTROL: every tool let through
+       return {
+         reason: "server_tool_not_allowed",
+         message: `The request includes a tool of type "${String(type)}". Tools the provider runs itself can be billed on top of tokens, so the gateway does not forward them.`,
+
+$ cd builder && npx vitest run test/gateway.test.ts -t 'B17: ' --reporter=verbose   (skipped tests left out below)
+
+ RUN  v5.1.0 /home/user/vibe-build/builder
+
+ × test/gateway.test.ts > holds: proof rows B15 to B19 of the design note (the known limits of the hold, known gap 41) > B17: server-side tools billed on top of tokens: a request that includes one, or asks for tool servers, is refused before anything is forwarded 51ms
+   → expected 200 to be 400 // Object.is equality
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 78 skipped (79)
+   Start at  03:06:59
+   Duration  290ms (tests 39%, import 32%, transform 27%, worker 2%)
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/gateway.test.ts > holds: proof rows B15 to B19 of the design note (the known limits of the hold, known gap 41) > B17: server-side tools billed on top of tokens: a request that includes one, or asks for tool servers, is refused before anything is forwarded
+AssertionError: expected 200 to be 400 // Object.is equality
+
+- Expected
++ Received
+
+- 400
++ 200
+
+ ❯ refusedBeforeForwarding test/gateway.test.ts:596:24
+    594|     const refusedBefore = (await listEvents(pool, id, "gateway.refused…
+    595|     const res = await call(token, body);
+    596|     expect(res.status).toBe(400);
+       |                        ^
+    597|     const b = (await res.json()) as { error: { type: string; message: …
+    598|     expect(b.error.message).toMatch(messagePart);
+ ❯ test/gateway.test.ts:640:17
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+exit code: 1  (FAILED, as expected)
+Restored with `git checkout -- builder/src/gateway/hold.ts`; `git diff --exit-code`: exit code 0 (clean)
+
+====================================================================================================
+Control 12 of 14: row B17
+Safeguard removed: A request that asks for tool servers (mcp_servers) is let through (the tool-type check is left in place)
+File: builder/src/gateway/hold.ts
+
+The change, as `git diff` shows it:
+diff --git a/builder/src/gateway/hold.ts b/builder/src/gateway/hold.ts
+index ceb3744..fc3eb28 100644
+--- a/builder/src/gateway/hold.ts
++++ b/builder/src/gateway/hold.ts
+@@ -131,7 +131,7 @@ export function guardRequest(body: MeteredRequest, profile: ProfileLimits): Refu
+       return { reason: "fast_mode_not_priced", message: `The request asks for fast mode on "${model}", whose fast-mode price is not in the gateway's price table.`, detail: { model } };
+     }
+   }
+-  if (body.mcp_servers !== undefined && body.mcp_servers !== null && !(Array.isArray(body.mcp_servers) && body.mcp_servers.length === 0)) {
++  if (false) { // CONTROL: tool servers not checked
+     return { reason: "server_tool_not_allowed", message: "The request asks the provider to connect to tool servers itself. The gateway cannot bound what that costs and does not forward it.", detail: { field: "mcp_servers" } };
+   }
+   if (body.tools !== undefined && body.tools !== null) {
+
+$ cd builder && npx vitest run test/gateway.test.ts -t 'B17: ' --reporter=verbose   (skipped tests left out below)
+
+ RUN  v5.1.0 /home/user/vibe-build/builder
+
+ × test/gateway.test.ts > holds: proof rows B15 to B19 of the design note (the known limits of the hold, known gap 41) > B17: server-side tools billed on top of tokens: a request that includes one, or asks for tool servers, is refused before anything is forwarded 64ms
+   → expected 200 to be 400 // Object.is equality
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 78 skipped (79)
+   Start at  03:06:59
+   Duration  332ms (tests 41%, import 30%, transform 26%, worker 3%)
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/gateway.test.ts > holds: proof rows B15 to B19 of the design note (the known limits of the hold, known gap 41) > B17: server-side tools billed on top of tokens: a request that includes one, or asks for tool servers, is refused before anything is forwarded
+AssertionError: expected 200 to be 400 // Object.is equality
+
+- Expected
++ Received
+
+- 400
++ 200
+
+ ❯ refusedBeforeForwarding test/gateway.test.ts:596:24
+    594|     const refusedBefore = (await listEvents(pool, id, "gateway.refused…
+    595|     const res = await call(token, body);
+    596|     expect(res.status).toBe(400);
+       |                        ^
+    597|     const b = (await res.json()) as { error: { type: string; message: …
+    598|     expect(b.error.message).toMatch(messagePart);
+ ❯ test/gateway.test.ts:643:17
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+exit code: 1  (FAILED, as expected)
+Restored with `git checkout -- builder/src/gateway/hold.ts`; `git diff --exit-code`: exit code 0 (clean)
+
+====================================================================================================
+Control 13 of 14: row B18
+Safeguard removed: Fast mode is let through on a model whose fast-mode price is not in the gateway's table
+File: builder/src/gateway/hold.ts
+
+The change, as `git diff` shows it:
+diff --git a/builder/src/gateway/hold.ts b/builder/src/gateway/hold.ts
+index ceb3744..a6072a5 100644
+--- a/builder/src/gateway/hold.ts
++++ b/builder/src/gateway/hold.ts
+@@ -127,7 +127,7 @@ export function guardRequest(body: MeteredRequest, profile: ProfileLimits): Refu
+   if (body.speed !== undefined && body.speed !== null && body.speed !== "standard") {
+     if (body.speed !== "fast") return { reason: "speed_not_recognised", message: "The request sets a speed the gateway does not recognise.", detail: { speed: String(body.speed) } };
+     if (!profile.allowFastMode) return { reason: "fast_mode_not_allowed", message: "The request asks for fast mode, which this project's profile does not allow." };
+-    if (!FAST_MODE_PRICED.has(model)) {
++    if (false) { // CONTROL: fast mode let through on a model with no fast-mode price
+       return { reason: "fast_mode_not_priced", message: `The request asks for fast mode on "${model}", whose fast-mode price is not in the gateway's price table.`, detail: { model } };
+     }
+   }
+
+$ cd builder && npx vitest run test/gateway.test.ts -t 'B18: ' --reporter=verbose   (skipped tests left out below)
+
+ RUN  v5.1.0 /home/user/vibe-build/builder
+
+ × test/gateway.test.ts > holds: proof rows B15 to B19 of the design note (the known limits of the hold, known gap 41) > B18: fast mode on a model whose price is assumed: a request for it is refused before anything is forwarded, even where the profile allows fast mode 51ms
+   → expected 200 to be 400 // Object.is equality
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 78 skipped (79)
+   Start at  03:07:00
+   Duration  306ms (tests 37%, import 35%, transform 26%, worker 2%)
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/gateway.test.ts > holds: proof rows B15 to B19 of the design note (the known limits of the hold, known gap 41) > B18: fast mode on a model whose price is assumed: a request for it is refused before anything is forwarded, even where the profile allows fast mode
+AssertionError: expected 200 to be 400 // Object.is equality
+
+- Expected
++ Received
+
+- 400
++ 200
+
+ ❯ refusedBeforeForwarding test/gateway.test.ts:596:24
+    594|     const refusedBefore = (await listEvents(pool, id, "gateway.refused…
+    595|     const res = await call(token, body);
+    596|     expect(res.status).toBe(400);
+       |                        ^
+    597|     const b = (await res.json()) as { error: { type: string; message: …
+    598|     expect(b.error.message).toMatch(messagePart);
+ ❯ test/gateway.test.ts:652:17
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+exit code: 1  (FAILED, as expected)
+Restored with `git checkout -- builder/src/gateway/hold.ts`; `git diff --exit-code`: exit code 0 (clean)
+
+====================================================================================================
+Control 14 of 14: row B19
+Safeguard removed: Every error answer settles its hold at nothing (the hold is released whatever the error)
+File: builder/src/gateway/app.ts
+
+The change, as `git diff` shows it:
+diff --git a/builder/src/gateway/app.ts b/builder/src/gateway/app.ts
+index 2564983..e80e459 100644
+--- a/builder/src/gateway/app.ts
++++ b/builder/src/gateway/app.ts
+@@ -65,6 +65,7 @@ const REJECTED_BEFORE_WORK: Record<number, string[]> = {
+   429: ["rate_limit_error"],
+ };
+ function rejectedBeforeWork(status: number, text: string): boolean {
++  return status >= 400; // CONTROL: every error answer releases its hold
+   const types = REJECTED_BEFORE_WORK[status];
+   if (!types) return false;
+   try {
+
+$ cd builder && npx vitest run test/gateway.test.ts -t 'B19: ' --reporter=verbose   (skipped tests left out below)
+
+ RUN  v5.1.0 /home/user/vibe-build/builder
+
+ × test/gateway.test.ts > holds: proof rows B15 to B19 of the design note (the known limits of the hold, known gap 41) > B19: what happens to a hold after an error answer: released only when the provider's own answer shows the request was rejected before any work, kept in every other case 84ms
+   → expected [ 'hold.opened', 'model.call', …(1) ] to deeply equal [ 'hold.opened', 'hold.kept' ]
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 78 skipped (79)
+   Start at  03:07:01
+   Duration  328ms (tests 45%, transform 27%, import 27%, worker 1%)
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/gateway.test.ts > holds: proof rows B15 to B19 of the design note (the known limits of the hold, known gap 41) > B19: what happens to a hold after an error answer: released only when the provider's own answer shows the request was rejected before any work, kept in every other case
+AssertionError: expected [ 'hold.opened', 'model.call', …(1) ] to deeply equal [ 'hold.opened', 'hold.kept' ]
+
+- Expected
++ Received
+
+  [
+    "hold.opened",
+-   "hold.kept",
++   "model.call",
++   "hold.settled",
+  ]
+
+ ❯ test/gateway.test.ts:683:31
+    681|       const { id, token } = await newProject(PLAIN_HOLD * 1.5);
+    682|       expect((await call(token, plain(mode))).status).toBe(status);
+    683|       expect(await kinds(id)).toEqual(["hold.opened", "hold.kept"]);
+       |                               ^
+    684|       const kept = (await listEvents(pool, id, "hold.kept"))[0]!.paylo…
+    685|       expect(kept.reason).toContain(reasonPart);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+exit code: 1  (FAILED, as expected)
+Restored with `git checkout -- builder/src/gateway/app.ts`; `git diff --exit-code`: exit code 0 (clean)
+
+====================================================================================================
+Controls whose test failed with the safeguard removed: 14 of 14.
+Tracked files changed after the last control: none
