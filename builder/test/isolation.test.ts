@@ -350,6 +350,10 @@ describe("isolation harness: comparing a container's attempts with its expected 
     // The address is matched exactly: 172.17.0.10 is not 172.17.0.1.
     const near = parseProbeOutput([attempt({ id: "M172.17.0.10:40001", toward: "host", result: "connected", code: null }), end(1)]);
     expect(compareWithExpected(near, expectedPositiveControls("default-bridge", { canaryPort: 40001, bridgeAddress: "172.17.0.1" }), false).pass).toBe(false);
+    // So is the port: an answer on 40001 is not the canary's on 4000, for either comparison container.
+    const otherPort = parseProbeOutput([attempt({ id: "M172.17.0.1:40001", toward: "host", result: "connected", code: null }), end(1)]);
+    expect(compareWithExpected(otherPort, expectedPositiveControls("default-bridge", { canaryPort: 4000, bridgeAddress: "172.17.0.1" }), false).pass).toBe(false);
+    expect(compareWithExpected(otherPort, expectedPositiveControls("machine", { canaryPort: 4000, bridgeAddress: "172.17.0.1" }), false).pass).toBe(false);
   });
 });
 

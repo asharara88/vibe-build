@@ -180,6 +180,7 @@ export async function leftOf(sb: Sandbox): Promise<string> {
     `named containers: ${await ask(["ps", "-a", "--filter", `name=${sb.projectName}-`, "--format", "{{.Names}}"])}`,
     `networks: ${await ask(["network", "ls", "--filter", label, "--format", "{{.Name}}"])}`,
     `volumes: ${await ask(["volume", "ls", "--filter", label, "--format", "{{.Name}}"])}`,
-    `images: ${await ask(["images", "--format", "{{.Repository}}:{{.Tag}}", "--filter", `reference=${sb.projectName}*`])}`,
+    // Every image made here is named `<project>-<name>`; the dash keeps another project whose name starts the same out.
+    `images: ${await ask(["images", "--format", "{{.Repository}}:{{.Tag}}", "--filter", `reference=${sb.projectName}-*`])}`,
   ].join("; ");
 }
