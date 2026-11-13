@@ -28,6 +28,10 @@
  * - A rewrite of the journal file cut short leaves the old file under a second name (gateway/journal.ts). `--list` shows
  *   what such a leftover alone holds, numbered as it will be in the journal file; a set-aside first moves it there
  *   (`absorbLeftovers`), leaving out a line recorded as set aside already.
+ * - The folder's lock lives on the run's own database connection. That connection's 'error' and 'end' are tracked; right
+ *   before each write (to the database or in the journal folder) the run checks that it still holds the lock, by that
+ *   flag and by a query on that connection, and inside the set-aside's transaction again right before its commit. Once
+ *   the lock is lost, the run writes nothing more and stops with `RecoveryStopped` (the script exits with code 4).
  */
 import { randomBytes } from "node:crypto";
 import type pg from "pg";
@@ -67,6 +71,41 @@ export class RecoveryRefused extends Error {
     super(message);
     this.name = "RecoveryRefused";
   }
+}
+
+/**
+ * After the review bot on 88e984b: the run lost the journal folder's lock part-way (its own database connection ended),
+ * so it stopped before a write; it wrote nothing more to the database or in the journal folder.
+ */
+export class RecoveryStopped extends Error {
+  readonly code = "folder_lock_lost";
+  constructor(
+    /** The write it stopped before. */
+    readonly before: string,
+  ) {
+    super(
+      `The run lost the journal folder's lock part-way (its database connection ended), so it stopped before ${before}: from then on it wrote nothing to the database and changed nothing in the journal folder. Another process may use the folder now. Run the same command again once none does: a set-aside recorded before the stop is finished then, and nothing is written twice.`,
+    );
+    this.name = "RecoveryStopped";
+  }
+}
+
+/** The writes of a set-aside, in the order they can happen; a test can stop the run right before one (`SetAsideOptions.beforeWrite`). */
+export type RecoveryWrite =
+  | "absorb leftovers"
+  | "earlier: set-aside entry"
+  | "earlier: journal line removed"
+  | "earlier: row marked moved"
+  | "record: row"
+  | "record: transaction"
+  | "record: commit"
+  | "set-aside entry"
+  | "journal line removed"
+  | "row marked moved";
+
+export interface SetAsideOptions {
+  /** For tests: runs right before each write's check that the run still holds the folder's lock. */
+  beforeWrite?: (write: RecoveryWrite) => Promise<void>;
 }
 
 const NOTHING_CHANGED = "Nothing was changed for this line.";
@@ -290,7 +329,7 @@ const unreadableWith = (lines: JournalLine[], fingerprint: string) => lines.filt
  * to the database for them again. While such a line is in the journal file, every gateway reading it stays closed and
  * appends nothing, so the one unreadable line with its fingerprint is that line; two would be unclear, and refused.
  */
-async function finishEarlier(pool: pg.Pool, journal: FaultJournal): Promise<SetAsideRow[]> {
+async function finishEarlier(pool: pg.Pool, journal: FaultJournal, write: (w: RecoveryWrite) => Promise<void>): Promise<SetAsideRow[]> {
   const rows = (await pool.query<SetAsideRow>("select * from journal_set_asides where journal_folder_id = $1 and moved_at is null order by id", [journal.folderId])).rows;
   const finished: SetAsideRow[] = [];
   for (const row of rows) {
@@ -302,8 +341,15 @@ async function finishEarlier(pool: pg.Pool, journal: FaultJournal): Promise<SetA
         `Set-aside ${row.set_aside_id} was recorded but its line was not moved out, and the journal file holds ${same.length} unreadable lines with its fingerprint: which one it was cannot be told. An engineer has to look. Nothing was changed.`,
       );
     }
-    if (!(await journal.setAsides()).some((e) => e["set_aside_id"] === row.set_aside_id)) await journal.appendSetAside(entryFor(row));
-    if (same.length === 1) await journal.removeLine(same[0]!.number, row.fingerprint);
+    if (!(await journal.setAsides()).some((e) => e["set_aside_id"] === row.set_aside_id)) {
+      await write("earlier: set-aside entry");
+      await journal.appendSetAside(entryFor(row));
+    }
+    if (same.length === 1) {
+      await write("earlier: journal line removed");
+      await journal.removeLine(same[0]!.number, row.fingerprint);
+    }
+    await write("earlier: row marked moved");
     await pool.query("update journal_set_asides set moved_at = clock_timestamp() where id = $1 and moved_at is null", [row.id]);
     finished.push(row);
   }
@@ -313,9 +359,10 @@ async function finishEarlier(pool: pg.Pool, journal: FaultJournal): Promise<SetA
 /**
  * Set aside one unreadable line of the journal file: record it (with the hold's project frozen, when a hold is
  * named), then move it to the set-aside file. Refuses, having changed nothing for this line, with `RecoveryRefused`.
- * `databaseUrl` is for the folder's lock, held on a connection of its own for the whole run.
+ * `databaseUrl` is for the folder's lock, held on a connection of its own for the whole run. After the review bot on
+ * 88e984b: throws `RecoveryStopped`, having written nothing more, once that connection is lost.
  */
-export async function setAsideLine(pool: pg.Pool, databaseUrl: string, req: SetAsideRequest): Promise<SetAside> {
+export async function setAsideLine(pool: pg.Pool, databaseUrl: string, req: SetAsideRequest, o: SetAsideOptions = {}): Promise<SetAside> {
   if (!Number.isInteger(req.line) || req.line < 1) throw new RecoveryRefused("line_not_valid", `A line number is a whole number from 1. ${NOTHING_CHANGED}`);
   const fingerprint = req.fingerprint.trim().toLowerCase().replace(/^sha256:/, "");
   if (!/^[0-9a-f]{64}$/.test(fingerprint)) throw new RecoveryRefused("fingerprint_not_valid", `A fingerprint is the 64 hexadecimal characters --list prints. ${NOTHING_CHANGED}`);
@@ -326,8 +373,28 @@ export async function setAsideLine(pool: pg.Pool, databaseUrl: string, req: SetA
 
   // The folder's lock, for the whole run: no gateway uses the folder while it is held, and none can start.
   const lock = createClient(databaseUrl);
-  lock.on("error", () => undefined); // an idle connection's error must not end the process; its message can name the address
+  // After the review bot on 88e984b: the connection's end, or an error on it, ends the lock (PostgreSQL releases a session's
+  // locks when the session ends). Neither ends the process; an error's message, which can name the address, is not kept.
+  let gotLock = false;
+  let connectionLost = false;
+  lock.on("error", () => (connectionLost = true));
+  lock.on("end", () => (connectionLost = true));
   await lock.connect();
+  const held = () => gotLock && !connectionLost;
+  /** Right before each write: throws RecoveryStopped unless the lock is still held, by the flag, then by a query on the lock's own connection. */
+  let last: RecoveryWrite = "absorb leftovers";
+  const write = async (w: RecoveryWrite): Promise<void> => {
+    last = w;
+    await o.beforeWrite?.(w);
+    if (held()) {
+      try {
+        await lock.query("select 1"); // the lock's own session still answers: it still holds the lock
+      } catch {
+        connectionLost = true;
+      }
+    }
+    if (!held()) throw new RecoveryStopped(WRITES[w]);
+  };
   try {
     const got = (await lock.query<{ got: boolean }>(`select pg_try_advisory_lock(${journalFolderLockKeySql("$1")}) as got`, [journal.folderId])).rows[0]!.got;
     if (!got) {
@@ -336,9 +403,16 @@ export async function setAsideLine(pool: pg.Pool, databaseUrl: string, req: SetA
         `A gateway, or another run of this script, is using this journal folder now (it holds the folder's lock). Stop the gateway first: a running gateway reads its journal only when it starts. ${NOTHING_CHANGED}`,
       );
     }
+    gotLock = true;
+    // The journal's own rewrites and set-aside appends check the lock too, inside its queue (as the gateway's do).
+    journal.guardWrites(held);
     // After the review bot on 88e984b: the leftover of a rewrite cut short is moved into the journal file first.
-    if ((await journal.leftovers()).length > 0) await journal.absorbLeftovers(await setAsideFingerprints(pool, journal.folderId));
-    const finishedRows = await finishEarlier(pool, journal);
+    if ((await journal.leftovers()).length > 0) {
+      const setAside = await setAsideFingerprints(pool, journal.folderId);
+      await write("absorb leftovers");
+      await journal.absorbLeftovers(setAside);
+    }
+    const finishedRows = await finishEarlier(pool, journal, write);
     const finishedEarlier = finishedRows.map((r) => r.set_aside_id);
     // The same command run again after it was cut short: its own set-aside is the one just finished.
     const mine = finishedRows.find((r) => r.fingerprint === fingerprint);
@@ -347,17 +421,35 @@ export async function setAsideLine(pool: pg.Pool, databaseUrl: string, req: SetA
       return { ...earlier, holdDiffersFromRequest: (mine.hold_id === null ? null : String(mine.hold_id)) !== req.hold };
     }
     try {
-      return await setAsideLocked(pool, journal, req, fingerprint, by, reason, finishedEarlier);
+      return await setAsideLocked(pool, journal, req, fingerprint, by, reason, finishedEarlier, write);
     } catch (err) {
       if (err instanceof RecoveryRefused && finishedEarlier.length > 0) {
         throw new RecoveryRefused(err.code, `${err.message} (First, set-aside(s) ${finishedEarlier.join(", ")}, recorded earlier but cut short, were finished: their lines moved out of the journal file.)`);
       }
       throw err;
     }
+  } catch (err) {
+    // The lock lost between the run's check and the journal's own (inside its queue): stopped all the same.
+    if ((err as { code?: unknown }).code === "JOURNAL_FOLDER_NOT_HELD") throw new RecoveryStopped(WRITES[last]);
+    throw err;
   } finally {
     await lock.end().catch(() => undefined); // the folder's lock ends with this session
   }
 }
+
+/** Each write in plain words, for `RecoveryStopped`'s message. */
+const WRITES: Record<RecoveryWrite, string> = {
+  "absorb leftovers": "moving the leftover of a rewrite cut short into the journal file",
+  "earlier: set-aside entry": "writing an earlier set-aside's entry to the set-aside file",
+  "earlier: journal line removed": "removing an earlier set-aside's line from the journal file",
+  "earlier: row marked moved": "marking an earlier set-aside's row as moved",
+  "record: row": "recording the set-aside in the database",
+  "record: transaction": "recording the set-aside in the database",
+  "record: commit": "committing the set-aside's record (it was rolled back: nothing of it is in the database)",
+  "set-aside entry": "writing the line's entry to the set-aside file",
+  "journal line removed": "removing the line from the journal file",
+  "row marked moved": "marking the set-aside's row as moved",
+};
 
 /** What a set-aside recorded earlier, and just finished, says: read back from its row (and its freeze's events). */
 async function fromRow(pool: pg.Pool, row: SetAsideRow, finishedEarlier: string[], linesLeft: number): Promise<SetAside> {
@@ -394,7 +486,16 @@ async function fromRow(pool: pg.Pool, row: SetAsideRow, finishedEarlier: string[
 }
 
 /** The set-aside itself, run while the folder's lock is held. */
-async function setAsideLocked(pool: pg.Pool, journal: FaultJournal, req: SetAsideRequest, fingerprint: string, by: string, reason: string, finishedEarlier: string[]): Promise<SetAside> {
+async function setAsideLocked(
+  pool: pg.Pool,
+  journal: FaultJournal,
+  req: SetAsideRequest,
+  fingerprint: string,
+  by: string,
+  reason: string,
+  finishedEarlier: string[],
+  write: (w: RecoveryWrite) => Promise<void>,
+): Promise<SetAside> {
   const { lines, sha256 } = await journal.lines();
   const before = (await pool.query<SetAsideRow>("select * from journal_set_asides where journal_folder_id = $1 and fingerprint = $2 order by id", [journal.folderId, fingerprint])).rows;
   if (before.length > 0 && unreadableWith(lines, fingerprint).length === 0) {
@@ -446,12 +547,14 @@ async function setAsideLocked(pool: pg.Pool, journal: FaultJournal, req: SetAsid
   let row: SetAsideRow;
   let hold: SetAside["hold"] = null;
   if (req.hold === null) {
+    await write("record: row");
     row = (await pool.query<SetAsideRow>(INSERT_ROW, rowValues(null, null, null))).rows[0]!;
   } else {
     const holdId = req.hold;
     const owner = (await pool.query<{ project_id: string }>("select project_id from holds where id = $1", [holdId])).rows[0];
     if (!owner) throw new RecoveryRefused("unknown_hold", `There is no hold ${holdId}. ${NOTHING_CHANGED}`);
     const projectId = owner.project_id;
+    await write("record: transaction");
     ({ row, hold } = await inTransaction(pool, projectId, async (c) => {
       await expireHoldsIn(c, projectId, new Date()); // as every budget decision does: a hold past its deadline counts as kept
       const h = (await c.query<Hold>("select * from holds where id = $1 and project_id = $2 for update", [holdId, projectId])).rows[0];
@@ -529,13 +632,17 @@ async function setAsideLocked(pool: pg.Pool, journal: FaultJournal, req: SetAsid
         { freeze_id: Number(freeze.id), journal_id: freeze.journal_id, hold_id: Number(h.id), hold_state: h.state, hold_amount_usd: amount, ended_at: null, reason: SET_ASIDE_FREEZE_REASON, set_aside_id: setAsideId },
         h.step,
       );
+      await write("record: commit"); // lost now: the transaction is rolled back, and nothing of it is written
       return { row: r, hold: { id: String(h.id), projectId, amountUsd: amount, freezeId: String(freeze.id), eventId, frozenEventId } };
     }));
   }
 
   // 2. The move: the entry forced to disk in the set-aside file, then the journal file rewritten without the line.
+  await write("set-aside entry");
   await journal.appendSetAside(entryFor(row));
+  await write("journal line removed");
   await journal.removeLine(line.number, fingerprint);
+  await write("row marked moved");
   await pool.query("update journal_set_asides set moved_at = clock_timestamp() where id = $1 and moved_at is null", [row.id]);
   return {
     setAsideId,

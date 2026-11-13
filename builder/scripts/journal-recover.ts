@@ -34,13 +34,15 @@
  * Exit codes: 0 done; 1 the arguments were wrong (nothing was read or sent); 2 refused (nothing was changed for the
  * line asked for; a set-aside cut short earlier may have been finished first, and the message says so); 3 it could
  * not be completed: if it broke after the record, run the same command again, which finishes the move and writes
- * nothing twice.
+ * nothing twice; 4 (after the review bot on 88e984b) stopped: the run lost the folder's lock part-way (its database
+ * connection ended) and wrote nothing more from then on; run the same command again once no other process uses the
+ * folder.
  */
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import type pg from "pg";
-import { LISTED_BYTES, listJournal, printable, RecoveryRefused, setAsideLine, type SetAsideRow } from "../src/gateway/journal-recovery.js";
+import { LISTED_BYTES, listJournal, printable, RecoveryRefused, RecoveryStopped, setAsideLine, type SetAsideRow } from "../src/gateway/journal-recovery.js";
 import { createPool, databaseUrl } from "../src/store/db.js";
 
 const USAGE = [
@@ -193,6 +195,9 @@ try {
   if (e instanceof RecoveryRefused) {
     console.error(`Refused (${e.code}): ${printable(e.message)}`);
     exitCode = 2;
+  } else if (e instanceof RecoveryStopped) {
+    console.error(`Stopped (${e.code}): ${printable(e.message)}`);
+    exitCode = 4;
   } else {
     console.error(`It could not be completed (error code ${codeOf(e)}). If it broke after the set-aside was recorded, run the same command again: it finishes the move and writes nothing twice.`);
     exitCode = 3;
