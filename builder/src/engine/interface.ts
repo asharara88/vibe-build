@@ -37,9 +37,11 @@ export interface BuildEngine {
   /**
    * Start one step. Events stream as they happen; the promise resolves when the step ends.
    * `onEvent` may throw, or return a promise that rejects: an engine must not let either bring the
-   * builder down or leave its container running. The scripted engine then kills its container and
-   * fails the step ("handling the step's events failed …"); it does not wait for a promise the handler
-   * returns, so one that rejects after the step's commit leaves the step reported as done.
+   * builder down or leave its container running. The scripted engine then kills its container if it
+   * is running and fails the step ("handling the step's events failed …"), except once the step's
+   * commit has begun: a handler that throws or rejects from then on (the `finished` event included)
+   * leaves the step reported as done. It does not wait for a promise the handler returns: a rejection
+   * that comes before the commit begins fails the step, one that comes later does not (known gap 59).
    */
   runStep(step: StepInstruction, onEvent: (e: EngineEvent) => void): Promise<StepResult>;
   /** Stop the running step, if any. */

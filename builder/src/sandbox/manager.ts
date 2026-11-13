@@ -7,11 +7,21 @@
  *
  * Two profiles:
  * - `server`: the project's containers share an internal Docker network with no route out.
- *   The egress proxy is attached to that network and to the outside, and is the only way out.
- * - `development-cloud-session`: the development machine reaches the internet only through a
- *   proxy on its own loopback address, which containers on a bridge network cannot reach. So the
- *   containers share the host's network, are told about the session proxy, and are given its
- *   certificate. This is development only (known gaps 1 and 2).
+ *   The egress proxy is attached to that network and to the outside, and is the only way out
+ *   (designed, not shown: package 0.6b).
+ * - `development-cloud-session`: every container except the engine shares the host's network. The
+ *   image build runs on the host's network and is given the cloud session's proxy as build
+ *   arguments; its certificate is copied into the build stage (`createSandbox`, `build`), so the
+ *   tools image, which is that stage, holds a copy. The egress proxy is given the session proxy as
+ *   its way out and has the certificate mounted. The app and tools containers are given no proxy
+ *   setting (seen in package 0.6a's run, 12 Nov 2026); the app container holds no copy of the
+ *   certificate (none at the two places that run's probe looked; the Dockerfile's `run` stage copies
+ *   none). The session proxy is on the machine's own loopback address, which a container on
+ *   Docker's default ("bridge") network could not reach (refused at the machine's address on that
+ *   network, attempt G45887). It is not the machine's only way out: in the same run, requests sent
+ *   with no proxy got answers, from the app and tools containers and from one on Docker's default
+ *   network. On this profile the app and tools containers are not isolated from the machine
+ *   (evidence/2026-11-12-package-0.6a/isolation-checks.md). Development only (known gaps 1, 2 and 60).
  * In both, the engine container of package 2.1 (the scripted engine) has no network at all.
  */
 import { execFile, spawn } from "node:child_process";
@@ -247,7 +257,8 @@ export function composeDocument(spec: SandboxSpec): Record<string, unknown> {
     };
   }
 
-  // development-cloud-session: host network, session proxy, session certificate.
+  // development-cloud-session: the host's network for every service but the engine; the session proxy
+  // and its certificate for the egress proxy only (and for the image build, in createSandbox).
   if (!spec.hostProxy) throw new Error("The development profile needs the host proxy URL and certificate path.");
   const devPort = spec.devDbPort ?? 5433;
   const app = appService(spec, common, `postgres://app:\${DB_PASSWORD}@127.0.0.1:${devPort}/app`);
