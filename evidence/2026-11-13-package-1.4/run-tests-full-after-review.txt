@@ -1,0 +1,9 @@
+$ flock /tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/live-tests.lock npx vitest run   (in builder/, at commit c8be427, test database builder_test_pkg14fix, TMPDIR scratchpad/pkg14fix-tmp, started 2026-11-13T08:27:44Z)
+
+ RUN  v5.1.0 /tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/wt-14/builder
+ Test Files  11 passed (11)
+      Tests  285 passed (285)
+   Start at  08:27:45
+   Duration  126.69s (tests 100%)
+exit code: 0
+ended 2026-11-13T08:29:52Z

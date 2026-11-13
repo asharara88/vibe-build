@@ -1,0 +1,186 @@
+Package 1.4, 13 Nov 2026, after its adversarial review: each new test (and each new check in an existing test) run once with its safeguard removed (controls C24 to C27)
+Development machine (a cloud session), in builder/, at commit c8be427. Test database builder_test_pkg14fix over the local socket (peer authentication, no password).
+Stand-in provider only; the key is made up; nothing spent. For each control: the change as git diff shows it, the test run (expected to FAIL),
+the file restored with git checkout --, and git diff --exit-code (expected 0, clean).
+
+== C24 (B10 (8)): the gate no longer checked again before the forward (the liveness check stays) ==
+$ git diff -- src/gateway/app.ts
+diff --git a/builder/src/gateway/app.ts b/builder/src/gateway/app.ts
+index 2fcbe6d..600375f 100644
+--- a/builder/src/gateway/app.ts
++++ b/builder/src/gateway/app.ts
+@@ -525,7 +525,7 @@ export function createGateway(opts: GatewayOptions) {
+     // The gate and the liveness lock checked again (review of 1.4): a call that passed them on arrival may
+     // have waited at its counting call or for the lock while one closed. Then it is not forwarded, and as
+     // only the counting call was sent, its hold is given back. No await stands between this and the forward.
+-    const stoppedSince = gate.closed() ? "gate" : opts.liveness && !opts.liveness.ok() ? "liveness" : null;
++    const stoppedSince = opts.liveness && !opts.liveness.ok() ? "liveness" : null; // CONTROL
+     if (stoppedSince) {
+       ended = true;
+       const why = stoppedSince === "gate" ? "a call's ending could not be recorded, so the gateway's gate closed" : "the gateway lost its liveness lock";
+
+$ TMPDIR=/tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/pkg14fix-tmp BUILDER_TEST_DATABASE_URL=postgres:///builder_test_pkg14fix?host=/var/run/postgresql npx vitest run test/failures.test.ts -t '^.*B10 \(8\): '
+ RUN  v5.1.0 /tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/wt-14/builder
+ ❯ test/failures.test.ts (19 tests | 1 failed | 18 skipped) 145ms
+   ❯ package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) (19)
+     × B10 (8): a call that passed the gate before it closed, and waits at its counting call, is not forwarded once the gate is closed: its hold is given back (only the counting call was sent) and it gets the 503 110ms
+ Test Files  1 failed (1)
+      Tests  1 failed | 18 skipped (19)
+   Start at  08:26:52
+   Duration  447ms (tests 41%, transform 38%, import 20%, worker 1%)
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B10 (8): a call that passed the gate before it closed, and waits at its counting call, is not forwarded once the gate is closed: its hold is given back (only the counting call was sent) and it gets the 503
+AssertionError: expected 200 to be 503 // Object.is equality
+- Expected
++ Received
+- 503
++ 200
+ ❯ test/failures.test.ts:729:23
+    727|     release("count:b10-8b");
+    728|     const rb = await b;
+    729|     expect(rb.status).toBe(503);
+       |                       ^
+    730|     expect((await errorOf(rb)).type).toBe("gateway_unrecorded");
+    731|     expect(stand.messages).toBe(before); // B never reached the stand-…
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+vitest exit code: 1
+$ git checkout -- src/gateway/app.ts; git diff --exit-code   -> exit 0
+
+== C25 (liveness, mid-call): the liveness lock no longer checked again before the forward (the gate check stays) ==
+$ git diff -- src/gateway/app.ts
+diff --git a/builder/src/gateway/app.ts b/builder/src/gateway/app.ts
+index 2fcbe6d..4c5c17a 100644
+--- a/builder/src/gateway/app.ts
++++ b/builder/src/gateway/app.ts
+@@ -525,7 +525,7 @@ export function createGateway(opts: GatewayOptions) {
+     // The gate and the liveness lock checked again (review of 1.4): a call that passed them on arrival may
+     // have waited at its counting call or for the lock while one closed. Then it is not forwarded, and as
+     // only the counting call was sent, its hold is given back. No await stands between this and the forward.
+-    const stoppedSince = gate.closed() ? "gate" : opts.liveness && !opts.liveness.ok() ? "liveness" : null;
++    const stoppedSince = gate.closed() ? "gate" : null; // CONTROL
+     if (stoppedSince) {
+       ended = true;
+       const why = stoppedSince === "gate" ? "a call's ending could not be recorded, so the gateway's gate closed" : "the gateway lost its liveness lock";
+
+$ TMPDIR=/tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/pkg14fix-tmp BUILDER_TEST_DATABASE_URL=postgres:///builder_test_pkg14fix?host=/var/run/postgresql npx vitest run test/failures.test.ts -t '^.*a call that passed the liveness check'
+ RUN  v5.1.0 /tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/wt-14/builder
+ ❯ test/failures.test.ts (19 tests | 1 failed | 18 skipped) 117ms
+   ❯ package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) (19)
+     × 1.4: a call that passed the liveness check, and waits at its counting call, is not forwarded once the gateway has lost its lock: its hold is given back and it gets the 503 88ms
+ Test Files  1 failed (1)
+      Tests  1 failed | 18 skipped (19)
+   Start at  08:26:53
+   Duration  404ms (tests 38%, transform 36%, import 25%, worker 1%)
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > 1.4: a call that passed the liveness check, and waits at its counting call, is not forwarded once the gateway has lost its lock: its hold is given back and it gets the 503
+AssertionError: expected 200 to be 503 // Object.is equality
+- Expected
++ Received
+- 503
++ 200
+ ❯ test/failures.test.ts:921:22
+    919|     release("count:live-mid");
+    920|     const r = await b;
+    921|     expect(r.status).toBe(503);
+       |                      ^
+    922|     expect((await errorOf(r)).type).toBe("gateway_unavailable");
+    923|     expect(stand.messages).toBe(before);
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+vitest exit code: 1
+$ git checkout -- src/gateway/app.ts; git diff --exit-code   -> exit 0
+
+== C26 (B10 (3)): the start-up file replays the journal after it starts listening, not before ==
+$ git diff -- src/gateway/main.ts
+diff --git a/builder/src/gateway/main.ts b/builder/src/gateway/main.ts
+index 6f71ade..cfbbc73 100644
+--- a/builder/src/gateway/main.ts
++++ b/builder/src/gateway/main.ts
+@@ -28,8 +28,6 @@ const journal = await FaultJournal.open(journalDir).catch((err: unknown) => {
+ const liveness = await holdLivenessLock(databaseUrl(), gatewayId, { onLost: (m) => fault(m, { gateway: gatewayId }) });
+ const gate = new FaultGate({ pool, journal, onFault: fault });
+ // Before taking any call: write what the journal still holds into the event log (a frozen project and its kept hold).
+-const replay = await gate.replay();
+-console.log(`journal lines replayed at start-up: ${replay.loaded}; all recorded: ${replay.recorded}`);
+ const app = createGateway({ pool, modelApiKey: key, upstreamUrl: process.env.BUILDER_UPSTREAM_URL, gatewayId, gate, liveness, onFault: fault });
+ // Then find the holds left open in the database and keep them; those of a gateway found gone are marked unreconciled.
+ const keeper = await startHoldKeeper(pool, gatewayId, 30_000, gate);
+@@ -37,3 +35,6 @@ console.log(`holds found open at start-up: ${keeper.found}; marked expired at st
+ serve({ fetch: app.fetch, port, hostname: process.env.BUILDER_GATEWAY_HOST ?? "127.0.0.1" }, (info) => {
+   console.log(`gateway ${gatewayId} listening on ${info.address}:${info.port}`);
+ });
++// CONTROL: the replay moved after the gateway starts listening
++const replay = await gate.replay();
++console.log(`journal lines replayed at start-up: ${replay.loaded}; all recorded: ${replay.recorded}`);
+
+$ TMPDIR=/tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/pkg14fix-tmp BUILDER_TEST_DATABASE_URL=postgres:///builder_test_pkg14fix?host=/var/run/postgresql npx vitest run test/failures.test.ts -t '^.*B10 \(3\): '
+ RUN  v5.1.0 /tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/wt-14/builder
+ ❯ test/failures.test.ts (19 tests | 1 failed | 18 skipped) 651ms
+   ❯ package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) (19)
+     × B10 (3): every write refused, then the gateway process killed: the journal line survives, and the gateway started afterwards writes it before it serves, so the project's first call is refused as frozen 620ms
+ Test Files  1 failed (1)
+      Tests  1 failed | 18 skipped (19)
+   Start at  08:26:53
+   Duration  853ms (tests 87%, import 9%, transform 4%)
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B10 (3): every write refused, then the gateway process killed: the journal line survives, and the gateway started afterwards writes it before it serves, so the project's first call is refused as frozen
+AssertionError: expected 2 to be less than 1
+ ❯ test/failures.test.ts:667:91
+    665|       expect(k2.out).toContain("journal lines replayed at start-up: 1;…
+    666|       // ... and before it began listening: the replay's line comes be…
+    667|       expect(k2.out.indexOf("journal lines replayed at start-up: 1; al…
+       |                                                                                           ^
+    668|       // The line survived the kill: it is now in the done file, and n…
+    669|       const journal = await FaultJournal.open(journalDir);
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+vitest exit code: 1
+$ git checkout -- src/gateway/main.ts; git diff --exit-code   -> exit 0
+
+== C27 (B13): the checker reads a cap change with no new cap as a NaN cap again ==
+$ git diff -- test/invariants.ts
+diff --git a/builder/test/invariants.ts b/builder/test/invariants.ts
+index 2641bb0..206e6b7 100644
+--- a/builder/test/invariants.ts
++++ b/builder/test/invariants.ts
+@@ -143,8 +143,7 @@ export function checkTrace(events: TraceEvent[], bills: Bill[], initialCapMicro:
+         break;
+       case "cap.changed":
+         // No readable new cap: flagged, and the cap kept, rather than a NaN cap that would switch rule (1) off (review of 1.4).
+-        if (num(p["new_cap_usd"]) === null) bad(e, "no new cap");
+-        else cap = micro(num(p["new_cap_usd"])!);
++        cap = micro(num(p["new_cap_usd"]) ?? Number.NaN); // CONTROL
+         break;
+       default:
+         // hold.kept, hold.expired, hold.found_at_startup, hold.unreconciled, gateway.*, project.frozen,
+
+$ TMPDIR=/tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/pkg14fix-tmp BUILDER_TEST_DATABASE_URL=postgres:///builder_test_pkg14fix?host=/var/run/postgresql npx vitest run test/failures.test.ts -t '^.*B13: '
+ RUN  v5.1.0 /tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/wt-14/builder
+ ❯ test/failures.test.ts (19 tests | 1 failed | 18 skipped) 40ms
+   ❯ package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) (19)
+     × B13: the invariant checker flags each kind of breach: above the cap, below what was owed, a settled call above its hold, hold.exceeded, and a hold row changed by hand with no event 12ms
+ Test Files  1 failed (1)
+      Tests  1 failed | 18 skipped (19)
+   Start at  08:26:55
+   Duration  329ms (transform 41%, import 35%, tests 22%, worker 2%)
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B13: the invariant checker flags each kind of breach: above the cap, below what was owed, a settled call above its hold, hold.exceeded, and a hold row changed by hand with no event
+AssertionError: expected [] to deeply equal [ …(2) ]
+- Expected
++ Received
+- [
+-   "an event the replay cannot read",
+-   "1: above the cap",
+- ]
++ []
+ ❯ test/failures.test.ts:880:117
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+vitest exit code: 1
+$ git checkout -- test/invariants.ts; git diff --exit-code   -> exit 0
+
+== Summary ==
+| Control | Row | Safeguard removed | Tests | Vitest exit | git diff clean after |
+| --- | --- | --- | --- | --- | --- |
+| C24 | B10 (8) | the gate no longer checked again before the forward (the liveness check stays) | Tests  1 failed , 18 skipped (19) | 1 | yes |
+| C25 | liveness, mid-call | the liveness lock no longer checked again before the forward (the gate check stays) | Tests  1 failed , 18 skipped (19) | 1 | yes |
+| C26 | B10 (3) | the start-up file replays the journal after it starts listening, not before | Tests  1 failed , 18 skipped (19) | 1 | yes |
+| C27 | B13 | the checker reads a cap change with no new cap as a NaN cap again | Tests  1 failed , 18 skipped (19) | 1 | yes |
+ended 2026-11-13T08:26:55Z
