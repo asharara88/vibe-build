@@ -33,7 +33,7 @@ CONTROLS = [
   [('export const PERMISSIONS_POLICY = "camera=(), ', 'export const PERMISSIONS_POLICY = "')], "test/preview-rules.test.ts", "the front's own headers"),
  ("J3-C14", "every content type passed on", "src/web/preview-rules.ts",
   [("  const t = contentType.split(\";\")[0]!.trim().toLowerCase();\n  if (t === \"\") return false;", "  const t = contentType.split(\";\")[0]!.trim().toLowerCase();\n  return true;\n  if (t === \"\") return false;")], "test/preview-rules.test.ts", "content types"),
- ("J3-C15", "the live app opened for a record that is not the scripted engine's alone", "src/orchestrator/journey.ts",
+ ("J3-C15", "the live app opened for a record that is not the scripted engine's alone (the rule and the job's own re-check both removed)", ["src/orchestrator/journey.ts", "src/orchestrator/journey-jobs.ts"],
   [(" : !s.appRunning ? \"The app is not running: make the preview first. The live app is offered only while it runs.\" : scriptedOnlyProblem(s)),", " : !s.appRunning ? \"The app is not running: make the preview first. The live app is offered only while it runs.\" : null),"),
    ("        const why = scriptedOnlyProblem(state);\n        if (why) throw new JourneyRefused(why);\n", "")], "test/journey.test.ts", "is refused for a record that does not show"),
  ("J3-C16", "the live app opened without the check service read as on front alone", "src/orchestrator/journey-jobs.ts",
@@ -69,21 +69,26 @@ before = run(["git", "diff", "HEAD", "--stat", "--", "."]).stdout
 head = run(["git", "rev-parse", "--short", "HEAD"]).stdout.strip()
 out.append(f"J3 controls, {datetime.date.today()}, on HEAD {head} of builder/ (working tree as committed: `git diff HEAD -- .` empty before: {'yes' if before == '' else 'NO'}). Each safeguard removed in turn by exact replacement, the test that guards it run alone (npx vitest run <file> -t <name>), its verdict, then the file restored with git checkout and the tree checked unchanged.")
 out.append("Columns: control | what was removed | verdict | vitest's summary lines")
+only = sys.argv[2:]  # control ids to run; all when none is named
 for cid, label, path, reps, test, name in CONTROLS:
-    src = open(path).read()
-    changed = src
+    if only and cid not in only:
+        continue
+    # One file for every replacement, or one file per replacement (a list of paths, in the replacements' order).
+    paths = path if isinstance(path, list) else [path] * len(reps)
+    texts = {p: open(p).read() for p in set(paths)}
     ok = True
-    for old, new in reps:
-        if old not in changed:
+    for p, (old, new) in zip(paths, reps):
+        if old not in texts[p]:
             ok = False
             break
-        changed = changed.replace(old, new, 1)
+        texts[p] = texts[p].replace(old, new, 1)
     if not ok:
         out.append(f"{cid} | {label} | NOT APPLIED (the text to replace was not found) |")
         continue
-    open(path, "w").write(changed)
+    for p, t in texts.items():
+        open(p, "w").write(t)
     r = run(["npx", "vitest", "run", test, "-t", name])
-    run(["git", "checkout", "--", path])
+    run(["git", "checkout", "--", *texts.keys()])
     summary = " | ".join(l.strip() for l in (r.stdout + r.stderr).splitlines() if l.strip().startswith(("Test Files", "Tests ")))
     verdict = "FAILED, as it should with the safeguard removed" if r.returncode != 0 and "failed" in summary else ("PASSED: the test does not see this safeguard's removal" if r.returncode == 0 else f"ERROR (exit {r.returncode})")
     out.append(f"{cid} | {label} | {verdict} | {summary}")

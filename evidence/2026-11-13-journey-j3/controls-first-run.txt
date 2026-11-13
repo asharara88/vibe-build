@@ -1,0 +1,28 @@
+J3 controls, 2026-11-13, on HEAD 0082381 of builder/ (working tree as committed: `git diff HEAD -- .` empty before: yes). Each safeguard removed in turn by exact replacement, the test that guards it run alone (npx vitest run <file> -t <name>), its verdict, then the file restored with git checkout and the tree checked unchanged.
+Columns: control | what was removed | verdict | vitest's summary lines
+J3-C01 | the pass is not used up when it lets the browser in (single use removed) | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 23 skipped (24)
+J3-C02 | the pass's 2 minutes not checked | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 23 skipped (24)
+J3-C03 | no lock-out after five wrong passes | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 23 skipped (24)
+J3-C04 | a request from another site not refused (Sec-Fetch-Site cross-site or same-site) | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 23 skipped (24)
+J3-C05 | Host not mapped to app:3161 | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 23 skipped (24)
+J3-C06 | Origin not mapped to http://app:3161 | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 23 skipped (24)
+J3-C07 | a Referer from another origin passed on | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 23 skipped (24)
+J3-C08 | the request header allowlist removed (every header passed on) | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 23 skipped (24)
+J3-C09 | the cookie scanner keeps a cookie with a Domain | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 23 skipped (24)
+J3-C10 | every cookie passed to the app, not only this session's prefix | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 23 skipped (24)
+J3-C11 | Location passed as the app sent it | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 23 skipped (24)
+J3-C12 | the content-security-policy lets the app's page connect anywhere | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 1 passed | 22 skipped (24)
+J3-C13 | Permissions-Policy no longer denies the camera | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 1 passed | 22 skipped (24)
+J3-C14 | every content type passed on | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 23 skipped (24)
+J3-C15 | the live app opened for a record that is not the scripted engine's alone | NOT APPLIED (the text to replace was not found) |
+J3-C16 | the live app opened without the check service read as on front alone | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 48 skipped (49)
+J3-C17 | the front not given a user of its own (runs as root) | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 23 skipped (24)
+J3-C18 | the checklist does not end the live session first | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 48 skipped (49)
+J3-C19 | the builder's sign-out does not end the live session | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 36 skipped (37)
+J3-C20 | the pass written into the record | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 48 skipped (49)
+J3-C21 | a refused POST still sent to the app | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 23 skipped (24)
+J3-C22 | the gate takes a POST with an Origin of null | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 23 skipped (24)
+J3-C23 | the 1 MB body limit raised to 1 GB | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 23 skipped (24)
+J3-C24 | a stream may target any service, not only app:<port> | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 22 skipped (23)
+J3-C25 | the pump takes a stream before the pass is used | PASSED: the test does not see this safeguard's removal | Test Files  1 passed (1) | Tests  1 passed | 48 skipped (49)
+After every control: `git diff HEAD -- .` empty: yes
