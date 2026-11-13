@@ -90,7 +90,7 @@
 ## 10. For an engineer
 
 - On the development profile the runner shares the machine's network and can open connections to both databases (gap 60): whether that is acceptable for 3.1, which runs no code a model wrote, is an engineer's judgement. Since 13 Nov, Claude Code reads gap 60 as needing the boundary resolved before any code a model wrote runs in a project's containers, which would include tests the acceptance writer writes (owner to confirm: `docs/STATUS.md`, "Yours to confirm", item (xiii)). The change to what the runner sees and who writes its results (section 9, :196) is the owner's, in question 12.
-- Playwright 1.63.0 starts Chromium with `--no-sandbox` unless `chromiumSandbox: true` is given (read: playwright-core/lib/coreBundle.js:43346-43347; seen in the measured runner's launch log). From 2.2 on, page code a model wrote would run with the browser's sandbox off, in the container that holds `/acceptance` and `/results`. Gap 55's sentence about the host is corrected on this ground.
+- Playwright 1.63.0 starts Chromium with `--no-sandbox` unless `chromiumSandbox: true` is given (read: playwright-core/lib/coreBundle.js:43346-43347; seen in the measured runner's launch log). From 2.3 on, page code a model wrote would run with the browser's sandbox off, in the container that holds `/acceptance` and `/results`. Gap 55's sentence about the host is corrected on this ground.
 - The password inside traces and run files; versions protected by code only while the builder runs as root (gap 57). Each goes into `docs/KNOWN-GAPS.md` when the package takes it.
 
 ## 11. How it is shown (when built)
