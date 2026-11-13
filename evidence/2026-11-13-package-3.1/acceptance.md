@@ -60,6 +60,11 @@ Inspected while run A ran (`run-demo.txt`, section 4; `mounts.json`, "runner-mou
 | `npx vitest run`, whole suite, live tests included, under the shared lock, at `4290dbc` | **298 passed of 298, 11 files, exit code 0**, in 202 s; among them this package's 52 fast tests (`test/acceptance.test.ts`), its 6 live tests (`test/acceptance-live.test.ts`, which ran, the approved zip being in the cache) and 3 licence-rule tests; no container left before or after | `run-tests-all.txt` |
 | The same, one commit earlier (`b9f166e`) | **1 failed**, 294 passed: the fast test of the browser cache check gave "undefined" for "not set" and the function's default read the machine's own setting; fixed in `4290dbc` (the function takes the settings object). Kept because a red check is reported as red | `run-tests-all-1-red.txt` |
 | The evidence folder searched for the sample password's form and for secret settings before commit | none found | `run-password-search.txt` |
+| *After the review's fixes, at `cf5b11a` (code as at `0b8128b`):* `npm run typecheck` | exit code 0 | `run-typecheck-after-review.txt` |
+| Type check including the two demonstration scripts | exit code 0 | `run-typecheck-scripts-after-review.txt` |
+| `npm run check:licences` (builder and builder/runner) | both PASSED | `run-licences-after-review.txt` |
+| `npx vitest run`, whole suite, live tests included, under the shared lock | **301 passed of 301, 11 files, exit code 0**, in 196 s; among them the 3 new fast tests and the live tests' two new checks (run A's trace has no frame of the screen; the mount rule is on in the engine test); no container left before or after | `run-tests-all-after-review.txt` |
+| The evidence folder searched again for the sample password's form and for secret settings | none found | `run-password-search-after-review.txt` |
 
 ## Not shown
 

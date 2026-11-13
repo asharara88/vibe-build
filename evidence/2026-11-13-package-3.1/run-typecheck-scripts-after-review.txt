@@ -1,0 +1,2 @@
+$ npx tsc -p tsconfig.scripts-check.json   (in builder/, at commit cf5b11a; a settings file made for this run and removed after it: builder's tsconfig.json with scripts/demo-acceptance.ts and scripts/example-1-sandbox.ts added, since npm run typecheck covers src/ and test/ only)
+exit code: 0
