@@ -1432,6 +1432,31 @@ describe("holds: found by the review of 13 Nov 2026, and kept fixed", () => {
     }
   });
 
+  it("the budget-reached message rounds so that its figures never appear to fit the cap", async () => {
+    // Spent $0.02142 and $0.02142 held, against a cap of $0.0509; this call needs $0.00996. Each figure
+    // rounded to the nearest cent would read 0.02 + 0.02 + 0.01 against 0.05, which looks as if it fits.
+    const { id, token } = await newProject(0.0509);
+    const deadline = new Date(Date.now() + 60_000);
+    const done = await openHold(pool, { projectId: id, step: null, amountUsd: 0.03, deadline, gateway: "gw_test_store", arithmetic: {}, path: "/v1/messages" });
+    if (!done.ok) throw new Error("hold not opened");
+    expect((await settleHold(pool, { projectId: id, holdId: done.hold.id, step: null, actualUsd: 0.02142, call: {} })).settled).toBe(true);
+    expect((await openHold(pool, { projectId: id, step: null, amountUsd: 0.02142, deadline, gateway: "gw_test_store", arithmetic: {}, path: "/v1/messages" })).ok).toBe(true);
+    const before = forwarded;
+    const res = await call(token, plain());
+    expect(res.status).toBe(402);
+    expect(forwarded).toBe(before);
+    const message = ((await res.json()) as { error: { message: string } }).error.message;
+    // What is needed, spent and held is rounded up; the cap down. The wording is unchanged.
+    expect(message).toBe(
+      "This project has reached its budget of $0.05 (spent $0.03, with $0.03 held for work in progress or awaiting reconciliation; this call needed up to $0.01). The gateway will forward nothing more until the budget is raised.",
+    );
+    const m = /budget of \$(\d+)\.(\d\d) \(spent \$(\d+)\.(\d\d), with \$(\d+)\.(\d\d) held .*; this call needed up to \$(\d+)\.(\d\d)\)/.exec(message)!;
+    const cents = (i: number) => Number(m[i]) * 100 + Number(m[i + 1]);
+    expect(cents(3) + cents(5) + cents(7)).toBeGreaterThan(cents(1)); // the figures shown do not fit
+    const r = (await listEvents(pool, id, "gateway.refused"))[0]!.payload as { cap_usd: number; spent_usd: number; open_holds_usd: number; this_hold_usd: number };
+    near(r.spent_usd + r.open_holds_usd + r.this_hold_usd, 0.0528); // the exact figures, in the log
+  });
+
   it("fast mode: the same on a stream", async () => {
     const opusStream = (test: string) => ({ model: "claude-opus-5-5", max_tokens: 250, stream: true, system: "count:1500", messages: [], speed: "fast", metadata: { test } });
     const a = await newProject(5, "fast");

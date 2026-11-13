@@ -113,6 +113,10 @@ const STRIP = new Set(["host", "connection", "content-length", "transfer-encodin
 /** The request headers the gateway passes to the provider. `anthropic-beta` is checked against its own list first. */
 const FORWARDED_HEADERS = ["content-type", "accept", "anthropic-version", "anthropic-beta", "user-agent"];
 
+/** An amount in dollars shown to the cent, rounded up or down. Worked in millionths of a dollar, as the budget is. */
+const centsUp = (usd: number): string => (Math.ceil(Math.round(usd * 1e6) / 10_000) / 100).toFixed(2);
+const centsDown = (usd: number): string => (Math.floor(Math.round(usd * 1e6) / 10_000) / 100).toFixed(2);
+
 type ErrorBody = { type: "error"; error: { type: string; message: string } };
 const errorBody = (type: string, message: string): ErrorBody => ({ type: "error", error: { type, message } });
 
@@ -329,10 +333,13 @@ export function createGateway(opts: GatewayOptions) {
     });
     if (!opened.ok) {
       const b = opened.budget;
+      // Shown to the cent, rounded so that the figures never appear to fit: what this call needs,
+      // what is spent and what is held are rounded up, the cap down, so the room left that the
+      // figures imply is rounded down (review of 13 Nov 2026). The wording is the design note's (5.5).
       return c.json(
         errorBody(
           "budget_reached",
-          `This project has reached its budget of $${b.cap.toFixed(2)} (spent $${b.spent.toFixed(2)}, with $${b.openHolds.toFixed(2)} held for work in progress or awaiting reconciliation; this call needed up to $${arithmetic.hold_usd.toFixed(2)}). The gateway will forward nothing more until the budget is raised.`,
+          `This project has reached its budget of $${centsDown(b.cap)} (spent $${centsUp(b.spent)}, with $${centsUp(b.openHolds)} held for work in progress or awaiting reconciliation; this call needed up to $${centsUp(arithmetic.hold_usd)}). The gateway will forward nothing more until the budget is raised.`,
         ),
         402,
       );
