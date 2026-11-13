@@ -26,6 +26,9 @@
  *   hold is charged in full, and the same database transaction freezes its project (store/holds.ts, `settleHold`);
  *   the frozen project is refused as above until the owner records that bill (store/reconcile.ts, `recordOverrun`).
  *   The first such bill is not stopped: it is known only once the provider's answer is read.
+ * - After the review of 1.4c: a call whose hold is kept (it ended without a bill the gateway could settle) is compared
+ *   with its hold on the usage figures read before it ended, when the gateway trusts them; when they already price it
+ *   above its hold, the transaction that keeps the hold also freezes the project (store/holds.ts, `keepHold`).
  *
  * Design note: docs/design/stage-1.md, sections 2.4 and 5.5. Build plan: packages 1.2 and 1.4.
  */
@@ -532,16 +535,53 @@ export function createGateway(opts: GatewayOptions) {
         await unrecorded({ ending: "settle", kept_reason: null, cost_usd_as_read: cost ?? null, call: fields, ended_at: endedAt }, err, "A finished model call could not be written to the event log. Its hold stays open at its full amount.");
       }
     };
-    /** The call ended in a way that does not say what it cost: the hold stays open at its full amount. */
-    const keep = async (reason: string, usage: Usage, status: number, servedModel: string, extra: Record<string, unknown> = {}) => {
+    /**
+     * After the review of package 1.4c: the least the call can have cost, from usage figures read before it ended
+     * that the gateway trusts (`asRead`; null when there are none). Figures in a usage block only grow, so they are
+     * priced as they stand, at the lower rate wherever the answer leaves the rate open: the standard speed when the
+     * speed is not stated (it is "standard" in the figures then), and the five-minute rate for cache writes the
+     * answer does not itemise. Null when the answer names a model the price table does not know.
+     */
+    const leastCost = (asRead: { usage: Usage; itemised: number | null } | null, servedModel: string): { usd: number; usage: Usage } | null => {
+      if (!asRead) return null;
+      if (servedModel && servedModel !== requestedModel && !Object.hasOwn(PRICES, servedModel)) return null;
+      const priced = Object.hasOwn(PRICES, servedModel) ? servedModel : requestedModel;
+      const usage = usageAsPriced(asRead.usage, asRead.itemised, false).usage;
+      const usd = costUsd(priced, usage);
+      return usd === null ? null : { usd, usage };
+    };
+    /**
+     * The call ended in a way that does not say what it cost: the hold stays open at its full amount. After the review
+     * of package 1.4c, when the usage figures read before it ended (`asRead`) already price it above its hold, the
+     * transaction that keeps the hold also freezes the project (store/holds.ts, `keepHold`, kind 'kept_above_hold').
+     */
+    const keep = async (reason: string, usage: Usage, status: number, servedModel: string, extra: Record<string, unknown> = {}, asRead: { usage: Usage; itemised: number | null } | null = null) => {
       if (ended) return;
       ended = true;
       const { fields } = callFields(usage, status, servedModel, extra);
       const endedAt = new Date().toISOString();
+      const least = leastCost(asRead, servedModel);
       try {
-        await keepHold(opts.pool, { projectId: project.id, holdId, step, reason, seen: fields });
+        const r = await keepHold(opts.pool, {
+          projectId: project.id,
+          holdId,
+          step,
+          reason,
+          seen: fields,
+          costAsRead: least ? { usd: least.usd, usage: { ...least.usage }, gateway: gatewayId, endedAt: new Date(endedAt) } : null,
+        });
+        if (r.freeze && least) {
+          fault("A call whose hold was kept had already cost more than its hold, by the usage figures read before it ended.", {
+            project: project.id,
+            hold: holdId,
+            hold_usd: r.amountUsd,
+            cost_usd_as_read: least.usd,
+            project_frozen: true,
+            freeze_id: Number(r.freeze.id),
+          });
+        }
       } catch (err) {
-        await unrecorded({ ending: "keep", kept_reason: reason, cost_usd_as_read: null, call: fields, ended_at: endedAt }, err, "A model call that ended without readable usage could not be noted in the event log. Its hold stays open at its full amount.");
+        await unrecorded({ ending: "keep", kept_reason: reason, cost_usd_as_read: least?.usd ?? null, call: fields, ended_at: endedAt }, err, "A model call that ended without readable usage could not be noted in the event log. Its hold stays open at its full amount.");
       }
     };
     const clientGone = c.req.raw.signal;
@@ -665,13 +705,19 @@ export function createGateway(opts: GatewayOptions) {
           if (r.kind === "unreadable") sawUnreadable = true;
         }
       };
+      /**
+       * After the review of package 1.4c: the usage figures read so far, when the gateway trusts them as a floor under
+       * the bill: the provider's message_start was read (it names the model and the prompt's figures), and no figure
+       * fell, no frame was unreadable and fast mode was not taken back. Then a kept call is compared with its hold.
+       */
+      const trusted = () => (sawInput && !sawUnreadable ? { usage, itemised } : null);
       // Pull from the provider ourselves so that every ending is seen: a clean end, a provider
       // failure part-way, the time limit, or the client going away.
       const reader = res.body.getReader();
       const onClientGone = () => {
         stopTimer();
         reader.cancel("client disconnected").catch(() => undefined);
-        void keep("the client disconnected part-way", usage, res.status, servedModel);
+        void keep("the client disconnected part-way", usage, res.status, servedModel, {}, trusted());
       };
       if (clientGone.aborted) onClientGone();
       else clientGone.addEventListener("abort", onClientGone, { once: true });
@@ -683,13 +729,13 @@ export function createGateway(opts: GatewayOptions) {
             if (done) {
               stopTimer();
               if (buffer.trim()) consume("\n\n");
-              if (limit.signal.aborted) await keep("the call reached its time limit", usage, res.status, servedModel);
-              else if (sawError) await keep("the provider reported an error inside the stream", usage, res.status, servedModel);
-              else if (!sawStop) await keep("the stream ended without the provider's end-of-message marker, so its figures may be partial", usage, res.status, servedModel);
+              if (limit.signal.aborted) await keep("the call reached its time limit", usage, res.status, servedModel, {}, trusted());
+              else if (sawError) await keep("the provider reported an error inside the stream", usage, res.status, servedModel, {}, trusted());
+              else if (!sawStop) await keep("the stream ended without the provider's end-of-message marker, so its figures may be partial", usage, res.status, servedModel, {}, trusted());
               else if (sawInput && sawOutput && !sawUnreadable && usage.input_tokens + usage.cache_creation_input_tokens + usage.cache_read_input_tokens > 0) {
-                if (fastHeld && !speedStated) await keep(`the stream ended without usage figures that could be read: ${SPEED_NOT_STATED}`, usage, res.status, servedModel);
+                if (fastHeld && !speedStated) await keep(`the stream ended without usage figures that could be read: ${SPEED_NOT_STATED}`, usage, res.status, servedModel, {}, trusted());
                 else await settle(usage, res.status, servedModel, {}, itemised);
-              } else await keep("the stream ended without usage figures that could be read", usage, res.status, servedModel);
+              } else await keep("the stream ended without usage figures that could be read", usage, res.status, servedModel, {}, trusted());
               ctrl.close();
               return;
             }
@@ -697,14 +743,14 @@ export function createGateway(opts: GatewayOptions) {
             ctrl.enqueue(value);
           } catch (err) {
             stopTimer();
-            await keep(limit.signal.aborted ? "the call reached its time limit" : "the provider's stream failed part-way", usage, res.status, servedModel, { error: errorSummary(err) });
+            await keep(limit.signal.aborted ? "the call reached its time limit" : "the provider's stream failed part-way", usage, res.status, servedModel, { error: errorSummary(err) }, trusted());
             ctrl.error(err);
           }
         },
         async cancel(reason) {
           stopTimer();
           await reader.cancel(reason).catch(() => undefined);
-          await keep("the client cancelled part-way", usage, res.status, servedModel);
+          await keep("the client cancelled part-way", usage, res.status, servedModel, {}, trusted());
         },
       });
       return new Response(out, { status: res.status, headers: safeHeaders(res.headers) });
@@ -728,12 +774,15 @@ export function createGateway(opts: GatewayOptions) {
     let servedModel = "";
     let speedNotStated = false;
     let itemised: number | null = null;
+    /** After the review of package 1.4c: usage figures read and not settled on (no prompt tokens, or no speed stated), compared with the hold when kept. */
+    let readNotSettled: { usage: Usage; itemised: number | null } | null = null;
     try {
       const j = JSON.parse(text) as { usage?: unknown; model?: unknown };
       servedModel = typeof j.model === "string" ? j.model : "";
       // An answer names the model that served it, as text. Without that name it is not priced.
       if (servedModel !== "" && usageIsReadable(j.usage, ["input_tokens", "output_tokens"])) {
         const u = mergeUsage(emptyUsage(), j.usage);
+        readNotSettled = { usage: u, itemised: itemisedCacheWrites(j.usage) };
         // An answer that says no prompt tokens at all were used is not a bill that can be trusted.
         if (u.input_tokens + u.cache_creation_input_tokens + u.cache_read_input_tokens > 0) {
           if (fastHeld && !statesSpeed(j.usage)) speedNotStated = true;
@@ -747,7 +796,7 @@ export function createGateway(opts: GatewayOptions) {
       /* not JSON: usage stays unread */
     }
     if (usage) await settle(usage, res.status, servedModel, {}, itemised);
-    else await keep(`the answer succeeded but its usage could not be read${speedNotStated ? `: ${SPEED_NOT_STATED}` : ""}`, emptyUsage(), res.status, servedModel);
+    else await keep(`the answer succeeded but its usage could not be read${speedNotStated ? `: ${SPEED_NOT_STATED}` : ""}`, readNotSettled?.usage ?? emptyUsage(), res.status, servedModel, {}, readNotSettled);
     return new Response(safeBody(text), { status: res.status, headers: safeHeaders(res.headers) });
   });
 

@@ -357,17 +357,57 @@ export async function releaseUnsentHold(pool: pg.Pool, p: { projectId: string; h
  * It neither closes nor releases a hold, so it does not mark deadlines first: a hold it keeps after
  * its deadline stays open at its full amount either way, and is marked expired by the sweep, or by
  * the next admission, settlement or release in its project (review bot on 7ce5a33).
+ *
+ * After the review of package 1.4c (13 Nov 2026): a call can end in a way that keeps its hold after the gateway has
+ * read usage figures it trusts (the time limit or the caller leaving after the figures arrived, an error event after
+ * them, a stream with no end marker, a dropped connection, a usage that does not state the speed). The figures in a
+ * usage block only grow, so the cost they give, priced at the lower rate wherever the answer leaves the rate open,
+ * is a floor under the bill. The gateway passes that cost as `costAsRead`; when it is above the hold, this same
+ * transaction also freezes the project, naming this hold (`freezeAfterOverrunIn`, kind 'kept_above_hold'), so the
+ * `hold.kept` and the freeze are written together or not at all. The hold stays open at its full amount, and the
+ * owner's reconciliation of it clears the freeze. A cost that is not a real, non-negative number freezes nothing.
  */
 export async function keepHold(
   pool: pg.Pool,
-  p: { projectId: string; holdId: string; step: string | null; reason: string; seen: Record<string, unknown> },
-): Promise<void> {
-  await inTransaction(pool, p.projectId, async (c) => {
+  p: {
+    projectId: string;
+    holdId: string;
+    step: string | null;
+    reason: string;
+    seen: Record<string, unknown>;
+    /** After the review of 1.4c: the cost worked out from the usage figures read before the call ended, when they could be trusted and priced. */
+    costAsRead?: { usd: number; usage: Record<string, unknown>; gateway: string; endedAt: Date } | null;
+  },
+): Promise<{ kept: boolean; amountUsd: number | null; freeze: Freeze | null }> {
+  return inTransaction(pool, p.projectId, async (c) => {
     const r = await c.query<Hold>("select * from holds where id = $1 and project_id = $2 for update", [p.holdId, p.projectId]);
     const hold = r.rows[0];
-    if (!hold || hold.state !== "open") return;
+    if (!hold || hold.state !== "open") return { kept: false, amountUsd: hold ? Number(hold.amount_usd) : null, freeze: null };
+    const amountUsd = Number(hold.amount_usd);
+    const read = p.costAsRead ?? null;
+    /** The cost as read, when it is a real amount above the hold; otherwise nothing is frozen. */
+    const above = read !== null && Number.isFinite(read.usd) && read.usd >= 0 && read.usd < 1e8 && micro(read.usd) > micro(amountUsd) ? read : null;
     await c.query("update holds set kept_reason = coalesce(kept_reason, $2), unreconciled = true where id = $1", [p.holdId, p.reason]);
-    await event(c, p.projectId, "hold.kept", { hold_id: Number(hold.id), amount_usd: Number(hold.amount_usd), reason: p.reason, unreconciled: true, seen: p.seen }, p.step);
+    await event(
+      c,
+      p.projectId,
+      "hold.kept",
+      { hold_id: Number(hold.id), amount_usd: amountUsd, reason: p.reason, unreconciled: true, seen: p.seen, ...(above ? { frozen: true, cost_usd_as_read: above.usd } : {}) },
+      p.step,
+    );
+    if (!above) return { kept: true, amountUsd, freeze: null };
+    const freeze = await freezeAfterOverrunIn(c, {
+      kind: "kept_above_hold",
+      projectId: p.projectId,
+      holdId: hold.id,
+      holdAmountUsd: amountUsd,
+      billUsd: above.usd,
+      step: p.step,
+      gateway: above.gateway,
+      endedAt: above.endedAt,
+      record: { ...p.seen, kept_reason: p.reason, cost_usd_as_read: above.usd, usage_as_read: above.usage },
+    });
+    return { kept: true, amountUsd, freeze };
   });
 }
 

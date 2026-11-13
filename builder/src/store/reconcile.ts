@@ -20,7 +20,9 @@
  * `recordOverrun` is the owner's recorded action that does, and the list shows such freezes with the bill, the hold
  * and the difference (`overrunFreezes`). A late answer above its hold freezes the project too; that hold is still
  * open, so its reconciliation clears it. A reconciliation above the hold does not freeze the project: it is the
- * owner's own recorded action (Claude Code's decision, docs/DECISIONS.md, 13 Nov 2026).
+ * owner's own recorded action (Claude Code's decision, docs/DECISIONS.md, 13 Nov 2026). After the review of 1.4c, a
+ * call kept with usage figures as read above its hold freezes its project too (kind 'kept_above_hold'); its hold is
+ * open, so its reconciliation clears that freeze as well.
  */
 import type pg from "pg";
 import { activeFreezeIn, type Freeze, type FreezeKind } from "./freezes.js";
@@ -49,6 +51,8 @@ export type HoldKind =
   | "late answer written down"
   /** Such an answer's cost as read is above the hold, which froze its project (package 1.4c). */
   | "late answer above its hold"
+  /** Kept with usage figures, read before its call ended, that already priced it above its hold, which froze its project (after the review of 1.4c). */
+  | "kept above its hold"
   | "kept for another reason";
 
 const ERROR_ANSWER = new Set([
@@ -110,7 +114,7 @@ export interface UnreconciledHold {
   seen: { status: unknown; servedModel: unknown; usage: unknown; error: unknown } | null;
   /** Answers that arrived after it was kept or expired, written down and not settled. */
   lateAnswers: { eventId: string; at: string; costUsdAsRead: number | null; reason: string }[];
-  /** The freezes this hold caused (package 1.4; since 1.4c, also a late answer above it), each with its kind. */
+  /** The freezes this hold caused (package 1.4; since 1.4c, also a late answer above it, or a keep with figures as read above it), each with its kind. */
   freezes: { freezeId: string; kind: FreezeKind; journalId: string | null; endedAt: string; frozenAt: string; cleared: boolean; costUsdAsRead: number | null }[];
 }
 
@@ -189,6 +193,7 @@ async function describe(q: Queryable, rows: Hold[], now: Date): Promise<Unreconc
     };
     if (freezes.some((f) => f.kind === "unrecorded_ending")) add("froze its project");
     if (freezes.some((f) => f.kind === "late_answer_above_hold")) add("late answer above its hold");
+    if (freezes.some((f) => f.kind === "kept_above_hold")) add("kept above its hold");
     if (h.kept_reason !== null) add(reasonKind(h.kept_reason));
     if (h.expired || h.deadline_at.getTime() <= now.getTime()) add("expired");
     if (late.length > 0) add("late answer written down");
@@ -497,6 +502,7 @@ const FREEZE_KIND_TEXT: Record<FreezeKind, string> = {
   unrecorded_ending: "its call's ending could not be recorded",
   bill_above_hold: "a bill above its hold",
   late_answer_above_hold: "a late answer above its hold",
+  kept_above_hold: "the usage figures read before its call ended put it above its hold",
 };
 
 export interface OverrunRecord extends OverrunFreeze {

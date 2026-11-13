@@ -19,15 +19,20 @@
  * (migration 010). Besides the one above ('unrecorded_ending'), a bill above its hold freezes the project
  * ('bill_above_hold'), written by `freezeAfterOverrunIn` inside the settle's own transaction (holds.ts,
  * `settleHold`), and so does an answer that arrives for a hold already kept or expired whose cost as read is
- * above the hold ('late_answer_above_hold'). Every kind is refused the same way by `activeFreezeIn`. A bill above
- * its hold is cleared only by the owner's record of it (reconcile.ts, `recordOverrun`); the other two kinds name
- * an open hold, and are cleared by the owner's reconciliation of that hold (`reconcileHold`).
+ * above the hold ('late_answer_above_hold'). After the review of 1.4c (13 Nov 2026), so does a call the gateway
+ * keeps (it ended without a bill it could settle) whose usage figures, as read before it ended, already price it
+ * above its hold ('kept_above_hold'), written by `keepHold` in the transaction of its `hold.kept`. Every kind is
+ * refused the same way by `activeFreezeIn`. A bill above its hold is cleared only by the owner's record of it
+ * (reconcile.ts, `recordOverrun`); the other kinds name an open hold, and are cleared by the owner's reconciliation
+ * of that hold (`reconcileHold`).
  */
 import type pg from "pg";
 import { event, inTransaction, type Queryable } from "./tx.js";
 
 /** What froze a project (migration 010). */
-export type FreezeKind = "unrecorded_ending" | "bill_above_hold" | "late_answer_above_hold";
+export type FreezeKind = "unrecorded_ending" | "bill_above_hold" | "late_answer_above_hold" | "kept_above_hold";
+/** The kinds that carry a bill above the hold's amount, written by `freezeAfterOverrunIn` (packages 1.4c and after its review). */
+export type OverrunKind = "bill_above_hold" | "late_answer_above_hold" | "kept_above_hold";
 
 /** One call whose ending the gateway could not write: what the journal keeps, one per line. */
 export interface UnrecordedEnding {
@@ -56,13 +61,13 @@ export interface Freeze {
   /** Since package 1.4c; every freeze written before it is 'unrecorded_ending'. */
   kind: FreezeKind;
   hold_id: string | null;
-  /** The journal line, for 'unrecorded_ending' only; null for the two kinds of package 1.4c. */
+  /** The journal line, for 'unrecorded_ending' only; null for the kinds of package 1.4c. */
   journal_id: string | null;
   gateway: string;
   reason: string;
   ended_at: Date;
   hold_amount_usd: string | null;
-  /** For the two kinds of package 1.4c: the bill, above the hold's amount. */
+  /** For the kinds of package 1.4c: the bill, above the hold's amount ('kept_above_hold': the cost as read, a floor under the bill). */
   bill_usd: string | null;
   record: Record<string, unknown>;
   frozen_at: Date;
@@ -71,9 +76,11 @@ export interface Freeze {
 
 /** Why a project is frozen, as the freeze's row says it. */
 export const FREEZE_REASON = "a model call ended and the gateway could not write its ending to the event log";
-/** Package 1.4c: the reasons of its two kinds of freeze. */
+/** Package 1.4c: the reasons of its kinds of freeze. */
 export const BILL_ABOVE_HOLD_REASON = "a model call was billed more than its hold";
 export const LATE_ANSWER_ABOVE_HOLD_REASON = "an answer that arrived after its hold was kept or expired says the call cost more than its hold";
+/** After the review of 1.4c: a call kept without a bill the gateway could settle, whose figures as read already put it above its hold. */
+export const KEPT_ABOVE_HOLD_REASON = "a model call ended without a bill the gateway could settle, and the usage figures read before it ended already put its cost above its hold";
 const FAULT_MESSAGE = "A model call ended and its ending could not be written to the event log. Its hold stays open at its full amount; the project is frozen until the owner records what the call cost.";
 
 /** The project's freeze that has not been cleared, if any. Run under the project's lock by every budget decision that opens anything. */
@@ -96,19 +103,26 @@ const microOf = (usd: string | null): number => Math.round(Number(usd) * 1e6);
 
 /**
  * The message a frozen project's caller sees (design note 5.5 step 5; wording Claude Code's, recorded in
- * docs/DECISIONS.md). Since package 1.4c it names what froze the project; the two new kinds' wording is also
+ * docs/DECISIONS.md). Since package 1.4c it names what froze the project; the new kinds' wording is also
  * Claude Code's, for the owner to confirm (docs/QUESTIONS.md, "Yours to confirm").
  */
 export function frozenMessage(f: Freeze, refused: "call" | "step" = "call"): string {
   const now = refused === "call" ? "The gateway forwarded nothing" : "The step was not started";
-  if (f.kind === "bill_above_hold" || f.kind === "late_answer_above_hold") {
+  if (f.kind === "bill_above_hold" || f.kind === "late_answer_above_hold" || f.kind === "kept_above_hold") {
     const hold = microOf(f.hold_amount_usd);
     const bill = microOf(f.bill_usd);
-    const figures = `$${exact(bill)}, more than its hold of $${exact(hold)} (above it by $${exact(bill - hold)})`;
+    const thanHold = `more than its hold of $${exact(hold)} (above it by $${exact(bill - hold)})`;
+    const figures = `$${exact(bill)}, ${thanHold}`;
     if (f.kind === "bill_above_hold") {
       return (
         `This project is stopped: a model call that ended at ${f.ended_at.toISOString()} was billed ${figures}. That bill is charged in full. ` +
         `${now}, and no further call will be made for this project until the owner records that bill.`
+      );
+    }
+    if (f.kind === "kept_above_hold") {
+      return (
+        `This project is stopped: a model call that ended at ${f.ended_at.toISOString()}, without a bill the gateway could settle, had already used at least $${exact(bill)} by the usage figures read before it ended, ${thanHold}. ` +
+        `The hold stays counted at its full amount. ${now}, and no further call will be made for this project until the owner records what that call cost.`
       );
     }
     return (
@@ -124,17 +138,18 @@ export function frozenMessage(f: Freeze, refused: "call" | "step" = "call"): str
 }
 
 /**
- * Package 1.4c: freeze the project after a bill above its hold, or after a late answer above it. Run inside the
- * caller's transaction, under the project's lock: by `settleHold`, in the same transaction that writes the cost and
- * `hold.exceeded` (or, for a late answer, the `hold.kept` that writes it down), so the freeze and the bill are
- * written together or not at all. Writes the freeze's row and a `project.frozen` event naming the hold, the bill,
+ * Package 1.4c: freeze the project after a bill above its hold, or after a late answer above it, or (after the
+ * review of 1.4c) after a call kept with figures as read above it. Run inside the caller's transaction, under the
+ * project's lock: by `settleHold`, in the same transaction that writes the cost and `hold.exceeded` (or, for a late
+ * answer, the `hold.kept` that writes it down), and by `keepHold`, in the transaction of its `hold.kept`, so the
+ * freeze and what caused it are written together or not at all. Writes the freeze's row and a `project.frozen` event naming the hold, the bill,
  * the hold's amount and the difference. A freeze of the same kind for the same hold already written is returned
  * as it is, and nothing more is written.
  */
 export async function freezeAfterOverrunIn(
   c: Queryable,
   p: {
-    kind: "bill_above_hold" | "late_answer_above_hold";
+    kind: OverrunKind;
     projectId: string;
     holdId: string;
     holdAmountUsd: number;
@@ -145,7 +160,7 @@ export async function freezeAfterOverrunIn(
     record: Record<string, unknown>;
   },
 ): Promise<Freeze> {
-  const reason = p.kind === "bill_above_hold" ? BILL_ABOVE_HOLD_REASON : LATE_ANSWER_ABOVE_HOLD_REASON;
+  const reason = p.kind === "bill_above_hold" ? BILL_ABOVE_HOLD_REASON : p.kind === "late_answer_above_hold" ? LATE_ANSWER_ABOVE_HOLD_REASON : KEPT_ABOVE_HOLD_REASON;
   const ins = await c.query<Freeze>(
     `insert into project_freezes(project_id, kind, hold_id, journal_id, gateway, reason, ended_at, hold_amount_usd, bill_usd, record)
      values ($1, $2, $3, null, $4, $5, $6, $7, $8, $9)

@@ -115,7 +115,10 @@ function printHold(h: UnreconciledHold): void {
   }
   for (const a of h.lateAnswers) console.log(`    late answer: ${a.at}, cost as read ${a.costUsdAsRead === null ? "(none)" : usd(a.costUsdAsRead)}; ${line(a.reason)}`);
   for (const f of h.freezes) {
-    const what = f.kind === "late_answer_above_hold" ? "a late answer above its hold froze its project: freeze" : "froze its project: freeze";
+    const what =
+      f.kind === "late_answer_above_hold" ? "a late answer above its hold froze its project: freeze"
+      : f.kind === "kept_above_hold" ? "the usage read before its call ended put it above its hold, which froze its project: freeze"
+      : "froze its project: freeze";
     const where = f.journalId === null ? "" : ` (journal line ${line(f.journalId)})`;
     const when = f.kind === "late_answer_above_hold" ? "answer arrived" : "call ended";
     console.log(`    ${what} ${f.freezeId}${where}, ${when} ${f.endedAt}; ${f.cleared ? "cleared" : "not cleared"}; cost as read ${f.costUsdAsRead === null ? "(none)" : usd(f.costUsdAsRead)}`);
