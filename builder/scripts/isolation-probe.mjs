@@ -1,4 +1,4 @@
-// The isolation probe (build plan package 0.6a).
+// The isolation probe (build plan package 0.6a; extended in package 0.6c).
 //
 // It runs ONLY inside a container (hard rule 9): it refuses to start where Docker's marker file
 // `/.dockerenv` is missing. It is started by scripts/demo-isolation.ts and by the live test in
@@ -9,7 +9,12 @@
 //
 // Settings: {"sessionProxy": "host:port" or null, "projectDbPort": n, "egressPort": n,
 //            "gatewayPort": n, "builderDbPort": n, "exampleAddress": "a.b.c.d", "timeoutMs": n,
-//            "bridgeGateway": "a.b.c.d" or null, "machineListeners": ["address:port", ...]}
+//            "bridgeGateway": "a.b.c.d" or null, "machineListeners": ["address:port", ...],
+//            and, from package 0.6c, all optional:
+//            "machineAddresses": ["a.b.c.d", ...]  every address the machine holds, read there (group M),
+//            "egressHost": "egress"                where the project's egress proxy is (default 127.0.0.1),
+//            "gatewayVia": "egress:4010"           the door's gateway port (attempt W1),
+//            "peers": ["db:5432", "app:3131", ...] the project's own services by name (group P)}
 // The session proxy is given as host and port only; anything that looks like a user name or a password
 // is refused, so the probe can never print one. `bridgeGateway` (the gateway address of Docker's default
 // network) and `machineListeners` (the machine's listening TCP sockets, with their addresses) are read on
@@ -46,6 +51,9 @@ export const GROUPS = {
   E: "Through the project's egress proxy",
   F: "Through the cloud session's proxy, bypassing the project's egress proxy",
   G: "Toward the machine through the container network's gateway",
+  M: "Toward every address the machine holds, on every port listening on the machine",
+  P: "The project's own services, by name",
+  W: "The model gateway, through the door's gateway port",
 };
 
 const HOST_PORT = /^([a-zA-Z0-9.-]{1,253}|\[[0-9a-fA-F:]{2,39}\]):(\d{1,5})$/;
@@ -59,6 +67,11 @@ const LISTENER = /^(\d{1,3}(?:\.\d{1,3}){3}|::|::1|ipv6):(\d{1,5})$/;
 
 /** The most listening sockets the probe takes for group G. The harness refuses to run with more (src/sandbox/isolation.ts). */
 export const MAX_MACHINE_LISTENERS = 64;
+/** The most machine addresses the probe takes for group M. */
+export const MAX_MACHINE_ADDRESSES = 32;
+/** A service's name on the project's networks, and a port: "db:5432". */
+const PEER = /^([a-z][a-z0-9-]{0,62}):(\d{1,5})$/;
+const IPV6 = /^[0-9a-fA-F:]{2,39}$/;
 
 /** Read and check the settings. Throws with a plain message on anything unexpected. */
 export function parseSettings(text) {
@@ -96,8 +109,35 @@ export function parseSettings(text) {
       throw new Error('"machineListeners" must be a list of "address:port" texts, as read on the machine.');
     machineListeners.push({ address: m[1], port: Number(m[2]) });
   }
+  const machineAddresses = [];
+  const addresses = raw.machineAddresses ?? [];
+  if (!Array.isArray(addresses) || addresses.length > MAX_MACHINE_ADDRESSES) throw new Error(`"machineAddresses" must be a list of at most ${MAX_MACHINE_ADDRESSES} addresses.`);
+  for (const a of addresses) {
+    if (!(isIPv4(a) || (typeof a === "string" && a.includes(":") && IPV6.test(a)))) throw new Error('"machineAddresses" must be a list of IPv4 or IPv6 addresses, as read on the machine.');
+    machineAddresses.push(a);
+  }
+  const egressHost = raw.egressHost ?? "127.0.0.1";
+  if (typeof egressHost !== "string" || !(isIPv4(egressHost) || /^[a-z][a-z0-9-]{0,62}$/.test(egressHost))) throw new Error('"egressHost" must be a service name or an IPv4 address.');
+  let gatewayVia = null;
+  if (raw.gatewayVia !== null && raw.gatewayVia !== undefined) {
+    const m = typeof raw.gatewayVia === "string" ? PEER.exec(raw.gatewayVia) : null;
+    if (!m || Number(m[2]) < 1 || Number(m[2]) > 65535) throw new Error('"gatewayVia" must be "name:port", or null.');
+    gatewayVia = { host: m[1], port: Number(m[2]) };
+  }
+  const peers = [];
+  const givenPeers = raw.peers ?? [];
+  if (!Array.isArray(givenPeers) || givenPeers.length > 16) throw new Error('"peers" must be a list of at most 16 "name:port" texts.');
+  for (const item of givenPeers) {
+    const m = typeof item === "string" ? PEER.exec(item) : null;
+    if (!m || Number(m[2]) < 1 || Number(m[2]) > 65535) throw new Error('"peers" must be a list of "name:port" texts.');
+    peers.push({ host: m[1], port: Number(m[2]) });
+  }
   return {
     sessionProxy,
+    machineAddresses,
+    egressHost,
+    gatewayVia,
+    peers,
     projectDbPort: port("projectDbPort"),
     egressPort: port("egressPort"),
     gatewayPort: port("gatewayPort"),
@@ -189,6 +229,32 @@ export function parseAbstractUnix(text) {
   return [...names].sort();
 }
 
+/** The names of the info lines about routes and IPv6 (package 0.6c). */
+export const ROUTES_INFO = "IPv4 routes (/proc/net/route)";
+export const DEFAULT_ROUTE_INFO = "a default route (a way to any address)";
+export const IPV6_INFO = "IPv6 in this network namespace (/proc/net/if_inet6)";
+
+/** The IPv4 routes in /proc/net/route text, as "to <destination>/<prefix> via <gateway> on <interface>". */
+export function parseRoutes(text) {
+  const hex = (h) => [6, 4, 2, 0].map((i) => parseInt(h.slice(i, i + 2), 16)).join(".");
+  const bits = (h) => [...hex(h).split(".").map(Number)].reduce((n, b) => n + b.toString(2).split("").filter((c) => c === "1").length, 0);
+  const out = [];
+  for (const line of (text ?? "").split("\n").slice(1)) {
+    const f = line.trim().split(/\s+/);
+    if (f.length < 8 || !/^[0-9A-Fa-f]{8}$/.test(f[1] ?? "") || !/^[0-9A-Fa-f]{8}$/.test(f[7] ?? "")) continue;
+    out.push(`to ${hex(f[1])}/${bits(f[7])} via ${hex(f[2])} on ${f[0]}`);
+  }
+  return out;
+}
+
+/** What /proc/net/if_inet6 says: absent (no IPv6 in the kernel), or the addresses it lists with their interfaces. */
+export function ipv6State(text) {
+  if (text === null) return "absent: this kernel has no IPv6 here";
+  const rows = text.split("\n").map((l) => l.trim().split(/\s+/)).filter((f) => f.length >= 6 && /^[0-9a-f]{32}$/i.test(f[0]));
+  if (rows.length === 0) return "present, with no address";
+  return rows.map((f) => `${f[0].match(/.{4}/g).join(":")} on ${f[5]}`).join("; ");
+}
+
 /** The names of the info lines about network interfaces. */
 export const INTERFACES_UP = "network interfaces that are up and running, with their addresses (as Node lists them)";
 export const INTERFACES_ALL = "every network interface in /sys/class/net, up or down (name and state only)";
@@ -275,6 +341,18 @@ export function planAttempts(s, extraListeners = []) {
       add(`G${p}`, "G", "host", `port ${p}, listening on the machine at ${where}, as read on the machine`, `${s.bridgeGateway}:${p}`, "TCP connection, opened and closed; nothing sent", { type: "tcp", host: s.bridgeGateway, port: p });
     }
   }
+  // M (package 0.6c): every address the machine holds, as read there, crossed with every port listening on the
+  // machine, so that no machine address is assumed to be the one a container could reach it at.
+  if (s.machineAddresses.length) {
+    const byPort = new Map();
+    for (const l of s.machineListeners) byPort.set(l.port, [...(byPort.get(l.port) ?? []), l.address]);
+    for (const address of s.machineAddresses) {
+      for (const [p, addresses] of [...byPort].sort((x, y) => x[0] - y[0])) {
+        const where = addresses.map((a) => (a === "0.0.0.0" || a === "::" ? `${a} (every address)` : a === "127.0.0.1" || a === "::1" ? `${a} (loopback only)` : a)).join(" and ");
+        add(`M${hostPort(address, p)}`, "M", "host", `a machine address, and port ${p}, listening on the machine at ${where}`, hostPort(address, p), "TCP connection, opened and closed; nothing sent", { type: "tcp", host: address, port: p });
+      }
+    }
+  }
 
   add("D1", "D", "lookup", "an outside name the egress list allows", "registry.npmjs.org", "lookup with the container's own resolver", { type: "lookup", name: "registry.npmjs.org" });
   add("D2", "D", "lookup", "an outside name the egress list refuses", "example.com", "lookup with the container's own resolver", { type: "lookup", name: "example.com" });
@@ -283,12 +361,17 @@ export function planAttempts(s, extraListeners = []) {
   add("D5", "D", "lookup", "an allowed name, asking an outside name server directly", "registry.npmjs.org @1.1.1.1", "question sent to 1.1.1.1 port 53 (UDP)", { type: "resolve", name: "registry.npmjs.org", server: "1.1.1.1" });
   add("D6", "D", "lookup", "a refused name, asking an outside name server directly", "example.com @1.1.1.1", "question sent to 1.1.1.1 port 53 (UDP)", { type: "resolve", name: "example.com", server: "1.1.1.1" });
 
-  const eg = { host: "127.0.0.1", port: s.egressPort };
-  add("E1", "E", "egress-proxy", "an allowed host, tunnel", "registry.npmjs.org:443", `CONNECT through 127.0.0.1:${s.egressPort}`, { type: "connect", proxy: eg, target: "registry.npmjs.org:443" });
-  add("E2", "E", "egress-proxy", "an allowed host, HTTPS inside the tunnel", "registry.npmjs.org:443", `CONNECT through 127.0.0.1:${s.egressPort}, then HTTPS GET /-/ping`, { type: "https-tunnel", proxy: eg, host: "registry.npmjs.org", port: 443, path: "/-/ping" });
-  add("E3", "E", "egress-proxy", "a refused host, tunnel", "example.com:443", `CONNECT through 127.0.0.1:${s.egressPort}`, { type: "connect", proxy: eg, target: "example.com:443" });
-  add("E4", "E", "egress-proxy", "an allowed host, plain HTTP", "registry.npmjs.org:80", `HTTP GET http://registry.npmjs.org/-/ping through 127.0.0.1:${s.egressPort}`, { type: "http-proxy", proxy: eg, url: "http://registry.npmjs.org/-/ping" });
-  add("E5", "E", "egress-proxy", "a refused host, plain HTTP", "example.com:80", `HTTP GET http://example.com/ through 127.0.0.1:${s.egressPort}`, { type: "http-proxy", proxy: eg, url: "http://example.com/" });
+  const eg = { host: s.egressHost, port: s.egressPort };
+  const egAt = hostPort(s.egressHost, s.egressPort);
+  add("E1", "E", "egress-proxy", "an allowed host, tunnel", "registry.npmjs.org:443", `CONNECT through ${egAt}`, { type: "connect", proxy: eg, target: "registry.npmjs.org:443" });
+  add("E2", "E", "egress-proxy", "an allowed host, HTTPS inside the tunnel", "registry.npmjs.org:443", `CONNECT through ${egAt}, then HTTPS GET /-/ping`, { type: "https-tunnel", proxy: eg, host: "registry.npmjs.org", port: 443, path: "/-/ping" });
+  add("E3", "E", "egress-proxy", "a refused host, tunnel", "example.com:443", `CONNECT through ${egAt}`, { type: "connect", proxy: eg, target: "example.com:443" });
+  add("E4", "E", "egress-proxy", "an allowed host, plain HTTP", "registry.npmjs.org:80", `HTTP GET http://registry.npmjs.org/-/ping through ${egAt}`, { type: "http-proxy", proxy: eg, url: "http://registry.npmjs.org/-/ping" });
+  add("E5", "E", "egress-proxy", "a refused host, plain HTTP", "example.com:80", `HTTP GET http://example.com/ through ${egAt}`, { type: "http-proxy", proxy: eg, url: "http://example.com/" });
+  if (s.gatewayVia)
+    add("W1", "W", "gateway", "the model gateway, at the door's gateway port", hostPort(s.gatewayVia.host, s.gatewayVia.port), "HTTP GET /, no proxy", { type: "http", host: s.gatewayVia.host, port: s.gatewayVia.port, path: "/" });
+  for (const p of s.peers)
+    add(`P${p.host}:${p.port}`, "P", "project", `the project's ${p.host} service, by its name`, `${p.host}:${p.port}`, "TCP connection, opened and closed; nothing sent", { type: "tcp", host: p.host, port: p.port });
 
   if (s.sessionProxy) {
     const sp = s.sessionProxy;
@@ -610,6 +693,11 @@ async function main() {
   // Names only, never values: the app's container holds its database password and sign-in secret.
   print({ kind: "info", name: "settings that name a proxy or a certificate (names only)", value: Object.keys(process.env).filter((k) => /proxy|cert|_ca_/i.test(k)).sort().join(", ") || "none" });
   print({ kind: "info", name: "a copy of the session certificate inside", value: sessionCert ?? "none" });
+  const routes = parseRoutes(readOr("/proc/net/route"));
+  print({ kind: "info", name: ROUTES_INFO, value: routes.join("; ") || "none" });
+  print({ kind: "info", name: DEFAULT_ROUTE_INFO, value: routes.some((r) => r.startsWith("to 0.0.0.0/0 ")) ? "yes" : "no" });
+  print({ kind: "info", name: "packet forwarding (/proc/sys/net/ipv4/ip_forward)", value: readOr("/proc/sys/net/ipv4/ip_forward", "could not be read").trim() });
+  print({ kind: "info", name: IPV6_INFO, value: ipv6State(existsSync("/proc/net/if_inet6") ? readOr("/proc/net/if_inet6") : null) });
   // example.com's address for B2 and B3: looked up here if the lookup works, otherwise the one given.
   const found = await withLimit(s.timeoutMs, (finish) =>
     dns.lookup("example.com", { family: 4 }, (err, address) => finish(err ? { code: codeOf(err) } : { address })),
