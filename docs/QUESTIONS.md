@@ -64,6 +64,7 @@ Claude Code's readings and work, recorded as such, not as your decisions. Detail
 - Gap 60: the boundary is fixed (package 0.6c) before code from the builder's own model calls runs; "fixed" means 0.6a's probe shows each such container reaching only what design note 2.5 allows.
 - A caller who leaves before the call is forwarded has its hold released (package 1.2; design note 5.5, step 3).
 - Every kept hold is now marked unreconciled, as design note 5.5 says, including after an error answer (package 1.4; this changes how 1.2 behaved for proof row B19).
+- Package 1.5: the actual cost you give is charged as given, above the hold too, with who asked and the evidence written as stated (gaps 97, 99); `docs/DECISIONS.md`, 13 Nov.
 - The approved-images check lets the builder's own images (`builder_<project>-app` and `-tools`, built from the template, never pulled) go without a digest (gap 68).
 - The counting rules for the runner's base images: "and/or" not split; both keyring packages counted as copyleft (`docs/licences/runner-base-images.md`, section 3).
 - `CLAUDE.md` line 63 (your file): Claude Code's sentence on Docker failing to start on 12 Nov, its fix and a pointer to a second failure, merged with pull request #8 at your request; keep, change or remove.
