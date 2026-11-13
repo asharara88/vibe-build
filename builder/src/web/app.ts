@@ -13,7 +13,8 @@
  * - Package J3: every value of the sign-in cookie is read, and any valid one accepted (a page on another port of the
  *   same host, such as the live app's, can add a cookie of the same name). "Open the live app" and "Show" are POSTs,
  *   behind sign-in and csrf(); the pass and the sample password are on the page that answers the POST only, never on
- *   a GET page or in a record. Sign-out ends the live session bound to it.
+ *   a GET page or in a record. Sign-out ends the live session bound to it, and cancels an open it asked for that is
+ *   not made yet; the open is made only if its sign-in session is still valid then (after the review bot on af80dc9).
  */
 import { Hono, type Context } from "hono";
 import { bodyLimit } from "hono/body-limit";
@@ -353,8 +354,9 @@ export function createWebApp(d: WebDeps): Hono<Env> {
     await c.req.parseBody();
     const session = c.get("session");
     if (!session) return c.redirect("/sign-in", 303);
-    // After J3's review: the live session ends no later than this sign-in session expires.
-    const r = await jobs().openLive(id, session, d.sessions.expiresAt(session));
+    // After J3's review: the live session ends no later than this sign-in session expires. After the review bot on
+    // af80dc9: it is opened only if this sign-in session is still valid then (its sign-out also cancels the open).
+    const r = await jobs().openLive(id, session, d.sessions.expiresAt(session), () => d.sessions.valid(session));
     const s = await j.state(id);
     return c.html(livePassPage(c.get("lang"), s, { shown: r.shown, expiresAt: r.expiresAt, port: jobs().livePort() ?? 0 }));
   });

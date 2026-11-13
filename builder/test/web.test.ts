@@ -1500,4 +1500,111 @@ describe("J3 interface: the live app's screens (stand-in sandbox, the real front
     expect((await listEvents(pool, id, EV.liveClosed)).at(-1)!.payload).toMatchObject({ reason: "signed_in_again" });
     await j.closeProject(id);
   }, 60_000);
+
+  /* After the review bot on af80dc9: "Open the live app" while its sign-in session ends (signed out in another tab, or ended otherwise). */
+
+  /** An interface with the real front, a project previewed, and its sign-in cookie; the streams' network check can be held. */
+  const liveInterface = async (name: string) => {
+    const box: { jobs?: JourneyJobs } = {};
+    const j = new Journey({ pool, dataDir, cleanupProject: (id, rec) => box.jobs!.cleanup(id, rec) });
+    const jobs = new JourneyJobs({ journey: j, sandboxes, measureFree: () => 50 * 1024 ** 3 });
+    box.jobs = jobs;
+    const net = await import("node:net");
+    const s = net.createServer();
+    await new Promise<void>((r) => s.listen(0, "127.0.0.1", r));
+    const port = (s.address() as import("node:net").AddressInfo).port;
+    await new Promise((r) => s.close(r));
+    await preview?.stop().catch(() => undefined);
+    preview = new LivePreview({ port, texts: frontTexts(), base: "/tmp", openStream: (id) => jobs.openStream(id), onEvent: async (id, kind, payload) => void (await appendEvent(pool, id, kind, payload)) });
+    await preview.start();
+    jobs.attachPreview(preview);
+    const sessions = new Sessions();
+    const app = createWebApp({ journey: j, jobs, password: new PasswordState("env", digestPassword(PASSWORD), null), sessions, limiter: new SignInLimiter(), dataDir, preview });
+    const cookie = await signIn(app);
+    const made = await post(app, "/projects", { name, cap: "5.00", brief: "I need an app where staff can request leave and managers approve it" }, { cookie });
+    const id = /\/projects\/(j1-[0-9a-f]{12})\//.exec(made.headers.get("location") ?? "")![1]!;
+    for (const a of ["continue", "answer-rest", "confirm-brief", "confirm-plan"]) expect((await post(app, `/projects/${id}/${a}`, {}, { cookie })).status).toBe(303);
+    for (const [a, step] of [["build", "01-data"], ["approve", "01-data"], ["approve", "02-submitter-screen"]] as const) {
+      expect((await post(app, `/projects/${id}/${a}`, { step }, { cookie })).status).toBe(303);
+      await j.waitForJob();
+    }
+    // The streams' network check waits until it is released: "Open the live app" is then pending.
+    let started!: () => void;
+    let release!: () => void;
+    const asked = new Promise<void>((r) => (started = r));
+    sandboxes.streamNetworkHold = { started, release: new Promise<void>((r) => (release = r)) };
+    return { j, app, sessions, cookie, id, port, asked, release };
+  };
+  const passOn = (html: string) => /data-pass[^>]*><code[^>]*>([0-9A-Z]{4}-[0-9A-Z]{4})</.exec(html)?.[1];
+
+  it("a sign-out in another tab while Open the live app is pending cancels it: no pass is shown, no live session exists, and nothing is recorded as opened (review bot on af80dc9)", async () => {
+    const t = await liveInterface("Leave requests (made-up, bot af80dc9, sign-out)");
+    try {
+      const opening = post(t.app, `/projects/${t.id}/live`, {}, { cookie: t.cookie });
+      await t.asked;
+      // The other tab signs out while the open waits on its network check.
+      expect((await post(t.app, "/sign-out", {}, { cookie: t.cookie })).status).toBe(303);
+      t.release();
+      const r = await opening;
+      await t.j.waitForJob();
+      const html = await r.text();
+      expect(passOn(html)).toBeUndefined();
+      expect(r.status).toBe(409);
+      expect(preview.session()).toBeNull();
+      expect(preview.status(t.id)).toBeNull();
+      expect(await listEvents(pool, t.id, EV.liveOpened)).toHaveLength(0);
+      expect((await t.j.state(t.id)).jobs.at(-1)).toMatchObject({ kind: "live", state: "failed" });
+      // The front has no pass and no session: it says there is no live app.
+      expect(await (await fetch(`http://127.0.0.1:${t.port}/`)).text()).toContain("data-no-live");
+    } finally {
+      sandboxes.streamNetworkHold = null;
+      await t.j.waitForJob();
+      await t.j.closeProject(t.id);
+    }
+  }, 60_000);
+
+  it("the sign-in session ended without a sign-out (as at its expiry) while Open the live app is pending: the open checks it again and is refused; no pass, no live session (review bot on af80dc9)", async () => {
+    const t = await liveInterface("Leave requests (made-up, bot af80dc9, ended)");
+    try {
+      const opening = post(t.app, `/projects/${t.id}/live`, {}, { cookie: t.cookie });
+      await t.asked;
+      t.sessions.end(t.cookie.slice("builder_session=".length));
+      t.release();
+      const r = await opening;
+      await t.j.waitForJob();
+      expect(passOn(await r.text())).toBeUndefined();
+      expect(r.status).toBe(409);
+      expect(preview.session()).toBeNull();
+      expect(await listEvents(pool, t.id, EV.liveOpened)).toHaveLength(0);
+    } finally {
+      sandboxes.streamNetworkHold = null;
+      await t.j.waitForJob();
+      await t.j.closeProject(t.id);
+    }
+  }, 60_000);
+
+  it("control: with the same wait, the sign-out of another sign-in session does not cancel the open: its pass is shown and its live session is open (review bot on af80dc9)", async () => {
+    const t = await liveInterface("Leave requests (made-up, bot af80dc9, control)");
+    try {
+      const other = await signIn(t.app);
+      expect(other).not.toBe(t.cookie);
+      const opening = post(t.app, `/projects/${t.id}/live`, {}, { cookie: t.cookie });
+      await t.asked;
+      expect((await post(t.app, "/sign-out", {}, { cookie: other })).status).toBe(303);
+      t.release();
+      const r = await opening;
+      await t.j.waitForJob();
+      expect(r.status).toBe(200);
+      expect(passOn(await r.text())).toBeDefined();
+      expect(preview.status(t.id)).not.toBeNull();
+      expect(await listEvents(pool, t.id, EV.liveOpened)).toHaveLength(1);
+      // Its own sign-out then ends it.
+      expect((await post(t.app, "/sign-out", {}, { cookie: t.cookie })).status).toBe(303);
+      expect(preview.status(t.id)).toBeNull();
+    } finally {
+      sandboxes.streamNetworkHold = null;
+      await t.j.waitForJob();
+      await t.j.closeProject(t.id);
+    }
+  }, 60_000);
 });

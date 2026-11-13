@@ -15,6 +15,9 @@
  *   app stop, project close, the end of the builder sign-in session that opened it (its sign-out, a new sign-in in
  *   the same browser, or its expiry; after J3's review), a pass unused or voided, the checklist, a halt or a lost
  *   lock, or after 8 hours, whichever comes first; its streams are then killed.
+ * - After the review bot on af80dc9: an open is registered (`beginOpen`) before anything of it is awaited; the
+ *   sign-out of the builder sign-in session that asked for it, or a new sign-in that ends that session, cancels it,
+ *   and `open` refuses a cancelled open, or one whose builder session no longer reads as valid, after its last await.
  * - Events (`journey.preview.live_entered`, `.live_closed`) go through `onEvent`; `.live_opened` is the live job's.
  * - The live camera's socket (`cameraSocket`): a folder of the runner's user 1001 (mode 750) with one socket (mode
  *   600), whose connections are passed, byte for byte, to the front's port on 127.0.0.1 (forwarder.ts).
@@ -149,6 +152,26 @@ export interface LivePreviewOptions {
   sessionMaxMs?: number;
 }
 
+/**
+ * An open of a live session asked for and not yet made (after the review bot on af80dc9). The sign-out of the builder
+ * sign-in session that asked for it, or a new sign-in that ends that session, cancels it (`signedOut`).
+ */
+export interface PendingOpen {
+  readonly builderSession: string;
+  cancelled: "sign_out" | "signed_in_again" | null;
+}
+
+/** Why `open` refused an open: its builder sign-in session ended since it was asked for (after the review bot on af80dc9). */
+export type OpenCancelledReason = "sign_out" | "signed_in_again" | "builder_session_ended";
+
+/** Thrown by `open` when the builder sign-in session that asked for it has ended meanwhile (after the review bot on af80dc9). */
+export class LiveOpenCancelled extends Error {
+  constructor(readonly reason: OpenCancelledReason) {
+    super(`The builder sign-in session that asked for the live app has ended (${reason}); no live session was opened.`);
+    this.name = "LiveOpenCancelled";
+  }
+}
+
 /** The events of a live session (the same names as journey.ts's EV.liveOpened, .liveEntered, .liveClosed). */
 export const LIVE_EVENTS = {
   opened: "journey.preview.live_opened",
@@ -164,6 +187,8 @@ export class LivePreview {
   /** Why the open session ends at its `endsAt`: its own 8 hours, or the builder sign-in session's expiry. */
   private expiryReason: "expiry" | "builder_session_expired" = "expiry";
   private readonly streams = new Set<{ sock: net.Socket; stream: AppStream }>();
+  /** Opens asked for and not yet made, each with the builder sign-in session that asked (after the review bot on af80dc9). */
+  private readonly pending = new Set<PendingOpen>();
   private timers: NodeJS.Timeout[] = [];
   private stopping = false;
   private listening: Promise<void> | null = null;
@@ -312,14 +337,45 @@ export class LivePreview {
   }
 
   /**
+   * After the review bot on af80dc9: an open about to be asked for by a builder sign-in session, registered before
+   * anything of it is awaited. From now on that session's sign-out, or a new sign-in that ends it, cancels it
+   * (`signedOut`), and `open` refuses it. `endOpen` once the open is made or refused.
+   */
+  beginOpen(builderSession: string): PendingOpen {
+    const p: PendingOpen = { builderSession, cancelled: null };
+    this.pending.add(p);
+    return p;
+  }
+
+  endOpen(p: PendingOpen): void {
+    this.pending.delete(p);
+  }
+
+  /**
    * A new session and its pass (section 4.4): any open session ends first ("replaced"). The pass is returned once,
    * to be shown; only its digest is kept, by the front. After J3's review: `builderSessionEndsAt`, when the interface
    * knows it, is when the builder sign-in session that opens this one expires; the live session then ends no later
-   * ("builder_session_expired"), as it ends with that session's sign-out.
+   * ("builder_session_expired"), as it ends with that session's sign-out. After the review bot on af80dc9: `pending`
+   * (from `beginOpen`) and `builderSessionValid` are looked at first and again after the last await; from that second
+   * look to the session being set nothing is awaited, so a sign-out cannot come between them. A cancelled open, or one
+   * whose builder session no longer reads as valid, is refused (`LiveOpenCancelled`) and opens nothing.
    */
-  async open(o: { projectId: string; builderSession: string; builderSessionEndsAt?: number | null; appStartEventId: string; appPort: number }): Promise<{ pass: string; shown: string; expiresAt: Date; sessionId: string }> {
+  async open(o: {
+    projectId: string;
+    builderSession: string;
+    builderSessionEndsAt?: number | null;
+    appStartEventId: string;
+    appPort: number;
+    pending?: PendingOpen;
+    builderSessionValid?: () => boolean;
+  }): Promise<{ pass: string; shown: string; expiresAt: Date; sessionId: string }> {
     if (!this.front?.connected) throw new Error("The preview front is not running.");
+    if (o.pending && o.pending.builderSession !== o.builderSession) throw new Error("The pending open was asked for by another builder sign-in session.");
+    this.refuseIfEnded(o);
     if (this.current) await this.closeCurrent("replaced");
+    // After the review bot on af80dc9: looked at again after the last await; nothing is awaited from here until the
+    // session is set.
+    this.refuseIfEnded(o);
     const now = Date.now();
     const pass = passFromBytes(randomBytes(8));
     const sessionId = `live-${randomBytes(8).toString("hex")}`;
@@ -356,6 +412,12 @@ export class LivePreview {
     return { pass, shown: showPass(pass), expiresAt: new Date(s.passExpiresAt), sessionId };
   }
 
+  /** Throws `LiveOpenCancelled` if the open was cancelled, or its builder sign-in session no longer reads as valid. */
+  private refuseIfEnded(o: { pending?: PendingOpen; builderSessionValid?: () => boolean }): void {
+    if (o.pending?.cancelled) throw new LiveOpenCancelled(o.pending.cancelled);
+    if (o.builderSessionValid && !o.builderSessionValid()) throw new LiveOpenCancelled("builder_session_ended");
+  }
+
   /** End the session if it is this project's (leave, app stop, project close, the checklist). */
   async closeFor(projectId: string, reason: string): Promise<boolean> {
     if (this.current?.projectId !== projectId) return false;
@@ -365,10 +427,13 @@ export class LivePreview {
 
   /**
    * End the session if it belongs to this builder sign-in session: its sign-out ("sign_out"), or, after J3's review,
-   * a new sign-in in the same browser that ends it ("signed_in_again").
+   * a new sign-in in the same browser that ends it ("signed_in_again"). After the review bot on af80dc9: an open that
+   * session asked for and that is not made yet is cancelled first.
    */
   async signedOut(builderSession: string | undefined, reason: "sign_out" | "signed_in_again" = "sign_out"): Promise<void> {
-    if (builderSession && this.current?.builderSession === builderSession) await this.closeCurrent(reason);
+    if (!builderSession) return;
+    for (const p of this.pending) if (p.builderSession === builderSession) p.cancelled = reason;
+    if (this.current?.builderSession === builderSession) await this.closeCurrent(reason);
   }
 
   /** End any session (a halt, a lost lock, the interface stopping). */

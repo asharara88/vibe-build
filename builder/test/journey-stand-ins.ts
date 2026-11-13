@@ -152,8 +152,19 @@ export class StandInSandboxes implements Sandboxes {
   streamsOpened = 0;
   streamsKilled = 0;
 
+  /**
+   * After the review bot on af80dc9: when set, the streams' network check waits until `release` resolves; `started` is
+   * called once it is asked. "Open the live app" is then pending, so a test can sign out meanwhile.
+   */
+  streamNetworkHold: { started: () => void; release: Promise<void> } | null = null;
+
   async streamNetworkProblem(): Promise<string | null> {
     this.streamNetworkChecks++;
+    const hold = this.streamNetworkHold;
+    if (hold) {
+      hold.started();
+      await hold.release;
+    }
     return this.streamNetwork;
   }
 

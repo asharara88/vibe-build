@@ -1541,4 +1541,46 @@ describe("J3: the live app, on the journey (stand-in sandbox, the real front, a 
     expect(sandboxes.streamsOpened).toBeLessThanOrEqual(before + 1);
     await j.closeProject(id);
   });
+
+  it("a sign-out while live_opened is being written ends the session just opened, and its pass is not returned; with no sign-out, the same slow write returns it (review bot on af80dc9)", async () => {
+    // The journey's writes of live_opened take 800 ms here; the preview's own events go straight to the database.
+    const box: { jobs?: JourneyJobs } = {};
+    const j = new Journey({ pool: slowPoolFor(pool, EV.liveOpened, 800), dataDir, cleanupProject: (id, rec) => box.jobs!.cleanup(id, rec) });
+    const jobs = new JourneyJobs({ journey: j, sandboxes, measureFree: () => 50 * 1024 ** 3 });
+    box.jobs = jobs;
+    const s = net.createServer();
+    await new Promise<void>((r) => s.listen(0, "127.0.0.1", r));
+    const port = (s.address() as net.AddressInfo).port;
+    await new Promise((r) => s.close(r));
+    const preview = new LivePreview({ port, texts: frontTexts(), base: "/tmp", openStream: (id) => jobs.openStream(id), onEvent: async (id, kind, payload) => void (await appendEvent(pool, id, kind, payload)) });
+    previews.push(preview);
+    await preview.start();
+    jobs.attachPreview(preview);
+    const id = await previewed(j, jobs);
+    const opened = async () => {
+      for (let i = 0; i < 200 && !preview.session(); i++) await new Promise((x) => setTimeout(x, 5));
+      return preview.session();
+    };
+    // No sign-out: the pass is returned once the event is written.
+    const first = jobs.openLive(id, "builder-session");
+    expect(await opened()).not.toBeNull();
+    const r = await first;
+    await j.waitForJob();
+    expect(r.shown).toMatch(/^[0-9A-Z]{4}-[0-9A-Z]{4}$/);
+    expect(preview.status(id)?.sessionId).toBe(r.sessionId);
+    expect(await preview.closeFor(id, "ended_on_builder")).toBe(true);
+    // The sign-out comes after the session is opened, while its event is being written.
+    const second = jobs.openLive(id, "builder-session");
+    second.catch(() => undefined);
+    const live = await opened();
+    expect(live).not.toBeNull();
+    await preview.signedOut("builder-session");
+    expect(preview.session()).toBeNull();
+    await expect(second).rejects.toThrow(/not opened/);
+    await j.waitForJob();
+    expect(preview.session()).toBeNull();
+    expect((await j.state(id)).jobs.at(-1)).toMatchObject({ kind: "live", state: "failed" });
+    expect((await listEvents(pool, id, EV.liveClosed)).at(-1)!.payload).toMatchObject({ session: live!.sessionId, reason: "sign_out" });
+    await j.closeProject(id);
+  });
 });

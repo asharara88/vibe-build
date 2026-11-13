@@ -36,6 +36,10 @@
  *   It opens a session of the live preview (src/web/preview.ts), whose pass is shown once and never recorded. The
  *   session ends before a checklist run (whose record then says the app was used live), when the app stops or the
  *   project closes, and as preview.ts says.
+ * - After the review bot on af80dc9: the open is registered with the preview before anything is awaited, so that the
+ *   sign-out of the builder sign-in session that asked for it cancels it; the preview looks at that, and at whether the
+ *   sign-in session still reads as valid, with nothing awaited between that look and the session being opened; and
+ *   if the session has ended by the time its opening is recorded, its pass is not returned.
  */
 import { chmodSync, chownSync, closeSync, constants, fstatSync, mkdirSync, openSync, readSync, rmSync, writeFileSync } from "node:fs";
 import { randomBytes } from "node:crypto";
@@ -48,7 +52,7 @@ import { DEFAULT_PROFILES } from "../gateway/hold.js";
 import { appendEvent } from "../store/events.js";
 import { journeyFolder } from "../web/files.js";
 import type { AppStream } from "../sandbox/manager.js";
-import type { LivePreview } from "../web/preview.js";
+import { LiveOpenCancelled, type LivePreview, type OpenCancelledReason } from "../web/preview.js";
 import type { ProjectSandbox, Sandboxes } from "./example-1-adapter.js";
 import { writeExport } from "./export.js";
 import { CHANGE_SETS_DIR, diskRefusal, DISK_FLOOR_BYTES, engineEventHandler, EV, EXAMPLE, EXPORT_LABEL, freeBytes, Journey, JourneyRefused, JOURNEY_STAND_IN_LABEL, scriptedEngineFor, scriptedOnlyProblem, stillOwned, type SandboxRecord } from "./journey.js";
@@ -79,6 +83,15 @@ export const LIVE_DATA_LABEL = "Made-up data only. No customer or personal detai
 export const SAMPLE_EMPLOYEE_EMAIL = "employee@example.test";
 /** What a checklist run's record says when the app was used live before it (section 4.7). */
 export const USED_LIVE_NOTE = "The app was used live before this run; its data changed.";
+/** Why "Open the live app" opened nothing: its builder sign-in session ended while it was being opened (after the review bot on af80dc9). */
+export const liveCancelledRefusal = (why: OpenCancelledReason) =>
+  `The live app was not opened: ${
+    why === "sign_out"
+      ? "this sign-in session was signed out while it was being opened"
+      : why === "signed_in_again"
+        ? "a new sign-in in this browser ended this sign-in session while it was being opened"
+        : "this sign-in session ended while it was being opened"
+  }. No live session is open. Sign in and ask again.`;
 /** The caption under a screenshot of the running app (final design, section 1, item 7). */
 export const appShotCaption = (at: Date) => `Screenshot of the running app at ${at.toISOString().replace("T", " ").slice(0, 19)} UTC. Not live. Sample data.`;
 
@@ -133,10 +146,35 @@ export class JourneyJobs {
    * opened, bound to this builder sign-in session, this project and this start of the app, and
    * `journey.preview.live_opened` written, without the pass. Resolves with the pass, to be shown once.
    * `builderSessionEndsAt`: when that sign-in session expires, if known; the live session ends no later (J3's review).
+   * `builderSessionValid`: whether that sign-in session is still valid (after the review bot on af80dc9); the open is
+   * refused if it is not when the session would be opened, or when its opening has been recorded.
    */
-  async openLive(projectId: string, builderSession: string, builderSessionEndsAt: number | null = null): Promise<{ pass: string; shown: string; expiresAt: Date; sessionId: string }> {
+  async openLive(
+    projectId: string,
+    builderSession: string,
+    builderSessionEndsAt: number | null = null,
+    builderSessionValid?: () => boolean,
+  ): Promise<{ pass: string; shown: string; expiresAt: Date; sessionId: string }> {
     const preview = this.live;
     if (!preview) throw new JourneyRefused("This interface was started without the live preview.");
+    // After the review bot on af80dc9: registered before anything is awaited, so that the sign-out of this sign-in
+    // session (or a new sign-in that ends it) from now on cancels this open (preview.ts, `signedOut`).
+    const pending = preview.beginOpen(builderSession);
+    try {
+      return await this.openLiveJob(preview, pending, projectId, builderSession, builderSessionEndsAt, builderSessionValid);
+    } finally {
+      preview.endOpen(pending);
+    }
+  }
+
+  private async openLiveJob(
+    preview: LivePreview,
+    pending: ReturnType<LivePreview["beginOpen"]>,
+    projectId: string,
+    builderSession: string,
+    builderSessionEndsAt: number | null,
+    builderSessionValid: (() => boolean) | undefined,
+  ): Promise<{ pass: string; shown: string; expiresAt: Date; sessionId: string }> {
     let give!: (v: { pass: string; shown: string; expiresAt: Date; sessionId: string }) => void;
     let fail!: (e: unknown) => void;
     const got = new Promise<{ pass: string; shown: string; expiresAt: Date; sessionId: string }>((a, b) => {
@@ -154,7 +192,15 @@ export class JourneyJobs {
         const network = await this.o.sandboxes.streamNetworkProblem(x);
         if (network) throw new JourneyRefused(`The live app was not opened: ${network}.`);
         stillOwned(signal);
-        const r = await preview.open({ projectId, builderSession, builderSessionEndsAt, appStartEventId: state.appStartedEventId, appPort: x.appPort });
+        let r: Awaited<ReturnType<LivePreview["open"]>>;
+        try {
+          // After the review bot on af80dc9: refused if this sign-in session signed out, or no longer reads as valid,
+          // since the open was asked for; looked at with nothing awaited between that look and the session being set.
+          r = await preview.open({ projectId, builderSession, builderSessionEndsAt, appStartEventId: state.appStartedEventId, appPort: x.appPort, pending, builderSessionValid });
+        } catch (err) {
+          if (err instanceof LiveOpenCancelled) throw new JourneyRefused(liveCancelledRefusal(err.reason));
+          throw err;
+        }
         try {
           await appendEvent(this.j.pool, projectId, EV.liveOpened, {
             session: r.sessionId,
@@ -170,6 +216,14 @@ export class JourneyJobs {
         } catch (err) {
           await preview.closeFor(projectId, "not_recorded");
           throw err;
+        }
+        // After the review bot on af80dc9: a sign-out while the opening was being recorded has ended the session
+        // (`signedOut`); a sign-in session that ended otherwise meanwhile ends it now. Its pass is not returned.
+        const stillOpen = preview.status(projectId)?.sessionId === r.sessionId;
+        const ended: OpenCancelledReason | null = pending.cancelled ?? (builderSessionValid && !builderSessionValid() ? "builder_session_ended" : null);
+        if (!stillOpen || ended) {
+          if (stillOpen) await preview.closeFor(projectId, "builder_session_ended");
+          throw new JourneyRefused(ended ? liveCancelledRefusal(ended) : "The live app was not opened: its session ended before its pass could be shown. No live session is open.");
         }
         give(r);
         return { session: r.sessionId };

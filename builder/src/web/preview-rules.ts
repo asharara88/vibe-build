@@ -1,5 +1,7 @@
 /**
- * The live preview's rules (package J3; final design, sections 4.4 to 4.6): pure functions, no state, no I/O.
+ * The live preview's rules (package J3; final design, sections 4.4 to 4.6): pure functions, no state, no I/O. One
+ * exception, after the review bot on af80dc9: `relayAnswer` wires an answer's body from the app to the browser (it
+ * holds no state of its own and reads nothing), kept here so that how it ends has a test of its own.
  *
  * The preview front (preview-front.ts) uses them on every request it takes from the owner's browser and every
  * answer it passes back from the app; the interface (preview.ts) uses the pass's. They are kept apart so that each
@@ -12,6 +14,7 @@
  * Names of headers are compared in lower case, as Node gives them.
  */
 import { createHash, timingSafeEqual } from "node:crypto";
+import type { IncomingMessage, ServerResponse } from "node:http";
 
 /* ------------------------------------------------------------------ the pass */
 
@@ -439,6 +442,38 @@ export function downstreamHeaders(
 /** Time limits on an answer (section 4.6): its headers within 30 s, and at most 60 s with nothing sent either way. */
 export const HEADERS_WITHIN_MS = 30_000;
 export const IDLE_MS = 60_000;
+
+/** The idle timer of one exchange with the app, as the front keeps it: restarted by each piece of a body, cleared when the exchange ends. */
+export interface IdleTimer {
+  touch(): void;
+  clear(): void;
+}
+
+/**
+ * Pass the app's answer body to the browser as it comes, unread (section 4.6). After the review bot on af80dc9: when
+ * the app's side ends before the whole body (its stream "aborted", an "error", or closed early: the app or its stream
+ * container gone after the headers), the browser's response is destroyed at once and the idle timer cleared, so the
+ * browser sees the answer cut short now, not when the idle timer would have fired. A browser that leaves first ends
+ * the app's answer, as before.
+ */
+export function relayAnswer(r: IncomingMessage, res: ServerResponse, idle: IdleTimer): void {
+  const cut = () => {
+    idle.clear();
+    if (!res.destroyed) res.destroy();
+  };
+  r.on("data", () => idle.touch());
+  r.on("end", () => idle.clear());
+  r.on("aborted", cut);
+  r.on("error", cut);
+  r.on("close", () => {
+    if (!r.complete) cut();
+  });
+  res.on("close", () => {
+    idle.clear();
+    if (!r.complete) r.destroy();
+  });
+  r.pipe(res);
+}
 
 /* ------------------------------------------------------------------ the gate */
 

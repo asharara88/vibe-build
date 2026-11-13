@@ -17,7 +17,8 @@
  *   the allowlist and mapped (`upstreamHeaders`), and sent to the app over the pump socket: each connection there is
  *   one stream the interface opens to http://app:<port> through a short-lived `check` container on the project's
  *   `front` network (manager.ts, `appStream`). Bodies pass unread. The answer's headers are checked and rewritten
- *   (`responseRefusal`, `downstreamHeaders`), and the front's own security headers set.
+ *   (`responseRefusal`, `downstreamHeaders`), and the front's own security headers set. An answer the app cuts short
+ *   after its headers ends at the browser at once (`relayAnswer`; after the review bot on af80dc9).
  * - It logs no header value. It tells the interface, over the fork channel, only: listening, entered (and whether
  *   Sec-Fetch-Site came), refused (why), closed (why).
  * Its own pages carry no script. They carry no referrer rule of their own either: the front's header,
@@ -44,6 +45,7 @@ import {
   passMatches,
   PASS_TRIES,
   pathKind,
+  relayAnswer,
   requestRefusal,
   responseRefusal,
   SESSION_COOKIE,
@@ -296,13 +298,8 @@ function forward(req: http.IncomingMessage, res: http.ServerResponse, s: Session
     }
     answered = true;
     res.writeHead(status, d.headers);
-    r.on("data", touch);
-    r.pipe(res);
-    r.on("end", () => clearTimeout(idle));
-    res.on("close", () => {
-      clearTimeout(idle);
-      if (!r.complete) r.destroy();
-    });
+    // After the review bot on af80dc9: an answer the app cuts short ends at the browser at once (preview-rules.ts).
+    relayAnswer(r, res, { touch, clear: () => clearTimeout(idle) });
   });
   // The body, unread, counted: past 1 MB the request is stopped.
   if (method === "GET" || method === "HEAD") {

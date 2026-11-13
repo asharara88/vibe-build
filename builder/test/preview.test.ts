@@ -12,8 +12,8 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import type { AppStream, StreamingEnd } from "../src/sandbox/manager.js";
 import { RUNNER_UID } from "../src/acceptance/runner-image.js";
 import { SignInLimiter } from "../src/web/auth.js";
-import { DEFAULT_PREVIEW_UID, LivePreview, MAX_FRONT_RESTARTS, previewUidRefusal, removeStaleFolders } from "../src/web/preview.js";
-import { FRONT_TEXT_KEYS, type Texts } from "../src/web/preview-rules.ts";
+import { DEFAULT_PREVIEW_UID, LIVE_EVENTS, LiveOpenCancelled, LivePreview, MAX_FRONT_RESTARTS, previewUidRefusal, removeStaleFolders } from "../src/web/preview.js";
+import { FRONT_TEXT_KEYS, IDLE_MS, relayAnswer, type Texts } from "../src/web/preview-rules.ts";
 
 const texts = (): Texts => {
   const t = Object.fromEntries(FRONT_TEXT_KEYS.map((k) => [k, `[${k}] {seconds} {reason}`])) as Texts["en"];
@@ -38,6 +38,13 @@ beforeAll(async () => {
       if (q.url === "/binary") return s.writeHead(200, { "content-type": "application/octet-stream" }).end("x");
       if (q.url === "/hang") return void s.writeHead(200, { "content-type": "text/plain" }).write("start");
       if (q.url === "/slow-headers") return; // never answers
+      // After the review bot on af80dc9: an answer cut short after its headers (it says 100 bytes, sends 5, and the app is gone).
+      if (q.url === "/cut-short") {
+        s.writeHead(200, { "content-type": "text/plain", "content-length": "100" });
+        s.write("hello");
+        setTimeout(() => q.socket.destroy(), 100);
+        return;
+      }
       s.writeHead(200, { "content-type": "text/html", "set-cookie": ["sid=1; Path=/; HttpOnly", "bad=1; Domain=evil.example"], "x-seen-host": String(q.headers.host) });
       s.end(`app page ${q.url}`);
     });
@@ -595,6 +602,138 @@ describe("stale short folders", () => {
     } finally {
       rmSync(stale, { recursive: true, force: true });
       if (other) rmSync(other, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("after the review bot on af80dc9", () => {
+  /** How a body read ends: cut short (an error), complete, or still open when the deadline comes. */
+  const howItEnds = (r: Response, deadlineMs: number) =>
+    Promise.race([
+      r.text().then(
+        () => "complete",
+        () => "cut short",
+      ),
+      pause(deadlineMs).then(() => `still open after ${deadlineMs / 1000} s`),
+    ]);
+
+  it("an answer the app cuts short after its headers (Content-Length: 100, five bytes, then the app gone) ends at the browser at once, not when the front's 60-second idle timer fires; its stream is ended", async () => {
+    const t = await preview();
+    const o = await t.open();
+    const cookie = t.cookieOf(await t.enter(o.shown));
+    await pause(50);
+    const r = await t.get("/cut-short", cookie);
+    expect(r.status).toBe(200);
+    expect(r.headers.get("content-length")).toBe("100");
+    const t0 = Date.now();
+    expect(await howItEnds(r, 5000)).toBe("cut short");
+    expect(Date.now() - t0).toBeLessThan(2000);
+    await pause(200);
+    expect(t.p.activeStreams()).toBe(0);
+    // The front goes on: the next request is answered.
+    expect(await (await t.get("/en/home", cookie)).text()).toBe("app page /en/home");
+  });
+
+  it("relayAnswer, the front's own: an answer cut short destroys the browser's response and clears the idle timer at once; a whole answer passes whole and clears it too", async () => {
+    // A front of this test's own around relayAnswer, with an idle timer whose handle the test can read.
+    const timers: Array<{ handle: NodeJS.Timeout | undefined; clears: number }> = [];
+    const front = http.createServer((q, res) => {
+      const timer = { handle: undefined as NodeJS.Timeout | undefined, clears: 0 };
+      timers.push(timer);
+      const idle = {
+        touch: () => {
+          clearTimeout(timer.handle);
+          timer.handle = setTimeout(() => res.destroy(), IDLE_MS);
+          timer.handle.unref();
+        },
+        clear: () => {
+          timer.clears++;
+          clearTimeout(timer.handle);
+          timer.handle = undefined;
+        },
+      };
+      http
+        .get({ host: "127.0.0.1", port: upstreamPort, path: q.url }, (r) => {
+          const length = r.headers["content-length"];
+          res.writeHead(r.statusCode ?? 502, { "content-type": String(r.headers["content-type"]), ...(length ? { "content-length": length } : {}) });
+          idle.touch();
+          relayAnswer(r, res, idle);
+        })
+        .on("error", () => res.destroy());
+    });
+    await new Promise<void>((r) => front.listen(0, "127.0.0.1", r));
+    const at = `http://127.0.0.1:${(front.address() as AddressInfo).port}`;
+    try {
+      const cut = await fetch(`${at}/cut-short`);
+      const t0 = Date.now();
+      expect(await howItEnds(cut, 5000)).toBe("cut short");
+      expect(Date.now() - t0).toBeLessThan(2000);
+      expect(timers[0]!.clears).toBeGreaterThan(0);
+      expect(timers[0]!.handle).toBeUndefined();
+      // Control: a whole answer passes whole, and its timer is cleared too.
+      const whole = await fetch(`${at}/whole`);
+      expect(await whole.text()).toBe("app page /whole");
+      await pause(50);
+      expect(timers[1]!.handle).toBeUndefined();
+    } finally {
+      front.closeAllConnections();
+      await new Promise((r) => front.close(r));
+    }
+  });
+
+  it("a sign-out of the builder sign-in session that asked for an open cancels it: open refuses it even while that session still reads as valid; another session's sign-out does not", async () => {
+    const t = await preview();
+    const asked = t.p.beginOpen("builder-session-1");
+    const other = t.p.beginOpen("builder-session-2");
+    await t.p.signedOut("builder-session-1");
+    const still = () => true;
+    await expect(t.p.open({ projectId: "j1-0000000000aa", builderSession: "builder-session-1", appStartEventId: "7", appPort: 3161, pending: asked, builderSessionValid: still })).rejects.toBeInstanceOf(LiveOpenCancelled);
+    expect(t.p.session()).toBeNull();
+    // Control: the other sign-in session's open is made.
+    const o = await t.p.open({ projectId: "j1-0000000000aa", builderSession: "builder-session-2", appStartEventId: "7", appPort: 3161, pending: other, builderSessionValid: still });
+    expect(t.p.session()?.sessionId).toBe(o.sessionId);
+    t.p.endOpen(asked);
+    t.p.endOpen(other);
+    // A session that no longer reads as valid is refused too.
+    await expect(t.p.open({ projectId: "j1-0000000000aa", builderSession: "builder-session-3", appStartEventId: "7", appPort: 3161, builderSessionValid: () => false })).rejects.toBeInstanceOf(LiveOpenCancelled);
+  });
+
+  it("open looks again after its last await: a sign-out while it waits for the session it replaces to close cancels it, and no session is left open", async () => {
+    const port = await freePort();
+    let gate: Promise<void> | null = null;
+    const closed: string[] = [];
+    const p = new LivePreview({
+      port,
+      texts: texts(),
+      base: "/tmp",
+      openStream: () => null,
+      onEvent: async (_project, kind, payload) => {
+        if (kind === LIVE_EVENTS.closed) {
+          closed.push(String(payload.reason));
+          if (gate) await gate;
+        }
+      },
+    });
+    made.push(p);
+    await p.start();
+    await p.open({ projectId: "j1-0000000000aa", builderSession: "builder-session-0", appStartEventId: "7", appPort: 3161 });
+    let release: () => void = () => undefined;
+    gate = new Promise<void>((r) => (release = r));
+    try {
+      const asked = p.beginOpen("builder-session-1");
+      const opening = p.open({ projectId: "j1-0000000000aa", builderSession: "builder-session-1", appStartEventId: "7", appPort: 3161, pending: asked, builderSessionValid: () => true });
+      opening.catch(() => undefined);
+      await pause(100);
+      // The session it replaces is closing (its event held); the sign-out comes now.
+      expect(closed).toEqual(["replaced"]);
+      await p.signedOut("builder-session-1");
+      release();
+      await expect(opening).rejects.toBeInstanceOf(LiveOpenCancelled);
+      expect(p.session()).toBeNull();
+      p.endOpen(asked);
+    } finally {
+      release();
+      gate = null;
     }
   });
 });
