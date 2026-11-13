@@ -1,0 +1,74 @@
+Package 1.2, 13 Nov 2026, after the second re-read of that day's fixes: the new test of proof row B6 (the first gateway as a process of its own) run ten times in a row, at commit dffdc33 (its code is that of b725039), to see whether its timing holds.
+Development machine (a cloud session), in builder/, against the test database builder_test_pkg12. Each run starts and stops its own gateway process.
+
+Run 1 of 10:
+$ npx vitest run test/gateway.test.ts -t 'a gateway process that stops cleanly' --reporter=verbose   (skipped tests left out)
+ ✓ test/gateway.test.ts > holds: proof rows B1 to B6 of the design note > B6: a gateway process that stops cleanly with a call in flight leaves its hold open; a gateway started afterwards finds it, keeps it at its full amount and still counts it 607ms
+ Test Files  1 passed (1)
+      Tests  1 passed | 85 skipped (86)
+exit code: 0
+
+Run 2 of 10:
+$ npx vitest run test/gateway.test.ts -t 'a gateway process that stops cleanly' --reporter=verbose   (skipped tests left out)
+ ✓ test/gateway.test.ts > holds: proof rows B1 to B6 of the design note > B6: a gateway process that stops cleanly with a call in flight leaves its hold open; a gateway started afterwards finds it, keeps it at its full amount and still counts it 569ms
+ Test Files  1 passed (1)
+      Tests  1 passed | 85 skipped (86)
+exit code: 0
+
+Run 3 of 10:
+$ npx vitest run test/gateway.test.ts -t 'a gateway process that stops cleanly' --reporter=verbose   (skipped tests left out)
+ ✓ test/gateway.test.ts > holds: proof rows B1 to B6 of the design note > B6: a gateway process that stops cleanly with a call in flight leaves its hold open; a gateway started afterwards finds it, keeps it at its full amount and still counts it 546ms
+ Test Files  1 passed (1)
+      Tests  1 passed | 85 skipped (86)
+exit code: 0
+
+Run 4 of 10:
+$ npx vitest run test/gateway.test.ts -t 'a gateway process that stops cleanly' --reporter=verbose   (skipped tests left out)
+ ✓ test/gateway.test.ts > holds: proof rows B1 to B6 of the design note > B6: a gateway process that stops cleanly with a call in flight leaves its hold open; a gateway started afterwards finds it, keeps it at its full amount and still counts it 572ms
+ Test Files  1 passed (1)
+      Tests  1 passed | 85 skipped (86)
+exit code: 0
+
+Run 5 of 10:
+$ npx vitest run test/gateway.test.ts -t 'a gateway process that stops cleanly' --reporter=verbose   (skipped tests left out)
+ ✓ test/gateway.test.ts > holds: proof rows B1 to B6 of the design note > B6: a gateway process that stops cleanly with a call in flight leaves its hold open; a gateway started afterwards finds it, keeps it at its full amount and still counts it 526ms
+ Test Files  1 passed (1)
+      Tests  1 passed | 85 skipped (86)
+exit code: 0
+
+Run 6 of 10:
+$ npx vitest run test/gateway.test.ts -t 'a gateway process that stops cleanly' --reporter=verbose   (skipped tests left out)
+ ✓ test/gateway.test.ts > holds: proof rows B1 to B6 of the design note > B6: a gateway process that stops cleanly with a call in flight leaves its hold open; a gateway started afterwards finds it, keeps it at its full amount and still counts it 540ms
+ Test Files  1 passed (1)
+      Tests  1 passed | 85 skipped (86)
+exit code: 0
+
+Run 7 of 10:
+$ npx vitest run test/gateway.test.ts -t 'a gateway process that stops cleanly' --reporter=verbose   (skipped tests left out)
+ ✓ test/gateway.test.ts > holds: proof rows B1 to B6 of the design note > B6: a gateway process that stops cleanly with a call in flight leaves its hold open; a gateway started afterwards finds it, keeps it at its full amount and still counts it 533ms
+ Test Files  1 passed (1)
+      Tests  1 passed | 85 skipped (86)
+exit code: 0
+
+Run 8 of 10:
+$ npx vitest run test/gateway.test.ts -t 'a gateway process that stops cleanly' --reporter=verbose   (skipped tests left out)
+ ✓ test/gateway.test.ts > holds: proof rows B1 to B6 of the design note > B6: a gateway process that stops cleanly with a call in flight leaves its hold open; a gateway started afterwards finds it, keeps it at its full amount and still counts it 554ms
+ Test Files  1 passed (1)
+      Tests  1 passed | 85 skipped (86)
+exit code: 0
+
+Run 9 of 10:
+$ npx vitest run test/gateway.test.ts -t 'a gateway process that stops cleanly' --reporter=verbose   (skipped tests left out)
+ ✓ test/gateway.test.ts > holds: proof rows B1 to B6 of the design note > B6: a gateway process that stops cleanly with a call in flight leaves its hold open; a gateway started afterwards finds it, keeps it at its full amount and still counts it 557ms
+ Test Files  1 passed (1)
+      Tests  1 passed | 85 skipped (86)
+exit code: 0
+
+Run 10 of 10:
+$ npx vitest run test/gateway.test.ts -t 'a gateway process that stops cleanly' --reporter=verbose   (skipped tests left out)
+ ✓ test/gateway.test.ts > holds: proof rows B1 to B6 of the design note > B6: a gateway process that stops cleanly with a call in flight leaves its hold open; a gateway started afterwards finds it, keeps it at its full amount and still counts it 533ms
+ Test Files  1 passed (1)
+      Tests  1 passed | 85 skipped (86)
+exit code: 0
+
+Runs that passed: 10 of 10.

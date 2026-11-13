@@ -1,0 +1,183 @@
+Package 1.2: the demonstration of the eleven proof rows (B1 to B6, B15 to B19)
+Commit: 94b800c. Development machine (a cloud session), on the host; stand-in provider in the same process; database builder_test_pkg12.
+Everything after "event" is read back from the event log; "the hold's row" is read from the holds table. No model was called; nothing was spent.
+
+$ cd builder && BUILDER_TEST_DATABASE_URL='postgres:///builder_test_pkg12?host=/var/run/postgresql' npx tsx scripts/demo-cap.ts
+Stand-in provider only: no real provider is called and nothing is spent.
+Prices used: Claude Opus 5.5 input $4, one-hour cache write $8, output $20 per million tokens; Claude Haiku 5.5 one-hour cache write $0.20 and output $0.50, or $1.00 and $2.50 over 100,000 prompt tokens.
+
+== B1. A hold is opened before every forwarded call and settled to the actual cost ==
+  call 1: HTTP 200
+  call 2: HTTP 200
+  when call 1 reached the stand-in provider, the database held 1 open hold(s) for this project
+  when call 2 reached the stand-in provider, the database held 1 open hold(s) for this project
+  event hold.opened: hold #676 for $0.125600
+      prompt counted 10000 tokens + margin 700 = 10700 at $8 per million (one-hour cache write) = $0.085600
+      max_tokens 2000 at $20 per million = $0.040000; fast-mode factor 1; both parts include the factor
+  event model.call: status 200, billed 10000 input and 1000 output tokens, actual cost $0.060000
+  event hold.settled: hold #676 of $0.125600 settled at $0.060000; $0.065600 returned to the budget
+  event hold.opened: hold #677 for $0.125600
+      prompt counted 10000 tokens + margin 700 = 10700 at $8 per million (one-hour cache write) = $0.085600
+      max_tokens 2000 at $20 per million = $0.040000; fast-mode factor 1; both parts include the factor
+  event model.call: status 200, billed 10000 input and 1000 output tokens, actual cost $0.060000
+  event hold.settled: hold #677 of $0.125600 settled at $0.060000; $0.065600 returned to the budget
+  budget afterwards: cap $1.000000 | spent $0.120000 | open holds $0.000000 (0) | spent + open holds = $0.120000
+  actual cost never above the hold: yes
+
+== B2. A call whose hold does not fit is refused at the call ==
+  call 1: HTTP 200
+  budget before call 2: cap $0.150000 | spent $0.060000 | open holds $0.000000 (0) | spent + open holds = $0.060000
+  call 2: HTTP 402 (budget_reached)
+  message shown: "This project has reached its budget of $0.15 (spent $0.06, with $0.00 held for work in progress or awaiting reconciliation; this call needed up to $0.13). The gateway will forward nothing more until the budget is raised."
+  calls that reached the provider during call 2: 0
+  event hold.opened: hold #678 for $0.125600
+      prompt counted 10000 tokens + margin 700 = 10700 at $8 per million (one-hour cache write) = $0.085600
+      max_tokens 2000 at $20 per million = $0.040000; fast-mode factor 1; both parts include the factor
+  event model.call: status 200, billed 10000 input and 1000 output tokens, actual cost $0.060000
+  event hold.settled: hold #678 of $0.125600 settled at $0.060000; $0.065600 returned to the budget
+  event gateway.refused: reason budget_reached; spent $0.060000 + open holds $0.000000 + this hold $0.125600 > cap $0.150000
+  holds in the database for this project: 1 (one, from call 1; none for the refused call)
+
+== B3. A prompt that cannot be counted is refused (amendment b) ==
+  call: HTTP 502 (prompt_not_counted)
+  message shown: "The prompt could not be counted by the provider, so this call's hold cannot be worked out. The gateway did not forward it."
+  calls that reached the provider: 0
+  event gateway.refused: reason prompt_not_counted; model claude-opus-5-5, count_status 500
+  holds in the database for this project: 0
+
+== B4. The hold covers the long-prompt rate and fast mode when either could apply (amendment c) ==
+  (1) Claude Haiku 5.5, prompt counted at 99,900 tokens, just under the 100,000 threshold:
+  call: HTTP 200
+  event hold.opened: hold #679 for $0.107595
+      prompt counted 99900 tokens + margin 5195 = 105095 at $1 per million (one-hour cache write, long-prompt price) = $0.105095
+      max_tokens 1000 at $2.5 per million = $0.002500; fast-mode factor 1; both parts include the factor
+  event model.call: status 200, billed 99900 input and 500 output tokens, actual cost $0.010240
+  event hold.settled: hold #679 of $0.107595 settled at $0.010240; $0.097355 returned to the budget
+  the same model with a prompt counted at 1,000 tokens, for comparison:
+  event hold.opened: hold #680 for $0.000750
+      prompt counted 1000 tokens + margin 250 = 1250 at $0.2 per million (one-hour cache write) = $0.000250
+      max_tokens 1000 at $0.5 per million = $0.000500; fast-mode factor 1; both parts include the factor
+  event model.call: status 200, billed 1000 input and 500 output tokens, actual cost $0.000350
+  event hold.settled: hold #680 of $0.000750 settled at $0.000350; $0.000400 returned to the budget
+  (2) Claude Opus 5.5 on a profile that allows fast mode (the request does not ask for it):
+  call: HTTP 200
+  event hold.opened: hold #681 for $0.251200
+      prompt counted 10000 tokens + margin 700 = 10700 at $8 per million (one-hour cache write) = $0.171200
+      max_tokens 2000 at $20 per million = $0.080000; fast-mode factor 2 (the profile allows it); both parts include the factor
+  event model.call: status 200, billed 10000 input and 1000 output tokens, actual cost $0.060000
+  event hold.settled: hold #681 of $0.251200 settled at $0.060000; $0.191200 returned to the budget
+
+== B5. A hold past its deadline is kept, not released ==
+  this gateway cuts a call off after 0.2 seconds and gives its hold a deadline 0.2 seconds later; the stand-in does not answer in time
+  call: HTTP 502
+  budget after the cut-off: cap $0.200000 | spent $0.000000 | open holds $0.125600 (1) | spent + open holds = $0.125600
+  holds marked expired once the deadline had passed: 1
+  the hold's row: state open, amount $0.125600, expired true, unreconciled true, actual cost not known
+  event hold.opened: hold #682 for $0.125600
+      prompt counted 10000 tokens + margin 700 = 10700 at $8 per million (one-hour cache write) = $0.085600
+      max_tokens 2000 at $20 per million = $0.040000; fast-mode factor 1; both parts include the factor
+  event hold.kept: hold #682 of $0.125600 kept open; reason: the call reached its time limit
+  event hold.expired: hold #682 of $0.125600; kept true, unreconciled true, still open true
+  budget after expiry: cap $0.200000 | spent $0.000000 | open holds $0.125600 (1) | spent + open holds = $0.125600
+  a further call, to show the expired hold still counts: HTTP 402
+
+== B6. Holds are database rows that survive the gateway stopping ==
+  a call is in flight through gateway gw_demo_first; the gateway is now stopped
+  budget with the first gateway stopped: cap $0.200000 | spent $0.000000 | open holds $0.125600 (1) | spent + open holds = $0.125600
+  a second gateway, gw_demo_second, starts on the same database and looks for open holds
+  the hold's row: state open, amount $0.125600, opened by gw_demo_first
+  event hold.opened: hold #683 for $0.125600
+      prompt counted 10000 tokens + margin 700 = 10700 at $8 per million (one-hour cache write) = $0.085600
+      max_tokens 2000 at $20 per million = $0.040000; fast-mode factor 1; both parts include the factor
+  event hold.found_at_startup: hold #683 of $0.125600, opened by gw_demo_first, found by gw_demo_second; kept true, still open true
+  event hold.kept: hold #683 of $0.125600 kept open; reason: the caller disconnected before the answer arrived
+  budget after the second gateway started: cap $0.200000 | spent $0.000000 | open holds $0.125600 (1) | spent + open holds = $0.125600
+  spent + open holds the same before and after: yes
+  a call through the second gateway, to show the hold still counts: HTTP 402
+
+== The known limits of the hold handled in package 1.2 (known gap 41): proof rows B15 to B19 ==
+
+== B15. inference_geo "us" (1.1 times every rate): a request that sets it is refused ==
+  a request with inference_geo "us": HTTP 400 (invalid_request_error)
+  message shown: "The request sets inference_geo, which changes the price of every token. The gateway forwards only the default routing until its holds include that factor."
+  calls that reached the provider: 0
+  event gateway.refused: reason inference_geo_not_allowed; model claude-opus-5-5, inference_geo us
+  holds in the database for this project: 0
+  the same request without inference_geo (the default routing): HTTP 200
+  holds opened for that project: 1
+
+== B16. The token count being an estimate: a margin is added to the counted prompt ==
+  the stand-in counts the prompt as 10,000 tokens, then bills 4% more (10,400), all as one-hour cache writes, and all 2,000 tokens of max_tokens
+  call: HTTP 200
+  event hold.opened: hold #685 for $0.125600
+      prompt counted 10000 tokens + margin 700 = 10700 at $8 per million (one-hour cache write) = $0.085600
+      max_tokens 2000 at $20 per million = $0.040000; fast-mode factor 1; both parts include the factor
+  event model.call: status 200, billed 0 input, 10400 cache-write tokens (10400 of them one-hour writes) and 2000 output tokens, actual cost $0.123200
+  event hold.settled: hold #685 of $0.125600 settled at $0.123200; $0.002400 returned to the budget
+  arithmetic only: without the margin the hold would have been $0.120000 (10000 x $8 + 2000 x $20 per million), below this bill of $0.123200; with it, $0.125600
+  hold.exceeded events for this project: 0
+  this shows that a margin is applied and covers this stand-in's 4%; whether it is large enough for the real provider is not shown (package 2.3)
+
+== B17. Server-side tools billed on top of tokens: a request that includes one is refused ==
+  a request with a web search tool, which the provider runs itself: HTTP 400 (invalid_request_error)
+  message shown: "The request includes a tool of type "web_search_20260209". Tools the provider runs itself can be billed on top of tokens, so the gateway does not forward them."
+  calls that reached the provider: 0
+  event gateway.refused: reason server_tool_not_allowed; model claude-opus-5-5, tool_type web_search_20260209
+  holds in the database for this project: 0
+  a request that asks the provider to connect to tool servers: HTTP 400 (invalid_request_error)
+  message shown: "The request asks the provider to connect to tool servers itself. The gateway cannot bound what that costs and does not forward it."
+  calls that reached the provider: 0
+  event gateway.refused: reason server_tool_not_allowed; field mcp_servers, model claude-opus-5-5
+  holds in the database for this project: 0
+  a request with only the caller's own tools (which the caller runs): HTTP 200
+
+== B18. Fast mode on a model whose price is assumed: a request for it is refused ==
+  Claude Sonnet 5.5 asked for fast mode, on a profile that allows fast mode (no fast-mode price is listed for it): HTTP 400 (invalid_request_error)
+  message shown: "The request asks for fast mode on "claude-sonnet-5-5", whose fast-mode price is not in the gateway's price table."
+  calls that reached the provider: 0
+  event gateway.refused: reason fast_mode_not_priced; model claude-sonnet-5-5
+  holds in the database for this project: 0
+  Claude Opus 5.5, whose fast-mode price is listed, asked for fast mode on the same profile: HTTP 200
+  event hold.opened: hold #687 for $0.251200
+      prompt counted 10000 tokens + margin 700 = 10700 at $8 per million (one-hour cache write) = $0.171200
+      max_tokens 2000 at $20 per million = $0.080000; fast-mode factor 2 (the request asks for it); both parts include the factor
+  event model.call: status 200, billed 10000 input and 1000 output tokens, actual cost $0.060000
+  event hold.settled: hold #687 of $0.251200 settled at $0.060000; $0.191200 returned to the budget
+
+== B19. What happens to a hold after an error answer: released only on the provider's own rejection before any work; kept otherwise ==
+  the provider's own rejection (400, invalid_request_error): HTTP 400
+  event hold.opened: hold #688 for $0.125600
+      prompt counted 10000 tokens + margin 700 = 10700 at $8 per million (one-hour cache write) = $0.085600
+      max_tokens 2000 at $20 per million = $0.040000; fast-mode factor 1; both parts include the factor
+  event model.call: status 400, billed 0 input and 0 output tokens, actual cost $0.000000; the provider's own answer says it rejected the request before any work
+  event hold.settled: hold #688 of $0.125600 settled at $0.000000; $0.125600 returned to the budget
+  the hold's row: state settled, amount $0.125600, actual cost $0.000000, kept because (not kept), unreconciled false
+  budget: cap $0.200000 | spent $0.000000 | open holds $0.000000 (0) | spent + open holds = $0.000000
+  a further call (room for one hold under this cap): HTTP 200
+  a server error (500, api_error): HTTP 500
+  event hold.opened: hold #690 for $0.125600
+      prompt counted 10000 tokens + margin 700 = 10700 at $8 per million (one-hour cache write) = $0.085600
+      max_tokens 2000 at $20 per million = $0.040000; fast-mode factor 1; both parts include the factor
+  event hold.kept: hold #690 of $0.125600 kept open; reason: the provider answered with a server error
+  the hold's row: state open, amount $0.125600, actual cost not known, kept because the provider answered with a server error, unreconciled false
+  budget: cap $0.200000 | spent $0.000000 | open holds $0.125600 (1) | spent + open holds = $0.125600
+  a further call (room for one hold under this cap): HTTP 402
+  an overloaded provider (529, overloaded_error): HTTP 529
+  event hold.opened: hold #691 for $0.125600
+      prompt counted 10000 tokens + margin 700 = 10700 at $8 per million (one-hour cache write) = $0.085600
+      max_tokens 2000 at $20 per million = $0.040000; fast-mode factor 1; both parts include the factor
+  event hold.kept: hold #691 of $0.125600 kept open; reason: the provider answered with a server error
+  the hold's row: state open, amount $0.125600, actual cost not known, kept because the provider answered with a server error, unreconciled false
+  budget: cap $0.200000 | spent $0.000000 | open holds $0.125600 (1) | spent + open holds = $0.125600
+  a further call (room for one hold under this cap): HTTP 402
+  a 400 that is not in the provider's error shape (an HTML page): HTTP 400
+  event hold.opened: hold #692 for $0.125600
+      prompt counted 10000 tokens + margin 700 = 10700 at $8 per million (one-hour cache write) = $0.085600
+      max_tokens 2000 at $20 per million = $0.040000; fast-mode factor 1; both parts include the factor
+  event hold.kept: hold #692 of $0.125600 kept open; reason: an error answer that is not one of the provider's own rejections before work
+  the hold's row: state open, amount $0.125600, actual cost not known, kept because an error answer that is not one of the provider's own rejections before work, unreconciled false
+  budget: cap $0.200000 | spent $0.000000 | open holds $0.125600 (1) | spent + open holds = $0.125600
+  a further call (room for one hold under this cap): HTTP 402
+
+Every call that reached the provider carried the gateway's key, never a project token: yes (17 calls).
+exit code: 0

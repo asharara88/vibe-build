@@ -1,0 +1,10 @@
+# How long the key reader (builder/src/gateway/key-reader.ts) takes on hostile texts of 8 million characters, on the development machine, 12 November 2026.
+# One run; the key searched for is 109 characters long. A reviewer measured up to 18 s for the third of these on the commit before (83443c9).
+0.01 s  found=false  8 MB of the letter a
+0.68 s  found=false  8 MB of backslashes
+0.77 s  found=false  runs of 8,190 backslashes with a letter between
+0.72 s  found=false  \x5c repeated
+0.77 s  found=false  \u005c repeated
+0.66 s  found=false  the key's first half, with backslashes, repeated
+0.68 s  found=false  the key's first character written as an escape, repeated
+0.47 s  found=false  many short JSON texts with a backslash

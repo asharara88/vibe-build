@@ -33,5 +33,5 @@ export const FAST_MODE_FACTOR = 2;
 
 export function priceFor(model: string, promptTokens: number): ModelPrice | null {
   if (model === "claude-haiku-5-5" && promptTokens > 100_000) return HAIKU_LONG_PROMPT;
-  return PRICES[model] ?? null;
+  return Object.hasOwn(PRICES, model) ? (PRICES[model] ?? null) : null;
 }
