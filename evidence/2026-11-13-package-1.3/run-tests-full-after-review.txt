@@ -1,0 +1,15 @@
+Package 1.3, 13 Nov 2026, after its review: the whole suite once, live tests included, at commit ec358c1 (builder/ unchanged since 85c5959)
+Development machine (a cloud session), in builder/, under the lock shared with other sessions. BUILDER_TEST_DATABASE_URL=postgres:///builder_test_pkg13_rev?host=/var/run/postgresql
+Containers on the machine before the run: 0
+
+$ flock <scratchpad>/live-tests.lock npx vitest run
+started 08:14:57 UTC
+ RUN  v5.1.0 /tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/wt-13/builder
+ Test Files  10 passed (10)
+      Tests  266 passed (266)
+   Start at  08:14:58
+   Duration  129.35s (tests 100%)
+
+exit code: 0
+ended 08:17:07 UTC
+Containers on the machine after the run: 0
