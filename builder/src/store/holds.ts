@@ -7,7 +7,8 @@
  * two calls arriving together are judged one after the other, whatever gateway process they
  * came through. A hold leaves the equation in one way only in this package: it is settled, to
  * the actual cost of a call whose usage was read, or at nothing when the provider's own error
- * says the request was turned away before any work. Every other ending keeps it open.
+ * says the request was turned away before any work, or at nothing when the call was never sent
+ * because the caller left first. Every other ending keeps it open.
  */
 import type pg from "pg";
 
@@ -182,6 +183,25 @@ export async function settleHold(
       await event(c, p.projectId, "hold.exceeded", { hold_id: Number(hold.id), amount_usd: amountUsd, actual_usd: p.actualUsd }, p.step);
     }
     return { settled: true, exceeded, amountUsd };
+  });
+}
+
+/**
+ * Close a hold at nothing for a call that was never sent: the caller left after the hold was
+ * opened and before anything was forwarded to the provider (review of 13 Nov 2026). One
+ * transaction: the hold closed at nothing and a `hold.settled` event that says nothing was
+ * forwarded, and why. No `model.call` event is written, because no call was made. A hold already
+ * kept, expired or closed is left as it is. Returns whether the hold was closed.
+ */
+export async function releaseUnsentHold(pool: pg.Pool, p: { projectId: string; holdId: string; step: string | null; reason: string }): Promise<boolean> {
+  return inTransaction(pool, p.projectId, async (c) => {
+    const r = await c.query<Hold>("select * from holds where id = $1 and project_id = $2 for update", [p.holdId, p.projectId]);
+    const hold = r.rows[0];
+    if (!hold || hold.state !== "open" || hold.kept_reason !== null || hold.expired || hold.unreconciled) return false;
+    const amountUsd = Number(hold.amount_usd);
+    await c.query("update holds set state = 'settled', closed_at = now(), actual_usd = 0 where id = $1", [p.holdId]);
+    await event(c, p.projectId, "hold.settled", { hold_id: Number(hold.id), amount_usd: amountUsd, actual_usd: 0, returned_usd: amountUsd, forwarded: false, reason: p.reason }, p.step);
+    return true;
   });
 }
 

@@ -8,10 +8,11 @@
  *   checks the budget equation in one locked database transaction:
  *       spent + open holds + this call's hold <= cap.
  *   If it does not fit, nothing is forwarded.
- * - A hold is settled in two cases only: the call ended with usage figures that could be read
- *   and trusted (settled to the actual cost), or the provider's own error says it turned the
- *   request away before doing any work (settled at nothing). Any other ending keeps the hold
- *   open at its full amount: money is not released on a guess.
+ * - A hold is settled in three cases only: the call ended with usage figures that could be read
+ *   and trusted (settled to the actual cost); the provider's own error says it turned the
+ *   request away before doing any work (settled at nothing); or the caller left before anything
+ *   was forwarded (settled at nothing). Any other ending keeps the hold open at its full amount:
+ *   money is not released on a guess.
  * - Refuses what a hold cannot bound: a prompt that cannot be counted, a model with no price,
  *   more output than the profile allows, routing or tools that are billed outside the token rates.
  *
@@ -21,7 +22,7 @@ import { randomBytes } from "node:crypto";
 import { Hono } from "hono";
 import type pg from "pg";
 import { appendEvent } from "../store/events.js";
-import { expireHolds, keepHold, openHold, recoverHolds, settleHold } from "../store/holds.js";
+import { expireHolds, keepHold, openHold, recoverHolds, releaseUnsentHold, settleHold } from "../store/holds.js";
 import { projectForToken, type Project } from "../store/projects.js";
 import { costUsd, emptyUsage, itemisedCacheWrites, mergeUsage, statesSpeed, USAGE_COUNTS, usageAsPriced, usageIsReadable, type ProviderUsage, type Usage } from "./cost.js";
 import { betasNotAllowed, computeHold, countRequestBody, DEFAULT_PROFILES, guardRequest, mayAskForOneHourCache, type MeteredRequest, type ProfileLimits } from "./hold.js";
@@ -404,6 +405,19 @@ export function createGateway(opts: GatewayOptions) {
       }
     };
     const clientGone = c.req.raw.signal;
+    // A caller that left before anything was sent: only the counting call has been made, and the
+    // call itself has not been forwarded, so the hold is settled at nothing with that reason. No
+    // await stands between this check and the forward below, so the caller cannot leave in between
+    // unseen; once the forward has begun, any ending keeps the hold as below (review of 13 Nov 2026).
+    if (clientGone.aborted) {
+      ended = true;
+      try {
+        await releaseUnsentHold(opts.pool, { projectId: project.id, holdId, step, reason: "the caller left before anything was sent to the provider" });
+      } catch (err) {
+        fault("A hold for a call that was never sent could not be closed. It stays open at its full amount.", { project: project.id, hold: holdId, error: errorSummary(err) });
+      }
+      return c.json(errorBody("api_error", "The caller went away before anything was sent to the model provider."), 502);
+    }
     const limit = new AbortController();
     const limitTimer = setTimeout(() => limit.abort(new Error("time limit reached")), limitMs);
     const stopTimer = () => clearTimeout(limitTimer);

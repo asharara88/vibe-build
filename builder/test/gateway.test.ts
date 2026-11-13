@@ -205,6 +205,11 @@ function standInProvider() {
     const s = typeof body.system === "string" ? body.system : "";
     if (s === "count-fail") return c.json({ type: "error", error: { type: "api_error", message: "stand-in count failure" } }, 500);
     if (s === "count-garbage") return c.json({ input_tokens: "many" });
+    if (s === "count-slow") {
+      // Review of 13 Nov 2026: a slow count, so that a caller can leave before the call is forwarded.
+      await new Promise((r) => setTimeout(r, 400));
+      return c.json({ input_tokens: 42 });
+    }
     if (s === "count-echo-after-backslash") return c.body(`{"input_tokens":42,"note":"\\${c.req.header("x-api-key") ?? ""}"}`, 200, { "content-type": "application/json" });
     if (s === "count-echo-key" || s === "count-echo-key-401") {
       const escaped = (c.req.header("x-api-key") ?? "").replace(/-/g, "\\u002d");
@@ -1404,6 +1409,26 @@ describe("holds: found by the review of 13 Nov 2026, and kept fixed", () => {
       if (pricedAt === null) expect(p.cache_writes_not_itemised, label).toBeUndefined();
       else expect(p.cache_writes_not_itemised, label).toMatchObject({ tokens: 10_000, priced_at: pricedAt });
       near((await getBudget(pool, id)).spent, cost);
+    }
+  });
+
+  it("a caller that leaves before anything is forwarded: the hold is settled at nothing, with the reason, and nothing reaches the provider", async () => {
+    for (const body of [plain(undefined, { system: "count-slow" }), { ...streamed(), system: "count-slow" }]) {
+      const { id, token } = await newProject(5);
+      const before = forwarded;
+      const controller = new AbortController();
+      const leaving = call(token, body, "/v1/messages", {}, { signal: controller.signal }).catch(() => null);
+      setTimeout(() => controller.abort(), 100); // while the prompt is still being counted
+      await leaving;
+      const settled = await waitForEvents(id, "hold.settled", 1);
+      expect(settled).toHaveLength(1);
+      expect(settled[0]!.payload).toMatchObject({ actual_usd: 0, forwarded: false, reason: "the caller left before anything was sent to the provider" });
+      expect(await kinds(id)).toEqual(["hold.opened", "hold.settled"]); // no model.call: no call was made
+      expect(forwarded).toBe(before); // nothing reached the provider
+      expect((await listHolds(pool, id))[0]).toMatchObject({ state: "settled" });
+      const b = await getBudget(pool, id);
+      expect(b.openHolds).toBe(0);
+      expect(b.spent).toBe(0);
     }
   });
 
