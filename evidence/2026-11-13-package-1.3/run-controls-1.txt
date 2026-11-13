@@ -1,0 +1,965 @@
+Package 1.3, 13 Nov 2026: each new test run once with its safeguard removed (controls)
+Development machine (a cloud session), in builder/, at commit 2a32c12. Test database builder_test_pkg13 over the local socket
+(peer authentication, no password); control C15 used a fresh database, builder_test_pkg13_control15, created for it and dropped after it.
+Stand-in provider only; no key exists; nothing spent. For each control: the change as git diff shows it, the tests run
+(each is expected to FAIL), the files restored with git checkout --, and git diff --exit-code (expected 0, clean).
+
+== C0 (the budget's arithmetic): the budget worked in whole millionths (turns x micro(one turn)): replaced by turns x one turn in dollars, times a million ==
+$ git diff -- src/gateway/hold.ts
+diff --git a/builder/src/gateway/hold.ts b/builder/src/gateway/hold.ts
+index 4e1b70d..f16cf32 100644
+--- a/builder/src/gateway/hold.ts
++++ b/builder/src/gateway/hold.ts
+@@ -324,7 +324,7 @@ export function stepBudget(p: { model: string; maxTurns: number; profile: Profil
+   }
+   const perTurn = computeHold({ model, max_tokens: ceiling, messages: [] }, promptTokens, p.profile, p.priceTableDate);
+   const perTurnMicro = Math.round(perTurn.hold_usd * 1e6);
+-  const budgetMicro = turns * perTurnMicro;
++  const budgetMicro = turns * perTurn.hold_usd * 1e6; // CONTROL
+   if (!Number.isSafeInteger(perTurnMicro) || perTurnMicro <= 0 || !Number.isSafeInteger(budgetMicro) || budgetMicro <= 0 || budgetMicro >= 1e14) {
+     throw new StepBudgetInvalid(`The step's budget could not be worked out as an amount above $0 and below $100,000,000 (one turn: ${String(perTurn.hold_usd)}). The step was not started.`);
+   }
+
+$ BUILDER_TEST_DATABASE_URL=postgres:///builder_test_pkg13?host=/var/run/postgresql npx vitest run test/step-hold.test.ts -t '1\.3 the budget of a 3-turn step'
+ RUN  v5.1.0 /tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/wt-13/builder
+ Test Files  1 passed (1)
+      Tests  1 passed | 17 skipped (18)
+   Start at  07:29:29
+   Duration  226ms (import 41%, transform 40%, tests 17%, worker 2%)
+exit code: 0
+$ git checkout -- src/gateway/hold.ts; git diff --exit-code
+exit code: 0
+
+== C1 (T1): the pre-step equation in openStepHold skipped ==
+$ git diff -- src/store/holds.ts
+diff --git a/builder/src/store/holds.ts b/builder/src/store/holds.ts
+index 9b7b06c..9f15b7a 100644
+--- a/builder/src/store/holds.ts
++++ b/builder/src/store/holds.ts
+@@ -611,7 +611,7 @@ export async function openStepHold(
+       max_tokens_ceiling: sb.maxTokensCeiling,
+       prompt_tokens: sb.promptTokens,
+     };
+-    if (committedMicro(budget) + sb.budgetMicro > micro(budget.cap)) {
++    if (false) { // CONTROL
+       const message = stepRefusalMessage(budget, sb);
+       const lowest = Math.ceil((committedMicro(budget) + sb.budgetMicro) / 10_000) / 100;
+       const eventId = await event(c, p.projectId, "step.refused", { reason: "budget_reached", ...budgetFigures(budget), ...figures, lowest_cap_usd: lowest, message, per_turn: sb.perTurn }, p.stepId);
+
+$ BUILDER_TEST_DATABASE_URL=postgres:///builder_test_pkg13?host=/var/run/postgresql npx vitest run test/step-hold.test.ts -t '1\.3 T1 '
+ RUN  v5.1.0 /tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/wt-13/builder
+ ❯ test/step-hold.test.ts (18 tests | 1 failed | 17 skipped) 103ms
+   ❯ package 1.3: the pre-step check and the step hold (proof row B7) (18)
+     × 1.3 T1 (B7, refused): a step whose budget does not fit is refused before it starts, with the message shown; the engine is never created 76ms
+ Test Files  1 failed (1)
+      Tests  1 failed | 17 skipped (18)
+   Start at  07:29:30
+   Duration  340ms (tests 42%, transform 31%, import 26%, worker 1%)
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  test/step-hold.test.ts > package 1.3: the pre-step check and the step hold (proof row B7) > 1.3 T1 (B7, refused): a step whose budget does not fit is refused before it starts, with the message shown; the engine is never created
+AssertionError: expected { ok: true, changedFiles: [], …(3) } to deeply equal { ok: false, changedFiles: [], …(3) }
+- Expected
++ Received
+@@ -1,10 +1,10 @@
+  {
+    "changedFiles": [],
+-   "failureReason": "This step needs up to $0.03 to finish (3 turns); this project has $0.02 left of its budget of $0.02 (spent $0.00, with $0.00 held for work in progress or awaiting reconciliation). The step was not started. A cap of at least $0.03 would let it start now.",
+-   "ok": false,
+-   "turns": 0,
++   "failureReason": undefined,
++   "ok": true,
++   "turns": 3,
+    "usage": {
+      "cache_creation_1h_tokens": 0,
+      "cache_creation_input_tokens": 0,
+      "cache_read_input_tokens": 0,
+      "input_tokens": 0,
+ ❯ test/step-hold.test.ts:195:15
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+exit code: 1
+$ git checkout -- src/store/holds.ts; git diff --exit-code
+exit code: 0
+
+== C2 (T2): '>' in the pre-step equation made '>=' ==
+$ git diff -- src/store/holds.ts
+diff --git a/builder/src/store/holds.ts b/builder/src/store/holds.ts
+index 9b7b06c..e3abf32 100644
+--- a/builder/src/store/holds.ts
++++ b/builder/src/store/holds.ts
+@@ -611,7 +611,7 @@ export async function openStepHold(
+       max_tokens_ceiling: sb.maxTokensCeiling,
+       prompt_tokens: sb.promptTokens,
+     };
+-    if (committedMicro(budget) + sb.budgetMicro > micro(budget.cap)) {
++    if (committedMicro(budget) + sb.budgetMicro >= micro(budget.cap)) { // CONTROL
+       const message = stepRefusalMessage(budget, sb);
+       const lowest = Math.ceil((committedMicro(budget) + sb.budgetMicro) / 10_000) / 100;
+       const eventId = await event(c, p.projectId, "step.refused", { reason: "budget_reached", ...budgetFigures(budget), ...figures, lowest_cap_usd: lowest, message, per_turn: sb.perTurn }, p.stepId);
+
+$ BUILDER_TEST_DATABASE_URL=postgres:///builder_test_pkg13?host=/var/run/postgresql npx vitest run test/step-hold.test.ts -t '1\.3 T2:'
+ RUN  v5.1.0 /tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/wt-13/builder
+ ❯ test/step-hold.test.ts (18 tests | 1 failed | 17 skipped) 45ms
+   ❯ package 1.3: the pre-step check and the step hold (proof row B7) (18)
+     × 1.3 T2: a step budget equal to the room left is let start; one millionth more is refused 22ms
+ Test Files  1 failed (1)
+      Tests  1 failed | 17 skipped (18)
+   Start at  07:29:30
+   Duration  277ms (transform 41%, import 32%, tests 25%, worker 2%)
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  test/step-hold.test.ts > package 1.3: the pre-step check and the step hold (proof row B7) > 1.3 T2: a step budget equal to the room left is let start; one millionth more is refused
+AssertionError: expected false to be true // Object.is equality
+- Expected
++ Received
+- true
++ false
+ ❯ test/step-hold.test.ts:225:18
+    223|     expect((await setUpHold(fits.id, 0.00012)).ok).toBe(true); // room…
+    224|     const a = await openStep(fits.id);
+    225|     expect(a.ok).toBe(true);
+       |                  ^
+    226|     const b = await getBudget(pool, fits.id);
+    227|     expect([committedMicro(b), micro(b.cap)]).toEqual([30000, 30000]);
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+exit code: 1
+$ git checkout -- src/store/holds.ts; git diff --exit-code
+exit code: 0
+
+== C3 (T3): a step call judged by the plain project equation (the room counted, the call's hold added on top) instead of drawing from its step ==
+$ git diff -- src/store/holds.ts
+diff --git a/builder/src/store/holds.ts b/builder/src/store/holds.ts
+index 9b7b06c..24d065a 100644
+--- a/builder/src/store/holds.ts
++++ b/builder/src/store/holds.ts
+@@ -161,7 +161,7 @@ export async function openHold(
+     const refused = async (reason: OpenRefusal, step?: Record<string, unknown>) =>
+       event(c, p.projectId, "gateway.refused", { reason, ...budgetFigures(budget), this_hold_usd: p.amountUsd, path: p.path, ...(step ? { step_hold: step } : {}) }, p.step);
+     let draw: { id: string; roomBefore: number; roomAfter: number } | null = null;
+-    if (p.stepHoldId !== undefined && p.stepHoldId !== null) {
++    if (false) { // CONTROL
+       const s = (await c.query<StepHoldRow>("select * from step_holds where id = $1 and project_id = $2 for update", [p.stepHoldId, p.projectId])).rows[0];
+       if (!s) throw new Error(`Step hold ${p.stepHoldId} does not exist for project ${p.projectId}`);
+       const room = Number(s.room_usd);
+
+$ BUILDER_TEST_DATABASE_URL=postgres:///builder_test_pkg13?host=/var/run/postgresql npx vitest run test/step-hold.test.ts -t '1\.3 T3 '
+ RUN  v5.1.0 /tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/wt-13/builder
+ ❯ test/step-hold.test.ts (18 tests | 1 failed | 17 skipped) 86ms
+   ❯ package 1.3: the pre-step check and the step hold (proof row B7) (18)
+     × 1.3 T3 (B7, drawn): each call's hold is drawn from the step's hold, and spent + open holds + reserved room stays at the step's budget at every forward 64ms
+ Test Files  1 failed (1)
+      Tests  1 failed | 17 skipped (18)
+   Start at  07:29:31
+   Duration  332ms (tests 37%, transform 35%, import 27%, worker 1%)
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  test/step-hold.test.ts > package 1.3: the pre-step check and the step hold (proof row B7) > 1.3 T3 (B7, drawn): each call's hold is drawn from the step's hold, and spent + open holds + reserved room stays at the step's budget at every forward
+AssertionError: expected [ 402, 402, 402 ] to deeply equal [ 200, 200, 200 ]
+- Expected
++ Received
+  [
+-   200,
+-   200,
+-   200,
++   402,
++   402,
++   402,
+  ]
+ ❯ test/step-hold.test.ts:241:34
+    239|     const r = await run(id, engine);
+    240|     expect(r.ok).toBe(true);
+    241|     expect(engine.seen.statuses).toEqual([200, 200, 200]);
+       |                                  ^
+    242|     expect(committedAtForward.get(id)).toEqual([29880, 29880, 29880]);
+    243|     const opened = (await payloads(id, "hold.opened")).map((p) => p["s…
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+exit code: 1
+$ git checkout -- src/store/holds.ts; git diff --exit-code
+exit code: 0
+
+== C4 (T4): a step call whose hold is more than the room left falls through to the project equation instead of being refused ==
+$ git diff -- src/store/holds.ts
+diff --git a/builder/src/store/holds.ts b/builder/src/store/holds.ts
+index 9b7b06c..ec90a55 100644
+--- a/builder/src/store/holds.ts
++++ b/builder/src/store/holds.ts
+@@ -183,8 +183,10 @@ export async function openHold(
+         return { ok: false as const, budget, reason: "step_call_outside_limits" as const, step: { ...figures, which } };
+       }
+       if (micro(p.amountUsd) > micro(room)) {
+-        await refused("step_budget_used_up", stepDetail);
+-        return { ok: false as const, budget, reason: "step_budget_used_up" as const, step: figures };
++        // CONTROL: fall through to the project equation instead of refusing
++        if (committedMicro(budget) + micro(p.amountUsd) > micro(budget.cap)) return { ok: false as const, budget, reason: "budget_reached" as const };
++        const h0 = await c.query<Hold>("insert into holds(project_id, step, amount_usd, deadline_at, gateway) values ($1, $2, $3, $4, $5) returning *", [p.projectId, p.step, p.amountUsd, p.deadline, p.gateway]);
++        return { ok: true as const, hold: h0.rows[0]!, budget };
+       }
+       // The hold is inside the room, which the project's figures already count: it is not added twice.
+       if (committedMicro(budget) > micro(budget.cap)) {
+
+$ BUILDER_TEST_DATABASE_URL=postgres:///builder_test_pkg13?host=/var/run/postgresql npx vitest run test/step-hold.test.ts -t '1\.3 T4:'
+ RUN  v5.1.0 /tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/wt-13/builder
+ ❯ test/step-hold.test.ts (18 tests | 1 failed | 17 skipped) 116ms
+   ❯ package 1.3: the pre-step check and the step hold (proof row B7) (18)
+     × 1.3 T4: a call that needs more than the room left in its step is refused (402, step_budget_reached) and not forwarded, though the project's free budget would fit it 95ms
+ Test Files  1 failed (1)
+      Tests  1 failed | 17 skipped (18)
+   Start at  07:29:32
+   Duration  381ms (tests 44%, transform 28%, import 27%, worker 1%)
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  test/step-hold.test.ts > package 1.3: the pre-step check and the step hold (proof row B7) > 1.3 T4: a call that needs more than the room left in its step is refused (402, step_budget_reached) and not forwarded, though the project's free budget would fit it
+AssertionError: expected [ 200, 200, 200 ] to deeply equal [ 200, 200, 402 ]
+- Expected
++ Received
+  [
+    200,
+    200,
+-   402,
++   200,
+  ]
+ ❯ test/step-hold.test.ts:270:34
+    268|     const r = await run(id, engine, { maxTurns: 2 }); // a budget of $…
+    269|     expect(r.ok).toBe(true); // the stand-in engine reports what it wa…
+    270|     expect(engine.seen.statuses).toEqual([200, 200, 402]);
+       |                                  ^
+    271|     expect(forwarded - before).toBe(2);
+    272|     expect(engine.seen.bodies[2]!.error).toEqual({
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+exit code: 1
+$ git checkout -- src/store/holds.ts; git diff --exit-code
+exit code: 0
+
+== C5 (T5 and T6 (first control)): the close of the step's hold in runBudgetedStep's finally removed ==
+$ git diff -- src/orchestrator/steps.ts
+diff --git a/builder/src/orchestrator/steps.ts b/builder/src/orchestrator/steps.ts
+index 9bb8da2..8cd3e95 100644
+--- a/builder/src/orchestrator/steps.ts
++++ b/builder/src/orchestrator/steps.ts
+@@ -78,7 +78,7 @@ export async function runBudgetedStep(o: BudgetedStepOptions): Promise<StepResul
+     return await engine.runStep(o.step, o.onEvent);
+   } finally {
+     try {
+-      await closeStepHold(o.pool, { projectId: o.step.projectId, stepHoldId: opened.stepHold.id, reason: "step_ended" });
++      // CONTROL: close removed
+     } catch (err) {
+       // The step's result (or its error) is kept. The hold stays open until its deadline, when the sweep closes it.
+       fault("A step's hold could not be closed after the step ended. It is closed by the sweep at its deadline.", {
+
+$ BUILDER_TEST_DATABASE_URL=postgres:///builder_test_pkg13?host=/var/run/postgresql npx vitest run test/step-hold.test.ts -t '1\.3 T5|1\.3 T6:'
+ RUN  v5.1.0 /tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/wt-13/builder
+ ❯ test/step-hold.test.ts (18 tests | 3 failed | 15 skipped) 137ms
+   ❯ package 1.3: the pre-step check and the step hold (proof row B7) (18)
+     × 1.3 T5 (B7, released): when the step ends its unused room is released, and a call outside the step that needed that room now fits 70ms
+     × 1.3 T5: a call that costs more than its hold and the room left is charged in full, and the close's figures still add up (the overrun not covered is named) 27ms
+     × 1.3 T6: an engine that throws part-way still has its step closed; a call kept after a server error stays open at its full amount 18ms
+ Test Files  1 failed (1)
+      Tests  3 failed | 15 skipped (18)
+   Start at  07:29:33
+   Duration  381ms (tests 54%, import 29%, transform 15%, worker 2%)
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  test/step-hold.test.ts > package 1.3: the pre-step check and the step hold (proof row B7) > 1.3 T5 (B7, released): when the step ends its unused room is released, and a call outside the step that needed that room now fits
+AssertionError: expected [ 402, 402 ] to deeply equal [ 402, 200 ]
+- Expected
++ Received
+  [
+    402,
+-   200,
++   402,
+  ]
+ ❯ test/step-hold.test.ts:297:21
+    295|     expect(r.ok).toBe(true);
+    296|     outside.push((await call(token)).status); // after the step: $0.00…
+    297|     expect(outside).toEqual([402, 200]);
+       |                     ^
+    298|     const closed = (await payloads(id, "step.hold_closed"))[0]!;
+    299|     expect(closed).toMatchObject({ budget_usd: S3, drawn_usd: PER_TURN…
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯
+ FAIL  test/step-hold.test.ts > package 1.3: the pre-step check and the step hold (proof row B7) > 1.3 T5: a call that costs more than its hold and the room left is charged in full, and the close's figures still add up (the overrun not covered is named)
+AssertionError: expected undefined to match object { budget_usd: 0.00996, …(3) }
+- Expected:
+{
+  "budget_usd": 0.00996,
+  "overrun_not_covered_usd": 0.038182,
+  "released_usd": 0,
+  "spent_in_step_usd": 0.048142,
+}
++ Received:
+undefined
+ ❯ test/step-hold.test.ts:313:20
+    311|     const cost = Math.ceil(((30 * 4 + 4 * 5 + 8 * 0.2 + 2400 * 20) / 1…
+    312|     const closed = (await payloads(id, "step.hold_closed"))[0]!;
+    313|     expect(closed).toMatchObject({ budget_usd: PER_TURN, spent_in_step…
+       |                    ^
+    314|     expectIdentity(closed);
+    315|     expect(await kinds(id)).toContain("hold.exceeded");
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯
+ FAIL  test/step-hold.test.ts > package 1.3: the pre-step check and the step hold (proof row B7) > 1.3 T6: an engine that throws part-way still has its step closed; a call kept after a server error stays open at its full amount
+AssertionError: expected undefined to match object { reason: 'step_ended', …(5) }
+- Expected:
+{
+  "drawn_usd": 0.00996,
+  "reason": "step_ended",
+  "released_usd": 0.01992,
+  "spent_in_step_usd": 0,
+  "still_held_calls": 1,
+  "still_held_usd": 0.00996,
+}
++ Received:
+undefined
+ ❯ test/step-hold.test.ts:326:20
+    324|     expect(engine.seen.statuses).toEqual([500]);
+    325|     const closed = (await payloads(id, "step.hold_closed"))[0]!;
+    326|     expect(closed).toMatchObject({ reason: "step_ended", drawn_usd: PE…
+       |                    ^
+    327|     expectIdentity(closed);
+    328|     const holds = await listHolds(pool, id);
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/3]⎯
+exit code: 1
+$ git checkout -- src/orchestrator/steps.ts; git diff --exit-code
+exit code: 0
+
+== C6 (T6 (second control)): the close also settles its calls' open holds at nothing ==
+$ git diff -- src/store/holds.ts
+diff --git a/builder/src/store/holds.ts b/builder/src/store/holds.ts
+index 9b7b06c..7362141 100644
+--- a/builder/src/store/holds.ts
++++ b/builder/src/store/holds.ts
+@@ -508,6 +508,7 @@ async function returnToStepIn(c: Queryable, hold: Hold, actualUsd: number): Prom
+ 
+ /** Close one open step hold, under its project's lock: release the room left, revoke its token, and write `step.hold_closed` with the figures. */
+ async function closeStepIn(c: Queryable, s: StepHoldRow, reason: string): Promise<StepClose> {
++  await c.query("update holds set state = 'settled', closed_at = now(), actual_usd = 0 where step_hold_id = $1 and state = 'open'", [s.id]); // CONTROL
+   const f = (
+     await c.query<{ drawn: string; calls: string; spent: string; still_held: string; still_calls: string }>(
+       `select coalesce(sum(amount_usd), 0) as drawn,
+
+$ BUILDER_TEST_DATABASE_URL=postgres:///builder_test_pkg13?host=/var/run/postgresql npx vitest run test/step-hold.test.ts -t '1\.3 T6:'
+ RUN  v5.1.0 /tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/wt-13/builder
+ ❯ test/step-hold.test.ts (18 tests | 1 failed | 17 skipped) 85ms
+   ❯ package 1.3: the pre-step check and the step hold (proof row B7) (18)
+     × 1.3 T6: an engine that throws part-way still has its step closed; a call kept after a server error stays open at its full amount 57ms
+ Test Files  1 failed (1)
+      Tests  1 failed | 17 skipped (18)
+   Start at  07:29:34
+   Duration  362ms (transform 40%, tests 33%, import 26%, worker 1%)
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  test/step-hold.test.ts > package 1.3: the pre-step check and the step hold (proof row B7) > 1.3 T6: an engine that throws part-way still has its step closed; a call kept after a server error stays open at its full amount
+AssertionError: expected { reason: 'step_ended', …(10) } to match object { reason: 'step_ended', …(5) }
+(5 matching properties omitted from actual)
+- Expected
++ Received
+  {
+    "drawn_usd": 0.00996,
+    "reason": "step_ended",
+    "released_usd": 0.01992,
+    "spent_in_step_usd": 0,
+-   "still_held_calls": 1,
+-   "still_held_usd": 0.00996,
++   "still_held_calls": 0,
++   "still_held_usd": 0,
+  }
+ ❯ test/step-hold.test.ts:326:20
+    324|     expect(engine.seen.statuses).toEqual([500]);
+    325|     const closed = (await payloads(id, "step.hold_closed"))[0]!;
+    326|     expect(closed).toMatchObject({ reason: "step_ended", drawn_usd: PE…
+       |                    ^
+    327|     expectIdentity(closed);
+    328|     const holds = await listHolds(pool, id);
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+exit code: 1
+$ git checkout -- src/store/holds.ts; git diff --exit-code
+exit code: 0
+
+== C7 (T7 (late call)): the step's token not revoked at the close ==
+$ git diff -- src/store/holds.ts
+diff --git a/builder/src/store/holds.ts b/builder/src/store/holds.ts
+index 9b7b06c..a62abc5 100644
+--- a/builder/src/store/holds.ts
++++ b/builder/src/store/holds.ts
+@@ -533,7 +533,7 @@ async function closeStepIn(c: Queryable, s: StepHoldRow, reason: string): Promis
+     overrunNotCoveredUsd: Number(s.overrun_not_covered_usd),
+   };
+   await c.query("update step_holds set state = 'closed', room_usd = 0, closed_at = now(), closed_reason = $2 where id = $1", [s.id, reason]);
+-  const revoked = await c.query("update project_tokens set revoked_at = now() where step_hold_id = $1 and project_id = $2 and revoked_at is null", [s.id, s.project_id]);
++  const revoked = { rowCount: 0 }; // CONTROL: no revocation
+   await event(
+     c,
+     s.project_id,
+
+$ BUILDER_TEST_DATABASE_URL=postgres:///builder_test_pkg13?host=/var/run/postgresql npx vitest run test/step-hold.test.ts -t '1\.3 T7: a call made with'
+ RUN  v5.1.0 /tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/wt-13/builder
+ ❯ test/step-hold.test.ts (18 tests | 1 failed | 17 skipped) 92ms
+   ❯ package 1.3: the pre-step check and the step hold (proof row B7) (18)
+     × 1.3 T7: a call made with the step's token after the step ended is refused as an unknown token (401): the token was revoked 66ms
+ Test Files  1 failed (1)
+      Tests  1 failed | 17 skipped (18)
+   Start at  07:29:35
+   Duration  321ms (tests 40%, transform 32%, import 26%, worker 1%)
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  test/step-hold.test.ts > package 1.3: the pre-step check and the step hold (proof row B7) > 1.3 T7: a call made with the step's token after the step ended is refused as an unknown token (401): the token was revoked
+AssertionError: expected 'step_closed' to be 'authentication_error' // Object.is equality
+Expected: "authentication_error"
+Received: "step_closed"
+ ❯ test/step-hold.test.ts:340:76
+    338|     const res = await call(engine.seen.tokens[0]!);
+    339|     expect(res.status).toBe(401);
+    340|     expect(((await res.json()) as { error: { type: string } }).error.t…
+       |                                                                            ^
+    341|     expect({ forwarded, counted, events: (await listEvents(pool, id)).…
+    342|   });
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+exit code: 1
+$ git checkout -- src/store/holds.ts; git diff --exit-code
+exit code: 0
+
+== C8 (T7 (a call judged after the close)): the re-check, under the lock, that the step is still open removed ==
+$ git diff -- src/store/holds.ts
+diff --git a/builder/src/store/holds.ts b/builder/src/store/holds.ts
+index 9b7b06c..409bb7a 100644
+--- a/builder/src/store/holds.ts
++++ b/builder/src/store/holds.ts
+@@ -169,7 +169,7 @@ export async function openHold(
+       const figures = { room, budget: Number(s.budget_usd), perTurn, model: s.model, maxTokensCeiling: s.max_tokens_ceiling };
+       const stepDetail = { step_hold_id: Number(s.id), room_usd: room, budget_usd: Number(s.budget_usd), per_turn_usd: perTurn, model: s.model, max_tokens_ceiling: s.max_tokens_ceiling };
+       // Re-checked under the lock: the step may have closed after this call's token was accepted.
+-      if (s.state !== "open") {
++      if (false) { // CONTROL
+         await refused("step_closed", stepDetail);
+         return { ok: false as const, budget, reason: "step_closed" as const, step: figures };
+       }
+
+$ BUILDER_TEST_DATABASE_URL=postgres:///builder_test_pkg13?host=/var/run/postgresql npx vitest run test/step-hold.test.ts -t '1\.3 T7: a call whose token'
+ RUN  v5.1.0 /tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/wt-13/builder
+ ❯ test/step-hold.test.ts (18 tests | 1 failed | 17 skipped) 66ms
+   ❯ package 1.3: the pre-step check and the step hold (proof row B7) (18)
+     × 1.3 T7: a call whose token was accepted before its step closed, and judged after, is refused (401, step_closed) and not forwarded 46ms
+ Test Files  1 failed (1)
+      Tests  1 failed | 17 skipped (18)
+   Start at  07:29:36
+   Duration  287ms (tests 35%, transform 34%, import 30%, worker 2%)
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  test/step-hold.test.ts > package 1.3: the pre-step check and the step hold (proof row B7) > 1.3 T7: a call whose token was accepted before its step closed, and judged after, is refused (401, step_closed) and not forwarded
+AssertionError: expected 402 to be 401 // Object.is equality
+- Expected
++ Received
+- 401
++ 402
+ ❯ test/step-hold.test.ts:359:26
+    357|       release();
+    358|       const res = await pending;
+    359|       expect(res.status).toBe(401);
+       |                          ^
+    360|       expect(((await res.json()) as { error: { type: string } }).error…
+    361|       expect(forwarded).toBe(before);
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+exit code: 1
+$ git checkout -- src/store/holds.ts; git diff --exit-code
+exit code: 0
+
+== C9 (T9): the room reserved for running steps left out of the cap change's floor ==
+$ git diff -- src/store/holds.ts
+diff --git a/builder/src/store/holds.ts b/builder/src/store/holds.ts
+index 9b7b06c..b03e475 100644
+--- a/builder/src/store/holds.ts
++++ b/builder/src/store/holds.ts
+@@ -799,7 +799,7 @@ export async function changeCap(
+     await closeStepsPastDeadlineIn(c, p.projectId, new Date());
+     const budget = await readBudget(c, p.projectId);
+     if (micro(newCap) === micro(budget.cap)) throw new CapChangeRefused("no_change", `The project's cap is already $${budget.cap.toFixed(4)}. ${NOTHING_CHANGED}`);
+-    if (micro(newCap) < committedMicro(budget)) throw belowCommitted(newCap, budget);
++    if (micro(newCap) < micro(budget.spent) + micro(budget.openHolds)) throw belowCommitted(newCap, budget); // CONTROL
+     const u = await c.query<{ cap_usd: string; changed_at: Date }>(
+       "update projects set cap_usd = $2 where id = $1 returning cap_usd, clock_timestamp() as changed_at",
+       [p.projectId, newCap],
+
+$ BUILDER_TEST_DATABASE_URL=postgres:///builder_test_pkg13?host=/var/run/postgresql npx vitest run test/step-hold.test.ts -t '1\.3 T9:'
+ RUN  v5.1.0 /tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/wt-13/builder
+ ❯ test/step-hold.test.ts (18 tests | 1 failed | 17 skipped) 81ms
+   ❯ package 1.3: the pre-step check and the step hold (proof row B7) (18)
+     × 1.3 T9: during a step, a cap lowering below spent + open holds + the room reserved is refused, naming a floor that includes the room; a raise is accepted and leaves the room as it was 58ms
+ Test Files  1 failed (1)
+      Tests  1 failed | 17 skipped (18)
+   Start at  07:29:36
+   Duration  299ms (tests 40%, transform 31%, import 27%, worker 1%)
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  test/step-hold.test.ts > package 1.3: the pre-step check and the step hold (proof row B7) > 1.3 T9: during a step, a cap lowering below spent + open holds + the room reserved is refused, naming a floor that includes the room; a raise is accepted and leaves the room as it was
+AssertionError: expected undefined to be 'below_spent_plus_open_holds' // Object.is equality
+- Expected:
+"below_spent_plus_open_holds"
++ Received:
+undefined
+ ❯ test/step-hold.test.ts:389:32
+    387|     });
+    388|     expect((await run(id, engine)).ok).toBe(true);
+    389|     expect(seen.refusal?.code).toBe("below_spent_plus_open_holds");
+       |                                ^
+    390|     expect(seen.refusal?.lowestAllowedUsd).toBe(0.0299);
+    391|     expect(seen.refusal?.message).toBe(
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+exit code: 1
+$ git checkout -- src/store/holds.ts; git diff --exit-code
+exit code: 0
+
+== C10 (T10): the lock on the project's row ('for update') removed from every budget decision ==
+$ git diff -- src/store/holds.ts
+diff --git a/builder/src/store/holds.ts b/builder/src/store/holds.ts
+index 9b7b06c..e2e7041 100644
+--- a/builder/src/store/holds.ts
++++ b/builder/src/store/holds.ts
+@@ -98,7 +98,7 @@ async function inTransaction<T>(pool: pg.Pool, projectId: string, fn: (c: pg.Poo
+     // transaction would keep reading the budget as it stood before it waited for the lock.
+     await client.query("begin isolation level read committed");
+     // The lock that makes check-and-hold one step: every budget decision for a project waits here.
+-    await client.query("select id from projects where id = $1 for update", [projectId]);
++    await client.query("select id from projects where id = $1", [projectId]); // CONTROL
+     const out = await fn(client);
+     await client.query("commit");
+     return out;
+
+$ BUILDER_TEST_DATABASE_URL=postgres:///builder_test_pkg13?host=/var/run/postgresql npx vitest run test/step-hold.test.ts -t '1\.3 T10:'
+ RUN  v5.1.0 /tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/wt-13/builder
+ ❯ test/step-hold.test.ts (18 tests | 1 failed | 17 skipped) 64ms
+   ❯ package 1.3: the pre-step check and the step hold (proof row B7) (18)
+     × 1.3 T10: a step's admission, a call's admission and a cap change are judged one at a time: with room for only one of two, exactly one gets it 44ms
+ Test Files  1 failed (1)
+      Tests  1 failed | 17 skipped (18)
+   Start at  07:29:37
+   Duration  295ms (transform 35%, tests 32%, import 31%, worker 1%)
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  test/step-hold.test.ts > package 1.3: the pre-step check and the step hold (proof row B7) > 1.3 T10: a step's admission, a call's admission and a cap change are judged one at a time: with room for only one of two, exactly one gets it
+AssertionError: expected [ true, true ] to have a length of 1 but got 2
+- Expected
++ Received
+- 1
++ 2
+ ❯ test/step-hold.test.ts:451:38
+    449|     ]);
+    450|     const admitted = r1.map((s) => s.status === "fulfilled" && (s.valu…
+    451|     expect(admitted.filter(Boolean)).toHaveLength(1);
+       |                                      ^
+    452|     const b1 = await getBudget(pool, a.id);
+    453|     expect(committedMicro(b1)).toBeLessThanOrEqual(micro(b1.cap));
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+exit code: 1
+$ git checkout -- src/store/holds.ts; git diff --exit-code
+exit code: 0
+
+== C11 (T11 (the sweep)): the sweep skips step holds ==
+$ git diff -- src/store/holds.ts
+diff --git a/builder/src/store/holds.ts b/builder/src/store/holds.ts
+index 9b7b06c..c049274 100644
+--- a/builder/src/store/holds.ts
++++ b/builder/src/store/holds.ts
+@@ -382,7 +382,7 @@ export async function expireHolds(pool: pg.Pool, now: Date = new Date()): Promis
+     out.push(
+       ...(await inTransaction(pool, row.project_id, async (c) => {
+         const expired = await expireHoldsIn(c, row.project_id, now);
+-        await closeStepsPastDeadlineIn(c, row.project_id, now);
++        // CONTROL: the sweep skips step holds
+         return expired;
+       })),
+     );
+
+$ BUILDER_TEST_DATABASE_URL=postgres:///builder_test_pkg13?host=/var/run/postgresql npx vitest run test/step-hold.test.ts -t '1\.3 T11: a step past its deadline is closed by the sweep'
+ RUN  v5.1.0 /tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/wt-13/builder
+ ❯ test/step-hold.test.ts (18 tests | 1 failed | 17 skipped) 51ms
+   ❯ package 1.3: the pre-step check and the step hold (proof row B7) (18)
+     × 1.3 T11: a step past its deadline is closed by the sweep: its room is released and its token stops working 30ms
+ Test Files  1 failed (1)
+      Tests  1 failed | 17 skipped (18)
+   Start at  07:29:38
+   Duration  287ms (transform 43%, import 29%, tests 27%, worker 2%)
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  test/step-hold.test.ts > package 1.3: the pre-step check and the step hold (proof row B7) > 1.3 T11: a step past its deadline is closed by the sweep: its room is released and its token stops working
+AssertionError: expected undefined to match object { reason: 'deadline_passed', …(2) }
+- Expected:
+{
+  "reason": "deadline_passed",
+  "released_usd": 0.02988,
+  "tokens_revoked": 1,
+}
++ Received:
+undefined
+ ❯ test/step-hold.test.ts:476:20
+    474|     await expireHolds(pool, new Date(Date.now() + 7_200_000)); // the …
+    475|     const closed = (await payloads(id, "step.hold_closed"))[0];
+    476|     expect(closed).toMatchObject({ reason: "deadline_passed", released…
+       |                    ^
+    477|     expect(await getBudget(pool, id)).toMatchObject({ stepRoom: 0, ope…
+    478|     const res = await call(opened.token);
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+exit code: 1
+$ git checkout -- src/store/holds.ts; git diff --exit-code
+exit code: 0
+
+== C12 (T11 (the next decision)): a call's admission does not close steps past their deadline first ==
+$ git diff -- src/store/holds.ts
+diff --git a/builder/src/store/holds.ts b/builder/src/store/holds.ts
+index 9b7b06c..8706d76 100644
+--- a/builder/src/store/holds.ts
++++ b/builder/src/store/holds.ts
+@@ -156,7 +156,7 @@ export async function openHold(
+   return inTransaction(pool, p.projectId, async (c) => {
+     const now = new Date();
+     await expireHoldsIn(c, p.projectId, now);
+-    await closeStepsPastDeadlineIn(c, p.projectId, now);
++    // CONTROL: steps past their deadline not closed first
+     const budget = await readBudget(c, p.projectId);
+     const refused = async (reason: OpenRefusal, step?: Record<string, unknown>) =>
+       event(c, p.projectId, "gateway.refused", { reason, ...budgetFigures(budget), this_hold_usd: p.amountUsd, path: p.path, ...(step ? { step_hold: step } : {}) }, p.step);
+
+$ BUILDER_TEST_DATABASE_URL=postgres:///builder_test_pkg13?host=/var/run/postgresql npx vitest run test/step-hold.test.ts -t '1\.3 T11: a step past its deadline is closed by the next decision'
+ RUN  v5.1.0 /tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/wt-13/builder
+ ❯ test/step-hold.test.ts (18 tests | 1 failed | 17 skipped) 401ms
+   ❯ package 1.3: the pre-step check and the step hold (proof row B7) (18)
+     × 1.3 T11: a step past its deadline is closed by the next decision in its project, before the sweep: its call is refused (step_closed) 372ms
+ Test Files  1 failed (1)
+      Tests  1 failed | 17 skipped (18)
+   Start at  07:29:39
+   Duration  697ms (tests 69%, transform 18%, import 12%, worker 1%)
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  test/step-hold.test.ts > package 1.3: the pre-step check and the step hold (proof row B7) > 1.3 T11: a step past its deadline is closed by the next decision in its project, before the sweep: its call is refused (step_closed)
+AssertionError: expected 200 to be 401 // Object.is equality
+- Expected
++ Received
+- 401
++ 200
+ ❯ test/step-hold.test.ts:490:24
+    488|     const before = forwarded;
+    489|     const res = await call(opened.token);
+    490|     expect(res.status).toBe(401);
+       |                        ^
+    491|     expect(((await res.json()) as { error: { type: string } }).error.t…
+    492|     expect(forwarded).toBe(before);
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+exit code: 1
+$ git checkout -- src/store/holds.ts; git diff --exit-code
+exit code: 0
+
+== C13 (T11 (a close of a closed step)): closeStepHold throws on a step already closed ==
+$ git diff -- src/store/holds.ts
+diff --git a/builder/src/store/holds.ts b/builder/src/store/holds.ts
+index 9b7b06c..e075a4b 100644
+--- a/builder/src/store/holds.ts
++++ b/builder/src/store/holds.ts
+@@ -654,7 +654,7 @@ export async function closeStepHold(
+     await closeStepsPastDeadlineIn(c, p.projectId, now);
+     const s = (await c.query<StepHoldRow>("select * from step_holds where id = $1 and project_id = $2 for update", [p.stepHoldId, p.projectId])).rows[0];
+     if (!s) throw new Error(`Step hold ${p.stepHoldId} does not exist for project ${p.projectId}`);
+-    if (s.state !== "open") return { closed: false as const, closedReason: s.closed_reason };
++    if (s.state !== "open") throw new Error("CONTROL: the step is already closed");
+     return { closed: true as const, figures: await closeStepIn(c, s, p.reason) };
+   });
+ }
+
+$ BUILDER_TEST_DATABASE_URL=postgres:///builder_test_pkg13?host=/var/run/postgresql npx vitest run test/step-hold.test.ts -t '1\.3 T11: closing a step'
+ RUN  v5.1.0 /tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/wt-13/builder
+ ❯ test/step-hold.test.ts (18 tests | 1 failed | 17 skipped) 110ms
+   ❯ package 1.3: the pre-step check and the step hold (proof row B7) (18)
+     × 1.3 T11: closing a step that is already closed writes nothing and does not throw, so a step that ends after the sweep closed it keeps its result 89ms
+ Test Files  1 failed (1)
+      Tests  1 failed | 17 skipped (18)
+   Start at  07:29:40
+   Duration  342ms (tests 46%, transform 30%, import 23%, worker 1%)
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  test/step-hold.test.ts > package 1.3: the pre-step check and the step hold (proof row B7) > 1.3 T11: closing a step that is already closed writes nothing and does not throw, so a step that ends after the sweep closed it keeps its result
+AssertionError: expected [ Array(1) ] to deeply equal []
+- Expected
++ Received
+- []
++ [
++   "A step's hold could not be closed after the step ended. It is closed by the sweep at its deadline.",
++ ]
+ ❯ test/step-hold.test.ts:508:40
+    506|     const r = await run(id, engine);
+    507|     expect(r).toMatchObject({ ok: true, turns: 1 });
+    508|     expect(faults.slice(faultsBefore)).toEqual([]);
+       |                                        ^
+    509|     expect((await payloads(id, "step.hold_closed")).map((p) => p["reas…
+    510|     const stepHoldId = (await listStepHolds(pool, id))[0]!.id;
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+exit code: 1
+$ git checkout -- src/store/holds.ts; git diff --exit-code
+exit code: 0
+
+== C14 (T12 (first control)): the code's guards on the turn limit and on the budget removed (the database's checks stay) ==
+$ git diff -- src/gateway/hold.ts
+diff --git a/builder/src/gateway/hold.ts b/builder/src/gateway/hold.ts
+index 4e1b70d..86faeaa 100644
+--- a/builder/src/gateway/hold.ts
++++ b/builder/src/gateway/hold.ts
+@@ -307,7 +307,7 @@ export interface StepBudget {
+  */
+ export function stepBudget(p: { model: string; maxTurns: number; profile: ProfileLimits; priceTableDate: string }): StepBudget {
+   const turns: unknown = p.maxTurns;
+-  if (typeof turns !== "number" || !Number.isInteger(turns) || turns < 1 || turns > MAX_STEP_TURNS) {
++  if (false) { // CONTROL: turn-limit check removed
+     throw new StepBudgetInvalid(`The step's turn limit must be a whole number from 1 to ${MAX_STEP_TURNS} (got ${typeof turns === "number" ? String(turns) : typeof turns}). The step was not started.`);
+   }
+   const model: unknown = p.model;
+@@ -325,7 +325,7 @@ export function stepBudget(p: { model: string; maxTurns: number; profile: Profil
+   const perTurn = computeHold({ model, max_tokens: ceiling, messages: [] }, promptTokens, p.profile, p.priceTableDate);
+   const perTurnMicro = Math.round(perTurn.hold_usd * 1e6);
+   const budgetMicro = turns * perTurnMicro;
+-  if (!Number.isSafeInteger(perTurnMicro) || perTurnMicro <= 0 || !Number.isSafeInteger(budgetMicro) || budgetMicro <= 0 || budgetMicro >= 1e14) {
++  if (false) { // CONTROL: result check removed
+     throw new StepBudgetInvalid(`The step's budget could not be worked out as an amount above $0 and below $100,000,000 (one turn: ${String(perTurn.hold_usd)}). The step was not started.`);
+   }
+   return {
+
+$ BUILDER_TEST_DATABASE_URL=postgres:///builder_test_pkg13?host=/var/run/postgresql npx vitest run test/step-hold.test.ts -t '1\.3 T12:'
+ RUN  v5.1.0 /tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/wt-13/builder
+ ❯ test/step-hold.test.ts (18 tests | 1 failed | 17 skipped) 75ms
+   ❯ package 1.3: the pre-step check and the step hold (proof row B7) (18)
+     × 1.3 T12: a turn limit or profile that is not a whole, finite, positive number is refused before anything is opened; the database refuses a NaN or negative step figure on its own 52ms
+ Test Files  1 failed (1)
+      Tests  1 failed | 17 skipped (18)
+   Start at  07:29:41
+   Duration  283ms (tests 40%, import 30%, transform 29%, worker 2%)
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  test/step-hold.test.ts > package 1.3: the pre-step check and the step hold (proof row B7) > 1.3 T12: a turn limit or profile that is not a whole, finite, positive number is refused before anything is opened; the database refuses a NaN or negative step figure on its own
+AssertionError: expected [ 'NaN turns', false ] to deeply equal [ 'NaN turns', true ]
+- Expected
++ Received
+  [
+    "NaN turns",
+-   true,
++   false,
+  ]
+ ❯ test/step-hold.test.ts:542:88
+    540|     expect((await call(token)).status).toBe(402);
+    541|     // Then each refusal: by the code, before the database, with nothi…
+    542|     for (const [label, o] of outcomes) expect([label, o instanceof Ste…
+       |                                                                                        ^
+    543|     expect(await listStepHolds(pool, id)).toEqual([]);
+    544|     expect(await kinds(id)).toEqual(["gateway.refused"]);
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+exit code: 1
+$ git checkout -- src/gateway/hold.ts; git diff --exit-code
+exit code: 0
+
+== C15 (T12 (second control)): the code's guards AND the database's checks on a step's figures removed (a fresh database, so that the changed migration is applied) ==
+$ git diff -- src/gateway/hold.ts src/store/migrations/008_step_holds.sql
+diff --git a/builder/src/gateway/hold.ts b/builder/src/gateway/hold.ts
+index 4e1b70d..86faeaa 100644
+--- a/builder/src/gateway/hold.ts
++++ b/builder/src/gateway/hold.ts
+@@ -307,7 +307,7 @@ export interface StepBudget {
+  */
+ export function stepBudget(p: { model: string; maxTurns: number; profile: ProfileLimits; priceTableDate: string }): StepBudget {
+   const turns: unknown = p.maxTurns;
+-  if (typeof turns !== "number" || !Number.isInteger(turns) || turns < 1 || turns > MAX_STEP_TURNS) {
++  if (false) { // CONTROL: turn-limit check removed
+     throw new StepBudgetInvalid(`The step's turn limit must be a whole number from 1 to ${MAX_STEP_TURNS} (got ${typeof turns === "number" ? String(turns) : typeof turns}). The step was not started.`);
+   }
+   const model: unknown = p.model;
+@@ -325,7 +325,7 @@ export function stepBudget(p: { model: string; maxTurns: number; profile: Profil
+   const perTurn = computeHold({ model, max_tokens: ceiling, messages: [] }, promptTokens, p.profile, p.priceTableDate);
+   const perTurnMicro = Math.round(perTurn.hold_usd * 1e6);
+   const budgetMicro = turns * perTurnMicro;
+-  if (!Number.isSafeInteger(perTurnMicro) || perTurnMicro <= 0 || !Number.isSafeInteger(budgetMicro) || budgetMicro <= 0 || budgetMicro >= 1e14) {
++  if (false) { // CONTROL: result check removed
+     throw new StepBudgetInvalid(`The step's budget could not be worked out as an amount above $0 and below $100,000,000 (one turn: ${String(perTurn.hold_usd)}). The step was not started.`);
+   }
+   return {
+diff --git a/builder/src/store/migrations/008_step_holds.sql b/builder/src/store/migrations/008_step_holds.sql
+index 3382e0e..b934421 100644
+--- a/builder/src/store/migrations/008_step_holds.sql
++++ b/builder/src/store/migrations/008_step_holds.sql
+@@ -33,10 +33,6 @@ create table if not exists step_holds (
+   -- The target of the two composite keys below: a token or a hold can name a step hold of its own project only.
+   constraint step_holds_id_project unique (id, project_id),
+   constraint step_holds_state check (state in ('open', 'closed')),
+-  constraint step_holds_limits check (max_tokens_ceiling > 0 and prompt_tokens >= 0 and turns > 0),
+-  constraint step_holds_per_turn_is_a_number check (per_turn_usd <> 'NaN'::numeric and per_turn_usd > 0),
+-  constraint step_holds_budget_is_a_number check (budget_usd <> 'NaN'::numeric and budget_usd > 0 and budget_usd = turns * per_turn_usd),
+-  constraint step_holds_room_is_a_number check (room_usd <> 'NaN'::numeric and room_usd >= 0 and room_usd <= budget_usd),
+   constraint step_holds_overrun_is_a_number check (overrun_not_covered_usd <> 'NaN'::numeric and overrun_not_covered_usd >= 0),
+   constraint step_holds_closed_has_no_room check (
+     (state = 'open' and closed_at is null and closed_reason is null)
+
+$ BUILDER_TEST_DATABASE_URL=postgres:///builder_test_pkg13_control15?host=/var/run/postgresql npx vitest run test/step-hold.test.ts -t '1\.3 T12:'
+ RUN  v5.1.0 /tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/wt-13/builder
+ ❯ test/step-hold.test.ts (18 tests | 1 failed | 17 skipped) 127ms
+   ❯ package 1.3: the pre-step check and the step hold (proof row B7) (18)
+     × 1.3 T12: a turn limit or profile that is not a whole, finite, positive number is refused before anything is opened; the database refuses a NaN or negative step figure on its own 70ms
+ Test Files  1 failed (1)
+      Tests  1 failed | 17 skipped (18)
+   Start at  07:29:42
+   Duration  319ms (tests 57%, import 25%, transform 17%, worker 1%)
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  test/step-hold.test.ts > package 1.3: the pre-step check and the step hold (proof row B7) > 1.3 T12: a turn limit or profile that is not a whole, finite, positive number is refused before anything is opened; the database refuses a NaN or negative step figure on its own
+AssertionError: expected 200 to be 402 // Object.is equality
+- Expected
++ Received
+- 402
++ 200
+ ❯ test/step-hold.test.ts:540:40
+    538|     }
+    539|     // First the money: whatever happened above, a call above the cap …
+    540|     expect((await call(token)).status).toBe(402);
+       |                                        ^
+    541|     // Then each refusal: by the code, before the database, with nothi…
+    542|     for (const [label, o] of outcomes) expect([label, o instanceof Ste…
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+exit code: 1
+$ git checkout -- src/gateway/hold.ts src/store/migrations/008_step_holds.sql; git diff --exit-code
+exit code: 0
+
+== C16 (T13 (limits)): the check of a step call against its step's model, ceiling and one turn's share removed ==
+$ git diff -- src/store/holds.ts
+diff --git a/builder/src/store/holds.ts b/builder/src/store/holds.ts
+index 9b7b06c..c746387 100644
+--- a/builder/src/store/holds.ts
++++ b/builder/src/store/holds.ts
+@@ -178,7 +178,7 @@ export async function openHold(
+         : typeof p.maxTokens !== "number" || p.maxTokens > s.max_tokens_ceiling ? "max_tokens"
+         : micro(p.amountUsd) > micro(perTurn) ? "hold"
+         : null;
+-      if (which !== null) {
++      if (false) { // CONTROL
+         await refused("step_call_outside_limits", { ...stepDetail, which, call_model: p.model ?? null, call_max_tokens: p.maxTokens ?? null });
+         return { ok: false as const, budget, reason: "step_call_outside_limits" as const, step: { ...figures, which } };
+       }
+
+$ BUILDER_TEST_DATABASE_URL=postgres:///builder_test_pkg13?host=/var/run/postgresql npx vitest run test/step-hold.test.ts -t '1\.3 T13:'
+ RUN  v5.1.0 /tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/wt-13/builder
+ ❯ test/step-hold.test.ts (18 tests | 1 failed | 17 skipped) 77ms
+   ❯ package 1.3: the pre-step check and the step hold (proof row B7) (18)
+     × 1.3 T13: a step call outside the limits its budget was worked out from, or naming another step, is refused and not forwarded; a call within them goes through 52ms
+ Test Files  1 failed (1)
+      Tests  1 failed | 17 skipped (18)
+   Start at  07:29:42
+   Duration  346ms (transform 42%, tests 32%, import 25%, worker 1%)
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  test/step-hold.test.ts > package 1.3: the pre-step check and the step hold (proof row B7) > 1.3 T13: a step call outside the limits its budget was worked out from, or naming another step, is refused and not forwarded; a call within them goes through
+TypeError: Cannot read properties of undefined (reading 'message')
+ ❯ test/step-hold.test.ts:582:45
+    580|       const res = await call(opened.token, more, headers);
+    581|       const body = (await res.json()) as { error: { message: string } …
+    582|       expect([label, res.status, body.error.message.includes(text)]).t…
+       |                                             ^
+    583|     }
+    584|     expect(forwarded).toBe(before);
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+exit code: 1
+$ git checkout -- src/store/holds.ts; git diff --exit-code
+exit code: 0
+
+== C17 (T13 (the step's name)): the refusal of a step header that names another step removed ==
+$ git diff -- src/gateway/app.ts
+diff --git a/builder/src/gateway/app.ts b/builder/src/gateway/app.ts
+index 5a10d60..52d2491 100644
+--- a/builder/src/gateway/app.ts
++++ b/builder/src/gateway/app.ts
+@@ -222,7 +222,7 @@ export function createGateway(opts: GatewayOptions) {
+     const stepHold = owner.stepHold;
+     const stepHeader = c.req.header("x-builder-step") ?? null;
+     const step = stepHold ? stepHold.stepId : stepHeader;
+-    if (stepHold && stepHeader !== null && stepHeader !== stepHold.stepId) {
++    if (false) { // CONTROL
+       await appendEvent(opts.pool, project.id, "gateway.refused", { reason: "step_label_differs", path: normalisePath(new URL(c.req.url).pathname), step_hold_id: Number(stepHold.id) }, step);
+       return c.json(errorBody("invalid_request_error", "The step named in the x-builder-step header is not the step this token was issued for. The gateway forwarded nothing."), 400);
+     }
+
+$ BUILDER_TEST_DATABASE_URL=postgres:///builder_test_pkg13?host=/var/run/postgresql npx vitest run test/step-hold.test.ts -t '1\.3 T13:'
+ RUN  v5.1.0 /tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/wt-13/builder
+ ❯ test/step-hold.test.ts (18 tests | 1 failed | 17 skipped) 110ms
+   ❯ package 1.3: the pre-step check and the step hold (proof row B7) (18)
+     × 1.3 T13: a step call outside the limits its budget was worked out from, or naming another step, is refused and not forwarded; a call within them goes through 87ms
+ Test Files  1 failed (1)
+      Tests  1 failed | 17 skipped (18)
+   Start at  07:29:43
+   Duration  392ms (tests 39%, transform 32%, import 27%, worker 1%)
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  test/step-hold.test.ts > package 1.3: the pre-step check and the step hold (proof row B7) > 1.3 T13: a step call outside the limits its budget was worked out from, or naming another step, is refused and not forwarded; a call within them goes through
+TypeError: Cannot read properties of undefined (reading 'message')
+ ❯ test/step-hold.test.ts:582:45
+    580|       const res = await call(opened.token, more, headers);
+    581|       const body = (await res.json()) as { error: { message: string } …
+    582|       expect([label, res.status, body.error.message.includes(text)]).t…
+       |                                             ^
+    583|     }
+    584|     expect(forwarded).toBe(before);
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+exit code: 1
+$ git checkout -- src/gateway/app.ts; git diff --exit-code
+exit code: 0
+
+== C18 (the check that no token is logged (and T3's)): the step's token written into its step.hold_opened event ==
+$ git diff -- src/store/holds.ts
+diff --git a/builder/src/store/holds.ts b/builder/src/store/holds.ts
+index 9b7b06c..76b69eb 100644
+--- a/builder/src/store/holds.ts
++++ b/builder/src/store/holds.ts
+@@ -630,7 +630,7 @@ export async function openStepHold(
+       c,
+       p.projectId,
+       "step.hold_opened",
+-      { step_hold_id: Number(s.id), ...figures, deadline_at: p.deadline.toISOString(), budget_before: budgetFigures(budget), per_turn: sb.perTurn },
++      { step_hold_id: Number(s.id), token, ...figures, deadline_at: p.deadline.toISOString(), budget_before: budgetFigures(budget), per_turn: sb.perTurn }, // CONTROL
+       p.stepId,
+     );
+     return { ok: true as const, stepHold: s, token, budget, stepBudget: sb };
+
+$ BUILDER_TEST_DATABASE_URL=postgres:///builder_test_pkg13?host=/var/run/postgresql npx vitest run test/step-hold.test.ts -t '1\.3 T3 |1\.3: no step token'
+ RUN  v5.1.0 /tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/wt-13/builder
+ ❯ test/step-hold.test.ts (18 tests | 2 failed | 16 skipped) 163ms
+   ❯ package 1.3: the pre-step check and the step hold (proof row B7) (18)
+     × 1.3 T3 (B7, drawn): each call's hold is drawn from the step's hold, and spent + open holds + reserved room stays at the step's budget at every forward 138ms
+     × 1.3: no step token was written to the event log, and no fault was raised 2ms
+ Test Files  1 failed (1)
+      Tests  2 failed | 16 skipped (18)
+   Start at  07:29:44
+   Duration  425ms (tests 50%, transform 26%, import 23%, worker 1%)
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  test/step-hold.test.ts > package 1.3: the pre-step check and the step hold (proof row B7) > 1.3 T3 (B7, drawn): each call's hold is drawn from the step's hold, and spent + open holds + reserved room stays at the step's budget at every forward
+AssertionError: expected true to be false // Object.is equality
+- Expected
++ Received
+- false
++ true
+ ❯ test/step-hold.test.ts:259:50
+    257|     // The step's token is a credential: it appears in no event.
+    258|     const log = JSON.stringify(await listEvents(pool, id));
+    259|     expect(log.includes(engine.seen.tokens[0]!)).toBe(false);
+       |                                                  ^
+    260|     expect(log.includes("bpt_")).toBe(false);
+    261|     console.log(`1.3 T3, the log: ${(await kinds(id)).join(", ")}`);
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+ FAIL  test/step-hold.test.ts > package 1.3: the pre-step check and the step hold (proof row B7) > 1.3: no step token was written to the event log, and no fault was raised
+AssertionError: expected 1 to be +0 // Object.is equality
+- Expected
++ Received
+- 0
++ 1
+ ❯ test/step-hold.test.ts:599:26
+    597|   it("1.3: no step token was written to the event log, and no fault wa…
+    598|     const r = await pool.query<{ n: number }>("select count(*)::int as…
+    599|     expect(r.rows[0]!.n).toBe(0);
+       |                          ^
+    600|     expect(faults).toEqual([]);
+    601|   });
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+exit code: 1
+$ git checkout -- src/store/holds.ts; git diff --exit-code
+exit code: 0
+
+== Summary ==
+| Control | Row | Safeguard removed | Tests failed | Vitest exit | git diff clean after |
+| C0 | the budget's arithmetic | the budget worked in whole millionths (turns x micro(one turn)): replaced by turns x one turn in dollars, times a million | Tests  1 passed | 17 skipped (18) | 0 | yes |
+| C1 | T1 | the pre-step equation in openStepHold skipped | Tests  1 failed | 17 skipped (18) | 1 | yes |
+| C2 | T2 | '>' in the pre-step equation made '>=' | Tests  1 failed | 17 skipped (18) | 1 | yes |
+| C3 | T3 | a step call judged by the plain project equation (the room counted, the call's hold added on top) instead of drawing from its step | Tests  1 failed | 17 skipped (18) | 1 | yes |
+| C4 | T4 | a step call whose hold is more than the room left falls through to the project equation instead of being refused | Tests  1 failed | 17 skipped (18) | 1 | yes |
+| C5 | T5 and T6 (first control) | the close of the step's hold in runBudgetedStep's finally removed | Tests  3 failed | 15 skipped (18) | 1 | yes |
+| C6 | T6 (second control) | the close also settles its calls' open holds at nothing | Tests  1 failed | 17 skipped (18) | 1 | yes |
+| C7 | T7 (late call) | the step's token not revoked at the close | Tests  1 failed | 17 skipped (18) | 1 | yes |
+| C8 | T7 (a call judged after the close) | the re-check, under the lock, that the step is still open removed | Tests  1 failed | 17 skipped (18) | 1 | yes |
+| C9 | T9 | the room reserved for running steps left out of the cap change's floor | Tests  1 failed | 17 skipped (18) | 1 | yes |
+| C10 | T10 | the lock on the project's row ('for update') removed from every budget decision | Tests  1 failed | 17 skipped (18) | 1 | yes |
+| C11 | T11 (the sweep) | the sweep skips step holds | Tests  1 failed | 17 skipped (18) | 1 | yes |
+| C12 | T11 (the next decision) | a call's admission does not close steps past their deadline first | Tests  1 failed | 17 skipped (18) | 1 | yes |
+| C13 | T11 (a close of a closed step) | closeStepHold throws on a step already closed | Tests  1 failed | 17 skipped (18) | 1 | yes |
+| C14 | T12 (first control) | the code's guards on the turn limit and on the budget removed (the database's checks stay) | Tests  1 failed | 17 skipped (18) | 1 | yes |
+| C15 | T12 (second control) | the code's guards AND the database's checks on a step's figures removed (a fresh database, so that the changed migration is applied) | Tests  1 failed | 17 skipped (18) | 1 | yes |
+| C16 | T13 (limits) | the check of a step call against its step's model, ceiling and one turn's share removed | Tests  1 failed | 17 skipped (18) | 1 | yes |
+| C17 | T13 (the step's name) | the refusal of a step header that names another step removed | Tests  1 failed | 17 skipped (18) | 1 | yes |
+| C18 | the check that no token is logged (and T3's) | the step's token written into its step.hold_opened event | Tests  2 failed | 16 skipped (18) | 1 | yes |
