@@ -38,7 +38,8 @@ journal.guardWrites(() => liveness.ok());
 const gate = new FaultGate({ pool, journal, onFault: fault });
 // Before taking any call: write what the journal still holds into the event log (a frozen project and its kept hold).
 // A journal file that exists and cannot be read stops start-up (1.4b); a line in it that cannot be read keeps the
-// gate closed for every project until it is recovered and the gateway restarted.
+// gate closed for every project until it is recovered and the gateway restarted. After the review bot on 88e984b: with
+// what the leftover of a rewrite cut short alone holds, which the replay first moves into the journal file.
 const replay = await gate.replay().catch((err: unknown) => {
   console.error(`The gateway's journal file cannot be read (${journal.file}); the gateway does not start.`, errorSummary(err));
   process.exit(1);

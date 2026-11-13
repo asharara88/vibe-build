@@ -23,6 +23,11 @@
  * (after its database record, before its line left the journal file) is finished by the next run, which writes
  * nothing to the database for it again; a second set-aside of a line already moved out is refused. Who set it aside
  * and why are written as stated: nothing checks them.
+ *
+ * After the review bot on 88e984b:
+ * - A rewrite of the journal file cut short leaves the old file under a second name (gateway/journal.ts). `--list` shows
+ *   what such a leftover alone holds, numbered as it will be in the journal file; a set-aside first moves it there
+ *   (`absorbLeftovers`), leaving out a line recorded as set aside already.
  */
 import { randomBytes } from "node:crypto";
 import type pg from "pg";
@@ -31,7 +36,7 @@ import { SET_ASIDE_FREEZE_REASON, type Freeze } from "../store/freezes.js";
 import { expireHoldsIn, LONE_SURROGATE_IN, OWNER_GONE, type Hold } from "../store/holds.js";
 import { journalFolderLockKeySql } from "../store/liveness.js";
 import { event, inTransaction } from "../store/tx.js";
-import { FaultJournal, fingerprintOf, joinLines, readLine, type JournalLine, type Unreadable } from "./journal.js";
+import { FaultJournal, fingerprintOf, joinLines, onlyInLeftovers, readLine, setAsideFingerprints, type JournalLine, type Unreadable } from "./journal.js";
 
 /** Why a set-aside was refused. Each has its own code; nothing is changed or written for the line asked for. */
 export type RecoveryRefusalCode =
@@ -116,6 +121,8 @@ export interface UnreadableShown {
   why: Unreadable;
   /** The line as text, printable: what the operator reads to judge which call it may record. From `--list`, its first `LISTED_BYTES` bytes only. */
   text: string;
+  /** After the review bot on 88e984b: from `--list`, the leftover of a rewrite cut short that alone holds it (its file name); `number` is then the line it will be in the journal file. */
+  leftover?: string;
 }
 
 export interface Candidate {
@@ -157,7 +164,9 @@ export interface JournalListing {
   file: { lines: number; size: number; sha256: string };
   unreadable: UnreadableShown[];
   /** Readable records still waiting: a gateway writes them into the database when it starts. */
-  waiting: { number: number; journalId: string; projectId: string; holdId: string; endedAt: string }[];
+  waiting: { number: number; journalId: string; projectId: string; holdId: string; endedAt: string; leftover?: string }[];
+  /** After the review bot on 88e984b: leftovers of rewrites cut short in the folder; the lines only they hold are in `unreadable` and `waiting`, marked. */
+  leftovers: { name: string; lines: number; size: number; sha256: string }[];
   candidates: Candidate[];
   /** This folder's set-asides recorded in the database, oldest first; `moved_at` null for one cut short. */
   setAsides: SetAsideRow[];
@@ -187,13 +196,19 @@ export async function candidateHolds(pool: pg.Pool): Promise<Candidate[]> {
 export async function listJournal(pool: pg.Pool, dir: string): Promise<JournalListing> {
   const journal = await openFolder(dir);
   const { lines, sha256, size } = await journal.lines();
+  const leftovers = await journal.leftovers();
+  const setAsides = (await pool.query<SetAsideRow>("select * from journal_set_asides where journal_folder_id = $1 order by id", [journal.folderId])).rows;
   const unreadable: UnreadableShown[] = [];
   const waiting: JournalListing["waiting"] = [];
-  for (const l of lines) {
-    const r = readLine(l);
-    if (r.kind === "unreadable") unreadable.push({ number: l.number, length: l.bytes.length, fingerprint: fingerprintOf(l.bytes), why: r.why, text: shownText(l.bytes.subarray(0, LISTED_BYTES)) });
-    if (r.kind === "record") waiting.push({ number: l.number, journalId: r.record.journal_id, projectId: r.record.project_id, holdId: r.record.hold_id, endedAt: r.record.ended_at });
-  }
+  const show = (l: JournalLine, number: number, r: ReturnType<typeof readLine>, leftover?: string) => {
+    const from = leftover === undefined ? {} : { leftover };
+    if (r.kind === "unreadable") unreadable.push({ number, length: l.bytes.length, fingerprint: fingerprintOf(l.bytes), why: r.why, text: shownText(l.bytes.subarray(0, LISTED_BYTES)), ...from });
+    if (r.kind === "record") waiting.push({ number, journalId: r.record.journal_id, projectId: r.record.project_id, holdId: r.record.hold_id, endedAt: r.record.ended_at, ...from });
+  };
+  for (const l of lines) show(l, l.number, readLine(l));
+  // After the review bot on 88e984b: what leftovers alone hold, numbered as the next set-aside or gateway start adds it to the journal file.
+  let next = lines.length;
+  for (const a of onlyInLeftovers(lines, leftovers, new Set(setAsides.map((r) => r.fingerprint)))) show(a.line, ++next, a.read, a.leftover);
   return {
     dir,
     folderId: journal.folderId,
@@ -201,8 +216,9 @@ export async function listJournal(pool: pg.Pool, dir: string): Promise<JournalLi
     file: { lines: lines.length, size, sha256 },
     unreadable,
     waiting,
+    leftovers: leftovers.map((l) => ({ name: l.name, lines: l.lines.length, size: l.size, sha256: l.sha256 })),
     candidates: await candidateHolds(pool),
-    setAsides: (await pool.query<SetAsideRow>("select * from journal_set_asides where journal_folder_id = $1 order by id", [journal.folderId])).rows,
+    setAsides,
   };
 }
 
@@ -320,6 +336,8 @@ export async function setAsideLine(pool: pg.Pool, databaseUrl: string, req: SetA
         `A gateway, or another run of this script, is using this journal folder now (it holds the folder's lock). Stop the gateway first: a running gateway reads its journal only when it starts. ${NOTHING_CHANGED}`,
       );
     }
+    // After the review bot on 88e984b: the leftover of a rewrite cut short is moved into the journal file first.
+    if ((await journal.leftovers()).length > 0) await journal.absorbLeftovers(await setAsideFingerprints(pool, journal.folderId));
     const finishedRows = await finishEarlier(pool, journal);
     const finishedEarlier = finishedRows.map((r) => r.set_aside_id);
     // The same command run again after it was cut short: its own set-aside is the one just finished.

@@ -27,6 +27,10 @@
  *   database's name, never its address (an address can carry a password). A journal record holds no model key and
  *   no request body; the script reads no key and no project token, and does not run migrations.
  *
+ * - After the review bot on 88e984b: a rewrite of the journal file cut short leaves the old file under a second name in
+ *   the folder (unrecorded-endings.jsonl.prev-<id>). --list shows what such a leftover alone holds, numbered as the line
+ *   it will be in the journal file, and --set-aside first moves it there (leaving out a line set aside already).
+ *
  * Exit codes: 0 done; 1 the arguments were wrong (nothing was read or sent); 2 refused (nothing was changed for the
  * line asked for; a set-aside cut short earlier may have been finished first, and the message says so); 3 it could
  * not be completed: if it broke after the record, run the same command again, which finishes the move and writes
@@ -124,11 +128,17 @@ try {
         : "In use now: no. No process holds the folder's lock.",
     );
     console.log(`Journal file: ${l.file.lines} line(s), ${l.file.size} bytes, SHA-256 ${l.file.sha256}`);
+    if (l.leftovers.length > 0) {
+      console.log(`Leftovers of a rewrite cut short (the journal file as it was before a rewrite that stopped part-way): ${l.leftovers.length}`);
+      for (const f of l.leftovers) console.log(`  ${printable(f.name)}: ${f.lines} line(s), ${f.size} bytes, SHA-256 ${f.sha256}`);
+      console.log("  The lines only a leftover holds are listed below, marked, at the line they will be in the journal file: the next --set-aside, or gateway start, moves them there.");
+    }
+    const from = (leftover: string | undefined) => (leftover === undefined ? "" : ` (only in ${printable(leftover)})`);
     console.log(`  readable records waiting (a gateway writes them into the database when it starts): ${l.waiting.length}`);
-    for (const w of l.waiting) console.log(`    line ${w.number}: journal line ${printable(w.journalId)}, project ${printable(w.projectId)}, hold ${w.holdId}, call ended ${printable(w.endedAt)}`);
+    for (const w of l.waiting) console.log(`    line ${w.number}${from(w.leftover)}: journal line ${printable(w.journalId)}, project ${printable(w.projectId)}, hold ${w.holdId}, call ended ${printable(w.endedAt)}`);
     console.log(`  lines that cannot be read: ${l.unreadable.length}${l.unreadable.length > 0 ? " (while one is there, a gateway that starts forwards nothing, for any project)" : ""}`);
     for (const u of l.unreadable) {
-      console.log(`    line ${u.number}: ${u.length} bytes; ${u.why}`);
+      console.log(`    line ${u.number}${from(u.leftover)}: ${u.length} bytes; ${u.why}`);
       console.log(`      fingerprint: ${u.fingerprint}`);
       console.log(`      text:        ${clipListed(u.text, u.length)}`);
     }

@@ -43,12 +43,24 @@
  * writes its line again into the file now there. A line can so be written twice, which is harmless (a record is
  * known by its id); it is not lost.
  *
+ * After the review bot on 88e984b. The carry-over runs after the rename, so a rewrite that stopped between the two (a
+ * crash, a kill, an I/O error) left an append that had already returned only in the old file, which no name reached any
+ * more: it was lost. Now a rewrite first gives the old file a second name in the same folder (a hard link,
+ * `unrecorded-endings.jsonl.prev-<id>`, with the folder forced to disk), and removes that name only once everything
+ * appended to the old file is in the new one and forced to disk. A rewrite stopped at any point so leaves every
+ * acknowledged line on disk, under one name or the other. The gateway at start-up and the recovery script under the
+ * folder's lock read such a leftover beside the journal file and move into the journal file what it alone holds
+ * (`absorbLeftovers`), then remove it; `--list` shows it. A record is counted once (by its journal id); an unreadable line
+ * once (by its fingerprint), and not at all when it is in a leftover only and journal_set_asides records its
+ * fingerprint for this folder (it was set aside; the leftover is the file as it was before the set-aside's removal).
+ * When that cannot be read, every unreadable line of a leftover counts: it fails closed.
+ *
  * What is shown and what is not: a process killed with SIGKILL after the line was forced to disk leaves
  * it in the file (proof row B10, case 3). That the line survives a power cut rests on fsync doing what
  * the operating system documents; it is designed, not shown.
  */
 import { createHash, randomBytes } from "node:crypto";
-import { link, mkdir, open, readFile, rename, stat, unlink, type FileHandle } from "node:fs/promises";
+import { link, mkdir, open, readdir, readFile, rename, stat, unlink, type FileHandle } from "node:fs/promises";
 import { join } from "node:path";
 import type pg from "pg";
 import { recordFreeze, type UnrecordedEnding } from "../store/freezes.js";
@@ -60,6 +72,12 @@ const SET_ASIDE = "unrecorded-endings.set-aside.jsonl";
 /** Package 1.4b: the folder's own id, made by the first gateway to open it. */
 const FOLDER_ID = "journal-folder-id";
 const FOLDER_ID_SHAPE = /^jf_[0-9a-f]{32}$/;
+/**
+ * After the review bot on 88e984b: the second name a rewrite gives the journal file it replaces, kept until what was
+ * appended to that file is in the new one. One left in the folder is a rewrite cut short (`absorbLeftovers`).
+ */
+const LEFTOVER_PREFIX = `${JOURNAL}.prev-`;
+const LEFTOVER_SHAPE = /^unrecorded-endings\.jsonl\.prev-[0-9a-f]{16}$/;
 const NL = Buffer.from("\n");
 
 /** One line of the journal file as it is on disk: its bytes without the line end, and whether it had one. */
@@ -83,6 +101,55 @@ export interface UnreadableLine {
   fingerprint: string;
   why: Unreadable;
   bytes: Buffer;
+  /** After the review bot on 88e984b: the leftover of a rewrite cut short that alone holds it (its file name), if not the journal file. */
+  leftover?: string;
+}
+
+/** After the review bot on 88e984b: a leftover of a rewrite cut short, as it is on disk. */
+export interface Leftover {
+  /** Its file name in the journal folder. */
+  name: string;
+  lines: JournalLine[];
+  size: number;
+  sha256: string;
+}
+
+/**
+ * After the review bot on 88e984b: the lines a leftover alone holds, beside the journal file's `lines`, in the leftover's
+ * order: a record whose journal id neither holds yet; an unreadable line whose fingerprint neither holds yet, unless
+ * `setAside` (journal_set_asides' fingerprints for the folder) has it. With `setAside` null, none is known set aside: every
+ * such line counts (it fails closed). Blank lines are not taken. Leftovers are taken in the order given; what one adds
+ * counts as held for the next.
+ */
+export function onlyInLeftovers(
+  lines: JournalLine[],
+  leftovers: Leftover[],
+  setAside: ReadonlySet<string> | null,
+): Array<{ leftover: string; line: JournalLine; read: { kind: "record"; record: UnrecordedEnding } | { kind: "unreadable"; why: Unreadable } }> {
+  const ids = new Set<string>();
+  const prints = new Set<string>();
+  for (const l of lines) {
+    const r = readLine(l);
+    if (r.kind === "record") ids.add(r.record.journal_id);
+    else if (r.kind === "unreadable") prints.add(fingerprintOf(l.bytes));
+  }
+  const out: ReturnType<typeof onlyInLeftovers> = [];
+  for (const lf of leftovers) {
+    for (const l of lf.lines) {
+      const r = readLine(l);
+      if (r.kind === "record") {
+        if (ids.has(r.record.journal_id)) continue;
+        ids.add(r.record.journal_id);
+        out.push({ leftover: lf.name, line: l, read: r });
+      } else if (r.kind === "unreadable") {
+        const fp = fingerprintOf(l.bytes);
+        if (prints.has(fp) || setAside?.has(fp)) continue;
+        prints.add(fp);
+        out.push({ leftover: lf.name, line: l, read: r });
+      }
+    }
+  }
+  return out;
 }
 
 /** Split a journal file's bytes into its lines, each kept byte for byte. */
@@ -284,9 +351,47 @@ export class FaultJournal {
     return this.serial(() => appendWhole(this.file, line));
   }
 
-  /** The records in the journal not yet written to the database, and the lines that could not be read. Throws if the file exists and cannot be read. */
-  pending(): Promise<{ records: UnrecordedEnding[]; unreadable: UnreadableLine[] }> {
-    return this.serial(() => this.readPending());
+  /**
+   * The records in the journal not yet written to the database, and the lines that could not be read. Throws if the file
+   * exists and cannot be read. After the review bot on 88e984b: with the lines that leftovers of rewrites cut short alone
+   * hold (`onlyInLeftovers`; `setAside`, the folder's set-aside fingerprints, or null when they are not known: then every
+   * unreadable line of a leftover counts). Throws if a leftover cannot be read.
+   */
+  pending(setAside: ReadonlySet<string> | null = null): Promise<{ records: UnrecordedEnding[]; unreadable: UnreadableLine[] }> {
+    return this.serial(() => this.readPending(setAside));
+  }
+
+  /** After the review bot on 88e984b: the leftovers of rewrites cut short in this folder, by name, as they are on disk (none, usually). */
+  leftovers(): Promise<Leftover[]> {
+    return this.serial(() => this.readLeftovers());
+  }
+
+  /**
+   * After the review bot on 88e984b, under the folder's lock (the gateway at start-up, the recovery script): append to
+   * the journal file, forced to disk, the lines leftovers of rewrites cut short alone hold (`onlyInLeftovers`, with the
+   * folder's set-aside fingerprints), each leftover's in its order and on lines of their own; then remove the leftovers,
+   * the folder forced to disk. Stopped part-way, it leaves each line in a leftover or the journal file, or both, which
+   * the next run reads as one. Returns the leftovers removed and the lines added.
+   */
+  absorbLeftovers(setAside: ReadonlySet<string>): Promise<{ removed: string[]; added: number }> {
+    return this.serial(async () => {
+      this.checkMayWrite();
+      const leftovers = await this.readLeftovers();
+      if (leftovers.length === 0) return { removed: [], added: 0 };
+      const adding = onlyInLeftovers((await readLines(this.file)).lines, leftovers, setAside).map((a) => a.line);
+      if (adding.length > 0) {
+        // On lines of their own, as appends write them: a line with no line end (only a leftover's last can be one) gets one when another follows.
+        const bytes = Buffer.concat(adding.flatMap((l, i) => (i < adding.length - 1 || l.ended ? [l.bytes, NL] : [l.bytes])));
+        this.checkMayWrite();
+        await appendWhole(this.file, bytes);
+      }
+      for (const lf of leftovers) {
+        this.checkMayWrite();
+        await unlink(join(this.dir, lf.name));
+      }
+      await syncDir(this.dir);
+      return { removed: leftovers.map((l) => l.name), added: adding.length };
+    });
   }
 
   /** Every line of the journal file as it is on disk, with the file's SHA-256 (package 1.4b, for the recovery script). */
@@ -346,7 +451,7 @@ export class FaultJournal {
     });
   }
 
-  private async readPending(): Promise<{ records: UnrecordedEnding[]; unreadable: UnreadableLine[] }> {
+  private async readPending(setAside: ReadonlySet<string> | null): Promise<{ records: UnrecordedEnding[]; unreadable: UnreadableLine[] }> {
     const { lines } = await readLines(this.file);
     const records: UnrecordedEnding[] = [];
     const unreadable: UnreadableLine[] = [];
@@ -355,7 +460,25 @@ export class FaultJournal {
       if (r.kind === "record") records.push(r.record);
       else if (r.kind === "unreadable") unreadable.push({ number: l.number, length: l.bytes.length, fingerprint: fingerprintOf(l.bytes), why: r.why, bytes: Buffer.from(l.bytes) });
     }
+    // After the review bot on 88e984b: what leftovers of rewrites cut short alone hold, numbered as absorbLeftovers adds it.
+    let next = lines.length;
+    for (const a of onlyInLeftovers(lines, await this.readLeftovers(), setAside)) {
+      next += 1;
+      if (a.read.kind === "record") records.push(a.read.record);
+      else unreadable.push({ number: next, length: a.line.bytes.length, fingerprint: fingerprintOf(a.line.bytes), why: a.read.why, bytes: Buffer.from(a.line.bytes), leftover: a.leftover });
+    }
     return { records, unreadable };
+  }
+
+  /** The leftovers in the folder, sorted by name. Throws if the folder cannot be listed or a leftover cannot be read. */
+  private async readLeftovers(): Promise<Leftover[]> {
+    const names = (await readdir(this.dir)).filter((n) => n.startsWith(LEFTOVER_PREFIX) && LEFTOVER_SHAPE.test(n)).sort();
+    const out: Leftover[] = [];
+    for (const name of names) {
+      const { lines, sha256, size } = await readLines(join(this.dir, name));
+      out.push({ name, lines, size, sha256 });
+    }
+    return out;
   }
 
   private async moveToDone(journalId: string): Promise<void> {
@@ -377,6 +500,14 @@ export class FaultJournal {
    * copies them there first). The file is read through one open handle, kept until the end: bytes another process
    * appended to that old file after it was read (it had opened the file before the rename) are then carried over to the
    * end of the new file (1.4b's review). Returns null when nothing was chosen (nothing is written then).
+   *
+   * After the review bot on 88e984b, in this order: (1) the old file gets a second name in the folder (a hard link, the
+   * leftover name), checked to be the file read, and the folder is forced to disk; (2) the new file is written under a
+   * temporary name and forced to disk; (3) it is renamed over the journal file, and the folder forced to disk; (4) what
+   * was appended to the old file is carried over and forced to disk; (5) only then is the second name removed. Stopped
+   * at any point, every line appended to the old file is on disk under the leftover name or in the journal file, and the
+   * next gateway to start, or the recovery script, reads both (`pending`, `absorbLeftovers`). An error before the rename
+   * removes the second name again (the journal file still names the old file); one after it leaves it.
    */
   private async rewriteWithout(
     pick: (lines: JournalLine[]) => JournalLine[],
@@ -397,17 +528,40 @@ export class FaultJournal {
       if (moving.length === 0) return null;
       await beforeRename?.(moving);
       const bytes = joinLines(lines.filter((l) => !moving.includes(l)));
+      // (1) The old file's second name, before anything replaces it (review bot on 88e984b).
+      const keep = join(this.dir, `${LEFTOVER_PREFIX}${randomBytes(8).toString("hex")}`);
+      await link(this.file, keep);
+      const oldStat = await old.stat();
+      const kept = await stat(keep);
       const tmp = `${this.file}.${randomBytes(4).toString("hex")}.tmp`;
-      const fh = await open(tmp, "w");
       try {
-        await fh.writeFile(bytes);
-        await fh.sync();
-      } finally {
-        await fh.close();
+        if (kept.ino !== oldStat.ino || kept.dev !== oldStat.dev) {
+          throw Object.assign(new Error("The journal file was replaced by another process while it was being rewritten; nothing was rewritten."), { code: "JOURNAL_FILE_REPLACED" });
+        }
+        await syncDir(this.dir);
+        // (2) The new file, whole and forced to disk.
+        const fh = await open(tmp, "w");
+        try {
+          await fh.writeFile(bytes);
+          await fh.sync();
+        } finally {
+          await fh.close();
+        }
+        // (3) Into place.
+        await rename(tmp, this.file);
+      } catch (err) {
+        await unlink(tmp).catch(() => undefined);
+        // The journal file still names the old file: the second name holds nothing it does not, and goes.
+        const now = await stat(this.file).catch(() => null);
+        if (now !== null && now.ino === kept.ino && now.dev === kept.dev) await unlink(keep).catch(() => undefined);
+        throw err;
       }
-      await rename(tmp, this.file);
       await syncDir(this.dir);
+      // (4) What was appended to the old file after it was read, carried over and forced to disk.
       const carriedOver = await this.carryOver(old, read.length);
+      // (5) Only now is the old file's second name removed.
+      await unlink(keep);
+      await syncDir(this.dir);
       return { before: fingerprintOf(read), after: fingerprintOf(bytes), carriedOver };
     } finally {
       await old.close();
@@ -568,7 +722,22 @@ export class FaultGate {
    */
   async replay(): Promise<{ loaded: number; unreadable: number; recorded: boolean }> {
     if (!this.o.journal) return { loaded: 0, unreadable: 0, recorded: this.waiting.length === 0 };
-    const { records, unreadable } = await this.o.journal.pending();
+    // After the review bot on 88e984b: leftovers of rewrites cut short are read beside the journal file, and moved into it.
+    let setAside: ReadonlySet<string> | null = null;
+    if ((await this.o.journal.leftovers()).length > 0) {
+      setAside = await setAsideFingerprints(this.o.pool, this.o.journal.folderId).catch(() => null);
+      if (setAside === null) {
+        this.o.onFault?.(
+          "The gateway's journal folder holds the leftover of a rewrite cut short, and the lines set aside could not be read from the database: every line of the leftover that cannot be read counts, and the leftover is kept for the next start.",
+          { dir: this.o.journal.dir },
+        );
+      } else {
+        await this.o.journal.absorbLeftovers(setAside).catch((err: unknown) =>
+          this.o.onFault?.("The leftover of a rewrite cut short could not be moved into the gateway's journal file; its lines are read from it, and it is kept for the next start.", { dir: this.o.journal!.dir, error: summary(err) }),
+        );
+      }
+    }
+    const { records, unreadable } = await this.o.journal.pending(setAside);
     if (unreadable.length > 0) this.unreadable = unreadable; // before anything else is awaited
     for (const rec of records) if (!this.waiting.some((w) => w.rec.journal_id === rec.journal_id)) this.waiting.push({ rec, journaled: true });
     if (unreadable.length > 0) {
@@ -611,6 +780,12 @@ export class FaultGate {
     }
     return true;
   }
+}
+
+/** After the review bot on 88e984b: the fingerprints of the lines recorded as set aside for this journal folder (builder/scripts/journal-recover.ts). */
+export async function setAsideFingerprints(pool: Pick<pg.Pool, "query">, folderId: string): Promise<Set<string>> {
+  const r = await pool.query<{ fingerprint: string }>("select distinct fingerprint from journal_set_asides where journal_folder_id = $1", [folderId]);
+  return new Set(r.rows.map((x) => x.fingerprint));
 }
 
 function summary(err: unknown): { name: string; code?: string } {
