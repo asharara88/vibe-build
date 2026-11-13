@@ -361,10 +361,9 @@ describe("the third outside review, item 1: an unreadable journal line keeps the
         [p, "/v1/messages/count_tokens", { model: MODEL, messages: [] }],
       ] as const) {
         const o = await outcome(await callAt(k2.url, who.token, b, path));
-        got.push({ status: o.status, type: o.type, nothing_forwarded: o.nothing_forwarded });
-        expect(o.message).toContain("An operator has to recover the journal (builder/scripts/journal-recover.ts) and then restart the gateway");
+        got.push({ status: o.status, type: o.type, nothing_forwarded: o.nothing_forwarded, says_what_to_do: o.message.includes("An operator has to recover the journal (builder/scripts/journal-recover.ts) and then restart the gateway") });
       }
-      expect(got).toEqual(Array(4).fill({ status: 503, type: "gateway_journal_unreadable", nothing_forwarded: true }));
+      expect(got).toEqual(Array(4).fill({ status: 503, type: "gateway_journal_unreadable", nothing_forwarded: true, says_what_to_do: true }));
       expect({ messages: stand.messages, counts: stand.counts, p: await kinds(p.id), q: await kinds(q.id), holdsP: (await listHolds(pool, p.id)).length, holdsQ: (await listHolds(pool, q.id)).length }).toEqual({
         ...before,
         holdsQ: 0,
