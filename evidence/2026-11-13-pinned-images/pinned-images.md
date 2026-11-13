@@ -52,5 +52,5 @@ The one place is the sandbox manager's table, `DEFAULT_IMAGES`; the tests and th
 
 - No reviewer read this pull request's code before these runs (the plan's section 3, step 6: one fresh review for code that is not the gateway and cap, isolation, acceptance separation or key handling).
 - The template's full image build with the pinned `FROM` lines (only its `FROM` lines were built, and Docker's own check of the file was run).
-- That the check catches every way an image can be named (known gap 67).
+- That the check catches every way an image can be named (known gap 68).
 - That the readiness wait was ever needed in these runs (section 3).

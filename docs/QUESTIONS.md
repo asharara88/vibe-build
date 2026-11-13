@@ -4,13 +4,13 @@ Rules: build plan section 8, rule 11. At most six lines each, with the options a
 
 ## Blocking work
 
-**15. The runner's two base images and Google's test browser, for internal development and testing only** (holds up 3.1). Detail: [`docs/licences/runner-base-images.md`](licences/runner-base-images.md), [`docs/licences/browser-terms.md`](licences/browser-terms.md).
-(a) **Approve both:** `ubuntu:24.04` and `node:22-bookworm-slim` pinned by digest (the runner also carries Node's notice and lists its system packages each build), and the Chrome for Testing headless shell 153.0.8010.12, the download with SHA-256 `a9da0288…`, unchanged, no video, under Google's Chrome Additional Terms (30 Sep 2025) and Terms of Service (30 Jul 2026); your yes is the business's agreement to those terms.
-Recommended: no clause found forbids this use on these conditions, apart from one unsettled point — the terms forbid copying the software with no stated exception for installing it (a lawyer can settle it if you want certainty).
-(b) Approve the images; the browser after a lawyer (fee shown first).
-(c) Neither; 3.1 stays parked.
+None open right now. Question 15 (the runner's two base images and the test browser) was approved on 13 Nov: `docs/DECISIONS.md`.
 
 ## Not blocking yet
+
+**18. The "vibe-build" setup script fetches images by tag** (numbered 15 when pull request #8 added it). It downloads `node:22-alpine`, `postgres:16-alpine` and `python:3.13-slim` by name, so a rebuilt snapshot can hold versions other than those you approved (question 11), plus an image nothing uses; its downloads have no time limit (gap 67).
+(a) **Change the script to fetch only the two approved images, by digest, each with a time limit** (a change to your environment, approved on a card). Recommended: new sessions then start with the approved versions.
+(b) Leave it; the builder will pin its own images (status, Next, item 2).
 
 **4. Make the repository private?** It is public today, and two outside reviewers have noted it.
 (a) **Yes, now** (you change it in GitHub's settings; then Claude Code checks this session can still reach it). Recommended: nothing in it is meant for the public.
@@ -54,5 +54,6 @@ Claude Code's readings and work, recorded as such, not as your decisions. Detail
 - Gap 60: the boundary is fixed (package 0.6c) before code from the builder's own model calls runs; "fixed" means 0.6a's probe shows each such container reaching only what design note 2.5 allows.
 - A caller who leaves before the call is forwarded has its hold released (package 1.2; design note 5.5, step 3).
 - A hold kept after an error answer is not marked unreconciled, unlike design note 5.5's table (gap 62).
-- The approved-images check lets the builder's own images (`builder_<project>-app` and `-tools`, built from the template, never pulled) go without a digest (gap 67).
+- The approved-images check lets the builder's own images (`builder_<project>-app` and `-tools`, built from the template, never pulled) go without a digest (gap 68).
 - The counting rules for the runner's base images: "and/or" not split; both keyring packages counted as copyleft (`docs/licences/runner-base-images.md`, section 3).
+- `CLAUDE.md` line 63 (your file): Claude Code's sentence on Docker failing to start on 12 Nov, its fix and a pointer to a second failure, merged with pull request #8 at your request; keep, change or remove.

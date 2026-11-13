@@ -1,0 +1,40 @@
+Package 1.2b, 13 Nov 2026: the database facts the cap change relies on, measured with constant-only queries (no table is read or written).
+Development machine (a cloud session); the test database builder_test_pkg12b; PostgreSQL 16.15 (Ubuntu 16.15-0ubuntu0.24.04.1) on x86_64-pc-linux-gnu, compiled by gcc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0, 64-bit
+
+$ psql -d builder_test_pkg12b -c "select 'NaN'::numeric >= 0 as nan_at_least_zero, 'NaN'::numeric = 'NaN'::numeric as nan_equals_nan, 'NaN'::numeric > 99999999 as nan_above_every_number"
+ nan_at_least_zero | nan_equals_nan | nan_above_every_number 
+-------------------+----------------+------------------------
+ t                 | t              | t
+(1 row)
+
+$ psql -d builder_test_pkg12b -c "select '20.12345'::numeric(12,4) as five_decimals_kept_as, '0.00001'::numeric(12,4) as a_hundred_thousandth_kept_as, '99999999.9999'::numeric(12,4) as largest_kept"
+ five_decimals_kept_as | a_hundred_thousandth_kept_as | largest_kept  
+-----------------------+------------------------------+---------------
+               20.1235 |                       0.0000 | 99999999.9999
+(1 row)
+
+$ psql -d builder_test_pkg12b -c "select '100000000'::numeric(12,4)"
+ERROR:  numeric field overflow
+DETAIL:  A field with precision 12, scale 4 must round to an absolute value less than 10^8.
+$ psql -d builder_test_pkg12b -c "select 'Infinity'::numeric(12,4)"
+ERROR:  numeric field overflow
+DETAIL:  A field with precision 12, scale 4 cannot hold an infinite value.
+$ psql -d builder_test_pkg12b -c "select 'NaN'::numeric(12,4) as nan_kept_as"
+ nan_kept_as 
+-------------
+         NaN
+(1 row)
+
+$ psql -d builder_test_pkg12b -c "begin; select pg_sleep(0.3); select now() = transaction_timestamp() as now_is_the_transaction_start, clock_timestamp() - now() >= interval '0.3 s' as clock_moved_on_by_the_sleep; commit;"
+BEGIN
+ pg_sleep 
+----------
+ 
+(1 row)
+
+ now_is_the_transaction_start | clock_moved_on_by_the_sleep 
+------------------------------+-----------------------------
+ t                            | t
+(1 row)
+
+COMMIT
