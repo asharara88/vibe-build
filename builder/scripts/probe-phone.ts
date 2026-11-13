@@ -93,7 +93,7 @@ function serve(logFile: string): void {
         "cache-control": req.url === "/cached" ? "public, max-age=60" : "no-store",
         "set-cookie": [`probe_${probe}_lax=1; SameSite=Lax; Path=/; HttpOnly`, `probe_${probe}_strict=1; SameSite=Strict; Path=/; HttpOnly`],
       });
-      res.end(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Probe ${probe.toUpperCase()}</title><style>body{font:16px/1.5 system-ui,sans-serif;margin:16px}button{font:inherit;padding:8px 14px;margin:6px 0}</style></head><body>${body}</body></html>`);
+      res.end(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Probe ${probe.toUpperCase()}</title><style>body{font: 16px/1.5 system-ui,sans-serif;margin: 16px}button{font: inherit;padding: 8px 14px;margin: 6px 0}</style></head><body>${body}</body></html>`);
     });
     server.listen(PORTS[probe], "127.0.0.1", () => console.log(`probe-${probe} listening on 127.0.0.1:${PORTS[probe]}${probe === "c" ? " (not reported)" : ""}`));
   }

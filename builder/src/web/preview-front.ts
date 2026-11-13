@@ -118,7 +118,7 @@ const tx = (lang: "en" | "ar", key: keyof Texts["en"], vars: Record<string, stri
 function page(res: http.ServerResponse, status: number, body: (lang: "en" | "ar") => string, extra: Record<string, string | string[]> = {}): void {
   const block = (lang: "en" | "ar") =>
     `<section lang="${lang}" dir="${lang === "ar" ? "rtl" : "ltr"}"><h1>${esc(tx(lang, "title"))}</h1><p class="label">${esc(tx(lang, "label_sim"))}</p><p class="label">${esc(tx(lang, "label_data"))}</p>${body(lang)}</section>`;
-  const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${esc(tx("en", "title"))}</title><style>body{font:16px/1.5 system-ui,sans-serif;margin:0;padding:16px;background:#f6f7f9;color:#1d2330}section{background:#fff;border:1px solid #d5d9e2;border-radius:8px;padding:12px 14px;margin:0 0 14px;max-width:640px}.label{display:inline-block;font-weight:700;color:#7a4b00;background:#fff2d6;border-radius:6px;padding:2px 8px;margin:2px 0}.warn{color:#9b1c1c;font-weight:600}input{font:inherit;padding:8px;border:1px solid #d5d9e2;border-radius:6px;width:100%;max-width:240px;letter-spacing:2px}button{font:inherit;padding:8px 14px;border-radius:6px;border:1px solid #1f4fbf;background:#1f4fbf;color:#fff}</style></head><body>${block("en")}${block("ar")}</body></html>`;
+  const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${esc(tx("en", "title"))}</title><style>body{font: 16px/1.5 system-ui,sans-serif;margin: 0;padding: 16px;background: #f6f7f9;color: #1d2330}section{background: #fff;border: 1px solid #d5d9e2;border-radius: 8px;padding: 12px 14px;margin: 0 0 14px;max-width: 640px}.label{display: inline-block;font-weight: 700;color: #7a4b00;background: #fff2d6;border-radius: 6px;padding: 2px 8px;margin: 2px 0}.warn{color: #9b1c1c;font-weight: 600}input{font: inherit;padding: 8px;border: 1px solid #d5d9e2;border-radius: 6px;width: 100%;max-width: 240px;letter-spacing: 2px}button{font: inherit;padding: 8px 14px;border-radius: 6px;border: 1px solid #1f4fbf;background: #1f4fbf;color: #fff}</style></head><body>${block("en")}${block("ar")}</body></html>`;
   const headers: Record<string, string | string[]> = { "content-type": "text/html; charset=utf-8", ...frontHeaders({ own: true }), ...extra };
   res.writeHead(status, headers);
   res.end(html);
@@ -247,6 +247,10 @@ function forward(req: http.IncomingMessage, res: http.ServerResponse, s: Session
     page(res, key === "too_large" ? 413 : 502, (lang) => `<p class="warn">${esc(tx(lang, key))}</p>`);
   };
   const up = http.request({ agent: s.agent, method, path: req.url, headers, setHost: false });
+  // The browser left before the app's answer came: the request to the app is stopped at once (its stream is then ended).
+  res.on("close", () => {
+    if (!answered) up.destroy();
+  });
   const headersTimer = setTimeout(() => {
     up.destroy();
     fail("no_answer");

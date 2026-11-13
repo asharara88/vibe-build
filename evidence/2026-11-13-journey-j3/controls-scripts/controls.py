@@ -56,6 +56,8 @@ CONTROLS = [
   [("export const STREAM_TARGET = /^app:(\\d{1,5})$/;", "export const STREAM_TARGET = /^[a-z0-9.]+:(\\d{1,5})$/;")], "test/sandbox.test.ts", "appStream"),
  ("J3-C25", "the pump takes a stream before the pass is used", "src/web/preview.ts",
   [("    if (!c || !c.entered || Date.now() >= c.endsAt) {", "    if (!c || Date.now() >= c.endsAt) {")], "test/preview.test.ts", "the pump socket takes a stream only once the pass has been used"),
+ ("J3-C26", "a browser that leaves before the app's answer does not stop the request to the app", "src/web/preview-front.ts",
+  [("    if (!answered) up.destroy();", "    if (false) up.destroy();")], "test/preview.test.ts", "a browser that leaves before the app's answer comes"),
 ]
 
 def run(cmd):

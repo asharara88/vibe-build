@@ -33,6 +33,8 @@ import { fromFrontMessage, passDigest, passFromBytes, PASS_VALID_MS, SESSION_MAX
 export const DEFAULT_PREVIEW_PORT = 4030;
 /** The front's user when the interface runs as root, unless BUILDER_PREVIEW_UID names another. */
 export const DEFAULT_PREVIEW_UID = 1990;
+/** How many times the front is started again after it stops, in one interface's life. */
+export const MAX_FRONT_RESTARTS = 5;
 /** At most this many streams to the app at once; the front itself keeps at most 6. */
 export const MAX_PUMP_STREAMS = 8;
 
@@ -158,6 +160,8 @@ export class LivePreview {
   private timers: NodeJS.Timeout[] = [];
   private stopping = false;
   private listening: Promise<void> | null = null;
+  /** How many times the front was started again after it stopped (at most MAX_FRONT_RESTARTS). */
+  private restarts = 0;
   /** Connections to the pump socket refused because no session was open and entered (the tests read it). */
   refusedStreams = 0;
   /** Streams opened to the app since start. */
@@ -242,7 +246,11 @@ export class LivePreview {
       child.on("exit", (code) => {
         clearTimeout(t);
         reject(new Error(`The preview front stopped (exit code ${code}): ${errTail.trim().split("\n").pop() ?? ""}`));
-        if (!this.stopping) {
+        if (!this.stopping && this.restarts >= MAX_FRONT_RESTARTS) {
+          this.o.onFault?.(`The preview front stopped ${MAX_FRONT_RESTARTS + 1} times; it is not started again until the interface restarts.`, { code });
+          void this.closeCurrent("front_stopped");
+        } else if (!this.stopping) {
+          this.restarts++;
           this.o.onFault?.("The preview front stopped; it is started again.", { code });
           void this.closeCurrent("front_stopped");
           setTimeout(() => {

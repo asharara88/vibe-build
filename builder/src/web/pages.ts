@@ -750,7 +750,7 @@ export function livePassPage(lang: Lang, s: JourneyState, o: { shown: string; ex
       "sim",
       t(lang, "live.pass_title"),
       html`<p><span class="label">${t(lang, "live.label_sim")}</span></p><p><span class="label">${t(lang, "live.label_data")}</span></p>
-<p class="pass" data-pass dir="ltr" lang="en"><code style="font-size:28px;letter-spacing:4px">${o.shown}</code></p>
+<p class="pass" data-pass dir="ltr" lang="en"><code style="font-size: 28px; letter-spacing: 4px">${o.shown}</code></p>
 <p data-pass-valid>${t(lang, "live.pass_valid", { time: utcTime(o.expiresAt) })}</p>
 <p class="note">${t(lang, "live.pass_bound")}</p>
 <p>${t(lang, "live.where", { port: o.port })}</p>

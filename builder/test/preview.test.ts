@@ -329,6 +329,22 @@ describe("the preview front: requests and answers", () => {
     60_000,
   );
 
+  it("a browser that leaves before the app's answer comes: the request to the app is stopped at once, and its stream ended", async () => {
+    const t = await preview();
+    const o = await t.open();
+    const cookie = t.cookieOf(await t.enter(o.shown));
+    await pause(50);
+    const before = t.state.killed;
+    const q = http.get({ host: "127.0.0.1", port: t.port, path: "/slow-headers", headers: { cookie } }, () => undefined);
+    q.on("error", () => undefined);
+    await pause(300);
+    expect(t.p.activeStreams()).toBe(1);
+    q.destroy();
+    await pause(500);
+    expect(t.p.activeStreams()).toBe(0);
+    expect(t.state.killed).toBe(before + 1);
+  });
+
   it("listens on 127.0.0.1 only", async () => {
     const t = await preview();
     const hex = t.port.toString(16).toUpperCase().padStart(4, "0");
