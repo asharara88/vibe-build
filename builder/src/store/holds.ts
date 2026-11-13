@@ -23,7 +23,10 @@ import { randomBytes } from "node:crypto";
 import type pg from "pg";
 import { stepBudget, type ProfileLimits, type StepBudget } from "../gateway/hold.js";
 import { PRICE_TABLE_DATE } from "../gateway/prices.js";
+import { activeFreezeIn, frozenMessage, type Freeze } from "./freezes.js";
+import { gatewayLockKeySql } from "./liveness.js";
 import { hashToken } from "./projects.js";
+import { event, inTransaction, type Queryable } from "./tx.js";
 
 export interface Budget {
   cap: number;
@@ -55,8 +58,6 @@ export interface Hold {
   step_hold_id: string | null;
 }
 
-type Queryable = Pick<pg.PoolClient, "query">;
-
 /** Money is compared in millionths of a dollar, as whole numbers, so sums never drift. */
 export const micro = (usd: number): number => Math.round(usd * 1e6);
 
@@ -87,29 +88,6 @@ export function getBudget(pool: pg.Pool, projectId: string): Promise<Budget> {
   return readBudget(pool, projectId);
 }
 
-async function event(q: Queryable, projectId: string, kind: string, payload: Record<string, unknown>, step: string | null): Promise<string> {
-  return (await q.query<{ id: string }>("insert into events(project_id, kind, step, payload) values ($1, $2, $3, $4) returning id", [projectId, kind, step, JSON.stringify(payload)])).rows[0]!.id;
-}
-
-async function inTransaction<T>(pool: pg.Pool, projectId: string, fn: (c: pg.PoolClient) => Promise<T>): Promise<T> {
-  const client = await pool.connect();
-  try {
-    // "Read committed" is stated, not left to the database's default: under a stricter default a
-    // transaction would keep reading the budget as it stood before it waited for the lock.
-    await client.query("begin isolation level read committed");
-    // The lock that makes check-and-hold one step: every budget decision for a project waits here.
-    await client.query("select id from projects where id = $1 for update", [projectId]);
-    const out = await fn(client);
-    await client.query("commit");
-    return out;
-  } catch (err) {
-    await client.query("rollback").catch(() => undefined);
-    throw err;
-  } finally {
-    client.release();
-  }
-}
-
 /** Why a call was not let through by `openHold`. */
 export type OpenRefusal =
   /** spent + open holds + room reserved for running steps + this hold > cap */
@@ -119,11 +97,20 @@ export type OpenRefusal =
   /** A step call: its step has ended, though its token was still valid when the call arrived. */
   | "step_closed"
   /** A step call: a model, `max_tokens` or hold outside the limits its step's budget was worked out from. */
-  | "step_call_outside_limits";
+  | "step_call_outside_limits"
+  /** The project is frozen after a fault (package 1.4): a call's ending could not be recorded. */
+  | "project_frozen";
 
 export type OpenResult =
   | { ok: true; hold: Hold; budget: Budget }
-  | { ok: false; budget: Budget; reason: OpenRefusal; step?: { room: number; budget: number; perTurn: number; model: string; maxTokensCeiling: number; which?: "model" | "max_tokens" | "hold" } };
+  | {
+      ok: false;
+      budget: Budget;
+      reason: OpenRefusal;
+      step?: { room: number; budget: number; perTurn: number; model: string; maxTokensCeiling: number; which?: "model" | "max_tokens" | "hold" };
+      /** For `project_frozen`: the freeze. */
+      freeze?: Freeze;
+    };
 
 /**
  * Check the budget equation and, if the hold fits, open it. One transaction, under the
@@ -136,6 +123,9 @@ export type OpenResult =
  * the hold is more than the room left (`step_budget_used_up`), even when the project's free budget
  * would fit it. Otherwise the room goes down by the hold and the hold opens with the step's id. The
  * project's equation is still checked, with the hold counted once (it was inside the room).
+ *
+ * A frozen project (package 1.4) is refused first, under the same lock and before the budget is summed,
+ * with `project_frozen`: nothing opens, whatever its cap. The check never reads the cap.
  */
 export async function openHold(
   pool: pg.Pool,
@@ -154,6 +144,12 @@ export async function openHold(
   },
 ): Promise<OpenResult> {
   return inTransaction(pool, p.projectId, async (c) => {
+    const freeze = await activeFreezeIn(c, p.projectId);
+    if (freeze) {
+      const budget = await readBudget(c, p.projectId);
+      await event(c, p.projectId, "gateway.refused", { reason: "project_frozen", freeze_id: Number(freeze.id), journal_id: freeze.journal_id, this_hold_usd: p.amountUsd, path: p.path, ...(p.stepHoldId ? { step_hold_id: Number(p.stepHoldId) } : {}) }, p.step);
+      return { ok: false as const, budget, reason: "project_frozen" as const, freeze };
+    }
     const now = new Date();
     await expireHoldsIn(c, p.projectId, now);
     await closeStepsPastDeadlineIn(c, p.projectId, now);
@@ -243,8 +239,9 @@ export async function settleHold(
     const amountUsd = Number(hold.amount_usd);
     if (!Number.isFinite(p.actualUsd) || p.actualUsd < 0 || p.actualUsd >= 1e8) {
       // A cost that is not a real, non-negative number is not a cost that was read.
-      await c.query("update holds set kept_reason = coalesce(kept_reason, $2) where id = $1", [p.holdId, "the cost worked out from the answer was not a valid amount"]);
-      await event(c, p.projectId, "hold.kept", { hold_id: Number(hold.id), amount_usd: amountUsd, reason: "the cost worked out from the answer was not a valid amount", seen: p.call }, p.step);
+      // Kept and marked unreconciled, as every kept hold is since package 1.4 (design note 5.5, steps 2 and 3).
+      await c.query("update holds set kept_reason = coalesce(kept_reason, $2), unreconciled = true where id = $1", [p.holdId, "the cost worked out from the answer was not a valid amount"]);
+      await event(c, p.projectId, "hold.kept", { hold_id: Number(hold.id), amount_usd: amountUsd, reason: "the cost worked out from the answer was not a valid amount", unreconciled: true, seen: p.call }, p.step);
       return { settled: false, exceeded: false, amountUsd };
     }
     if (hold.kept_reason !== null && !hold.expired && !hold.unreconciled) {
@@ -255,13 +252,10 @@ export async function settleHold(
     if (hold.expired || hold.unreconciled) {
       // An expired or unreconciled hold is closed only by the owner's recorded action. An answer
       // that arrives afterwards is written down for him, and the hold stays open at its full amount.
-      await event(
-        c,
-        p.projectId,
-        "hold.kept",
-        { hold_id: Number(hold.id), amount_usd: amountUsd, reason: "answer arrived after the hold expired", seen: { ...p.call, cost_usd_as_read: p.actualUsd } },
-        p.step,
-      );
+      // Since package 1.4 a hold is also unreconciled when it was kept, or when the gateway that opened it
+      // was found gone; the reason says which (review of the 1.4 design, item 4).
+      const why = hold.expired ? "answer arrived after the hold expired" : `answer arrived after the hold was marked unreconciled (${hold.kept_reason ?? "no reason recorded"})`;
+      await event(c, p.projectId, "hold.kept", { hold_id: Number(hold.id), amount_usd: amountUsd, reason: why, seen: { ...p.call, cost_usd_as_read: p.actualUsd } }, p.step);
       return { settled: false, exceeded: false, amountUsd };
     }
     const exceeded = micro(p.actualUsd) > micro(amountUsd);
@@ -322,8 +316,9 @@ export async function releaseUnsentHold(pool: pg.Pool, p: { projectId: string; h
 
 /**
  * Record that a call ended in a way that does not tell the gateway what it cost. The hold is
- * NOT released: it stays open at its full amount. What was seen is recorded for information.
- * (Marking such holds for the owner's list and closing them is packages 1.4 and 1.5.)
+ * NOT released: it stays open at its full amount, and is marked unreconciled (design note 5.5, steps 2
+ * and 3; since package 1.4, for every reason). What was seen is recorded for information only.
+ * (Closing such holds is the owner's recorded action, package 1.5.)
  * It neither closes nor releases a hold, so it does not mark deadlines first: a hold it keeps after
  * its deadline stays open at its full amount either way, and is marked expired by the sweep, or by
  * the next admission, settlement or release in its project (review bot on 7ce5a33).
@@ -336,8 +331,8 @@ export async function keepHold(
     const r = await c.query<Hold>("select * from holds where id = $1 and project_id = $2 for update", [p.holdId, p.projectId]);
     const hold = r.rows[0];
     if (!hold || hold.state !== "open") return;
-    await c.query("update holds set kept_reason = coalesce(kept_reason, $2) where id = $1", [p.holdId, p.reason]);
-    await event(c, p.projectId, "hold.kept", { hold_id: Number(hold.id), amount_usd: Number(hold.amount_usd), reason: p.reason, seen: p.seen }, p.step);
+    await c.query("update holds set kept_reason = coalesce(kept_reason, $2), unreconciled = true where id = $1", [p.holdId, p.reason]);
+    await event(c, p.projectId, "hold.kept", { hold_id: Number(hold.id), amount_usd: Number(hold.amount_usd), reason: p.reason, unreconciled: true, seen: p.seen }, p.step);
   });
 }
 
@@ -390,32 +385,75 @@ export async function expireHolds(pool: pg.Pool, now: Date = new Date()): Promis
   return out;
 }
 
+/** Why a hold is kept when the gateway that opened it is found gone (package 1.4; proof row B9). */
+export const OWNER_GONE = "the gateway that opened it was found gone while the call was in flight, so whether the provider billed it is not known";
+
 /**
  * What a gateway does when it starts: find the holds that are open in the database. They were
  * left by an earlier gateway process (or by one still running beside this one). Each is kept at
- * its full amount and still counts as an open hold; a `hold.found_at_startup` event says so.
+ * its full amount and still counts as an open hold; a `hold.found_at_startup` event says so, once.
  * Holds past their deadline are marked expired by the same rule as at any other time.
+ *
+ * Since package 1.4 (proof row B9): for each open hold not yet unreconciled, the owner's liveness lock is
+ * tried (store/liveness.ts). If the owner is gone, the hold is marked unreconciled and kept, in the
+ * `hold.found_at_startup` event (`owner_gone: true`) when it is first found, or in a `hold.unreconciled`
+ * event when it was found at an earlier start, while its owner was still running. A running owner's holds
+ * are left alone. There is no later re-check: a hold whose owner goes after this start is marked at its
+ * deadline (step 4), or by the next gateway to start.
  */
-export async function recoverHolds(pool: pg.Pool, gateway: string, now: Date = new Date()): Promise<{ found: Hold[]; newlyNoted: number; expired: Hold[] }> {
+export async function recoverHolds(
+  pool: pg.Pool,
+  gateway: string,
+  now: Date = new Date(),
+): Promise<{ found: Hold[]; newlyNoted: number; ownerGone: number; expired: Hold[] }> {
   const expired = await expireHolds(pool, now);
   const r = await pool.query<Hold>("select * from holds where state = 'open' and gateway <> $1 order by project_id, id", [gateway]);
   let newlyNoted = 0;
+  let ownerGone = 0;
   for (const h of r.rows) {
-    if (h.seen_at_startup) continue; // noted at an earlier start; it is still open and still counts
+    if (h.seen_at_startup && h.unreconciled) continue; // noted already, and already unreconciled: it still counts
     await inTransaction(pool, h.project_id, async (c) => {
-      const u = await c.query("update holds set seen_at_startup = true where id = $1 and state = 'open' and not seen_at_startup", [h.id]);
-      if (u.rowCount !== 1) return;
-      newlyNoted++;
-      await event(
-        c,
-        h.project_id,
-        "hold.found_at_startup",
-        { hold_id: Number(h.id), amount_usd: Number(h.amount_usd), opened_by: h.gateway, found_by: gateway, kept: true, still_open: true, expired: h.expired },
-        h.step,
-      );
+      const cur = (await c.query<Hold>("select * from holds where id = $1 and project_id = $2 for update", [h.id, h.project_id])).rows[0];
+      if (!cur || cur.state !== "open" || (cur.seen_at_startup && cur.unreconciled)) return;
+      // The probe takes the owner's lock only for this transaction: if it can, nobody holds it.
+      const gone = !cur.unreconciled && (await c.query<{ gone: boolean }>(`select pg_try_advisory_xact_lock(${gatewayLockKeySql("$1")}) as gone`, [cur.gateway])).rows[0]!.gone;
+      if (gone) {
+        ownerGone++;
+        await c.query("update holds set unreconciled = true, kept_reason = coalesce(kept_reason, $2) where id = $1", [cur.id, OWNER_GONE]);
+      }
+      if (!cur.seen_at_startup) {
+        await c.query("update holds set seen_at_startup = true where id = $1", [cur.id]);
+        newlyNoted++;
+        await event(
+          c,
+          cur.project_id,
+          "hold.found_at_startup",
+          {
+            hold_id: Number(cur.id),
+            amount_usd: Number(cur.amount_usd),
+            opened_by: cur.gateway,
+            found_by: gateway,
+            kept: true,
+            still_open: true,
+            expired: cur.expired,
+            owner_gone: gone,
+            unreconciled: cur.unreconciled || gone,
+            ...(gone ? { reason: OWNER_GONE } : {}),
+          },
+          cur.step,
+        );
+      } else if (gone) {
+        await event(
+          c,
+          cur.project_id,
+          "hold.unreconciled",
+          { hold_id: Number(cur.id), amount_usd: Number(cur.amount_usd), opened_by: cur.gateway, found_by: gateway, reason: OWNER_GONE, kept: true, still_open: true },
+          cur.step,
+        );
+      }
     });
   }
-  return { found: r.rows, newlyNoted, expired };
+  return { found: r.rows, newlyNoted, ownerGone, expired };
 }
 
 export async function listHolds(pool: pg.Pool, projectId: string): Promise<Hold[]> {
@@ -578,7 +616,7 @@ export function stepRefusalMessage(b: Budget, sb: Pick<StepBudget, "budgetMicro"
 
 export type StepOpenResult =
   | { ok: true; stepHold: StepHoldRow; token: string; budget: Budget; stepBudget: StepBudget }
-  | { ok: false; budget: Budget; stepBudget: StepBudget; message: string; eventId: string };
+  | { ok: false; budget: Budget; stepBudget: StepBudget; message: string; eventId: string; reason: "budget_reached" | "project_frozen" };
 
 /**
  * The pre-step check (design note 5.5; package 1.3). Works out the step's budget first (`stepBudget`,
@@ -599,6 +637,14 @@ export async function openStepHold(
   }
   if (!(p.deadline instanceof Date) || Number.isNaN(p.deadline.getTime())) throw new Error("A step's deadline must be a valid time. The step was not started.");
   return inTransaction(pool, p.projectId, async (c) => {
+    // A frozen project starts no step (package 1.4), whatever its cap: refused first, under the lock.
+    const freeze = await activeFreezeIn(c, p.projectId);
+    if (freeze) {
+      const budget = await readBudget(c, p.projectId);
+      const message = frozenMessage(freeze, "step");
+      const eventId = await event(c, p.projectId, "step.refused", { reason: "project_frozen", freeze_id: Number(freeze.id), journal_id: freeze.journal_id, step_budget_usd: sb.budgetUsd, message }, p.stepId);
+      return { ok: false as const, budget, stepBudget: sb, message, eventId, reason: "project_frozen" as const };
+    }
     const now = new Date();
     await expireHoldsIn(c, p.projectId, now);
     await closeStepsPastDeadlineIn(c, p.projectId, now);
@@ -615,7 +661,7 @@ export async function openStepHold(
       const message = stepRefusalMessage(budget, sb);
       const lowest = Math.ceil((committedMicro(budget) + sb.budgetMicro) / 10_000) / 100;
       const eventId = await event(c, p.projectId, "step.refused", { reason: "budget_reached", ...budgetFigures(budget), ...figures, lowest_cap_usd: lowest, message, per_turn: sb.perTurn }, p.stepId);
-      return { ok: false as const, budget, stepBudget: sb, message, eventId };
+      return { ok: false as const, budget, stepBudget: sb, message, eventId, reason: "budget_reached" as const };
     }
     const s = (
       await c.query<StepHoldRow>(
