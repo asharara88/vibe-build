@@ -1,0 +1,21 @@
+Package 1.4, 13 Nov 2026, after merging package 1.3's branch at 1171f62 (which holds the integration branch at 8a0ee2a): the whole suite once, live tests included, at commit 676ec34
+Development machine (a cloud session), in builder/, under the lock shared with other sessions. TMPDIR <scratchpad>/m14-tmp (removed after).
+BUILDER_TEST_DATABASE_URL=postgres:///builder_test_pkg14?host=/var/run/postgresql
+Containers on the machine before the run: 0
+
+$ flock <scratchpad>/live-tests.lock npx vitest run
+waiting for the lock from 08:50:20 UTC
+started 08:50:20 UTC
+
+ RUN  v5.1.0 <scratchpad>/wt-14/builder
+
+
+ Test Files  12 passed (12)
+      Tests  295 passed (295)
+   Start at  08:50:21
+   Duration  130.14s (tests 99%)
+
+exit code: 0
+ended 08:52:31 UTC
+Containers on the machine just after the run, before the lock is released: 0
+TMPDIR <scratchpad>/m14-tmp removed after the run: yes

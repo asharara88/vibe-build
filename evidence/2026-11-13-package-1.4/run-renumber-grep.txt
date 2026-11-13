@@ -1,0 +1,332 @@
+Package 1.4, 13 Nov 2026: the renumbering's greps, after merging package 1.3's branch at 1171f62 (which holds the integration branch at 8a0ee2a), at commit 676ec34
+Package 1.4's known gaps 77 to 83 became 91 to 97, in order. The script below reads git objects only. It was run from the worktree's root.
+
+$ python3 -I <scratchpad>/m14-renumber-grep.py
+Files package 1.4's branch added or changed (4fd2845..43351e6): 32
+
+== A. Gap references numbered 67 to 97 in those files, at HEAD
+   'same as 1.3' = the line is byte-identical to a line of the same file on package 1.3's branch at 1171f62
+   'this branch' = a line package 1.4's branch wrote or changed
+   builder/src/store/holds.ts:481  gaps [81, 82]  [same as 1.3]
+   docs/BUILD-PLAN.md:286  gaps [81, 86, 87, 90, 85]  [same as 1.3]
+   docs/BUILD-PLAN.md:287  gaps [91, 97, 93]  [this branch]
+   docs/DECISIONS.md:107  gaps [67]  [same as 1.3]
+   docs/DECISIONS.md:108  gaps [67]  [same as 1.3]
+   docs/KNOWN-GAPS.md:35  gaps [84]  [same as 1.3] row 18
+   docs/KNOWN-GAPS.md:80  gaps [85]  [same as 1.3] row 64
+   docs/KNOWN-GAPS.md:90  gaps [83]  [same as 1.3] row 85
+   docs/KNOWN-GAPS.md:97  gaps [91]  [this branch] row 92
+   docs/QUESTIONS.md:11  gaps [67]  [same as 1.3]
+   docs/QUESTIONS.md:17  gaps [97]  [this branch]
+   docs/QUESTIONS.md:67  gaps [68]  [same as 1.3]
+   docs/SOURCES.md:257  gaps [92]  [this branch]
+   docs/STATUS.md:15  gaps [81, 90, 91, 97]  [this branch]
+   docs/design/stage-1.md:408  gaps [81, 82]  [same as 1.3]
+   docs/design/stage-1.md:410  gaps [97]  [this branch]
+   evidence/2026-11-13-package-1.4/failure-tests.md:35  gaps [97]  [this branch]
+   evidence/2026-11-13-package-1.4/failure-tests.md:44  gaps [93]  [this branch]
+   evidence/2026-11-13-package-1.4/failure-tests.md:48  gaps [91, 92, 93, 94]  [this branch]
+
+== A2. Lines this branch wrote that name 81 to 90 (package 1.3's numbers now; read each)
+   docs/STATUS.md:15: 1. **The pull requests of 1.3, then 1.4**, up to date with the integration branch (known gaps 81 to 90 and 91 to 97). 1.4's fixes after its review: tested, not reviewed. Evidence: `evidence/2026-11-13-package-1.3/` and `-1.4/`.
+
+== B. Former-number notes (the only places the old numbers 77 to 83 of package 1.4 stay)
+   docs/KNOWN-GAPS.md:86  row 81: "Numbered 67 on ..."
+   docs/KNOWN-GAPS.md:87  row 82: "Numbered 68 on ..."
+   docs/KNOWN-GAPS.md:88  row 83: "Numbered 69 on ..."
+   docs/KNOWN-GAPS.md:89  row 84: "Numbered 70 on ..."
+   docs/KNOWN-GAPS.md:90  row 85: "Numbered 71 on ..."
+   docs/KNOWN-GAPS.md:91  row 86: "Numbered 72 on ..."
+   docs/KNOWN-GAPS.md:92  row 87: "Numbered 73 on ..."
+   docs/KNOWN-GAPS.md:93  row 88: "Numbered 74 on ..."
+   docs/KNOWN-GAPS.md:94  row 89: "Numbered 75 on ..."
+   docs/KNOWN-GAPS.md:95  row 90: "Numbered 76 on ..."
+   docs/KNOWN-GAPS.md:96  row 91: "Numbered 77 on ..."
+   docs/KNOWN-GAPS.md:97  row 92: "Numbered 78 on ..."
+   docs/KNOWN-GAPS.md:98  row 93: "Numbered 79 on ..."
+   docs/KNOWN-GAPS.md:99  row 94: "Numbered 80 on ..."
+   docs/KNOWN-GAPS.md:100  row 95: "Numbered 81 on ..."
+   docs/KNOWN-GAPS.md:101  row 96: "Numbered 82 on ..."
+   docs/KNOWN-GAPS.md:102  row 97: "Numbered 83 on ..."
+
+== C. Rows of docs/KNOWN-GAPS.md from 60 on, at HEAD
+   76: | 60 | **On the development profile, a project container can reach every service listening on the machine, the
+   77: | 61 | **Licences not recorded until the inventory of 13 Nov 2026: the browser used for screenshots since walk
+   78: | 62 | **Package 1.2's hold rests on assumptions that only a real provider can confirm.** *(Numbered 45 on pac
+   79: | 63 | **A long plain call can be cut while the provider still bills it.** *(Added 13 Nov 2026, after that day
+   80: | 64 | **Nothing in the builder can change a project's cap, and no package in the plan adds a way.** *(Added 1
+   81: | 65 | **An event's time (`at`) is when its transaction began, not when the event was written.** *(Added 13 No
+   82: | 66 | **Package 1.2b's review notes, left open under the owner's rule of 13 Nov (at most two rounds; non-bloc
+   83: | 67 | **Docker in cloud development sessions starts without the limits its start script sets, and a file left
+   84: | 68 | **The approved-images check reads text; it does not see every way an image can be named.** *(Added 13 N
+   85: | 69 | **The sandbox's database health check can pass before the database listens on its network port.** *(Add
+   86: | 81 | **A step's prompt limit is not measured.** *(Added 13 Nov 2026, package 1.3.)* *(Numbered 67 on package
+   87: | 82 | **One engine turn is assumed to be one model call.** *(Added 13 Nov 2026, package 1.3.)* *(Numbered 68 
+   88: | 83 | **No real engine carries a step's token yet.** *(Added 13 Nov 2026, package 1.3.)* *(Numbered 69 on pac
+   89: | 84 | **Calls made without a step's token are still labelled by the caller's own header.** *(Added 13 Nov 202
+   90: | 85 | **A running step's reservation blocks a cap lowering, and nothing stops a running step.** *(Added 13 No
+   91: | 86 | **More than one step can hold a budget in one project at the same time.** *(Added 13 Nov 2026, package 
+   92: | 87 | **No test covers the cap check on a step's own call** (`builder/src/store/holds.ts:190`). *(Added 13 No
+   93: | 88 | **Closing steps past their deadline is tested in only two of the places that do it.** *(Added 13 Nov 20
+   94: | 89 | **No test covers giving an unsent step call's hold back to its step** (`releaseUnsentHold`, `holds.ts:3
+   95: | 90 | **The 402 `step_budget_reached` message rounds the room left down to the cent** (`builder/src/gateway/a
+   96: | 91 | **A gateway killed before a call's unrecorded ending reaches its journal file loses the freeze.** *(Add
+   97: | 92 | **That a journal line survives a power cut is designed, not shown.** *(Added 13 Nov 2026, package 1.4.)
+   98: | 93 | **The journal's edges are not shown or enforced.** *(Added 13 Nov 2026, package 1.4.)* *(Numbered 79 on
+   99: | 94 | **A starting gateway judges another gone only if that one's liveness lock is free.** *(Added 13 Nov 202
+   100: | 95 | **While a call's ending is unrecorded, every project on that gateway is refused, and other gateway proc
+   101: | 96 | **Nothing clears a frozen project yet.** *(Added 13 Nov 2026, package 1.4.)* *(Numbered 82 on package 1
+   102: | 97 | **"No settled call costs more than its hold" is checked on 1.4's runs, not enforced.** *(Added 13 Nov 2
+   numbers: [60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97]
+
+== D. Package 1.4's rows: HEAD's 91 to 97 against 43351e6's 77 to 83, after taking out the number, the note and the one reference changed
+   77 -> 91: identical otherwise
+   78 -> 92: identical otherwise
+   79 -> 93: identical otherwise
+   80 -> 94: identical otherwise
+   81 -> 95: identical otherwise
+   82 -> 96: identical otherwise
+   83 -> 97: identical otherwise
+
+== E. Package 1.3's rows 81 to 90 and the integration branch's 67 to 69: HEAD against 1171f62
+   row 67: byte-identical
+   row 68: byte-identical
+   row 69: byte-identical
+   row 81: byte-identical
+   row 82: byte-identical
+   row 83: byte-identical
+   row 84: byte-identical
+   row 85: byte-identical
+   row 86: byte-identical
+   row 87: byte-identical
+   row 88: byte-identical
+   row 89: byte-identical
+   row 90: byte-identical
+   row 67 against the integration branch at 8a0ee2a: byte-identical
+   row 68 against the integration branch at 8a0ee2a: byte-identical
+   row 69 against the integration branch at 8a0ee2a: byte-identical
+
+== F. Every gap reference numbered 91 to 97 anywhere in the repository at HEAD (all tracked text files)
+   docs/BUILD-PLAN.md:287  gaps [91, 97, 93]
+   docs/KNOWN-GAPS.md:97  gaps [91]
+   docs/QUESTIONS.md:17  gaps [97]
+   docs/SOURCES.md:257  gaps [92]
+   docs/STATUS.md:15  gaps [91, 97]
+   docs/design/stage-1.md:410  gaps [97]
+   evidence/2026-11-13-package-1.4/failure-tests.md:35  gaps [97]
+   evidence/2026-11-13-package-1.4/failure-tests.md:44  gaps [93]
+   evidence/2026-11-13-package-1.4/failure-tests.md:48  gaps [91, 92, 93, 94]
+
+== G. Any reference to package 1.4's old numbers 77 to 80 at HEAD outside the former-number notes (expected: none)
+   count: 0
+
+== H. Test names and run outputs of package 1.4 that name a gap (expected: none)
+   count: 0
+
+RESULT: no problem found
+exit code: 0
+
+$ git grep -nE '\b(77|73) (to|-|–) (83|79)\b|\b77–83\b|\b73–79\b' HEAD -- . ':!docs/licences/raw' | wc -l   # the old ranges written without the word "gap"
+0
+
+The script, as run:
+----8<----
+#!/usr/bin/env python3
+"""Grep proof for package 1.4's renumbering (77-83 -> 91-97) after merging package 1.3's branch.
+
+Run from the repository root of the worktree. Reads git objects only; writes nothing.
+"""
+import re
+import subprocess
+import sys
+
+BASE = "4fd2845"          # where package 1.4's branch left package 1.3's
+OLD14 = "43351e6"         # package 1.4's head before the merge
+B13 = "1171f62"           # package 1.3's head that was merged in
+INTEG = "8a0ee2a"         # the integration branch
+HEAD = "HEAD"
+
+
+def git(*args):
+    return subprocess.run(["git", *args], capture_output=True, check=True).stdout.decode("utf-8", "replace")
+
+
+def show(rev, path):
+    try:
+        return git("show", f"{rev}:{path}")
+    except subprocess.CalledProcessError:
+        return None
+
+
+# "gap 91", "gaps 41 and 97", "Gap 93", "known gaps 91 to 97", "gap 91's case", over a line break in a comment too.
+REF = re.compile(r"\b[Gg]aps?\b((?:[\s*]*(?:\d+(?:'s)?|to|and|or|,|\(extended\)))+)")
+NUM = re.compile(r"\b(\d+)\b")
+NOTE = re.compile(r"Numbered (\d+) on package 1\.[34]'s branch")
+ROW = re.compile(r"^\| (\d+) \|")
+
+
+def refs_in(text):
+    """Yield (line number, numbers) for each gap reference; a reference that starts at a line's end is
+    joined with the next line (a comment's ' * ' is skipped)."""
+    lines = text.split("\n")
+    for i, line in enumerate(lines):
+        joined = line
+        if re.search(r"\b[Gg]aps?\s*$", line) and i + 1 < len(lines):
+            joined = line + " " + lines[i + 1].lstrip(" */#")
+        nums = []
+        for m in REF.finditer(joined):
+            if m.start() >= len(line):
+                continue
+            nums += [int(n) for n in NUM.findall(m.group(1))]
+        if nums:
+            yield i + 1, nums, line
+
+
+files = git("diff", "--name-only", BASE, OLD14).split()
+print(f"Files package 1.4's branch added or changed ({BASE}..{OLD14}): {len(files)}")
+print()
+
+old14_rows = range(77, 84)
+in_range = lambda n: 67 <= n <= 97
+problems = []
+ambiguous = []
+
+print("== A. Gap references numbered 67 to 97 in those files, at HEAD")
+print("   'same as 1.3' = the line is byte-identical to a line of the same file on package 1.3's branch at", B13)
+print("   'this branch' = a line package 1.4's branch wrote or changed")
+for f in files:
+    text = show(HEAD, f)
+    if text is None:
+        continue
+    b13 = set((show(B13, f) or "").split("\n"))
+    for ln, nums, line in refs_in(text):
+        hit = [n for n in nums if in_range(n)]
+        if not hit:
+            continue
+        who = "same as 1.3" if line in b13 else "this branch"
+        if who == "this branch":
+            # 67 to 80 in a line this branch wrote would be an old number (package 1.3's 67 to 76 or this
+            # branch's 77 to 80). 81 to 83 are package 1.3's numbers now, so each such line is listed in
+            # section A2 to be read.
+            bad = [n for n in hit if 67 <= n <= 80]
+            if bad:
+                problems.append(f"{f}:{ln} this branch's line names {bad}")
+            if any(81 <= n <= 90 for n in hit):
+                ambiguous.append((f, ln, line))
+        if f == "docs/KNOWN-GAPS.md" and ROW.match(line):
+            row = int(ROW.match(line).group(1))
+            label = f"row {row}"
+        else:
+            label = ""
+        print(f"   {f}:{ln}  gaps {hit}  [{who}] {label}".rstrip())
+print()
+print("== A2. Lines this branch wrote that name 81 to 90 (package 1.3's numbers now; read each)")
+for f, ln, line in ambiguous:
+    print(f"   {f}:{ln}: {line}")
+print()
+
+print("== B. Former-number notes (the only places the old numbers 77 to 83 of package 1.4 stay)")
+kg = show(HEAD, "docs/KNOWN-GAPS.md").split("\n")
+for i, line in enumerate(kg):
+    m = ROW.match(line)
+    if not m:
+        continue
+    row = int(m.group(1))
+    for n in NOTE.finditer(line):
+        print(f"   docs/KNOWN-GAPS.md:{i+1}  row {row}: \"Numbered {n.group(1)} on ...\"")
+print()
+
+print("== C. Rows of docs/KNOWN-GAPS.md from 60 on, at HEAD")
+rows = []
+for i, line in enumerate(kg):
+    m = ROW.match(line)
+    if m and int(m.group(1)) >= 60:
+        rows.append(int(m.group(1)))
+        print(f"   {i+1}: {line[:110]}")
+expected = list(range(60, 70)) + list(range(81, 98))
+print(f"   numbers: {rows}")
+if rows != expected:
+    problems.append(f"rows are {rows}, expected {expected}")
+print()
+
+print("== D. Package 1.4's rows: HEAD's 91 to 97 against", OLD14 + "'s 77 to 83, after taking out the number, the note and the one reference changed")
+old = {int(ROW.match(l).group(1)): l for l in show(OLD14, "docs/KNOWN-GAPS.md").split("\n") if ROW.match(l)}
+new = {int(ROW.match(l).group(1)): l for l in kg if ROW.match(l)}
+for o in old14_rows:
+    n = o + 14
+    a = old[o][len(f"| {o} | "):]
+    b = new[n][len(f"| {n} | "):]
+    b = b.replace(f" *(Numbered {o} on package 1.4's branch until that branch was brought up to date with package 1.3's branch and the integration branch on 13 Nov 2026.)*", "")
+    b = b.replace("gap 91's case", "gap 77's case")
+    same = a == b
+    print(f"   {o} -> {n}: {'identical otherwise' if same else 'DIFFERS'}")
+    if not same:
+        problems.append(f"row {n} differs from old row {o} beyond the renumbering")
+print()
+
+print("== E. Package 1.3's rows 81 to 90 and the integration branch's 67 to 69: HEAD against", B13)
+old13 = {int(ROW.match(l).group(1)): l for l in show(B13, "docs/KNOWN-GAPS.md").split("\n") if ROW.match(l)}
+for n in list(range(67, 70)) + list(range(81, 91)):
+    same = old13.get(n) == new.get(n)
+    print(f"   row {n}: {'byte-identical' if same else 'DIFFERS'}")
+    if not same:
+        problems.append(f"row {n} differs from package 1.3's branch")
+integ_kg = {int(ROW.match(l).group(1)): l for l in show(INTEG, "docs/KNOWN-GAPS.md").split("\n") if ROW.match(l)}
+for n in range(67, 70):
+    same = integ_kg.get(n) == new.get(n)
+    print(f"   row {n} against the integration branch at {INTEG}: {'byte-identical' if same else 'DIFFERS'}")
+    if not same:
+        problems.append(f"row {n} differs from the integration branch")
+print()
+
+print("== F. Every gap reference numbered 91 to 97 anywhere in the repository at HEAD (all tracked text files)")
+for f in git("ls-files").split():
+    if f.startswith("docs/licences/raw/") or f.endswith((".png", ".jpg", ".webm", ".zip", ".pdf")):
+        continue
+    text = show(HEAD, f)
+    if text is None:
+        continue
+    for ln, nums, line in refs_in(text):
+        hit = [n for n in nums if 91 <= n <= 97]
+        if hit:
+            print(f"   {f}:{ln}  gaps {hit}")
+            if f not in files:
+                problems.append(f"{f}:{ln} names {hit} but is not one of package 1.4's files")
+print()
+
+print("== G. Any reference to package 1.4's old numbers 77 to 80 at HEAD outside the former-number notes (expected: none)")
+count = 0
+for f in git("ls-files").split():
+    if f.startswith("docs/licences/raw/"):
+        continue
+    text = show(HEAD, f)
+    if text is None:
+        continue
+    for ln, nums, line in refs_in(text):
+        hit = [n for n in nums if 77 <= n <= 80]
+        if hit:
+            count += 1
+            print(f"   {f}:{ln}  gaps {hit}")
+            problems.append(f"{f}:{ln} still names {hit}")
+print(f"   count: {count}")
+print()
+
+print("== H. Test names and run outputs of package 1.4 that name a gap (expected: none)")
+count = 0
+for f in files:
+    if not (f.startswith("evidence/2026-11-13-package-1.4/run-") or f.startswith("builder/test/")):
+        continue
+    text = show(HEAD, f) or ""
+    for ln, nums, line in refs_in(text):
+        count += 1
+        print(f"   {f}:{ln}  gaps {nums}")
+print(f"   count: {count}")
+print()
+
+if problems:
+    print("PROBLEMS:")
+    for p in problems:
+        print("  ", p)
+    sys.exit(1)
+print("RESULT: no problem found")
+----8<----

@@ -1,0 +1,12 @@
+Package 1.4, 13 Nov 2026, after merging package 1.3's branch at 1171f62 (which holds the integration branch at 8a0ee2a): type checks, at commit 676ec34
+Development machine (a cloud session), in builder/. Started 2026-11-13T08:49:56Z.
+
+$ npm run typecheck
+
+> builder@0.0.1 typecheck
+> tsc --noEmit
+
+exit code: 0
+
+$ npx tsc --noEmit --ignoreConfig --target ES2022 --module NodeNext --moduleResolution NodeNext --strict --noUncheckedIndexedAccess --esModuleInterop --skipLibCheck --types node scripts/demo-step-hold.ts scripts/change-cap.ts scripts/demo-cap.ts scripts/demo-isolation.ts  # outside tsconfig.json's "include"
+exit code: 0

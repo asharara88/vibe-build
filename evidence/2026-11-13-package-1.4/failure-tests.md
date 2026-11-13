@@ -43,6 +43,10 @@
 
 One adversarial review: **nothing blocking**, five notes. (1) A call that had passed the gate (or the liveness check) and waited at its counting call was still forwarded after the gate closed: now both are checked again just before the forward, and such a call gets the 503 with its hold given back (`app.ts:528-539`; B10 (8) and the liveness test at `:911`; controls C24, C25). (2) B10 (3) now shows the replay happens before the gateway listens (C26). (3) The checker reads a cap change with no new cap as unreadable, not as a NaN cap (`invariants.ts:146-147`; B13; C27). (4) Gap 93 now says a journal line that cannot be read leaves its project unfrozen. (5) The B13 figures above now match the trace file. Controls: `run-controls-after-review.txt` (4 run, 4 failed, each restored clean); 1.3's review fixes merged in first (no code).
 
+## After the merge with package 1.3's branch and the integration branch
+
+Package 1.3's branch at `1171f62`, which holds the integration branch at `8a0ee2a` (pull requests #8 and #28, question 18), merged in at `676ec34`. This package's known gaps 77 to 83 are now 91 to 97, in order, wherever this branch named them; package 1.3's are 81 to 90 and the integration branch's 67 to 69, both untouched: `run-renumber-grep.txt`. No code of this package names a container image; the approved-images check alone: 10 passed, exit 0 (`run-approved-images-after-merge.txt`). Run again at `676ec34`, test database `builder_test_pkg14`: `run-typecheck-after-merge.txt` (exit 0, twice); `run-licences-after-merge.txt` (RESULT: PASSED, exit 0); `run-tests-full-after-merge.txt` (the whole suite under the shared lock: 12 files, 295 passed; exit 0; no container after).
+
 ## Not shown, or resting on assumptions
 
 - B10 rests on a design no engineer has reviewed (gap 35). A SIGKILL before the journal line is on disk loses the freeze (gap 91); survival of a power cut is designed, not shown (gap 92); the journal's edges (gap 93); a gateway whose machine stops answering (gap 94).
