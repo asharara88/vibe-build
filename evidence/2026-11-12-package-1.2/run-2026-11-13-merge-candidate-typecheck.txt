@@ -1,0 +1,11 @@
+Package 1.2, 13 Nov 2026, the merge candidate (integration branch merged at 256d810, then the answers to the second re-read): the type check at commit a1a5059 (its code is that of 02d16bb; the commit after it adds control evidence only). Development machine, in builder/.
+$ npm run typecheck
+
+> builder@0.0.1 typecheck
+> tsc --noEmit
+
+exit code: 0
+
+scripts/ is outside the type check's own settings, so the demonstration script is type-checked on its own, with the same command line as the evidence of packages 0.6a and 2.1 (the gateway process it starts, test/b6-gateway-process.ts, is under test/ and so in the type check above):
+$ npx tsc --ignoreConfig --noEmit --strict --target ES2022 --module NodeNext --moduleResolution NodeNext --noUncheckedIndexedAccess --esModuleInterop --skipLibCheck --types node scripts/demo-cap.ts
+exit code: 0
