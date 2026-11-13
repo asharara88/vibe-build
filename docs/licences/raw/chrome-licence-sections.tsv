@@ -1,0 +1,296 @@
+component (section heading)	heading line	text lines	wording matched	families
+The Chromium Project	2	29	BSD-style (redistribution and use)	BSD-style
+2-dim General Purpose FFT (Fast Fourier/Cosine/Sine Transform) Package	33	5	unmatched	unmatched
+@bufbuild/protobuf	40	204	Apache-2.0	Apache-2.0
+@puppeteer/replay	246	204	Apache-2.0	Apache-2.0
+@vscode/web-custom-data	452	23	MIT/X11-style (permission is hereby granted, free of charge)	MIT-style
+Abseil	477	205	Apache-2.0	Apache-2.0
+Acorn, a tiny, fast JavaScript parser written in JavaScript.	684	23	MIT/X11-style (permission is hereby granted, free of charge)	MIT-style
+adler2	709	203	Apache-2.0	Apache-2.0
+Alliance for Open Media Video Codec	914	138	BSD-style (redistribution and use)	BSD-style
+Almost Native Graphics Layer Engine	1054	34	BSD-style (redistribution and use)	BSD-style
+Android Explicit Synchronization	1090	204	Apache-2.0	Apache-2.0
+Anonymous Tokens	1296	203	Apache-2.0	Apache-2.0
+anyhow	1501	178	Apache-2.0	Apache-2.0
+ARM_NEON_2_x86_SSE	1681	31	BSD-style (redistribution and use)	BSD-style
+array-init	1714	203	Apache-2.0	Apache-2.0
+base64	1919	203	Apache-2.0	Apache-2.0
+bitflags	2124	203	Apache-2.0	Apache-2.0
+BoringSSL	2329	240	Apache-2.0 ; BSD-style (redistribution and use)	Apache-2.0 ; BSD-style
+BoringSSL	2571	240	Apache-2.0 ; BSD-style (redistribution and use)	Apache-2.0 ; BSD-style
+Brotli	2813	21	MIT/X11-style (permission is hereby granted, free of charge)	MIT-style
+bytemuck	2836	63	Apache-2.0	Apache-2.0
+bytemuck_derive	2901	63	Apache-2.0	Apache-2.0
+byteorder	2966	23	MIT/X11-style (permission is hereby granted, free of charge)	MIT-style
+byteorder-lite	2991	23	MIT/X11-style (permission is hereby granted, free of charge)	MIT-style
+calendrical_calculations	3016	202	Apache-2.0	Apache-2.0
+cfg-if	3220	203	Apache-2.0	Apache-2.0
+CityHash	3425	21	MIT/X11-style (permission is hereby granted, free of charge)	MIT-style
+CityHash	3448	21	MIT/X11-style (permission is hereby granted, free of charge)	MIT-style
+CodeMirror 5	3471	23	MIT/X11-style (permission is hereby granted, free of charge)	MIT-style
+CodeMirror 6	3496	23	MIT/X11-style (permission is hereby granted, free of charge)	MIT-style
+codespan-reporting	3521	203	Apache-2.0	Apache-2.0
+Compact Encoding Detection	3726	203	Apache-2.0	Apache-2.0
+Compact Language Detector v3	3931	205	Apache-2.0	Apache-2.0
+compiler-rt	4138	313	Apache-2.0 ; MIT/X11-style (permission is hereby granted, free of charge)	Apache-2.0 ; MIT-style
+core_maths	4453	22	MIT/X11-style (permission is hereby granted, free of charge)	MIT-style
+cpuinfo	4477	29	BSD-style (redistribution and use)	BSD-style
+CrabbyAvif - Library for decoding AVIF files.	4508	204	Apache-2.0	Apache-2.0
+Crashpad	4714	204	Apache-2.0	Apache-2.0
+CRC32C	4920	30	BSD-style (redistribution and use)	BSD-style
+crc32fast	4952	204	Apache-2.0	Apache-2.0
+CSP Evaluator Core Library, a tool that allows developers to check if a Content Security Policy (CSP) serves as mitigation against XSS attacks	5158	203	Apache-2.0	Apache-2.0
+cxx	5363	178	Apache-2.0	Apache-2.0
+cxxbridge-macro	5543	178	Apache-2.0	Apache-2.0
+d3	5723	15	unmatched	unmatched
+dav1d is an AV1 decoder :)	5740	25	BSD-style (redistribution and use)	BSD-style
+Dawn	5767	212	Apache-2.0 ; BSD-style (redistribution and use)	Apache-2.0 ; BSD-style
+Dependencies sourced from the upstream `chromium` repository	5981	29	BSD-style (redistribution and use)	BSD-style
+derivre	6012	23	MIT/X11-style (permission is hereby granted, free of charge)	MIT-style
+Devtools-Frontend	6037	29	BSD-style (redistribution and use)	BSD-style
+diplomat	6068	203	Apache-2.0	Apache-2.0
+diplomat	6273	203	Apache-2.0	Apache-2.0
+diplomat-runtime	6478	203	Apache-2.0	Apache-2.0
+diplomat_core	6683	203	Apache-2.0	Apache-2.0
+diplomat_core	6888	203	Apache-2.0	Apache-2.0
+displaydoc	7093	203	Apache-2.0	Apache-2.0
+dom-distiller-js	7298	99	Apache-2.0 ; BSD-style (redistribution and use)	Apache-2.0 ; BSD-style
+dragonbox	7399	244	Apache-2.0 ; Boost Software License	Apache-2.0 ; BSL-1.0
+EGL-Registry	7645	61	Apache-2.0 ; MIT/X11-style (permission is hereby granted, free of charge)	Apache-2.0 ; MIT-style
+either	7708	203	Apache-2.0	Apache-2.0
+Emoji Segmenter	7913	204	Apache-2.0	Apache-2.0
+equivalent	8119	203	Apache-2.0	Apache-2.0
+Expat XML Parser	8324	23	MIT/X11-style (permission is hereby granted, free of charge)	MIT-style
+FarmHash	8349	21	MIT/X11-style (permission is hereby granted, free of charge)	MIT-style
+fast_float	8372	29	MIT/X11-style (permission is hereby granted, free of charge)	MIT-style
+fdeflate	8403	179	Apache-2.0	Apache-2.0
+federated-compute	8584	204	Apache-2.0	Apache-2.0
+ffmpeg	8790	996	GPL notice (under the terms of / licensed under the GNU General Public License) ; LGPL-2.1 full text ; LGPL notice or name ; BSD-style (redistribution and use) ; MIT/X11-style (permission is hereby granted, free of charge)	GPL ; LGPL ; BSD-style ; MIT-style
+fft	9788	27	ISC-style (permission to use, copy, modify, and/or distribute)	ISC-style
+Fiat-Crypto: Synthesizing Correct-by-Construction Code for Cryptographic Primitives	9817	17	Apache-2.0	Apache-2.0
+flac	9836	31	BSD-style (redistribution and use)	BSD-style
+FlatBuffers	9869	204	Apache-2.0	Apache-2.0
+flate2	10075	203	Apache-2.0	Apache-2.0
+foldhash	10280	20	zlib-style (provided as-is ... altered source versions)	Zlib-style
+font-types	10302	69	Apache-2.0	Apache-2.0
+fontconfig	10373	202	MIT/X11-style (permission is hereby granted, free of charge) ; public domain statement	MIT-style ; Public domain
+FP16	10577	14	MIT/X11-style (permission is hereby granted, free of charge)	MIT-style
+FreeType	10593	171	FreeType Project License ; Independent JPEG Group	FTL ; IJG
+FXDiv	10766	12	MIT/X11-style (permission is hereby granted, free of charge)	MIT-style
+gemmlowp	10780	204	Apache-2.0	Apache-2.0
+General Purpose FFT (Fast Fourier/Cosine/Sine Transform) Package	10986	10	unmatched	unmatched
+Google Double Conversion	10998	28	BSD-style (redistribution and use)	BSD-style
+google-glog's symbolization library	11028	30	BSD-style (redistribution and use)	BSD-style
+googleapis	11060	203	Apache-2.0	Apache-2.0
+gtk	11265	483	LGPL-2.0 (Library GPL) full text ; LGPL notice or name	LGPL
+harfbuzz	11750	44	unmatched	unmatched
+harfrust	11796	24	MIT/X11-style (permission is hereby granted, free of charge)	MIT-style
+hashbrown	11822	203	Apache-2.0	Apache-2.0
+heck	12027	203	Apache-2.0	Apache-2.0
+Highway: C++ library for SIMD	12232	202	Apache-2.0	Apache-2.0
+hmac-sha256	12436	17	unmatched	unmatched
+hyphenation-patterns	12455	2684	GPL notice (under the terms of / licensed under the GNU General Public License) ; LGPL-2.1 full text ; LGPL notice or name ; MPL-1.1 notice ; MPL-2.0 text ; BSD-style (redistribution and use) ; MIT/X11-style (permission is hereby granted, free of charge) ; public domain statement	GPL ; LGPL ; MPL ; BSD-style ; MIT-style ; Public domain
+iamf_tools	15141	198	Apache-2.0 ; BSD-style (redistribution and use)	Apache-2.0 ; BSD-style
+icu	15341	570	GPL notice (under the terms of / licensed under the GNU General Public License) ; BSD-style (redistribution and use) ; MIT/X11-style (permission is hereby granted, free of charge) ; Unicode licence ; public domain statement	GPL ; BSD-style ; MIT-style ; Unicode ; Public domain
+icu_calendar	15913	48	MIT/X11-style (permission is hereby granted, free of charge) ; Unicode licence	MIT-style ; Unicode
+icu_calendar_data	15963	48	MIT/X11-style (permission is hereby granted, free of charge) ; Unicode licence	MIT-style ; Unicode
+icu_capi	16013	48	MIT/X11-style (permission is hereby granted, free of charge) ; Unicode licence	MIT-style ; Unicode
+icu_collections	16063	48	MIT/X11-style (permission is hereby granted, free of charge) ; Unicode licence	MIT-style ; Unicode
+icu_locale	16113	48	MIT/X11-style (permission is hereby granted, free of charge) ; Unicode licence	MIT-style ; Unicode
+icu_locale_core	16163	48	MIT/X11-style (permission is hereby granted, free of charge) ; Unicode licence	MIT-style ; Unicode
+icu_locale_data	16213	48	MIT/X11-style (permission is hereby granted, free of charge) ; Unicode licence	MIT-style ; Unicode
+icu_normalizer	16263	48	MIT/X11-style (permission is hereby granted, free of charge) ; Unicode licence	MIT-style ; Unicode
+icu_normalizer_data	16313	48	MIT/X11-style (permission is hereby granted, free of charge) ; Unicode licence	MIT-style ; Unicode
+icu_provider	16363	48	MIT/X11-style (permission is hereby granted, free of charge) ; Unicode licence	MIT-style ; Unicode
+icu_provider_adapters	16413	48	MIT/X11-style (permission is hereby granted, free of charge) ; Unicode licence	MIT-style ; Unicode
+image	16463	179	Apache-2.0	Apache-2.0
+In line A-law and u-law conversion routines	16644	16	public domain statement	Public domain
+indexmap	16662	203	Apache-2.0	Apache-2.0
+inspector protocol	16867	29	BSD-style (redistribution and use)	BSD-style
+inspector protocol	16898	29	BSD-style (redistribution and use)	BSD-style
+International Phone Number Library	16929	178	Apache-2.0	Apache-2.0
+intl-messageformat	17109	35	unmatched	unmatched
+ipcz	17146	29	BSD-style (redistribution and use)	BSD-style
+itoa	17177	178	Apache-2.0	Apache-2.0
+ixdtf	17357	48	MIT/X11-style (permission is hereby granted, free of charge) ; Unicode licence	MIT-style ; Unicode
+jpeg-encoder	17407	272	Apache-2.0 ; Independent JPEG Group	Apache-2.0 ; IJG
+json5	17681	25	MIT/X11-style (permission is hereby granted, free of charge)	MIT-style
+jsoncpp	17708	57	MIT/X11-style (permission is hereby granted, free of charge) ; public domain statement	MIT-style ; Public domain
+jsoncpp	17767	57	MIT/X11-style (permission is hereby granted, free of charge) ; public domain statement	MIT-style ; Public domain
+jxl	17826	29	BSD-style (redistribution and use)	BSD-style
+jxl_macros	17857	29	BSD-style (redistribution and use)	BSD-style
+jxl_simd	17888	29	BSD-style (redistribution and use)	BSD-style
+jxl_transforms	17919	29	BSD-style (redistribution and use)	BSD-style
+lazy_static	17950	203	Apache-2.0	Apache-2.0
+legacy-javascript	18155	204	Apache-2.0	Apache-2.0
+LevelDB: A Fast Persistent Key-Value Store	18361	29	BSD-style (redistribution and use)	BSD-style
+libc	18392	178	Apache-2.0	Apache-2.0
+libgav1	18572	204	Apache-2.0	Apache-2.0
+libjpeg-turbo	18778	238	BSD-style (redistribution and use) ; Independent JPEG Group	BSD-style ; IJG
+libm	19018	260	Apache-2.0 ; MIT/X11-style (permission is hereby granted, free of charge)	Apache-2.0 ; MIT-style
+libsrtp	19280	37	BSD-style (redistribution and use)	BSD-style
+libutf	19319	67	MIT/X11-style (permission is hereby granted, free of charge)	MIT-style
+libvpx	19388	57	BSD-style (redistribution and use)	BSD-style
+libxml	19447	26	MIT/X11-style (permission is hereby granted, free of charge)	MIT-style
+libxslt	19475	55	MIT/X11-style (permission is hereby granted, free of charge)	MIT-style
+libyuv	19532	31	BSD-style (redistribution and use)	BSD-style
+libzip	19565	32	BSD-style (redistribution and use)	BSD-style
+Lighthouse	19599	204	Apache-2.0	Apache-2.0
+Lighthouse i18n.js	19805	204	Apache-2.0	Apache-2.0
+Lit	20011	29	BSD-style (redistribution and use)	BSD-style
+Lit	20042	29	BSD-style (redistribution and use)	BSD-style
+Lit	20073	29	BSD-style (redistribution and use)	BSD-style
+litemap	20104	48	MIT/X11-style (permission is hereby granted, free of charge) ; Unicode licence	MIT-style ; Unicode
+LiteRT	20154	203	Apache-2.0	Apache-2.0
+llguidance	20359	23	MIT/X11-style (permission is hereby granted, free of charge)	MIT-style
+llvm-libc	20384	280	Apache-2.0 ; MIT/X11-style (permission is hereby granted, free of charge)	Apache-2.0 ; MIT-style
+log	20666	203	Apache-2.0	Apache-2.0
+Lottie Web	20871	69	MIT/X11-style (permission is hereby granted, free of charge)	MIT-style
+Marked	20942	41	BSD-style (redistribution and use) ; MIT/X11-style (permission is hereby granted, free of charge)	BSD-style ; MIT-style
+Material color utilities	20985	203	Apache-2.0	Apache-2.0
+Mediapipe Tasks Vision	21190	204	Apache-2.0	Apache-2.0
+memchr	21396	23	MIT/X11-style (permission is hereby granted, free of charge)	MIT-style
+messageformat	21421	204	Apache-2.0	Apache-2.0
+Metrics Protos	21627	29	BSD-style (redistribution and use)	BSD-style
+Microsoft Authentication Library for JavaScript (MSAL.js) for Browser-Based Single-Page Applications	21658	23	MIT/X11-style (permission is hereby granted, free of charge)	MIT-style
+minigbm	21683	29	BSD-style (redistribution and use)	BSD-style
+miniz_oxide	21714	179	Apache-2.0	Apache-2.0
+modp base64 decoder	21895	35	BSD-style (redistribution and use)	BSD-style
+moxcms	21932	203	Apache-2.0	Apache-2.0
+num-complex	22137	203	Apache-2.0	Apache-2.0
+num-derive	22342	203	Apache-2.0	Apache-2.0
+num-integer	22547	203	Apache-2.0	Apache-2.0
+num-traits	22752	203	Apache-2.0	Apache-2.0
+NVidia Control X Extension Library	22957	23	MIT/X11-style (permission is hereby granted, free of charge)	MIT-style
+oak	22982	204	Apache-2.0	Apache-2.0
+once_cell	23188	203	Apache-2.0	Apache-2.0
+One Euro Filter	23393	32	BSD-style (redistribution and use)	BSD-style
+Open Screen Protocol Library	23427	29	BSD-style (redistribution and use)	BSD-style
+OpenH264	23458	24	BSD-style (redistribution and use)	BSD-style
+opus	23484	46	BSD-style (redistribution and use)	BSD-style
+OTS (OpenType Sanitizer)	23532	29	BSD-style (redistribution and use)	BSD-style
+Paul Hsieh's SuperFastHash	23563	29	BSD-style (redistribution and use)	BSD-style
+PDFium	23594	232	Apache-2.0 ; BSD-style (redistribution and use)	Apache-2.0 ; BSD-style
+Perfetto	23828	287	Apache-2.0 ; BSD-style (redistribution and use)	Apache-2.0 ; BSD-style
+PFFFT: a pretty fast FFT.	24117	47	unmatched	unmatched
+plasma-wayland-protocols	24166	512	LGPL-2.1 full text ; LGPL notice or name	LGPL
+png	24680	203	Apache-2.0	Apache-2.0
+Polymer	24885	29	BSD-style (redistribution and use)	BSD-style
+potential_utf	24916	48	MIT/X11-style (permission is hereby granted, free of charge) ; Unicode licence	MIT-style ; Unicode
+primal-check	24966	203	Apache-2.0	Apache-2.0
+proc-macro2	25171	178	Apache-2.0	Apache-2.0
+Protocol Buffers	25351	34	BSD-style (redistribution and use)	BSD-style
+Protocol Buffers (javascript)	25387	31	BSD-style (redistribution and use)	BSD-style
+PSM (Private Set Membership) client side	25420	204	Apache-2.0	Apache-2.0
+pthreadpool	25626	28	BSD-style (redistribution and use)	BSD-style
+Puppeteer Core	25656	204	Apache-2.0	Apache-2.0
+pxfm	25862	203	Apache-2.0	Apache-2.0
+QUICHE	26067	29	BSD-style (redistribution and use)	BSD-style
+quote	26098	178	Apache-2.0	Apache-2.0
+rapidhash	26278	35	BSD-style (redistribution and use)	BSD-style
+re2 - an efficient, principled regular expression library	26315	29	BSD-style (redistribution and use)	BSD-style
+read-fonts	26346	69	Apache-2.0	Apache-2.0
+Recurrent neural network for audio noise reduction	26417	33	BSD-style (redistribution and use)	BSD-style
+ref-cast	26452	178	Apache-2.0	Apache-2.0
+ref-cast-impl	26632	178	Apache-2.0	Apache-2.0
+regex-lite	26812	203	Apache-2.0	Apache-2.0
+regex-syntax	27017	203	Apache-2.0	Apache-2.0
+resb	27222	48	MIT/X11-style (permission is hereby granted, free of charge) ; Unicode licence	MIT-style ; Unicode
+rustfft	27272	204	Apache-2.0	Apache-2.0
+rustversion	27478	178	Apache-2.0	Apache-2.0
+ryu	27658	178	Apache-2.0	Apache-2.0
+Search Engines resources	27838	29	BSD-style (redistribution and use)	BSD-style
+serde	27869	178	Apache-2.0	Apache-2.0
+serde_core	28049	178	Apache-2.0	Apache-2.0
+serde_derive	28229	178	Apache-2.0	Apache-2.0
+serde_json	28409	178	Apache-2.0	Apache-2.0
+serde_json_lenient	28589	178	Apache-2.0	Apache-2.0
+sfv	28769	203	Apache-2.0	Apache-2.0
+simd-adler32	28974	23	MIT/X11-style (permission is hereby granted, free of charge)	MIT-style
+simdutf unicode transcoder	28999	20	MIT/X11-style (permission is hereby granted, free of charge)	MIT-style
+Simple Homomorphic Encryption Library with Lattices	29021	203	Apache-2.0	Apache-2.0
+skrifa	29226	69	Apache-2.0	Apache-2.0
+smallvec	29297	203	Apache-2.0	Apache-2.0
+SMHasher	29502	25	MIT/X11-style (permission is hereby granted, free of charge) ; public domain statement	MIT-style ; Public domain
+Snappy: A fast compressor/decompressor	29529	56	BSD-style (redistribution and use) ; Creative Commons Attribution (not ShareAlike) ; public domain statement	BSD-style ; CC-BY ; Public domain
+source-map-scopes-codec	29587	27	BSD-style (redistribution and use)	BSD-style
+Speech Dispatcher	29616	504	LGPL-2.1 full text ; LGPL notice or name	LGPL
+SPIR-V Headers	30122	204	Apache-2.0	Apache-2.0
+SPIR-V Tools	30328	204	Apache-2.0	Apache-2.0
+SPIRV-Headers	30534	504	MIT/X11-style (permission is hereby granted, free of charge) ; Creative Commons Attribution (not ShareAlike) ; CC0 / public domain dedication ; public domain statement	MIT-style ; CC-BY ; CC0/PD ; Public domain
+SPIRV-Tools	31040	204	Apache-2.0	Apache-2.0
+spl sqrt floor	31246	29	public domain statement	Public domain
+sqlite	31277	8	unmatched	unmatched
+stable_deref_trait	31287	203	Apache-2.0	Apache-2.0
+strck	31492	10	MIT/X11-style (permission is hereby granted, free of charge)	MIT-style
+strength_reduce	31504	204	Apache-2.0	Apache-2.0
+strum	31710	23	MIT/X11-style (permission is hereby granted, free of charge)	MIT-style
+strum_macros	31735	23	MIT/X11-style (permission is hereby granted, free of charge)	MIT-style
+subtle	31760	31	BSD-style (redistribution and use)	BSD-style
+SwiftShader	31793	204	Apache-2.0	Apache-2.0
+symphonia	31999	374	MPL-2.0 text	MPL
+symphonia-bundle-flac	32375	374	MPL-2.0 text	MPL
+symphonia-bundle-mp3	32751	374	MPL-2.0 text	MPL
+symphonia-codec-pcm	33127	374	MPL-2.0 text	MPL
+symphonia-codec-vorbis	33503	374	MPL-2.0 text	MPL
+symphonia-common	33879	374	MPL-2.0 text	MPL
+symphonia-core	34255	374	MPL-2.0 text	MPL
+symphonia-metadata	34631	374	MPL-2.0 text	MPL
+syn	35007	178	Apache-2.0	Apache-2.0
+syn	35187	178	Apache-2.0	Apache-2.0
+synstructure	35367	9	MIT/X11-style (permission is hereby granted, free of charge)	MIT-style
+temporal_capi	35378	203	Apache-2.0	Apache-2.0
+temporal_rs	35583	203	Apache-2.0	Apache-2.0
+TensorFlow Lite	35788	205	Apache-2.0	Apache-2.0
+TensorFlow Lite Support	35995	204	Apache-2.0	Apache-2.0
+TensorFlow Text	36201	205	Apache-2.0	Apache-2.0
+termcolor	36408	23	MIT/X11-style (permission is hereby granted, free of charge)	MIT-style
+The Diff Match and Patch libraries offer robust algorithms to perform the operations required for synchronizing plain text.	36433	203	Apache-2.0	Apache-2.0
+The ITU G.722 codec, encode and decode part.	36638	22	public domain statement	Public domain
+The ruy matrix multiplication library	36662	204	Apache-2.0	Apache-2.0
+third-party-web	36868	22	MIT/X11-style (permission is hereby granted, free of charge)	MIT-style
+thiserror	36892	178	Apache-2.0	Apache-2.0
+thiserror-impl	37072	178	Apache-2.0	Apache-2.0
+timezone_provider	37252	203	Apache-2.0	Apache-2.0
+tinystr	37457	48	MIT/X11-style (permission is hereby granted, free of charge) ; Unicode licence	MIT-style ; Unicode
+toktrie	37507	23	MIT/X11-style (permission is hereby granted, free of charge)	MIT-style
+transpose	37532	203	Apache-2.0	Apache-2.0
+unicode-ident	37737	218	Apache-2.0 ; MIT/X11-style (permission is hereby granted, free of charge) ; Unicode licence	Apache-2.0 ; MIT-style ; Unicode
+unicode-width	37957	203	Apache-2.0	Apache-2.0
+URI Template Parser	38162	204	Apache-2.0	Apache-2.0
+URL Pattern Library	38368	24	MIT/X11-style (permission is hereby granted, free of charge)	MIT-style
+utf16_iter	38394	204	Apache-2.0	Apache-2.0
+utf8_iter	38600	204	Apache-2.0	Apache-2.0
+V8 fork of fdlibm	38806	8	unmatched	unmatched
+Volk Meta loader for Vulkan API	38816	21	MIT/X11-style (permission is hereby granted, free of charge)	MIT-style
+Vulkan API headers	38839	204	Apache-2.0	Apache-2.0
+Vulkan Loader Components	39045	209	Apache-2.0	Apache-2.0
+VulkanMemoryAllocator	39256	21	MIT/X11-style (permission is hereby granted, free of charge)	MIT-style
+Wasmparser	39279	179	Apache-2.0	Apache-2.0
+wayland	39460	31	MIT/X11-style (permission is hereby granted, free of charge)	MIT-style
+wayland-protocols	39493	35	MIT/X11-style (permission is hereby granted, free of charge)	MIT-style
+Web Vitals	39530	204	Apache-2.0	Apache-2.0
+WebKit	39736	969	LGPL-2.1 full text ; LGPL-2.0 (Library GPL) full text ; LGPL notice or name ; BSD-style (redistribution and use)	LGPL ; BSD-style
+WebM container parser and writer.	40707	56	BSD-style (redistribution and use)	BSD-style
+WebP image encoder/decoder	40765	56	BSD-style (redistribution and use)	BSD-style
+WebRTC	40823	31	BSD-style (redistribution and use)	BSD-style
+woff2	40856	21	MIT/X11-style (permission is hereby granted, free of charge)	MIT-style
+write16	40879	204	Apache-2.0	Apache-2.0
+writeable	41085	48	MIT/X11-style (permission is hereby granted, free of charge) ; Unicode licence	MIT-style ; Unicode
+Wuffs (Wrangling Untrusted File Formats Safely)	41135	213	Apache-2.0 ; MIT/X11-style (permission is hereby granted, free of charge)	Apache-2.0 ; MIT-style
+xdg-user-dirs	41350	23	MIT/X11-style (permission is hereby granted, free of charge)	MIT-style
+xml	41375	23	MIT/X11-style (permission is hereby granted, free of charge)	MIT-style
+XNNPACK	41400	33	BSD-style (redistribution and use)	BSD-style
+yoke	41435	48	MIT/X11-style (permission is hereby granted, free of charge) ; Unicode licence	MIT-style ; Unicode
+yoke-derive	41485	48	MIT/X11-style (permission is hereby granted, free of charge) ; Unicode licence	MIT-style ; Unicode
+zerofrom	41535	48	MIT/X11-style (permission is hereby granted, free of charge) ; Unicode licence	MIT-style ; Unicode
+zerofrom-derive	41585	48	MIT/X11-style (permission is hereby granted, free of charge) ; Unicode licence	MIT-style ; Unicode
+zerotrie	41635	48	MIT/X11-style (permission is hereby granted, free of charge) ; Unicode licence	MIT-style ; Unicode
+zerovec	41685	48	MIT/X11-style (permission is hereby granted, free of charge) ; Unicode licence	MIT-style ; Unicode
+zerovec-derive	41735	48	MIT/X11-style (permission is hereby granted, free of charge) ; Unicode licence	MIT-style ; Unicode
+zlib	41785	24	zlib-style (provided as-is ... altered source versions)	Zlib-style
+zmij	41811	25	MIT/X11-style (permission is hereby granted, free of charge)	MIT-style
+zoneinfo64	41838	48	MIT/X11-style (permission is hereby granted, free of charge) ; Unicode licence	MIT-style ; Unicode
+Zstandard	41888	32	BSD-style (redistribution and use)	BSD-style
+zune-core	41922	203	Apache-2.0	Apache-2.0
+zune-jpeg	42127	203	Apache-2.0	Apache-2.0

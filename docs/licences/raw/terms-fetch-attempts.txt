@@ -1,0 +1,33 @@
+# Attempts to read the terms the browser's ABOUT file points to, and any Chrome for Testing terms.
+# 13 Nov 2026, from this cloud session, through the session's network proxy, with curl 8.5.0.
+# Each line: what was tried -> what came back (copied from the terminal).
+
+chrome://terms (the address ABOUT gives)
+  -> curl: (1) Protocol "chrome" not supported or disabled in libcurl
+  (chrome:// is a page built into the browser, not a web address. Showing it would mean starting the browser,
+   which is held while question 11 is open, so it was not done. The text "Terms of Service" was searched for
+   in the zip's program file and its three .pak resource files without running them: 0 matches in each.)
+
+https://www.google.com/chrome/terms/
+  -> curl: (56) CONNECT tunnel failed, response 403        (refused by the session proxy; not read)
+https://policies.google.com/terms
+  -> curl: (56) CONNECT tunnel failed, response 403        (refused by the session proxy; not read)
+https://googlechromelabs.github.io/chrome-for-testing/
+  -> curl: (56) CONNECT tunnel failed, response 403        (refused by the session proxy; not read)
+https://developer.chrome.com/blog/chrome-for-testing
+  -> curl: (56) CONNECT tunnel failed, response 403        (refused by the session proxy; not read)
+https://github.com/GoogleChromeLabs/chrome-for-testing
+  -> HTTP 403, body: {"message":"GitHub access to this repository is not enabled for this session. ..."}  (not read)
+https://raw.githubusercontent.com/GoogleChromeLabs/chrome-for-testing/main/README.md
+  -> HTTP 200, 13,383 bytes, SHA-256 36357a50c1dcfffbc4643c24762e6a1a23352bfe64a65a790ee2602aaedcfd93
+     Read: it describes the download addresses and supported builds; the words "licence/license", "terms"
+     and "legal" do not appear in it.
+https://raw.githubusercontent.com/GoogleChromeLabs/chrome-for-testing/main/LICENSE
+  -> HTTP 200, 11,360 bytes, SHA-256 aac73b3148f6d1d7111dbca32099f68d26c644c6813ae1e4f05f6579aa2663fe
+     Read: the Apache License, Version 2.0. It is the licence file of that repository (its scripts and
+     pages). Nothing read says whether it also covers the browser builds the repository points to; that
+     is not assumed here.
+
+Also fetched for the database image (no licence file inside the image):
+https://raw.githubusercontent.com/postgres/postgres/REL_16_15/COPYRIGHT -> HTTP 200, 1,198 bytes (raw/postgresql-16.15-COPYRIGHT.txt)
+https://raw.githubusercontent.com/tianon/gosu/1.19/LICENSE -> HTTP 200, 11,358 bytes (raw/gosu-1.19-LICENSE.txt)
