@@ -3,7 +3,8 @@
  *
  * - Holds the real model key. The engine's container holds a project token instead.
  * - Forwards only the two paths the engine needs; every other path is refused and logged.
- * - Before forwarding a metered call it works out the most the call can cost (a hold) and
+ * - Before forwarding a metered call it works out a hold for it (a reservation from the provider's
+ *   token estimate plus an assumed margin, not a proven ceiling on the bill; see hold.ts) and
  *   checks the budget equation in one locked database transaction:
  *       spent + open holds + this call's hold <= cap.
  *   If it does not fit, nothing is forwarded.

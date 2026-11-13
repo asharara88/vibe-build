@@ -108,7 +108,7 @@ export function guardRequest(body: MeteredRequest, profile: ProfileLimits): Refu
     };
   }
   if (typeof body.max_tokens !== "number" || !Number.isInteger(body.max_tokens) || body.max_tokens <= 0) {
-    return { reason: "max_tokens_missing", message: "The request does not state max_tokens as a whole number above zero, so the most it could cost cannot be worked out." };
+    return { reason: "max_tokens_missing", message: "The request does not state max_tokens as a whole number above zero, so its hold cannot be worked out." };
   }
   if (body.max_tokens > profile.maxTokensCeiling) {
     return {

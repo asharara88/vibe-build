@@ -22,6 +22,8 @@ const faults: string[] = [];
 let forwarded = 0;
 /** The last metered request body the stand-in received, as text. */
 let lastForwardedBody = "";
+/** For proof row B1: per project, how many open holds the database had when each call reached the stand-in. */
+const openHoldsAtForward = new Map<string, number[]>();
 
 const PROFILES: Record<string, ProfileLimits> = {
   ...DEFAULT_PROFILES,
@@ -56,9 +58,24 @@ function standInProvider() {
     forwarded++;
     seenKeys.push(c.req.header("x-api-key") ?? "(none)");
     lastForwardedBody = await c.req.text();
-    const body = JSON.parse(lastForwardedBody) as { model: string; stream?: boolean; max_tokens?: number; metadata?: { test?: string } };
+    const body = JSON.parse(lastForwardedBody) as { model: string; stream?: boolean; max_tokens?: number; system?: unknown; metadata?: { test?: string; project?: string } };
     const mode = body.metadata?.test ?? "";
     const ok = (usage: unknown, model: string = body.model) => c.json({ id: "msg_test", type: "message", model, content: [{ type: "text", text: "hello" }], usage });
+    if (mode === "note-open-holds") {
+      // Proof row B1: what the database says at the moment the call reaches the provider. Then answer as usual.
+      const project = String(body.metadata?.project ?? "");
+      const r = await pool.query<{ n: number }>("select count(*)::int as n from holds where project_id = $1 and state = 'open'", [project]);
+      openHoldsAtForward.set(project, [...(openHoldsAtForward.get(project) ?? []), r.rows[0]!.n]);
+    }
+    if (mode === "bill-above-count") {
+      // Proof row B16: the count is "an estimate". Bill 4% more prompt tokens than were counted, all at the
+      // dearest input rate (one-hour cache writes), and the whole of max_tokens as output.
+      const counted = Number(/^count:(\d+)$/.exec(typeof body.system === "string" ? body.system : "")?.[1] ?? 42);
+      const billed = counted + Math.ceil((counted * 4) / 100);
+      return ok({ input_tokens: 0, cache_creation_input_tokens: billed, cache_creation: { ephemeral_1h_input_tokens: billed, ephemeral_5m_input_tokens: 0 }, cache_read_input_tokens: 0, output_tokens: body.max_tokens });
+    }
+    // 529 is not a status the web framework's types list, so the answer is built by hand.
+    if (mode === "fail-529") return new Response(JSON.stringify({ type: "error", error: { type: "overloaded_error", message: "stand-in overloaded" } }), { status: 529, headers: { "content-type": "application/json" } });
     if (mode === "bad-usage") return ok({ ...PLAIN_USAGE, cache_read_input_tokens: "lots" });
     if (mode === "negative-usage") return ok({ ...PLAIN_USAGE, input_tokens: -1_000_000 });
     if (mode === "fraction-usage") return ok({ ...PLAIN_USAGE, output_tokens: 12.5 });
@@ -394,24 +411,33 @@ describe("holds: a call that ends without readable usage keeps its hold open", (
 describe("holds: proof rows B1 to B6 of the design note", () => {
   it("B1: a hold is opened before the call is forwarded and settled to the actual cost", async () => {
     const { id, token } = await newProject(5);
-    expect((await call(token, plain())).status).toBe(200);
-    expect(await kinds(id)).toEqual(["hold.opened", "model.call", "hold.settled"]);
-    const opened = (await listEvents(pool, id, "hold.opened"))[0]!.payload as {
-      hold_id: number;
-      amount_usd: number;
-      arithmetic: { counted_prompt_tokens: number; prompt_tokens_held: number; max_tokens: number; input_rate_usd_per_million: number; output_rate_usd_per_million: number; fast_mode_factor: number; input_part_usd: number; output_part_usd: number };
-    };
-    const a = opened.arithmetic;
-    expect(a).toMatchObject({ counted_prompt_tokens: 42, prompt_tokens_held: 42 + margin(42), max_tokens: PLAIN_MAX_TOKENS, input_rate_usd_per_million: 8, output_rate_usd_per_million: 20, fast_mode_factor: 1 });
-    near(opened.amount_usd, (a.prompt_tokens_held * a.input_rate_usd_per_million + a.max_tokens * a.output_rate_usd_per_million) / 1e6);
-    near(opened.amount_usd, PLAIN_HOLD);
-    const settled = (await listEvents(pool, id, "hold.settled"))[0]!.payload as { hold_id: number; amount_usd: number; actual_usd: number; returned_usd: number };
-    expect(settled.hold_id).toBe(opened.hold_id);
-    near(settled.actual_usd, PLAIN_COST);
-    expect(settled.actual_usd).toBeLessThanOrEqual(settled.amount_usd);
-    near(settled.returned_usd, PLAIN_HOLD - PLAIN_COST);
+    // Two calls. The stand-in looks in the database the moment each call reaches it.
+    for (let i = 0; i < 2; i++) expect((await call(token, { ...plain(), metadata: { test: "note-open-holds", project: id } })).status).toBe(200);
+    expect(openHoldsAtForward.get(id)).toEqual([1, 1]); // each call's hold was already open when the call was forwarded
+    expect(await kinds(id)).toEqual(["hold.opened", "model.call", "hold.settled", "hold.opened", "model.call", "hold.settled"]);
+    const opened = (await listEvents(pool, id, "hold.opened")).map(
+      (e) =>
+        e.payload as {
+          hold_id: number;
+          amount_usd: number;
+          arithmetic: { counted_prompt_tokens: number; prompt_tokens_held: number; max_tokens: number; input_rate_usd_per_million: number; output_rate_usd_per_million: number; fast_mode_factor: number; input_part_usd: number; output_part_usd: number };
+        },
+    );
+    const settled = (await listEvents(pool, id, "hold.settled")).map((e) => e.payload as { hold_id: number; amount_usd: number; actual_usd: number; returned_usd: number });
+    expect(opened).toHaveLength(2);
+    expect(settled).toHaveLength(2);
+    for (let i = 0; i < 2; i++) {
+      const a = opened[i]!.arithmetic;
+      expect(a).toMatchObject({ counted_prompt_tokens: 42, prompt_tokens_held: 42 + margin(42), max_tokens: PLAIN_MAX_TOKENS, input_rate_usd_per_million: 8, output_rate_usd_per_million: 20, fast_mode_factor: 1 });
+      near(opened[i]!.amount_usd, (a.prompt_tokens_held * a.input_rate_usd_per_million + a.max_tokens * a.output_rate_usd_per_million) / 1e6);
+      near(opened[i]!.amount_usd, PLAIN_HOLD);
+      expect(settled[i]!.hold_id).toBe(opened[i]!.hold_id);
+      near(settled[i]!.actual_usd, PLAIN_COST);
+      expect(settled[i]!.actual_usd).toBeLessThanOrEqual(settled[i]!.amount_usd);
+      near(settled[i]!.returned_usd, PLAIN_HOLD - PLAIN_COST);
+    }
     const budget = await getBudget(pool, id);
-    near(budget.spent, PLAIN_COST); // the difference is back in the budget
+    near(budget.spent, 2 * PLAIN_COST); // the difference is back in the budget
     expect(budget.openHolds).toBe(0);
     expect(await listEvents(pool, id, "hold.exceeded")).toHaveLength(0);
   });
@@ -550,6 +576,119 @@ describe("holds: proof rows B1 to B6 of the design note", () => {
       expect((await callAt(restarted.url, token, plain())).status).toBe(402);
     } finally {
       restarted.server.close();
+    }
+  });
+});
+
+/**
+ * Proof rows B15 to B19 of the design note (section 7.2, added 13 Nov 2026 by the owner's answer to
+ * his question 1): one row for each case of known gap 41 that package 1.2 handles, by refusing the
+ * request, by keeping the hold, or by a margin on the token count. Each test names its case as
+ * gap 41 does. Against a stand-in: what the gateway does, not how the real provider bills.
+ */
+describe("holds: proof rows B15 to B19 of the design note (the known limits of the hold, known gap 41)", () => {
+  /** A request refused before anything is forwarded: the reason named, the message shown, no hold. */
+  const refusedBeforeForwarding = async (id: string, token: string, body: unknown, reason: string, messagePart: RegExp) => {
+    const before = forwarded;
+    const holdsBefore = (await listHolds(pool, id)).length;
+    const refusedBefore = (await listEvents(pool, id, "gateway.refused")).length;
+    const res = await call(token, body);
+    expect(res.status).toBe(400);
+    const b = (await res.json()) as { error: { type: string; message: string } };
+    expect(b.error.message).toMatch(messagePart);
+    expect(forwarded).toBe(before); // nothing reached the provider
+    const refused = await listEvents(pool, id, "gateway.refused");
+    expect(refused).toHaveLength(refusedBefore + 1);
+    expect((refused.at(-1)!.payload as { reason: string }).reason).toBe(reason);
+    expect(await listHolds(pool, id)).toHaveLength(holdsBefore); // no hold opened
+    return refused.at(-1)!.payload as Record<string, unknown>;
+  };
+
+  it('B15: inference_geo "us" (1.1 times every rate): a request that sets it is refused before anything is forwarded', async () => {
+    const { id, token } = await newProject(5);
+    const p = await refusedBeforeForwarding(id, token, plain(undefined, { inference_geo: "us" }), "inference_geo_not_allowed", /inference_geo/);
+    expect(p).toMatchObject({ inference_geo: "us" });
+    // The same request without it (the default routing) is forwarded.
+    expect((await call(token, plain())).status).toBe(200);
+    expect(await listHolds(pool, id)).toHaveLength(1);
+  });
+
+  it("B16: the token count being an estimate: a margin is added to the counted prompt, and a bill a little above the count stays within the hold", async () => {
+    const { id, token } = await newProject(5);
+    // The margin, by its own figures (5% of the count, rounded up, plus 200 tokens), written out here, not taken from the code.
+    expect((await call(token, plain())).status).toBe(200); // counted as 42
+    expect((await call(token, plain("bill-above-count", { system: "count:10000" }))).status).toBe(200);
+    const opened = (await listEvents(pool, id, "hold.opened")).map((e) => e.payload as { hold_id: number; amount_usd: number; arithmetic: Record<string, number> });
+    expect(opened[0]!.arithmetic).toMatchObject({ counted_prompt_tokens: 42, count_margin_tokens: 203, prompt_tokens_held: 245 });
+    expect(opened[1]!.arithmetic).toMatchObject({ counted_prompt_tokens: 10_000, count_margin_tokens: 700, prompt_tokens_held: 10_700 });
+    near(opened[0]!.amount_usd, (245 * 8 + PLAIN_MAX_TOKENS * 20) / 1e6);
+    near(opened[1]!.amount_usd, (10_700 * 8 + PLAIN_MAX_TOKENS * 20) / 1e6);
+    // The stand-in billed 10,400 prompt tokens (4% above its count) as one-hour cache writes, and all 400 output tokens.
+    const call2 = (await listEvents(pool, id, "model.call"))[1]!.payload as { usage: Record<string, number>; cost_usd: number };
+    expect(call2.usage).toMatchObject({ cache_creation_input_tokens: 10_400, cache_creation_1h_tokens: 10_400, output_tokens: PLAIN_MAX_TOKENS });
+    near(call2.cost_usd, (10_400 * 8 + PLAIN_MAX_TOKENS * 20) / 1e6);
+    // Arithmetic only: without the margin, the hold would have been below this bill.
+    expect(call2.cost_usd).toBeGreaterThan((10_000 * 8 + PLAIN_MAX_TOKENS * 20) / 1e6);
+    const settled = (await listEvents(pool, id, "hold.settled")).map((e) => e.payload as { hold_id: number; amount_usd: number; actual_usd: number });
+    expect(settled[1]!.hold_id).toBe(opened[1]!.hold_id);
+    expect(settled[1]!.actual_usd).toBeLessThanOrEqual(settled[1]!.amount_usd);
+    expect(await listEvents(pool, id, "hold.exceeded")).toHaveLength(0);
+  });
+
+  it("B17: server-side tools billed on top of tokens: a request that includes one, or asks for tool servers, is refused before anything is forwarded", async () => {
+    const { id, token } = await newProject(5);
+    const web = await refusedBeforeForwarding(id, token, plain(undefined, { tools: [{ type: "web_search_20260209", name: "web_search" }] }), "server_tool_not_allowed", /Tools the provider runs itself/);
+    expect(web).toMatchObject({ tool_type: "web_search_20260209" });
+    await refusedBeforeForwarding(id, token, plain(undefined, { tools: [{ name: "read_file", input_schema: { type: "object" } }, { type: "code_execution_20260120", name: "code_execution" }] }), "server_tool_not_allowed", /Tools the provider runs itself/);
+    const mcp = await refusedBeforeForwarding(id, token, plain(undefined, { mcp_servers: [{ type: "url", url: "https://example.invalid", name: "x" }] }), "server_tool_not_allowed", /tool servers/);
+    expect(mcp).toMatchObject({ field: "mcp_servers" });
+    // The caller's own tools, which the caller runs, are forwarded.
+    expect((await call(token, plain(undefined, { tools: [{ name: "read_file", input_schema: { type: "object" } }, { type: "bash_20250124", name: "bash" }] }))).status).toBe(200);
+  });
+
+  it("B18: fast mode on a model whose price is assumed: a request for it is refused before anything is forwarded, even where the profile allows fast mode", async () => {
+    const { id, token } = await newProject(5, "fast");
+    for (const model of ["claude-sonnet-5-5", "claude-haiku-5-5"]) {
+      const p = await refusedBeforeForwarding(id, token, { model, max_tokens: 100, messages: [], speed: "fast" }, "fast_mode_not_priced", /fast-mode price is not in the gateway's price table/);
+      expect(p).toMatchObject({ model });
+    }
+    // A model whose fast-mode price is listed is forwarded, held at twice the standard rates.
+    expect((await call(token, plain(undefined, { speed: "fast" }))).status).toBe(200);
+    const opened = (await listEvents(pool, id, "hold.opened"))[0]!.payload as { amount_usd: number; arithmetic: Record<string, unknown> };
+    expect(opened.arithmetic).toMatchObject({ model: "claude-opus-5-5", fast_mode_factor: 2, fast_mode_because: "the request asks for it" });
+    near(opened.amount_usd, 2 * PLAIN_HOLD);
+  });
+
+  it("B19: what happens to a hold after an error answer: released only when the provider's own answer shows the request was rejected before any work, kept in every other case", async () => {
+    // Released: the provider's own error, of a type that means it turned the request away before doing any work.
+    for (const [mode, status] of [["fail-400", 400], ["fail-429", 429]] as const) {
+      const { id, token } = await newProject(5);
+      expect((await call(token, plain(mode))).status).toBe(status);
+      expect(await kinds(id)).toEqual(["hold.opened", "model.call", "hold.settled"]);
+      expect((await listEvents(pool, id, "model.call"))[0]!.payload).toMatchObject({ status, cost_usd: 0, rejected_before_work: true });
+      expect((await listEvents(pool, id, "hold.settled"))[0]!.payload).toMatchObject({ actual_usd: 0 });
+      const b = await getBudget(pool, id);
+      expect(b.openHolds).toBe(0);
+      expect(b.spent).toBe(0);
+    }
+    // Kept: a server error, an overloaded provider, an error type not on the list, and a 400 not in the provider's error shape.
+    for (const [mode, status, reasonPart] of [
+      ["fail-500", 500, "server error"],
+      ["fail-529", 529, "server error"],
+      ["fail-408", 408, "not one of the provider's own rejections"],
+      ["fail-400-other", 400, "not one of the provider's own rejections"],
+    ] as const) {
+      const { id, token } = await newProject(PLAIN_HOLD * 1.5);
+      expect((await call(token, plain(mode))).status).toBe(status);
+      expect(await kinds(id)).toEqual(["hold.opened", "hold.kept"]);
+      const kept = (await listEvents(pool, id, "hold.kept"))[0]!.payload as { reason: string; amount_usd: number };
+      expect(kept.reason).toContain(reasonPart);
+      near(kept.amount_usd, PLAIN_HOLD);
+      expect((await listHolds(pool, id))[0]).toMatchObject({ state: "open", actual_usd: null });
+      const b = await getBudget(pool, id);
+      near(b.openHolds, PLAIN_HOLD); // kept at its full amount
+      expect(b.spent).toBe(0);
+      expect((await call(token, plain())).status).toBe(402); // and it still counts: a second call does not fit
     }
   });
 });

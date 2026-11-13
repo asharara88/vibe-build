@@ -1,8 +1,12 @@
 /**
  * Evidence run for the spending cap by holds (design note 5.5; build plan package 1.2).
- * It walks proof rows B1 to B6 and prints each one from the event log and the holds table.
+ * It walks proof rows B1 to B6 and B15 to B19 (design note 7.2) and prints each one from the
+ * event log and the holds table. B15 to B19 are the known limits of the hold that package 1.2
+ * handles (known gap 41), added to what finishes the package on 13 Nov 2026.
+ * A hold is a reservation worked out from the provider's token estimate plus an assumed margin,
+ * not a proven ceiling on the bill. Nothing here shows how the real provider counts or bills.
  * Uses a stand-in model provider: no real key, no real provider, nothing spent.
- * Run: npx tsx scripts/demo-cap.ts   (needs the local builder_test database)
+ * Run: npx tsx scripts/demo-cap.ts   (the database named by BUILDER_TEST_DATABASE_URL, or the local builder_test)
  */
 import { serve, type ServerType } from "@hono/node-server";
 import { Hono } from "hono";
@@ -22,7 +26,8 @@ const listen = (app: Hono) =>
   });
 
 // The stand-in provider. It counts a prompt as the number given in the request's `system`
-// field ("count:<n>"), or fails to count on "count-fail". It bills what it counted.
+// field ("count:<n>"), or fails to count on "count-fail". It bills what it counted, and half of
+// max_tokens as output, unless the request's metadata names one of the behaviours below.
 const REAL_KEY = "demo-real-key-held-only-by-the-gateway";
 let forwarded = 0;
 const keysSeen: string[] = [];
@@ -36,11 +41,31 @@ standIn.post("/v1/messages/count_tokens", async (c) => {
   if (body.system === "count-fail") return c.json({ type: "error", error: { type: "api_error", message: "stand-in: counting is down" } }, 500);
   return c.json({ input_tokens: countOf(body.system) });
 });
+/** Per project, how many open holds the database had at the moment each call reached the stand-in (row B1). */
+const openHoldsAtForward = new Map<string, number[]>();
 standIn.post("/v1/messages", async (c) => {
   forwarded++;
   keysSeen.push(c.req.header("x-api-key") ?? "(none)");
-  const body = (await c.req.json()) as { model: string; max_tokens: number; system?: string; metadata?: { test?: string } };
-  if (body.metadata?.test === "never-answers") await new Promise((r) => setTimeout(r, 5000));
+  const body = (await c.req.json()) as { model: string; max_tokens: number; system?: string; metadata?: { test?: string; project?: string } };
+  const test = body.metadata?.test ?? "";
+  if (test === "note-open-holds") {
+    const project = String(body.metadata?.project ?? "");
+    const r = await pool.query<{ n: number }>("select count(*)::int as n from holds where project_id = $1 and state = 'open'", [project]);
+    openHoldsAtForward.set(project, [...(openHoldsAtForward.get(project) ?? []), r.rows[0]!.n]);
+  }
+  if (test === "never-answers") await new Promise((r) => setTimeout(r, 5000));
+  // Row B16: bill 4% more prompt tokens than were counted, all as one-hour cache writes (the dearest input rate), and all of max_tokens.
+  if (test === "bill-above-count") {
+    const counted = countOf(body.system);
+    const billed = counted + Math.ceil((counted * 4) / 100);
+    const usage = { input_tokens: 0, cache_creation_input_tokens: billed, cache_creation: { ephemeral_1h_input_tokens: billed, ephemeral_5m_input_tokens: 0 }, cache_read_input_tokens: 0, output_tokens: body.max_tokens };
+    return c.json({ id: "msg_demo", type: "message", model: body.model, content: [{ type: "text", text: "ok" }], usage });
+  }
+  // Row B19: error answers.
+  if (test === "error-400-provider") return c.json({ type: "error", error: { type: "invalid_request_error", message: "stand-in: the request was rejected" } }, 400);
+  if (test === "error-500") return c.json({ type: "error", error: { type: "api_error", message: "stand-in: internal error" } }, 500);
+  if (test === "error-529") return new Response(JSON.stringify({ type: "error", error: { type: "overloaded_error", message: "stand-in: overloaded" } }), { status: 529, headers: { "content-type": "application/json" } });
+  if (test === "error-400-not-provider") return c.text("<html>400 Bad Request from something in between</html>", 400);
   const usage = { input_tokens: countOf(body.system), output_tokens: Math.floor(body.max_tokens / 2), cache_creation_input_tokens: 0, cache_read_input_tokens: 0 };
   return c.json({ id: "msg_demo", type: "message", model: body.model, content: [{ type: "text", text: "ok" }], usage });
 });
@@ -77,15 +102,22 @@ async function showEvents(id: string) {
       log(`      max_tokens ${a["max_tokens"]} at $${a["output_rate_usd_per_million"]} per million = ${usd(a["output_part_usd"] as number)}; fast-mode factor ${a["fast_mode_factor"]}${a["fast_mode_because"] ? ` (${a["fast_mode_because"]})` : ""}; both parts include the factor`);
     } else if (e.kind === "model.call") {
       const u = p["usage"] as Record<string, number>;
-      log(`  event ${e.kind}: status ${p["status"]}, billed ${u["input_tokens"]} input and ${u["output_tokens"]} output tokens, actual cost ${usd(p["cost_usd"] as number)}`);
+      const writes = u["cache_creation_input_tokens"] ? `, ${u["cache_creation_input_tokens"]} cache-write tokens (${u["cache_creation_1h_tokens"]} of them one-hour writes)` : "";
+      log(`  event ${e.kind}: status ${p["status"]}, billed ${u["input_tokens"]} input${writes} and ${u["output_tokens"]} output tokens, actual cost ${usd(p["cost_usd"] as number)}${p["rejected_before_work"] ? "; the provider's own answer says it rejected the request before any work" : ""}`);
     } else if (e.kind === "hold.settled") {
       log(`  event ${e.kind}: hold #${p["hold_id"]} of ${usd(p["amount_usd"] as number)} settled at ${usd(p["actual_usd"] as number)}; ${usd(p["returned_usd"] as number)} returned to the budget`);
     } else if (e.kind === "gateway.refused") {
-      log(`  event ${e.kind}: reason ${p["reason"]}` + (p["this_hold_usd"] !== undefined ? `; spent ${usd(p["spent_usd"] as number)} + open holds ${usd(p["open_holds_usd"] as number)} + this hold ${usd(p["this_hold_usd"] as number)} > cap ${usd(p["cap_usd"] as number)}` : ""));
+      const detail = Object.entries(p)
+        .filter(([k]) => !["reason", "path", "cap_usd", "spent_usd", "open_holds_usd", "this_hold_usd"].includes(k))
+        .map(([k, v]) => `${k} ${typeof v === "string" ? v : JSON.stringify(v)}`)
+        .join(", ");
+      log(`  event ${e.kind}: reason ${p["reason"]}` + (p["this_hold_usd"] !== undefined ? `; spent ${usd(p["spent_usd"] as number)} + open holds ${usd(p["open_holds_usd"] as number)} + this hold ${usd(p["this_hold_usd"] as number)} > cap ${usd(p["cap_usd"] as number)}` : "") + (detail ? `; ${detail}` : ""));
     } else if (e.kind === "hold.kept") {
       log(`  event ${e.kind}: hold #${p["hold_id"]} of ${usd(p["amount_usd"] as number)} kept open; reason: ${p["reason"]}`);
     } else if (e.kind === "hold.expired") {
       log(`  event ${e.kind}: hold #${p["hold_id"]} of ${usd(p["amount_usd"] as number)}; kept ${p["kept"]}, unreconciled ${p["unreconciled"]}, still open ${p["still_open"]}`);
+    } else if (e.kind === "hold.exceeded") {
+      log(`  event ${e.kind}: hold #${p["hold_id"]} of ${usd(p["amount_usd"] as number)}; actual cost ${usd(p["actual_usd"] as number)}`);
     } else if (e.kind === "hold.found_at_startup") {
       log(`  event ${e.kind}: hold #${p["hold_id"]} of ${usd(p["amount_usd"] as number)}, opened by ${p["opened_by"]}, found by ${p["found_by"]}; kept ${p["kept"]}, still open ${p["still_open"]}`);
     } else log(`  event ${e.kind}`);
@@ -98,7 +130,8 @@ log("Prices used: Claude Opus 5.5 input $4, one-hour cache write $8, output $20 
 log("\n== B1. A hold is opened before every forwarded call and settled to the actual cost ==");
 {
   const { id, token } = await project(1);
-  for (let i = 1; i <= 2; i++) log(`  call ${i}: HTTP ${(await send(main.url, token, opus())).status}`);
+  for (let i = 1; i <= 2; i++) log(`  call ${i}: HTTP ${(await send(main.url, token, opus({ metadata: { test: "note-open-holds", project: id } }))).status}`);
+  for (const [i, n] of (openHoldsAtForward.get(id) ?? []).entries()) log(`  when call ${i + 1} reached the stand-in provider, the database held ${n} open hold(s) for this project`);
   await showEvents(id);
   await showBudget(id, "budget afterwards");
   const settled = await listEvents(pool, id, "hold.settled");
@@ -191,6 +224,76 @@ log("\n== B6. Holds are database rows that survive the gateway stopping ==");
   const second = await listen(gatewayApp("gw_demo_second"));
   log(`  a call through the second gateway, to show the hold still counts: HTTP ${(await send(second.url, token, opus())).status}`);
   second.server.close();
+}
+
+/** A request refused before anything is forwarded: what the caller sees, what reached the provider, what the log says. */
+async function refused(label: string, body: unknown, profile = "standard") {
+  const { id, token } = await project(1, profile);
+  const before = forwarded;
+  const res = await send(main.url, token, body);
+  const b = (await res.json()) as { error: { type: string; message: string } };
+  log(`  ${label}: HTTP ${res.status} (${b.error.type})`);
+  log(`  message shown: "${b.error.message}"`);
+  log(`  calls that reached the provider: ${forwarded - before}`);
+  await showEvents(id);
+  log(`  holds in the database for this project: ${(await listHolds(pool, id)).length}`);
+}
+
+log("\n== The known limits of the hold handled in package 1.2 (known gap 41): proof rows B15 to B19 ==");
+
+log('\n== B15. inference_geo "us" (1.1 times every rate): a request that sets it is refused ==');
+await refused('a request with inference_geo "us"', opus({ inference_geo: "us" }));
+{
+  const { id, token } = await project(1);
+  log(`  the same request without inference_geo (the default routing): HTTP ${(await send(main.url, token, opus())).status}`);
+  log(`  holds opened for that project: ${(await listHolds(pool, id)).length}`);
+}
+
+log("\n== B16. The token count being an estimate: a margin is added to the counted prompt ==");
+{
+  const { id, token } = await project(1);
+  log("  the stand-in counts the prompt as 10,000 tokens, then bills 4% more (10,400), all as one-hour cache writes, and all 2,000 tokens of max_tokens");
+  log(`  call: HTTP ${(await send(main.url, token, opus({ metadata: { test: "bill-above-count" } }))).status}`);
+  await showEvents(id);
+  const opened = (await listEvents(pool, id, "hold.opened"))[0]!.payload as { amount_usd: number; arithmetic: { counted_prompt_tokens: number; max_tokens: number; input_rate_usd_per_million: number; output_rate_usd_per_million: number } };
+  const a = opened.arithmetic;
+  const withoutMargin = (a.counted_prompt_tokens * a.input_rate_usd_per_million + a.max_tokens * a.output_rate_usd_per_million) / 1e6;
+  const cost = ((await listEvents(pool, id, "model.call"))[0]!.payload as { cost_usd: number }).cost_usd;
+  log(`  arithmetic only: without the margin the hold would have been ${usd(withoutMargin)} (${a.counted_prompt_tokens} x $${a.input_rate_usd_per_million} + ${a.max_tokens} x $${a.output_rate_usd_per_million} per million), ${cost > withoutMargin ? "below" : "not below"} this bill of ${usd(cost)}; with it, ${usd(opened.amount_usd)}`);
+  log(`  hold.exceeded events for this project: ${(await listEvents(pool, id, "hold.exceeded")).length}`);
+  log("  this shows that a margin is applied and covers this stand-in's 4%; whether it is large enough for the real provider is not shown (package 2.3)");
+}
+
+log("\n== B17. Server-side tools billed on top of tokens: a request that includes one is refused ==");
+await refused("a request with a web search tool, which the provider runs itself", opus({ tools: [{ type: "web_search_20260209", name: "web_search" }] }));
+await refused("a request that asks the provider to connect to tool servers", opus({ mcp_servers: [{ type: "url", url: "https://example.invalid", name: "x" }] }));
+{
+  const { token } = await project(1);
+  log(`  a request with only the caller's own tools (which the caller runs): HTTP ${(await send(main.url, token, opus({ tools: [{ name: "read_file", input_schema: { type: "object" } }, { type: "bash_20250124", name: "bash" }] }))).status}`);
+}
+
+log("\n== B18. Fast mode on a model whose price is assumed: a request for it is refused ==");
+await refused("Claude Sonnet 5.5 asked for fast mode, on a profile that allows fast mode (no fast-mode price is listed for it)", { model: "claude-sonnet-5-5", max_tokens: 2000, system: "count:10000", messages: [], speed: "fast" }, "fast");
+{
+  const { id, token } = await project(1, "fast");
+  log(`  Claude Opus 5.5, whose fast-mode price is listed, asked for fast mode on the same profile: HTTP ${(await send(main.url, token, opus({ speed: "fast" }))).status}`);
+  await showEvents(id);
+}
+
+log("\n== B19. What happens to a hold after an error answer: released only on the provider's own rejection before any work; kept otherwise ==");
+for (const [label, test] of [
+  ["the provider's own rejection (400, invalid_request_error)", "error-400-provider"],
+  ["a server error (500, api_error)", "error-500"],
+  ["an overloaded provider (529, overloaded_error)", "error-529"],
+  ["a 400 that is not in the provider's error shape (an HTML page)", "error-400-not-provider"],
+] as const) {
+  const { id, token } = await project(0.2);
+  log(`  ${label}: HTTP ${(await send(main.url, token, opus({ metadata: { test } }))).status}`);
+  await showEvents(id);
+  const h = (await listHolds(pool, id))[0]!;
+  log(`  the hold's row: state ${h.state}, amount ${usd(Number(h.amount_usd))}, actual cost ${h.actual_usd === null ? "not known" : usd(Number(h.actual_usd))}, kept because ${h.kept_reason ?? "(not kept)"}, unreconciled ${h.unreconciled}`);
+  await showBudget(id, "budget");
+  log(`  a further call (room for one hold under this cap): HTTP ${(await send(main.url, token, opus())).status}`);
 }
 
 log(`\nEvery call that reached the provider carried the gateway's key, never a project token: ${keysSeen.length > 0 && keysSeen.every((k) => k === REAL_KEY) ? "yes" : "NO"} (${keysSeen.length} calls).`);
