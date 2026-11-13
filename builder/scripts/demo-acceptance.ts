@@ -14,7 +14,8 @@
  *     version, BEFORE step 01 runs.
  *  3. Steps 01 and 02 by the scripted engine, each container inspected while it runs.
  *  4. The app built and started. Acceptance run A: Done means (1), item 1 passes with its screenshot.
- *  5. Run B, stopped by a short time limit: Done means (3), every item "did not run".
+ *  5. Run B1, stopped by a short time limit, and run B2, killed while its test runs: Done means (3),
+ *     every item "did not run".
  *  6. Done means (4): attempts from the engine container by file path, over the network, through the
  *     project's database and through the project's history; its mounts; checks on the machine alongside.
  *  7. Run C, with the app stopped: refused before its start, every item "did not run" (Done means (3)).
@@ -26,7 +27,7 @@
  * Development profile only. No model is called. Made-up data only. No secret's value is printed.
  */
 import { execFile } from "node:child_process";
-import { copyFileSync, lstatSync, mkdirSync, mkdtempSync, rmSync, statfsSync, writeFileSync } from "node:fs";
+import { chmodSync, copyFileSync, lstatSync, mkdirSync, mkdtempSync, rmSync, statfsSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { promisify } from "node:util";
@@ -185,10 +186,26 @@ try {
   log(`  The runner service's /proc/self/mountinfo, from inside (same service, the version and a fresh results folder): ${mi.length} lines, kept in mounts.json.`);
 
   log("");
-  log("== 5. Run B: stopped by a 3-second time limit ==");
-  const runB = await runAcceptance({ pool, sandbox: x.sb, store, projectId: PROJECT_ID, version: version.version, appUrl: x.appUrl, samplePassword: x.samplePassword, checklistItems: checklist.items.length, timeoutMs: 3000 });
-  showRun("B-time-limit", runB);
-  if (runB.reading.items.some((i) => i.status !== "did not run")) throw new Error("run B: an item is reported as something other than did not run");
+  log("== 5. Runs B1 and B2: a run stopped by a time limit, and a run killed while its test runs ==");
+  log("  (A first trial gave run B a 3-second limit; the app was warm by then and the test passed within it, so it was reported passed, correctly. The limit is now half a second, shorter than the container takes to start.)");
+  const runB = await runAcceptance({ pool, sandbox: x.sb, store, projectId: PROJECT_ID, version: version.version, appUrl: x.appUrl, samplePassword: x.samplePassword, checklistItems: checklist.items.length, timeoutMs: 500 });
+  showRun("B1-time-limit", runB);
+  if (runB.reading.items.some((i) => i.status !== "did not run")) throw new Error("run B1: an item is reported as something other than did not run");
+  let handleB2: StreamingRun | null = null;
+  let killedAfter = "";
+  const runB2 = await runAcceptance({
+    pool, sandbox: x.sb, store, projectId: PROJECT_ID, version: version.version, appUrl: x.appUrl, samplePassword: x.samplePassword, checklistItems: checklist.items.length,
+    onStarted: (r) => (handleB2 = r),
+    onLine: (l) => {
+      if (!killedAfter && /Running 1 test/.test(l) && handleB2) {
+        killedAfter = l.trim();
+        void (handleB2 as StreamingRun).kill();
+      }
+    },
+  });
+  log(`  B2: killed with docker kill as soon as the runner printed "${killedAfter}".`);
+  showRun("B2-killed", runB2);
+  if (runB2.reading.items.some((i) => i.status !== "did not run")) throw new Error("run B2: an item is reported as something other than did not run");
 
   log("");
   log("== 6. From inside the engine container: attempts to reach the store; its mounts; checks on the machine ==");
@@ -198,7 +215,9 @@ try {
     { label: "the run's reason (run A)", text: reason },
   ];
   const probeDir = mkdtempSync(join(tmpdir(), "builder-acceptance-probe-"));
-  writeFileSync(join(probeDir, "acceptance-probe.mjs"), FILE_PROBE);
+  // The engine runs as the user node: the probe's folder (made 0700 by mkdtemp) must be readable by it.
+  chmodSync(probeDir, 0o755);
+  writeFileSync(join(probeDir, "acceptance-probe.mjs"), FILE_PROBE, { mode: 0o644 });
   const paths = [
     { label: "the store's data folder", path: dataDir },
     { label: "the store ($BUILDER_DATA_DIR/acceptance)", path: store.root },
