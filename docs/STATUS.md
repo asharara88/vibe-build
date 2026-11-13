@@ -5,15 +5,15 @@
 ## State
 
 1. **Tested:** 0.1 to 0.5, 0.6a (development profile only), 1.1, **1.2**, **1.2b**, **1.3**, **1.4** and **1.5** (stand-in only), 2.1 and W4. R1: merged, not tested. Progress: plan section 10.
-2. **Built, not tested: 3.1**, the acceptance runner, with a **stand-in test** (question 12), merged; **1.4b** (Next).
+2. **Built, not tested: 3.1**, the acceptance runner, with a **stand-in test** (question 12), merged; **1.4b**.
 3. **Budget cap:** a call goes ahead only if spend plus money set aside plus its hold fits the cap; a step starts only if its whole budget fits (1.3). With 1.4, a call whose cost cannot be recorded freezes its project; a killed gateway's holds stay counted. With 1.5, you close a kept hold only by recording its actual cost and evidence; that clears its freeze. A hold is a reservation from an estimate plus a margin, not a proven ceiling.
 4. **Isolation:** on the development profile, project containers can reach the machine's services and the builder's database (gaps 60 and 70) until 0.6c; no model-written code runs before it.
 5. **Licences and real models:** approved for internal development and testing only (questions 11 and 15); images pinned by digest, checked in `npm test`. No real model called; the gate stays closed until 0.6c and the key.
 
 ## Next
 
-1. **1.4b's pull request**, after its review. Evidence: `evidence/2026-11-13-package-1.4b/`.
-2. **The third outside review (13 Nov):** **1.4b built**: an unreadable journal line stops every project until an operator sets it aside naming a hold, whose project stays frozen until reconciled (shown by tests); the live acceptance test to fail, not skip, without the browser or Docker (3.1b); question 17: you chose (a), freeze after an overrun (1.4c, next).
+1. **1.4b's pull request**, its review's blocking item fixed: an unreadable journal line stops every project on its gateway until an operator sets it aside naming a hold, whose project stays frozen until reconciled, or none. Shown by tests: `evidence/2026-11-13-package-1.4b/`.
+2. **The third outside review (13 Nov):** the live acceptance test to fail, not skip, without the browser or Docker (3.1b); question 17: you chose (a), freeze after an overrun (1.4c, next).
 3. **0.6c**: you chose private networks (a); its assumptions measured first.
 
 ## What blocks it

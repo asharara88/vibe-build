@@ -270,6 +270,16 @@ Read on www.postgresql.org (manual for version 16) and nodejs.org (documentation
 | `filehandle.sync()` / `fs.fsync`: "Request that all data for the open file descriptor is flushed to the storage device. The specific implementation is operating system and device specific. Refer to the POSIX fsync(2) documentation for more detail." The POSIX and Linux pages could not be read from this session (the proxy refused them), so what fsync guarantees is not checked here (known gap 92) | [Node.js 22 file system](https://nodejs.org/docs/latest-v22.x/api/fs.html) |
 | `fs.rename`: "Asynchronously rename file at oldPath to the pathname provided as newPath. In the case that newPath already exists, it will be overwritten." Whether the rename is atomic rests on POSIX, not read here | [Node.js 22 file system](https://nodejs.org/docs/latest-v22.x/api/fs.html) |
 
+## Read on 13 November 2026 for package 1.4b, after its review (PostgreSQL 16.15 and Node v22.23.4 on the development machine)
+
+Read on www.postgresql.org (manual for version 16) and nodejs.org (documentation for Node 22) on 13 November 2026. Used by the recovery script's `--list` (`builder/src/gateway/journal-recovery.ts`, `folderInUse`) and the journal's files (`builder/src/gateway/journal.ts`).
+
+| Fact | Source |
+| --- | --- |
+| "Advisory locks can be acquired on keys consisting of either a single bigint value or two integer values. A bigint key is displayed with its high-order half in the classid column, its low-order half in the objid column, and objsubid equal to 1. The original bigint value can be reassembled with the expression (classid::bigint << 32) \| objid::bigint." "Advisory locks are local to each database, so the database column is meaningful for an advisory lock." `--list` reads which locks are held this way, without taking one | [pg_locks, 54.12](https://www.postgresql.org/docs/16/view-pg-locks.html) |
+| `fsPromises.link(existingPath, newPath)`: "Creates a new link from the existingPath to the newPath. See the POSIX link(2) documentation for more detail." That it fails when `newPath` exists rests on POSIX, not read here; **seen in a run** on this machine: a link onto an existing name failed with `EEXIST`. The folder's id file is written under a temporary name and linked to its own name this way | [Node.js 22 file system](https://nodejs.org/docs/latest-v22.x/api/fs.html) |
+| `'a+'`: "Open file for reading and appending. The file is created if it does not exist." The page names no call that locks a file (no "flock" on it; the `fs` module of Node v22.23.4 has none either, checked in a run), so an operating-system file lock would need a package | [Node.js 22 file system](https://nodejs.org/docs/latest-v22.x/api/fs.html) |
+
 ## Product documentation read on 12 November 2026 for the owner's own set-up; nothing in the repository relies on it
 
 | Fact | Source |
