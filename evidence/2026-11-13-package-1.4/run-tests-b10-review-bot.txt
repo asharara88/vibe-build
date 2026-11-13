@@ -1,0 +1,202 @@
+Package 1.4, 13 Nov 2026, after the review bot's finding on 2ad751d: the new test B10 (9) once, then every B10 test (1) to (9), the replay-on-start test B10 (3) among them, five times, at commit 9962514
+Development machine (a cloud session), in builder/, under the lock shared with other sessions. TMPDIR <scratchpad>/fix14-tmp. Test database builder_test_pkg14 over the local socket (peer authentication, no password).
+Stand-in provider only; the key is made up; nothing spent. git diff --exit-code before: NOT CLEAN
+
+== B10 (9) alone ==
+$ TMPDIR=<scratchpad>/fix14-tmp BUILDER_TEST_DATABASE_URL=postgres:///builder_test_pkg14?host=/var/run/postgresql flock <scratchpad>/live-tests.lock npx vitest run test/failures.test.ts -t '^.*B10 \(9\): ' --reporter=verbose
+
+ RUN  v5.1.0 <scratchpad>/wt-14/builder
+
+ ↓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B8: six calls at once through two gateway processes, against room for one: exactly one forwarded, five refused, judged one after another under the project's row lock
+ ↓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B9 (1): the gateway process killed while the provider has not answered: a gateway started afterwards finds the hold, keeps it at its full amount and marks it unreconciled; a running sibling's hold is left alone
+ ↓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B9 (2): the gateway process killed mid-stream, after output began: the hold is kept at its full amount, unreconciled, by the gateway started afterwards
+ ↓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B9 (3): the gateway process killed while it waits to write the settle (a third session holds the project's lock): nothing is written for the call, and the hold is kept, unreconciled, by the gateway started afterwards
+ ↓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B10 (1): the database refuses the call's model.call write after the provider answered: the hold stays open, unreconciled; the project is frozen, the fault raised; its next call and its counting call are refused with the reason, nothing forwarded, also after a cap raise; another project is unaffected
+ ↓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B10 (2): the freeze itself cannot be written either: the gateway's gate stays closed and it forwards nothing for any project, writing nothing, until the freeze is written; then the project is frozen and the other resumes
+ ↓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B10 (3): every write refused, then the gateway process killed: the journal line survives, and the gateway started afterwards writes it before it serves, so the project's first call is refused as frozen
+ ↓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B10 (7): the journal file cannot be written either: the gate stays closed, with the record kept in memory, until the database takes it
+ ↓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B10 (8): a call that passed the gate before it closed, and waits at its counting call, is not forwarded once the gate is closed: its hold is given back (only the counting call was sent) and it gets the 503
+ ✓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B10 (9): a second call's ending appended to the journal while the first one's line is being moved to the done file is kept: the move cannot drop it, and a gateway started afterwards still finds it (review bot on 2ad751d) 83ms
+ ↓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B10 (4): under the project's lock, a frozen project opens no hold, starts no step, and a running step's calls are refused, whatever the cap
+ ↓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B10 (5): writing the same journal line twice adds nothing, and a hold the failed write had in fact settled is left settled, with the project still frozen
+ ↓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B10 (6): a freeze is never deleted, rewritten or emptied; it can only be cleared, once
+ ↓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B11 (1): a stream cut after output began keeps its full hold, open and unreconciled; the usage seen is recorded for information only, and nothing is released
+ ↓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B11 (2): a call that gets no answer at all (the provider read it and closed the connection) keeps its full hold, open and unreconciled
+ ↓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B12: a successful answer that cannot be read (no usage block; a body that is not JSON) keeps its full hold, open, and the call marked unreconciled
+ ↓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B13: the invariant checker flags each kind of breach: above the cap, below what was owed, a settled call above its hold, hold.exceeded, and a hold row changed by hand with no event
+ ↓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > 1.4: a gateway that loses its liveness connection forwards nothing until it holds its lock again
+ ↓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > 1.4: a call that passed the liveness check, and waits at its counting call, is not forwarded once the gateway has lost its lock: its hold is given back and it gets the 503
+ ↓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > 1.4: a database that cannot be reached gets a 503 that names the reason, not a bare 500, and the error's text is not passed on
+
+ Test Files  1 passed (1)
+      Tests  1 passed | 19 skipped (20)
+   Start at  09:05:52
+   Duration  360ms (tests 45%, import 35%, transform 19%, worker 1%)
+
+vitest exit code: 0
+
+== Every B10 test, run 1 of 5 ==
+$ TMPDIR=<scratchpad>/fix14-tmp BUILDER_TEST_DATABASE_URL=postgres:///builder_test_pkg14?host=/var/run/postgresql flock <scratchpad>/live-tests.lock npx vitest run test/failures.test.ts -t '^.*B10 ' --reporter=verbose
+
+ RUN  v5.1.0 <scratchpad>/wt-14/builder
+
+ ↓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B8: six calls at once through two gateway processes, against room for one: exactly one forwarded, five refused, judged one after another under the project's row lock
+ ↓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B9 (1): the gateway process killed while the provider has not answered: a gateway started afterwards finds the hold, keeps it at its full amount and marks it unreconciled; a running sibling's hold is left alone
+ ↓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B9 (2): the gateway process killed mid-stream, after output began: the hold is kept at its full amount, unreconciled, by the gateway started afterwards
+ ↓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B9 (3): the gateway process killed while it waits to write the settle (a third session holds the project's lock): nothing is written for the call, and the hold is kept, unreconciled, by the gateway started afterwards
+ ✓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B10 (1): the database refuses the call's model.call write after the provider answered: the hold stays open, unreconciled; the project is frozen, the fault raised; its next call and its counting call are refused with the reason, nothing forwarded, also after a cap raise; another project is unaffected 134ms
+ ✓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B10 (2): the freeze itself cannot be written either: the gateway's gate stays closed and it forwards nothing for any project, writing nothing, until the freeze is written; then the project is frozen and the other resumes 83ms
+ ✓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B10 (3): every write refused, then the gateway process killed: the journal line survives, and the gateway started afterwards writes it before it serves, so the project's first call is refused as frozen 906ms
+ ✓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B10 (7): the journal file cannot be written either: the gate stays closed, with the record kept in memory, until the database takes it 62ms
+ ✓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B10 (8): a call that passed the gate before it closed, and waits at its counting call, is not forwarded once the gate is closed: its hold is given back (only the counting call was sent) and it gets the 503 92ms
+ ✓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B10 (9): a second call's ending appended to the journal while the first one's line is being moved to the done file is kept: the move cannot drop it, and a gateway started afterwards still finds it (review bot on 2ad751d) 56ms
+ ✓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B10 (4): under the project's lock, a frozen project opens no hold, starts no step, and a running step's calls are refused, whatever the cap 39ms
+ ✓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B10 (5): writing the same journal line twice adds nothing, and a hold the failed write had in fact settled is left settled, with the project still frozen 20ms
+ ✓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B10 (6): a freeze is never deleted, rewritten or emptied; it can only be cleared, once 30ms
+ ↓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B11 (1): a stream cut after output began keeps its full hold, open and unreconciled; the usage seen is recorded for information only, and nothing is released
+ ↓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B11 (2): a call that gets no answer at all (the provider read it and closed the connection) keeps its full hold, open and unreconciled
+ ↓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B12: a successful answer that cannot be read (no usage block; a body that is not JSON) keeps its full hold, open, and the call marked unreconciled
+ ↓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B13: the invariant checker flags each kind of breach: above the cap, below what was owed, a settled call above its hold, hold.exceeded, and a hold row changed by hand with no event
+ ↓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > 1.4: a gateway that loses its liveness connection forwards nothing until it holds its lock again
+ ↓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > 1.4: a call that passed the liveness check, and waits at its counting call, is not forwarded once the gateway has lost its lock: its hold is given back and it gets the 503
+ ↓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > 1.4: a database that cannot be reached gets a 503 that names the reason, not a bare 500, and the error's text is not passed on
+
+ Test Files  1 passed (1)
+      Tests  9 passed | 11 skipped (20)
+   Start at  09:05:53
+   Duration  1.72s (tests 92%, import 6%, transform 2%)
+
+vitest exit code: 0
+
+== Every B10 test, run 2 of 5 ==
+$ TMPDIR=<scratchpad>/fix14-tmp BUILDER_TEST_DATABASE_URL=postgres:///builder_test_pkg14?host=/var/run/postgresql flock <scratchpad>/live-tests.lock npx vitest run test/failures.test.ts -t '^.*B10 ' --reporter=verbose
+
+ RUN  v5.1.0 <scratchpad>/wt-14/builder
+
+ ↓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B8: six calls at once through two gateway processes, against room for one: exactly one forwarded, five refused, judged one after another under the project's row lock
+ ↓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B9 (1): the gateway process killed while the provider has not answered: a gateway started afterwards finds the hold, keeps it at its full amount and marks it unreconciled; a running sibling's hold is left alone
+ ↓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B9 (2): the gateway process killed mid-stream, after output began: the hold is kept at its full amount, unreconciled, by the gateway started afterwards
+ ↓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B9 (3): the gateway process killed while it waits to write the settle (a third session holds the project's lock): nothing is written for the call, and the hold is kept, unreconciled, by the gateway started afterwards
+ ✓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B10 (1): the database refuses the call's model.call write after the provider answered: the hold stays open, unreconciled; the project is frozen, the fault raised; its next call and its counting call are refused with the reason, nothing forwarded, also after a cap raise; another project is unaffected 132ms
+ ✓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B10 (2): the freeze itself cannot be written either: the gateway's gate stays closed and it forwards nothing for any project, writing nothing, until the freeze is written; then the project is frozen and the other resumes 80ms
+ ✓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B10 (3): every write refused, then the gateway process killed: the journal line survives, and the gateway started afterwards writes it before it serves, so the project's first call is refused as frozen 640ms
+ ✓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B10 (7): the journal file cannot be written either: the gate stays closed, with the record kept in memory, until the database takes it 59ms
+ ✓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B10 (8): a call that passed the gate before it closed, and waits at its counting call, is not forwarded once the gate is closed: its hold is given back (only the counting call was sent) and it gets the 503 76ms
+ ✓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B10 (9): a second call's ending appended to the journal while the first one's line is being moved to the done file is kept: the move cannot drop it, and a gateway started afterwards still finds it (review bot on 2ad751d) 56ms
+ ✓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B10 (4): under the project's lock, a frozen project opens no hold, starts no step, and a running step's calls are refused, whatever the cap 28ms
+ ✓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B10 (5): writing the same journal line twice adds nothing, and a hold the failed write had in fact settled is left settled, with the project still frozen 19ms
+ ✓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B10 (6): a freeze is never deleted, rewritten or emptied; it can only be cleared, once 27ms
+ ↓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B11 (1): a stream cut after output began keeps its full hold, open and unreconciled; the usage seen is recorded for information only, and nothing is released
+ ↓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B11 (2): a call that gets no answer at all (the provider read it and closed the connection) keeps its full hold, open and unreconciled
+ ↓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B12: a successful answer that cannot be read (no usage block; a body that is not JSON) keeps its full hold, open, and the call marked unreconciled
+ ↓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B13: the invariant checker flags each kind of breach: above the cap, below what was owed, a settled call above its hold, hold.exceeded, and a hold row changed by hand with no event
+ ↓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > 1.4: a gateway that loses its liveness connection forwards nothing until it holds its lock again
+ ↓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > 1.4: a call that passed the liveness check, and waits at its counting call, is not forwarded once the gateway has lost its lock: its hold is given back and it gets the 503
+ ↓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > 1.4: a database that cannot be reached gets a 503 that names the reason, not a bare 500, and the error's text is not passed on
+
+ Test Files  1 passed (1)
+      Tests  9 passed | 11 skipped (20)
+   Start at  09:05:56
+   Duration  1.43s (tests 89%, import 8%, transform 3%)
+
+vitest exit code: 0
+
+== Every B10 test, run 3 of 5 ==
+$ TMPDIR=<scratchpad>/fix14-tmp BUILDER_TEST_DATABASE_URL=postgres:///builder_test_pkg14?host=/var/run/postgresql flock <scratchpad>/live-tests.lock npx vitest run test/failures.test.ts -t '^.*B10 ' --reporter=verbose
+
+ RUN  v5.1.0 <scratchpad>/wt-14/builder
+
+ ↓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B8: six calls at once through two gateway processes, against room for one: exactly one forwarded, five refused, judged one after another under the project's row lock
+ ↓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B9 (1): the gateway process killed while the provider has not answered: a gateway started afterwards finds the hold, keeps it at its full amount and marks it unreconciled; a running sibling's hold is left alone
+ ↓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B9 (2): the gateway process killed mid-stream, after output began: the hold is kept at its full amount, unreconciled, by the gateway started afterwards
+ ↓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B9 (3): the gateway process killed while it waits to write the settle (a third session holds the project's lock): nothing is written for the call, and the hold is kept, unreconciled, by the gateway started afterwards
+ ✓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B10 (1): the database refuses the call's model.call write after the provider answered: the hold stays open, unreconciled; the project is frozen, the fault raised; its next call and its counting call are refused with the reason, nothing forwarded, also after a cap raise; another project is unaffected 124ms
+ ✓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B10 (2): the freeze itself cannot be written either: the gateway's gate stays closed and it forwards nothing for any project, writing nothing, until the freeze is written; then the project is frozen and the other resumes 78ms
+ ✓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B10 (3): every write refused, then the gateway process killed: the journal line survives, and the gateway started afterwards writes it before it serves, so the project's first call is refused as frozen 536ms
+ ✓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B10 (7): the journal file cannot be written either: the gate stays closed, with the record kept in memory, until the database takes it 57ms
+ ✓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B10 (8): a call that passed the gate before it closed, and waits at its counting call, is not forwarded once the gate is closed: its hold is given back (only the counting call was sent) and it gets the 503 72ms
+ ✓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B10 (9): a second call's ending appended to the journal while the first one's line is being moved to the done file is kept: the move cannot drop it, and a gateway started afterwards still finds it (review bot on 2ad751d) 54ms
+ ✓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B10 (4): under the project's lock, a frozen project opens no hold, starts no step, and a running step's calls are refused, whatever the cap 25ms
+ ✓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B10 (5): writing the same journal line twice adds nothing, and a hold the failed write had in fact settled is left settled, with the project still frozen 18ms
+ ✓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B10 (6): a freeze is never deleted, rewritten or emptied; it can only be cleared, once 28ms
+ ↓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B11 (1): a stream cut after output began keeps its full hold, open and unreconciled; the usage seen is recorded for information only, and nothing is released
+ ↓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B11 (2): a call that gets no answer at all (the provider read it and closed the connection) keeps its full hold, open and unreconciled
+ ↓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B12: a successful answer that cannot be read (no usage block; a body that is not JSON) keeps its full hold, open, and the call marked unreconciled
+ ↓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B13: the invariant checker flags each kind of breach: above the cap, below what was owed, a settled call above its hold, hold.exceeded, and a hold row changed by hand with no event
+ ↓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > 1.4: a gateway that loses its liveness connection forwards nothing until it holds its lock again
+ ↓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > 1.4: a call that passed the liveness check, and waits at its counting call, is not forwarded once the gateway has lost its lock: its hold is given back and it gets the 503
+ ↓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > 1.4: a database that cannot be reached gets a 503 that names the reason, not a bare 500, and the error's text is not passed on
+
+ Test Files  1 passed (1)
+      Tests  9 passed | 11 skipped (20)
+   Start at  09:05:57
+   Duration  1.28s (tests 89%, import 7%, transform 4%)
+
+vitest exit code: 0
+
+== Every B10 test, run 4 of 5 ==
+$ TMPDIR=<scratchpad>/fix14-tmp BUILDER_TEST_DATABASE_URL=postgres:///builder_test_pkg14?host=/var/run/postgresql flock <scratchpad>/live-tests.lock npx vitest run test/failures.test.ts -t '^.*B10 ' --reporter=verbose
+
+ RUN  v5.1.0 <scratchpad>/wt-14/builder
+
+ ↓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B8: six calls at once through two gateway processes, against room for one: exactly one forwarded, five refused, judged one after another under the project's row lock
+ ↓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B9 (1): the gateway process killed while the provider has not answered: a gateway started afterwards finds the hold, keeps it at its full amount and marks it unreconciled; a running sibling's hold is left alone
+ ↓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B9 (2): the gateway process killed mid-stream, after output began: the hold is kept at its full amount, unreconciled, by the gateway started afterwards
+ ↓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B9 (3): the gateway process killed while it waits to write the settle (a third session holds the project's lock): nothing is written for the call, and the hold is kept, unreconciled, by the gateway started afterwards
+ ✓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B10 (1): the database refuses the call's model.call write after the provider answered: the hold stays open, unreconciled; the project is frozen, the fault raised; its next call and its counting call are refused with the reason, nothing forwarded, also after a cap raise; another project is unaffected 138ms
+ ✓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B10 (2): the freeze itself cannot be written either: the gateway's gate stays closed and it forwards nothing for any project, writing nothing, until the freeze is written; then the project is frozen and the other resumes 76ms
+ ✓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B10 (3): every write refused, then the gateway process killed: the journal line survives, and the gateway started afterwards writes it before it serves, so the project's first call is refused as frozen 584ms
+ ✓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B10 (7): the journal file cannot be written either: the gate stays closed, with the record kept in memory, until the database takes it 59ms
+ ✓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B10 (8): a call that passed the gate before it closed, and waits at its counting call, is not forwarded once the gate is closed: its hold is given back (only the counting call was sent) and it gets the 503 74ms
+ ✓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B10 (9): a second call's ending appended to the journal while the first one's line is being moved to the done file is kept: the move cannot drop it, and a gateway started afterwards still finds it (review bot on 2ad751d) 50ms
+ ✓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B10 (4): under the project's lock, a frozen project opens no hold, starts no step, and a running step's calls are refused, whatever the cap 27ms
+ ✓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B10 (5): writing the same journal line twice adds nothing, and a hold the failed write had in fact settled is left settled, with the project still frozen 20ms
+ ✓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B10 (6): a freeze is never deleted, rewritten or emptied; it can only be cleared, once 32ms
+ ↓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B11 (1): a stream cut after output began keeps its full hold, open and unreconciled; the usage seen is recorded for information only, and nothing is released
+ ↓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B11 (2): a call that gets no answer at all (the provider read it and closed the connection) keeps its full hold, open and unreconciled
+ ↓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B12: a successful answer that cannot be read (no usage block; a body that is not JSON) keeps its full hold, open, and the call marked unreconciled
+ ↓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B13: the invariant checker flags each kind of breach: above the cap, below what was owed, a settled call above its hold, hold.exceeded, and a hold row changed by hand with no event
+ ↓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > 1.4: a gateway that loses its liveness connection forwards nothing until it holds its lock again
+ ↓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > 1.4: a call that passed the liveness check, and waits at its counting call, is not forwarded once the gateway has lost its lock: its hold is given back and it gets the 503
+ ↓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > 1.4: a database that cannot be reached gets a 503 that names the reason, not a bare 500, and the error's text is not passed on
+
+ Test Files  1 passed (1)
+      Tests  9 passed | 11 skipped (20)
+   Start at  09:05:59
+   Duration  1.33s (tests 90%, import 6%, transform 3%)
+
+vitest exit code: 0
+
+== Every B10 test, run 5 of 5 ==
+$ TMPDIR=<scratchpad>/fix14-tmp BUILDER_TEST_DATABASE_URL=postgres:///builder_test_pkg14?host=/var/run/postgresql flock <scratchpad>/live-tests.lock npx vitest run test/failures.test.ts -t '^.*B10 ' --reporter=verbose
+
+ RUN  v5.1.0 <scratchpad>/wt-14/builder
+
+ ↓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B8: six calls at once through two gateway processes, against room for one: exactly one forwarded, five refused, judged one after another under the project's row lock
+ ↓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B9 (1): the gateway process killed while the provider has not answered: a gateway started afterwards finds the hold, keeps it at its full amount and marks it unreconciled; a running sibling's hold is left alone
+ ↓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B9 (2): the gateway process killed mid-stream, after output began: the hold is kept at its full amount, unreconciled, by the gateway started afterwards
+ ↓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B9 (3): the gateway process killed while it waits to write the settle (a third session holds the project's lock): nothing is written for the call, and the hold is kept, unreconciled, by the gateway started afterwards
+ ✓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B10 (1): the database refuses the call's model.call write after the provider answered: the hold stays open, unreconciled; the project is frozen, the fault raised; its next call and its counting call are refused with the reason, nothing forwarded, also after a cap raise; another project is unaffected 131ms
+ ✓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B10 (2): the freeze itself cannot be written either: the gateway's gate stays closed and it forwards nothing for any project, writing nothing, until the freeze is written; then the project is frozen and the other resumes 76ms
+ ✓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B10 (3): every write refused, then the gateway process killed: the journal line survives, and the gateway started afterwards writes it before it serves, so the project's first call is refused as frozen 533ms
+ ✓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B10 (7): the journal file cannot be written either: the gate stays closed, with the record kept in memory, until the database takes it 56ms
+ ✓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B10 (8): a call that passed the gate before it closed, and waits at its counting call, is not forwarded once the gate is closed: its hold is given back (only the counting call was sent) and it gets the 503 73ms
+ ✓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B10 (9): a second call's ending appended to the journal while the first one's line is being moved to the done file is kept: the move cannot drop it, and a gateway started afterwards still finds it (review bot on 2ad751d) 47ms
+ ✓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B10 (4): under the project's lock, a frozen project opens no hold, starts no step, and a running step's calls are refused, whatever the cap 22ms
+ ✓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B10 (5): writing the same journal line twice adds nothing, and a hold the failed write had in fact settled is left settled, with the project still frozen 17ms
+ ✓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B10 (6): a freeze is never deleted, rewritten or emptied; it can only be cleared, once 27ms
+ ↓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B11 (1): a stream cut after output began keeps its full hold, open and unreconciled; the usage seen is recorded for information only, and nothing is released
+ ↓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B11 (2): a call that gets no answer at all (the provider read it and closed the connection) keeps its full hold, open and unreconciled
+ ↓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B12: a successful answer that cannot be read (no usage block; a body that is not JSON) keeps its full hold, open, and the call marked unreconciled
+ ↓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B13: the invariant checker flags each kind of breach: above the cap, below what was owed, a settled call above its hold, hold.exceeded, and a hold row changed by hand with no event
+ ↓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > 1.4: a gateway that loses its liveness connection forwards nothing until it holds its lock again
+ ↓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > 1.4: a call that passed the liveness check, and waits at its counting call, is not forwarded once the gateway has lost its lock: its hold is given back and it gets the 503
+ ↓ test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > 1.4: a database that cannot be reached gets a 503 that names the reason, not a bare 500, and the error's text is not passed on
+
+ Test Files  1 passed (1)
+      Tests  9 passed | 11 skipped (20)
+   Start at  09:06:01
+   Duration  1.22s (tests 91%, import 6%, transform 3%)
+
+vitest exit code: 0
+ended 2026-11-13T09:06:02Z

@@ -18,6 +18,24 @@
       "scope": "internal development and testing only",
       "decision": "docs/DECISIONS.md, 13 Nov 2026, the row \"Question 11, option (a), approved for the builder's internal development and testing only\"",
       "inventory": "docs/licences/runtime-inventory.md, section 1"
+    },
+    {
+      "image": "ubuntu:24.04",
+      "digest": "sha256:2198e4c65076e9cb0b3d695219df667c0e3b0072da64ca3c2648aca17dcecaf5",
+      "approved": "2026-11-13",
+      "approvedBy": "Owner",
+      "scope": "internal development and testing only",
+      "decision": "docs/DECISIONS.md, 13 Nov 2026, the row \"Question 15 approved by the owner: the runner's two base images and the browser, for internal development and testing only\"",
+      "inventory": "docs/licences/runner-base-images.md, section 1"
+    },
+    {
+      "image": "node:22-bookworm-slim",
+      "digest": "sha256:e9f565d32859f0cbfb52125eafe8be39390f24dac302dc3cdf566e8ba3ab21ee",
+      "approved": "2026-11-13",
+      "approvedBy": "Owner",
+      "scope": "internal development and testing only",
+      "decision": "docs/DECISIONS.md, 13 Nov 2026, the row \"Question 15 approved by the owner: the runner's two base images and the browser, for internal development and testing only\"",
+      "inventory": "docs/licences/runner-base-images.md, section 2"
     }
   ]
 }

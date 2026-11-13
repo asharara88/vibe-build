@@ -20,7 +20,8 @@
  *   forwards nothing for any project) until the ending is recorded, with the project frozen
  *   (gateway/journal.ts, store/freezes.ts); a frozen project gets nothing forwarded, not even its counting
  *   call; a gateway that has lost its liveness lock forwards nothing; a database that cannot be reached
- *   gets a 503 with the reason, not a bare 500.
+ *   gets a 503 with the reason, not a bare 500. The gate and the liveness lock are checked on arrival and
+ *   again just before each forward (a passed-through request, a counting call, a metered call).
  *
  * Design note: docs/design/stage-1.md, sections 2.4 and 5.5. Build plan: packages 1.2 and 1.4.
  */
@@ -235,7 +236,7 @@ export function createGateway(opts: GatewayOptions) {
   app.get("/healthz", (c) => c.json({ ok: true }));
 
   // Package 1.4: the two refusals of a gateway that must forward nothing, on arrival and again just before
-  // a metered call is forwarded (`sent` says what, if anything, reached the provider).
+  // each forward (`sent` says what, if anything, reached the provider).
   const livenessLost = (sent: string) =>
     errorBody("gateway_unavailable", `This gateway has lost the database connection that shows it is running, so it forwards nothing until that connection is back. ${sent}`);
   const gateClosed = (sent: string) =>
@@ -243,6 +244,14 @@ export function createGateway(opts: GatewayOptions) {
       "gateway_unrecorded",
       `This gateway has stopped forwarding: a model call that ended at ${gate.oldest()?.ended_at ?? "an unknown time"} could not be recorded in the event log, and until it is, the gateway forwards nothing for any project. ${sent}`,
     );
+  /**
+   * Why this gateway must forward nothing now, if it must: its gate is closed, or it has lost its liveness lock.
+   * Checked again, with no await in between, just before each forward: a passed-through request, a metered call's
+   * counting call, and the metered call itself. A request that passed the checks on arrival may have waited for its
+   * token, its body or a database read while one closed (review of 1.4; review bot on 899cbf0).
+   */
+  const stoppedNow = (): "gate" | "liveness" | null => (gate.closed() ? "gate" : opts.liveness && !opts.liveness.ok() ? "liveness" : null);
+  const stoppedBody = (why: "gate" | "liveness", sent: string) => (why === "gate" ? gateClosed(sent) : livenessLost(sent));
 
   app.all("/v1/*", async (c) => {
     // Package 1.4. These two refusals come before anything else, and write nothing to the database.
@@ -332,6 +341,10 @@ export function createGateway(opts: GatewayOptions) {
     }
 
     if (passthrough) {
+      // The gate and the liveness lock checked again (review bot on 899cbf0). Nothing has been forwarded or held, so
+      // nothing is written. No await stands between this and the forward.
+      const stoppedBeforePassthrough = stoppedNow();
+      if (stoppedBeforePassthrough) return c.json(stoppedBody(stoppedBeforePassthrough, "Nothing was forwarded."), 503);
       let res: Response;
       try {
         res = await forward();
@@ -355,7 +368,11 @@ export function createGateway(opts: GatewayOptions) {
     const guard = guardRequest(body, profile);
     if (guard) return refuse(400, "invalid_request_error", guard.reason, guard.message, guard.detail);
 
-    // 2: count the prompt with the provider's own counting call. No count, no call.
+    // 2: count the prompt with the provider's own counting call. No count, no call. First the gate and the
+    // liveness lock are checked again (review bot on 899cbf0): nothing has been forwarded or held yet, so nothing
+    // is written. No await stands between this and the counting call.
+    const stoppedBeforeCount = stoppedNow();
+    if (stoppedBeforeCount) return c.json(stoppedBody(stoppedBeforeCount, "Nothing was forwarded."), 503);
     let counted: number;
     try {
       const countHeaders = new Headers(headers);
@@ -525,7 +542,7 @@ export function createGateway(opts: GatewayOptions) {
     // The gate and the liveness lock checked again (review of 1.4): a call that passed them on arrival may
     // have waited at its counting call or for the lock while one closed. Then it is not forwarded, and as
     // only the counting call was sent, its hold is given back. No await stands between this and the forward.
-    const stoppedSince = gate.closed() ? "gate" : opts.liveness && !opts.liveness.ok() ? "liveness" : null;
+    const stoppedSince = stoppedNow();
     if (stoppedSince) {
       ended = true;
       const why = stoppedSince === "gate" ? "a call's ending could not be recorded, so the gateway's gate closed" : "the gateway lost its liveness lock";
@@ -534,8 +551,7 @@ export function createGateway(opts: GatewayOptions) {
       } catch (err) {
         fault("A hold for a call that was never sent could not be closed. It stays open at its full amount.", { project: project.id, hold: holdId, error: errorSummary(err) });
       }
-      const sent = "This call was not forwarded (only the counting call, assumed to cost nothing, was sent).";
-      return c.json(stoppedSince === "gate" ? gateClosed(sent) : livenessLost(sent), 503);
+      return c.json(stoppedBody(stoppedSince, "This call was not forwarded (only the counting call, assumed to cost nothing, was sent)."), 503);
     }
     // A caller that left before the call was forwarded: only the counting call has been sent, and
     // the call itself has not been forwarded, so the hold is settled at nothing with that reason. No

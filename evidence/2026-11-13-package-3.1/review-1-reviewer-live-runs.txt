@@ -1,0 +1,130 @@
+Reviewer's live runs, review round 1 of package 3.1, 13 Nov 2026, against a copy of the branch at 19d9037 (the reviewer's own script, not in the repository), with the image built --no-cache (review-1-reviewer-runner-image-build-no-cache.txt). Besides Done means 1 to 4: the app and tools containers tried the same 13 paths and searched their readable files (rows 'app container' and 'tools container'); run C2 had another program answer 200 on the app's port after the app was stopped; runs B5 and D2 had a version rewritten with a manifest made to match. Copied here unchanged by Claude Code after the review, but for paths ($TMPDIR, <reviewer's copy>); not run again.
+
+project rev31-acc-mweo3dat; version v001; manifest 1213480e9ddd96011a0886b23a2fa761e74caae787a445647edc38f6043ed791
+  step 01-data: ok=true; inspected while running=true; net=none
+    /engine <- $TMPDIR/builder-acceptance-FVhl9i/engine-change-sets ro
+    /workspace <- $TMPDIR/builder-acceptance-FVhl9i/workspace rw
+    /workspace/.dockerignore <- $TMPDIR/builder-acceptance-FVhl9i/workspace/.dockerignore ro
+    /workspace/Dockerfile <- $TMPDIR/builder-acceptance-FVhl9i/workspace/Dockerfile ro
+    /workspace/certs <- $TMPDIR/builder-acceptance-FVhl9i/engine-empty ro
+    /workspace/next.config.ts <- $TMPDIR/builder-acceptance-FVhl9i/workspace/next.config.ts ro
+    /workspace/package-lock.json <- $TMPDIR/builder-acceptance-FVhl9i/workspace/package-lock.json ro
+    /workspace/package.json <- $TMPDIR/builder-acceptance-FVhl9i/workspace/package.json ro
+    /workspace/tsconfig.json <- $TMPDIR/builder-acceptance-FVhl9i/workspace/tsconfig.json ro
+    /workspace/scripts/check-guards.ts <- $TMPDIR/builder-acceptance-FVhl9i/workspace/scripts/check-guards.ts ro
+    /workspace/src/app-config.ts <- $TMPDIR/builder-acceptance-FVhl9i/workspace/src/app-config.ts ro
+    /workspace/src/auth.ts <- $TMPDIR/builder-acceptance-FVhl9i/workspace/src/auth.ts ro
+    /workspace/src/db/schema.ts <- $TMPDIR/builder-acceptance-FVhl9i/workspace/src/db/schema.ts ro
+    /workspace/src/lib/access.ts <- $TMPDIR/builder-acceptance-FVhl9i/workspace/src/lib/access.ts ro
+    /workspace/src/lib/roles.tsx <- $TMPDIR/builder-acceptance-FVhl9i/workspace/src/lib/roles.tsx ro
+  step 02-submitter-screen: ok=true; inspected while running=true; net=none
+    /engine <- $TMPDIR/builder-acceptance-FVhl9i/engine-change-sets ro
+    /workspace <- $TMPDIR/builder-acceptance-FVhl9i/workspace rw
+    /workspace/.dockerignore <- $TMPDIR/builder-acceptance-FVhl9i/workspace/.dockerignore ro
+    /workspace/Dockerfile <- $TMPDIR/builder-acceptance-FVhl9i/workspace/Dockerfile ro
+    /workspace/certs <- $TMPDIR/builder-acceptance-FVhl9i/engine-empty ro
+    /workspace/next.config.ts <- $TMPDIR/builder-acceptance-FVhl9i/workspace/next.config.ts ro
+    /workspace/package-lock.json <- $TMPDIR/builder-acceptance-FVhl9i/workspace/package-lock.json ro
+    /workspace/package.json <- $TMPDIR/builder-acceptance-FVhl9i/workspace/package.json ro
+    /workspace/tsconfig.json <- $TMPDIR/builder-acceptance-FVhl9i/workspace/tsconfig.json ro
+    /workspace/scripts/check-guards.ts <- $TMPDIR/builder-acceptance-FVhl9i/workspace/scripts/check-guards.ts ro
+    /workspace/src/app-config.ts <- $TMPDIR/builder-acceptance-FVhl9i/workspace/src/app-config.ts ro
+    /workspace/src/auth.ts <- $TMPDIR/builder-acceptance-FVhl9i/workspace/src/auth.ts ro
+    /workspace/src/db/schema.ts <- $TMPDIR/builder-acceptance-FVhl9i/workspace/src/db/schema.ts ro
+    /workspace/src/lib/access.ts <- $TMPDIR/builder-acceptance-FVhl9i/workspace/src/lib/access.ts ro
+    /workspace/src/lib/roles.tsx <- $TMPDIR/builder-acceptance-FVhl9i/workspace/src/lib/roles.tsx ro
+  App and tools images built (the template's guard check and next build ran in the build).
+  Tables created and sample users added in the tools container (3 lines from the seed).
+  Before the app was started, nothing listened on 127.0.0.1:3171 (checked by a connection attempt, refused).
+  App container started and healthy.
+  run A: refused=no exit=0
+    item 1: passed (ran once and passed, with its screenshot)
+    summary: version passed; checklist incomplete (5 of the app spec's 6 checklist items have no test)
+  runner inspected while running=true; net=host; user=runner
+    /acceptance <- $TMPDIR/rev31-data/acceptance/rev31-acc-mweo3dat/v001 ro
+    /results <- $TMPDIR/rev31-data/acceptance-runs/rev31-acc-mweo3dat/run-20261113t074149-4c4b40d0/results rw
+    /run/secrets/sample-password <- $TMPDIR/rev31-data/acceptance-runs/rev31-acc-mweo3dat/run-20261113t074149-4c4b40d0/secret/sample-password ro
+  [AS EXPECTED] A: real run against the scripted app: expected passed with screenshot, exit 0; got passed, exit 0, screenshot yes
+  B1 time limit 0.5 s: refused=no exit=137 timedOut
+    item 1: did not run (the run went past its time limit and its container was stopped)
+    summary: did not run: the run went past its time limit and its container was stopped
+  [AS EXPECTED] B1: half-second limit: expected did not run; got did not run
+  B2 killed at start of test: refused=no exit=137
+    item 1: did not run (the runner's container ended with exit code 137)
+    summary: did not run: the runner's container ended with exit code 137
+  [AS EXPECTED] B2: killed mid-test: expected did not run; got did not run
+  B3 killed after the runner printed "1 passed (1.9s)": refused=no exit=0
+    item 1: passed (ran once and passed, with its screenshot)
+    summary: version passed; checklist incomplete (5 of the app spec's 6 checklist items have no test)
+  [AS EXPECTED] B3: test passed but container killed before it ended: expected did not run (or passed only if exit was clean 0); got passed exit 0
+  B4 test file changed: refused=the version does not match its manifest: item-01.spec.ts does not match its fingerprint in the manifest exit=none
+    item 1: did not run (the run was refused before its start: the version does not match its manifest: item-01.spec.ts does not match its fingerprint in the manifest)
+    summary: did not run: the run was refused before its start: the version does not match its manifest: item-01.spec.ts does not match its fingerprint in the manifest
+  [AS EXPECTED] B4: version file changed on disk: expected refused, did not run; got did not run; refused=yes; container=no
+  B5 weakened test, manifest made to match: refused=the manifest on disk is not the one the event log recorded for version v001 exit=none
+    item 1: did not run (the run was refused before its start: the manifest on disk is not the one the event log recorded for version v001)
+    summary: did not run: the run was refused before its start: the manifest on disk is not the one the event log recorded for version v001
+  [AS EXPECTED] B5: weakened test with a consistent manifest: expected refused (event log), did not run; got did not run; refused=the manifest on disk is not the one the event log recorded for version v001
+  [AS EXPECTED] B6: a version that does not exist: expected did not run; got (no items); refused=yes; summary=did not run: the run was refused before its start: the version does not match it
+  engine container: 13 paths tried, reached 0
+    search: 2663 files; marker 0, phrase 0, reason 0; mountinfo 46 lines, store-related 0
+  [AS EXPECTED] engine container: store by path, mounts, readable files: expected nothing of the store reached; no marker or phrase; got reached 0; marker 0; phrase 0; store mounts 0
+    engine probe container mounts: /engine<-$TMPDIR/builder-acceptance-FVhl9i/engine-change-sets; /probe<-$TMPDIR/rev31-probe-tOGrYL; /workspace<-$TMPDIR/builder-acceptance-FVhl9i/workspace; /workspace/.dockerignore<-$TMPDIR/builder-acceptance-FVhl9i/workspace/.dockerignore; /workspace/Dockerfile<-$TMPDIR/builder-acceptance-FVhl9i/workspace/Dockerfile; /workspace/certs<-$TMPDIR/builder-acceptance-FVhl9i/engine-empty; /workspace/next.config.ts<-$TMPDIR/builder-acceptance-FVhl9i/workspace/next.config.ts; /workspace/package-lock.json<-$TMPDIR/builder-acceptance-FVhl9i/workspace/package-lock.json; /workspace/package.json<-$TMPDIR/builder-acceptance-FVhl9i/workspace/package.json; /workspace/tsconfig.json<-$TMPDIR/builder-acceptance-FVhl9i/workspace/tsconfig.json; /workspace/scripts/check-guards.ts<-$TMPDIR/builder-acceptance-FVhl9i/workspace/scripts/check-guards.ts; /workspace/src/app-config.ts<-$TMPDIR/builder-acceptance-FVhl9i/workspace/src/app-config.ts; /workspace/src/auth.ts<-$TMPDIR/builder-acceptance-FVhl9i/workspace/src/auth.ts; /workspace/src/db/schema.ts<-$TMPDIR/builder-acceptance-FVhl9i/workspace/src/db/schema.ts; /workspace/src/lib/access.ts<-$TMPDIR/builder-acceptance-FVhl9i/workspace/src/lib/access.ts; /workspace/src/lib/roles.tsx<-$TMPDIR/builder-acceptance-FVhl9i/workspace/src/lib/roles.tsx
+  app container: 13 paths tried, reached 0
+    search: 3961 files; marker 0, phrase 0, reason 0; mountinfo 31 lines, store-related 0
+  [AS EXPECTED] app container: store by path, mounts, readable files: expected nothing of the store reached; no marker or phrase; got reached 0; marker 0; phrase 0; store mounts 0
+  tools container: 13 paths tried, reached 0
+    search: 24518 files; marker 0, phrase 0, reason 0; mountinfo 30 lines, store-related 0
+  [AS EXPECTED] tools container: store by path, mounts, readable files: expected nothing of the store reached; no marker or phrase; got reached 0; marker 0; phrase 0; store mounts 0
+  [AS EXPECTED] project database dump: expected marker 0, phrase 0; got {"marker":0,"phrase":0,"reason":1}
+  [AS EXPECTED] builder events: expected marker 0, phrase 0; got {"marker":0,"phrase":0,"reason":0}
+  [AS EXPECTED] project history: expected no acceptance file; no needle; got 3 revs, 62 names, acc files 0, {"marker":0,"phrase":0,"reason":0}
+  C app stopped: refused=the app did not answer before the start: the project's app container is not running exit=none
+    item 1: did not run (the run was refused before its start: the app did not answer before the start: the project's app container is not running)
+    summary: did not run: the run was refused before its start: the app did not answer before the start: the project's app container is not running
+  [AS EXPECTED] C: app stopped: expected refused, no container, did not run; got did not run; container=no
+  C2 impostor on the app's port: refused=the app did not answer before the start: the project's app container is not running exit=none
+    item 1: did not run (the run was refused before its start: the app did not answer before the start: the project's app container is not running)
+    summary: did not run: the run was refused before its start: the app did not answer before the start: the project's app container is not running
+  [AS EXPECTED] C2: another program answers 200 on the app's port: expected refused, did not run; got did not run; refused=the app did not answer before the start: the project's app container is not running
+  broken sandbox step 01-data: ok=true
+  broken sandbox step 02-submitter-screen: ok=true
+  broken sandbox step 03: ok=true
+  step 02 tree: pass dc07b8566885f3235c952f49bb50c3d959564de7; broken dc07b8566885f3235c952f49bb50c3d959564de7; same=true
+  App and tools images built (the template's guard check and next build ran in the build).
+  Tables created and sample users added in the tools container (3 lines from the seed).
+  Before the app was started, nothing listened on 127.0.0.1:3171 (checked by a connection attempt, refused).
+  App container started and healthy.
+  D broken copy: refused=no exit=1
+    item 1: failed (it ran and failed) step="sees status waiting"
+    summary: version failed: item 1 failed at step "sees status waiting"
+  [AS EXPECTED] D: broken copy: expected failed, step "sees status waiting", item named; got failed step="sees status waiting" summary="version failed: item 1 failed at step "sees status waiting""
+  D2 broken app, weakened test: refused=the manifest on disk is not the one the event log recorded for version v001 exit=none
+    item 1: did not run (the run was refused before its start: the manifest on disk is not the one the event log recorded for version v001)
+    summary: did not run: the run was refused before its start: the manifest on disk is not the one the event log recorded for version v001
+  [AS EXPECTED] D2: broken app, test weakened in the store: expected refused, never passed; got did not run; refused=the manifest on disk is not the one the event log recorded for version v001
+  D3 broken app, version restored: refused=no exit=1
+    item 1: failed (it ran and failed) step="sees status waiting"
+    summary: version failed: item 1 failed at step "sees status waiting"
+  [AS EXPECTED] D3: broken app again after restore: expected failed; got failed
+clean-up: containers of the project left: none; temporary folder removed
+
+VERDICTS
+ok  | A: real run against the scripted app | expected passed with screenshot, exit 0 | got passed, exit 0, screenshot yes
+ok  | B1: half-second limit | expected did not run | got did not run
+ok  | B2: killed mid-test | expected did not run | got did not run
+ok  | B3: test passed but container killed before it ended | expected did not run (or passed only if exit was clean 0) | got passed exit 0
+ok  | B4: version file changed on disk | expected refused, did not run | got did not run; refused=yes; container=no
+ok  | B5: weakened test with a consistent manifest | expected refused (event log), did not run | got did not run; refused=the manifest on disk is not the one the event log recorded for version v001
+ok  | B6: a version that does not exist | expected did not run | got (no items); refused=yes; summary=did not run: the run was refused before its start: the version does not match it
+ok  | engine container: store by path, mounts, readable files | expected nothing of the store reached; no marker or phrase | got reached 0; marker 0; phrase 0; store mounts 0
+ok  | app container: store by path, mounts, readable files | expected nothing of the store reached; no marker or phrase | got reached 0; marker 0; phrase 0; store mounts 0
+ok  | tools container: store by path, mounts, readable files | expected nothing of the store reached; no marker or phrase | got reached 0; marker 0; phrase 0; store mounts 0
+ok  | project database dump | expected marker 0, phrase 0 | got {"marker":0,"phrase":0,"reason":1}
+ok  | builder events | expected marker 0, phrase 0 | got {"marker":0,"phrase":0,"reason":0}
+ok  | project history | expected no acceptance file; no needle | got 3 revs, 62 names, acc files 0, {"marker":0,"phrase":0,"reason":0}
+ok  | C: app stopped | expected refused, no container, did not run | got did not run; container=no
+ok  | C2: another program answers 200 on the app's port | expected refused, did not run | got did not run; refused=the app did not answer before the start: the project's app container is not running
+ok  | D: broken copy | expected failed, step "sees status waiting", item named | got failed step="sees status waiting" summary="version failed: item 1 failed at step "sees status waiting""
+ok  | D2: broken app, test weakened in the store | expected refused, never passed | got did not run; refused=the manifest on disk is not the one the event log recorded for version v001
+ok  | D3: broken app again after restore | expected failed | got failed

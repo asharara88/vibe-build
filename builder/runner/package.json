@@ -1,0 +1,11 @@
+{
+  "name": "builder-acceptance-runner",
+  "version": "0.0.1",
+  "private": true,
+  "description": "The acceptance runner's own packages (package 3.1): Playwright Test, installed into the runner image only. Proprietary. (c) 2026 Ahmed Sharara.",
+  "license": "UNLICENSED",
+  "type": "module",
+  "dependencies": {
+    "@playwright/test": "1.63.0"
+  }
+}

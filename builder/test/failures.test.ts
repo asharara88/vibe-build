@@ -24,11 +24,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type pg from "pg";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { createGateway } from "../src/gateway/app.js";
 import { FaultGate, FaultJournal } from "../src/gateway/journal.js";
 import { DEFAULT_PROFILES } from "../src/gateway/hold.js";
-import { createPool } from "../src/store/db.js";
+import { createClient, createPool } from "../src/store/db.js";
 import { listEvents } from "../src/store/events.js";
 import { activeFreeze, listFreezes, recordFreeze, type UnrecordedEnding } from "../src/store/freezes.js";
 import { changeCap, listHolds, openHold, openStepHold, OWNER_GONE } from "../src/store/holds.js";
@@ -36,6 +36,63 @@ import { gatewayLockKeySql, holdLivenessLock, type Liveness } from "../src/store
 import { createProject, issueProjectToken } from "../src/store/projects.js";
 import { checkProject, checkTrace, micro, traceTable, type Bill, type Sample, type TraceEvent } from "./invariants.js";
 import { TEST_DB_URL, testPool, uniqueId } from "./helpers.js";
+
+/**
+ * The file operations, for B10 (9) (the review bot on 2ad751d). Passed through unchanged unless a test names a
+ * journal file to watch: then each append to it is counted from its open to its close, and the rename that ends
+ * a mark-done rewrite of it can be held until the test lets it go. Nothing here changes what a file holds.
+ */
+const fsWatch = vi.hoisted(() => ({
+  journal: null as string | null,
+  appendsOpen: 0,
+  whenNoAppendOpen: [] as Array<() => void>,
+  holdRename: null as Promise<void> | null,
+  renameHeld: false,
+  order: [] as string[],
+}));
+vi.mock("node:fs/promises", async (importOriginal) => {
+  const real = await importOriginal<typeof import("node:fs/promises")>();
+  const appendClosed = () => {
+    fsWatch.appendsOpen--;
+    if (fsWatch.appendsOpen === 0) for (const f of fsWatch.whenNoAppendOpen.splice(0)) f();
+  };
+  const open = async (...args: Parameters<typeof real.open>) => {
+    const [path, flags] = args;
+    if (fsWatch.journal === null || String(path) !== fsWatch.journal || flags !== "a") return real.open(...args);
+    fsWatch.appendsOpen++;
+    fsWatch.order.push("append to the journal: opened");
+    let fh: Awaited<ReturnType<typeof real.open>>;
+    try {
+      fh = await real.open(...args);
+    } catch (err) {
+      appendClosed();
+      throw err;
+    }
+    const close = fh.close.bind(fh);
+    fh.close = async () => {
+      try {
+        await close();
+      } finally {
+        fsWatch.order.push("append to the journal: closed");
+        appendClosed();
+      }
+    };
+    return fh;
+  };
+  const rename = async (...args: Parameters<typeof real.rename>) => {
+    const watched = fsWatch.journal !== null && String(args[1]) === fsWatch.journal;
+    if (watched && fsWatch.holdRename) {
+      fsWatch.renameHeld = true;
+      fsWatch.order.push("mark-done rewrite: rename held");
+      await fsWatch.holdRename;
+    }
+    await real.rename(...args);
+    if (watched) fsWatch.order.push("mark-done rewrite: renamed");
+  };
+  return { ...real, open, rename };
+});
+/** Resolves once no append to the watched journal is open (at once if none is). */
+const noAppendOpen = () => (fsWatch.appendsOpen === 0 ? Promise.resolve() : new Promise<void>((r) => fsWatch.whenNoAppendOpen.push(r)));
 
 /** Made up for these tests; never a real key. */
 const MADE_UP_KEY = "made-up-key-for-package-1-4-failure-tests";
@@ -740,6 +797,82 @@ describe("package 1.4: failure tests, proof rows B8 to B13 (against a stand-in p
     await invariantsHold(p.id);
   }, 60_000);
 
+  it("B10 (9): a second call's ending appended to the journal while the first one's line is being moved to the done file is kept: the move cannot drop it, and a gateway started afterwards still finds it (review bot on 2ad751d)", async () => {
+    const dir = await newJournalDir();
+    const journal = await FaultJournal.open(dir);
+    const faults: string[] = [];
+    const g = new FaultGate({ pool, journal, onFault: (m) => faults.push(m) });
+    const deadline = new Date(Date.now() + 600_000);
+    const holdFor = async (projectId: string) => {
+      const opened = await openHold(pool, { projectId, step: null, amountUsd: HOLD_USD, deadline, gateway: "gw_test_b10_9", arithmetic: {}, path: "/v1/messages" });
+      if (!opened.ok) throw new Error("not opened");
+      return opened.hold.id;
+    };
+    const pa = await newProject(5);
+    const pb = await newProject(5);
+    const a = unrecordedFor(pa.id, await holdFor(pa.id));
+    const b = unrecordedFor(pb.id, await holdFor(pb.id));
+    let letRenameGo!: () => void;
+    const unwatch = () => {
+      letRenameGo();
+      Object.assign(fsWatch, { journal: null, holdRename: null, renameHeld: false, order: [] });
+    };
+    fsWatch.journal = journal.file;
+    fsWatch.holdRename = new Promise<void>((r) => (letRenameGo = r));
+    try {
+      // A's ending: noted and forced to disk, as app.ts does; the database takes A's freeze, but will keep refusing B's.
+      g.note(a);
+      await g.persist(a.journal_id);
+      await fault.on(pb.id, "project_freezes");
+      const drained = g.drain();
+      // A's line is being moved: the done file written, the journal's rewrite built from what the file held then, its rename held.
+      await until("A's mark-done rewrite to reach its rename", () => fsWatch.renameHeld);
+      // B's ending arrives now. If its append is not held back, it is let finish before the rename goes ahead.
+      g.note(b);
+      const persisted = g.persist(b.journal_id);
+      await new Promise((r) => setImmediate(r));
+      await noAppendOpen();
+      letRenameGo();
+      await persisted;
+      expect(await drained).toBe(false); // B's freeze is still refused
+      const order = fsWatch.order.slice();
+      // B is still waiting in the journal (once), and only A was moved to the done file.
+      expect((await journal.pending()).records.map((r) => r.journal_id)).toEqual([b.journal_id]);
+      const done = await readFile(journal.doneFile, "utf8");
+      expect(done).toContain(a.journal_id);
+      expect(done).not.toContain(b.journal_id);
+      // B's append ran after the rewrite's rename, never inside it.
+      expect(order).toEqual([
+        "append to the journal: opened",
+        "append to the journal: closed",
+        "mark-done rewrite: rename held",
+        "mark-done rewrite: renamed",
+        "append to the journal: opened",
+        "append to the journal: closed",
+      ]);
+      expect(g.closed()).toBe(true);
+      expect(await kinds(pa.id)).toEqual(["hold.opened", "hold.kept", "gateway.fault", "project.frozen"]);
+      expect(await kinds(pb.id)).toEqual(["hold.opened"]);
+      unwatch();
+      // The gateway restarts while the database still refuses B's freeze: the new one finds B in the journal.
+      const g2 = new FaultGate({ pool, journal: await FaultJournal.open(dir), onFault: (m) => faults.push(m) });
+      expect(await g2.replay()).toEqual({ loaded: 1, unreadable: 0, recorded: false });
+      expect(g2.oldest()?.journal_id).toBe(b.journal_id);
+      await fault.off();
+      expect(await g2.drain()).toBe(true);
+      expect(await kinds(pb.id)).toEqual(["hold.opened", "hold.kept", "gateway.fault", "project.frozen"]);
+      expect((await listHolds(pool, pb.id))[0]).toMatchObject({ state: "open", unreconciled: true });
+      expect((await journal.pending()).records).toHaveLength(0);
+      expect(await readFile(journal.doneFile, "utf8")).toContain(b.journal_id);
+      expect(faults).toEqual([]);
+      await invariantsHold(pa.id);
+      await invariantsHold(pb.id);
+    } finally {
+      unwatch();
+      await fault.off();
+    }
+  }, 60_000);
+
   it("B10 (4): under the project's lock, a frozen project opens no hold, starts no step, and a running step's calls are refused, whatever the cap", async () => {
     const { id } = await newProject(5);
     const deadline = new Date(Date.now() + 600_000);
@@ -946,7 +1079,111 @@ describe("package 1.4: failure tests, proof rows B8 to B13 (against a stand-in p
       await nowhere.end();
     }
   });
+
+  /* ------------------------------------------------------------------ stopped while a request waits before its first forward (review bot on 899cbf0) */
+
+  it("B10 (10): requests that passed the gate while it was open, and waited for their token to be read, forward nothing once it has closed: not a call's counting call, not a counting request passed through; each gets the 503 and nothing is written (review bot on 899cbf0)", async () => {
+    const g = await inProcessGateway("gw_b10_10", { journalDir: await newJournalDir() });
+    const p = await newProject(HOLD_USD * 3);
+    const q = await newProject(5); // another project, never frozen: only the gate can stop its requests
+    const a = callAt(g.url, p.token, body(p.id, "park", "b10-10a"));
+    await until("call A at the stand-in", () => (stand.arrivedByTag.get("b10-10a") ?? 0) === 1);
+    const held = await holdTokenReads();
+    try {
+      // B (a metered call) and C (a counting request, passed through) pass the gate while it is open, then wait for their token to be read.
+      const b = callAt(g.url, q.token, body(q.id, "ok", "b10-10b"));
+      const cr = callAt(g.url, q.token, { model: MODEL, messages: [{ role: "user", content: "b10-10c" }] }, "/v1/messages/count_tokens");
+      await until("B and C waiting for their token to be read", async () => (await held.waiting()) === 2);
+      // A's ending and the freeze are both refused: the gate closes and stays closed.
+      await fault.on(p.id, "model.call");
+      await fault.on(p.id, "project_freezes");
+      release("b10-10a");
+      expect((await a).status).toBe(200);
+      expect(g.gate.closed()).toBe(true);
+      const before = { messages: stand.messages, counts: stand.counts };
+      await held.letGo();
+      const [rb, rc] = await Promise.all([b, cr]);
+      expect({
+        metered: await outcome(rb),
+        passthrough: await outcome(rc),
+        reached_the_stand_in: { messages: stand.messages - before.messages, counts: stand.counts - before.counts },
+        written_for_q: await kinds(q.id),
+      }).toEqual({
+        metered: { status: 503, type: "gateway_unrecorded", nothing_forwarded: true },
+        passthrough: { status: 503, type: "gateway_unrecorded", nothing_forwarded: true },
+        reached_the_stand_in: { messages: 0, counts: 0 },
+        written_for_q: [],
+      });
+    } finally {
+      await held.letGo();
+      await fault.off();
+    }
+    // The database takes writes again: the freeze is written, the gate opens, and the other project's calls go through.
+    expect(await g.gate.drain()).toBe(true);
+    expect(await kinds(p.id)).toEqual(["hold.opened", "hold.kept", "gateway.fault", "project.frozen"]);
+    expect((await callAt(g.url, q.token, body(q.id))).status).toBe(200);
+    await invariantsHold(p.id);
+    await invariantsHold(q.id);
+  }, 60_000);
+
+  it("1.4: requests that passed the liveness check, and waited for their token to be read, forward nothing once the gateway has lost its lock: not a call's counting call, not a counting request passed through; each gets the 503 and nothing is written (review bot on 899cbf0)", async () => {
+    const g = await inProcessGateway("gw_live_tok", { retryMs: 120_000 }); // the lock is not taken again during the test
+    const p = await newProject(5);
+    const held = await holdTokenReads();
+    try {
+      const b = callAt(g.url, p.token, body(p.id, "ok", "live-tok-b"));
+      const cr = callAt(g.url, p.token, { model: MODEL, messages: [{ role: "user", content: "live-tok-c" }] }, "/v1/messages/count_tokens");
+      await until("B and C waiting for their token to be read", async () => (await held.waiting()) === 2);
+      await pool.query("select pg_terminate_backend($1)", [g.liveness.pid()]);
+      await until("the gateway to see its lock lost", () => !g.liveness.ok());
+      const before = { messages: stand.messages, counts: stand.counts };
+      await held.letGo();
+      const [rb, rc] = await Promise.all([b, cr]);
+      expect({
+        metered: await outcome(rb),
+        passthrough: await outcome(rc),
+        reached_the_stand_in: { messages: stand.messages - before.messages, counts: stand.counts - before.counts },
+        written_for_p: await kinds(p.id),
+      }).toEqual({
+        metered: { status: 503, type: "gateway_unavailable", nothing_forwarded: true },
+        passthrough: { status: 503, type: "gateway_unavailable", nothing_forwarded: true },
+        reached_the_stand_in: { messages: 0, counts: 0 },
+        written_for_p: [],
+      });
+    } finally {
+      await held.letGo();
+    }
+  });
 });
+
+/**
+ * Holds every request that reaches its token read (in the gateway, just after the gate and liveness checks on arrival)
+ * until `letGo`: a connection of its own, outside the pool, takes the token table's strongest lock, so the read waits
+ * on it. `waiting` counts the sessions waiting on that lock (review bot on 899cbf0).
+ */
+async function holdTokenReads() {
+  const holder = createClient(TEST_DB_URL);
+  await holder.connect();
+  await holder.query("begin");
+  await holder.query("lock table project_tokens in access exclusive mode");
+  const pid = (await holder.query<{ pid: number }>("select pg_backend_pid() as pid")).rows[0]!.pid;
+  let held = true;
+  return {
+    waiting: () => blockedBehind(pid),
+    letGo: async () => {
+      if (!held) return;
+      held = false;
+      await holder.query("rollback");
+      await holder.end();
+    },
+  };
+}
+
+/** What a request got back: its status, the error type if any, and whether the answer says nothing was forwarded. */
+async function outcome(res: Response) {
+  const j = (await res.json()) as { error?: { type?: string; message?: string } };
+  return { status: res.status, type: j.error?.type ?? null, nothing_forwarded: j.error?.message?.endsWith("Nothing was forwarded.") ?? false };
+}
 
 /** A journal record for a hold, as the gateway writes one (made-up call fields). */
 function unrecordedFor(projectId: string, holdId: string): UnrecordedEnding {
