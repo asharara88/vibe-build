@@ -660,7 +660,7 @@ describe("holds: proof rows B1 to B6 of the design note", () => {
 
   it("B6: a gateway process that stops cleanly with a call in flight leaves its hold open; a gateway started afterwards finds it, keeps it at its full amount and still counts it", async () => {
     // Second re-read of 13 Nov 2026: the first gateway runs as a process of its own (test/b6-gateway-process.ts),
-    // started as the scripts are run, with `node --import tsx`, on this test database and against this file's stand-in.
+    // started with tsx loaded into Node (`node --import tsx`), on this test database and against this file's stand-in.
     const { id, token } = await newProject(PLAIN_HOLD * 1.5);
     const child = spawn(process.execPath, ["--import", "tsx", "test/b6-gateway-process.ts"], {
       cwd: BUILDER_DIR,
@@ -677,7 +677,9 @@ describe("holds: proof rows B1 to B6 of the design note", () => {
       for (const line of parts) if (line.trim()) said.push(JSON.parse(line) as Record<string, unknown>);
     });
     child.stderr.on("data", (d: Buffer) => (stderr += d.toString()));
-    const exited = new Promise<number | null>((resolve) => child.on("exit", (code) => resolve(code)));
+    // "close", not "exit": Node emits "close" once the process has ended and its output streams have closed,
+    // so every line it printed has been read by then; at "exit" they may still be open (Node's child_process documentation).
+    const exited = new Promise<number | null>((resolve) => child.on("close", (code) => resolve(code)));
     const until = async (what: string, ok: () => boolean) => {
       for (let i = 0; i < 300 && !ok(); i++) await new Promise((r) => setTimeout(r, 20));
       if (!ok()) throw new Error(`the gateway process did not reach "${what}": ${JSON.stringify(said)} ${stderr}`);
@@ -696,9 +698,20 @@ describe("holds: proof rows B1 to B6 of the design note", () => {
       // The gateway process is told to stop, as a service is: it stops taking calls, gives calls in progress
       // 300 ms, closes its database connections and exits with code 0.
       child.kill("SIGTERM");
+      // It stops taking calls: once it says it is stopping, a new call to it has its connection refused,
+      // before the process has said it stopped (that comes only after the 300 ms).
+      await until("stopping", () => said.some((s) => s["stopping"]));
+      const afterStop = await callAt(childUrl, token, plain()).then(
+        (r) => `answered ${r.status}`,
+        (e: unknown) => `refused (${String((e as { cause?: { code?: unknown } }).cause?.code)})`,
+      );
+      const stoppedAlreadySaid = said.some((s) => s["stopped"]);
+      expect(afterStop).toBe("refused (ECONNREFUSED)");
+      expect(stoppedAlreadySaid).toBe(false);
       expect(await exited).toBe(0);
       expect(said.find((s) => s["stopping"])).toEqual({ stopping: { calls_in_progress: 1 } });
-      expect(said.at(-1)).toEqual({ stopped: { calls_in_progress: 1, every_connection_ended: false, server_closed_to_new_calls: true, database_connections_closed: true } });
+      // Each value here is read by the process as it stops, not written in (test/b6-gateway-process.ts).
+      expect(said.at(-1)).toEqual({ stopped: { calls_in_progress: 1, every_connection_ended: false, still_listening: false, database_connections_open: 0 } });
       expect(said.filter((s) => s["fault"])).toEqual([]);
       expect(await inFlight).toBe("the connection closed with no answer");
     } finally {
