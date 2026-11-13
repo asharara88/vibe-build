@@ -16,6 +16,14 @@ export const START_DOCKER = "start Docker as CLAUDE.md, Commands, says (in a clo
 /** How to put the approved zip into the cache. */
 export const FETCH_BROWSER = "from builder/, run `BUILDER_BROWSER_CACHE=<a folder outside the repository> npx tsx scripts/fetch-browser.ts`, then run the tests with BUILDER_BROWSER_CACHE set to that folder; if the session's network refuses storage.googleapis.com, the owner's cloud environment must let that host through first (docs/ENVIRONMENT-CHECK.md, 'Session set-up'; known gap 110)";
 
+/** A line kept to at most `max` characters: when longer, cut at a word, not inside one, and marked " …". */
+export function shortened(line: string, max = 200): string {
+  if (line.length <= max) return line;
+  const head = line.slice(0, max);
+  const atWord = /\s/.test(line[max]!) ? head : head.replace(/\s+\S*$/, "");
+  return `${(atWord || head).trimEnd()} …`;
+}
+
 /** Null when Docker answers; otherwise what is wrong and how to put it right. */
 export async function dockerProblem(env: NodeJS.ProcessEnv = process.env): Promise<string | null> {
   try {
@@ -23,7 +31,7 @@ export async function dockerProblem(env: NodeJS.ProcessEnv = process.env): Promi
     return null;
   } catch (err) {
     const e = err as { code?: unknown; stderr?: string; stdout?: string; message?: string };
-    const said = e.code === "ENOENT" ? "the docker program is not installed" : ((e.stderr || e.stdout || e.message || "").trim().split("\n").find((l) => l.trim()) ?? "no answer").slice(0, 200);
+    const said = e.code === "ENOENT" ? "the docker program is not installed" : shortened((e.stderr || e.stdout || e.message || "").trim().split("\n").find((l) => l.trim()) ?? "no answer");
     return `Docker does not answer on this machine (\`docker info\` failed: ${said}). To put it right, ${START_DOCKER}.`;
   }
 }

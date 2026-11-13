@@ -45,6 +45,19 @@ describe("the live acceptance tests' prerequisites, each named with how to put i
     expect(await browserZipProblem({ BUILDER_BROWSER_CACHE: linked })).toMatch(/is not a plain file \(a link or a folder is not accepted\)\. To put it right, remove what is at that place yourself/);
   });
 
+  it("Docker's own message, when long, is cut at a word and marked with '…' (after the review: it was cut mid-word)", async () => {
+    // A stand-in docker program that fails with a long message; made-up words, so where the cut falls is known.
+    const bin = mkdtempSync(join(scratch, "stand-in-docker-"));
+    const said = `Cannot connect to the Docker daemon at unix:///made-up/docker.sock. Is the docker daemon running? ${"abcdefghij ".repeat(30).trim()}`;
+    writeFileSync(join(bin, "docker"), `#!/bin/sh\nprintf '%s\\n' '${said}' >&2\nexit 1\n`, { mode: 0o755 });
+    const found = await dockerProblem({ PATH: bin });
+    const quoted = /`docker info` failed: (.*)\)\. To put it right, /.exec(found ?? "")?.[1];
+    expect(quoted, found ?? "").toBeDefined();
+    expect(quoted!.length).toBeLessThanOrEqual(202);
+    expect(quoted).toMatch(/^Cannot connect to the Docker daemon at unix:\/\/\/made-up\/docker\.sock\. Is the docker daemon running\? (?:abcdefghij )+…$/);
+    expect(said.startsWith(quoted!.slice(0, -2))).toBe(true);
+  });
+
   it("both missing: both are named", async () => {
     const found = await liveAcceptanceProblems(noDocker());
     expect(found).toHaveLength(2);
