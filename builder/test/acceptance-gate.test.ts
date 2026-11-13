@@ -145,11 +145,12 @@ describe("the gate's scan, on made-up folders: each rule finds what it is for (a
     expect(scanForLeftOutTests(dir, listed)).toEqual(["test/hidden/d.test.ts: a test file the test runner would not run"]);
   }, 60_000);
 
-  it("settings that name projects, dir or root, and another settings file or a workspace file, are named; so are the earlier ones", () => {
+  it("settings that name projects, dir, root or workspace, and another settings file or a workspace file, are named; so are the earlier ones", () => {
     for (const [setting, config] of [
       ["projects", 'export default { test: { projects: ["test/sub"] } };\n'],
       ["dir", 'export default { test: { dir: "test/sub" } };\n'],
       ["root", 'export default { test: { root: "test/sub" } };\n'],
+      ["workspace", 'export default { test: { workspace: ["test/sub"] } };\n'],
       ["passWithNoTests", "export default { test: { passWithNoTests: true } };\n"],
       ["exclude", 'export default { test: { exclude: ["test/x/**"] } };\n'],
     ] as const) {

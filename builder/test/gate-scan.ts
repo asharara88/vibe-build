@@ -5,8 +5,8 @@
  *
  * After the package's review (13 Nov 2026) it also finds `fails`, reads the subfolders of `test/` and every file
  * the test runner itself lists, asks the test runner which files it would run (so a setting that leaves a test
- * file out is seen whatever it is called), and names the settings `projects`, `dir` and `root` and any other
- * settings or workspace file.
+ * file out is seen whatever it is called), and names the settings `projects`, `dir`, `root` and `workspace` and any
+ * other settings or workspace file.
  *
  * The words are put together here, so that this file, which the scan reads too, does not hold them.
  */
