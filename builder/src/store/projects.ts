@@ -55,6 +55,26 @@ export async function projectForToken(pool: pg.Pool, token: string): Promise<Pro
   return r.rows[0] ?? null;
 }
 
+/**
+ * The project a presented token belongs to and, for a step's token (package 1.3), its step hold and
+ * the step's id. A revoked token, or one not known, gives null. The step's id comes from the step
+ * hold, not from anything the caller sends.
+ */
+export async function tokenOwner(pool: pg.Pool, token: string): Promise<{ project: Project; stepHold: { id: string; stepId: string } | null } | null> {
+  const r = await pool.query<Project & { step_hold_id: string | null; step_id: string | null }>(
+    `select p.*, t.step_hold_id, s.step_id
+       from project_tokens t
+       join projects p on p.id = t.project_id
+       left join step_holds s on s.id = t.step_hold_id and s.project_id = t.project_id
+      where t.token_hash = $1 and t.revoked_at is null`,
+    [hashToken(token)],
+  );
+  const row = r.rows[0];
+  if (!row) return null;
+  const { step_hold_id, step_id, ...project } = row;
+  return { project, stepHold: step_hold_id !== null && step_id !== null ? { id: step_hold_id, stepId: step_id } : null };
+}
+
 export interface Spend {
   project_id: string;
   cap_usd: string;

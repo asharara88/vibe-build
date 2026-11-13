@@ -1,0 +1,41 @@
+Package 1.3, 13 Nov 2026: the tests of package 1.3 on their own, at commit 85c5959
+Development machine (a cloud session), in builder/. BUILDER_TEST_DATABASE_URL=postgres:///builder_test_pkg13?host=/var/run/postgresql
+
+$ npx vitest run test/step-hold.test.ts --reporter=verbose
+
+ RUN  v5.1.0 /tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/wt-13/builder
+
+stdout | test/step-hold.test.ts > package 1.3: the pre-step check and the step hold (proof row B7) > 1.3 T1 (B7, refused): a step whose budget does not fit is refused before it starts, with the message shown; the engine is never created
+1.3 T1, the message shown: This step needs up to $0.03 to finish (3 turns); this project has $0.02 left of its budget of $0.02 (spent $0.00, with $0.00 held for work in progress or awaiting reconciliation). The step was not started. A cap of at least $0.03 would let it start now.
+
+ ✓ test/step-hold.test.ts > package 1.3: the pre-step check and the step hold (proof row B7) > 1.3 the budget of a 3-turn step at the test's limits is $0.02988, worked in whole millionths 3ms
+ ✓ test/step-hold.test.ts > package 1.3: the pre-step check and the step hold (proof row B7) > 1.3 T1 (B7, refused): a step whose budget does not fit is refused before it starts, with the message shown; the engine is never created 12ms
+ ✓ test/step-hold.test.ts > package 1.3: the pre-step check and the step hold (proof row B7) > 1.3 T2: a step budget equal to the room left is let start; one millionth more is refused 16ms
+stdout | test/step-hold.test.ts > package 1.3: the pre-step check and the step hold (proof row B7) > 1.3 T3 (B7, drawn): each call's hold is drawn from the step's hold, and spent + open holds + reserved room stays at the step's budget at every forward
+1.3 T3, the log: step.hold_opened, hold.opened, model.call, hold.settled, hold.opened, model.call, hold.settled, hold.opened, model.call, hold.settled, step.hold_closed
+
+ ✓ test/step-hold.test.ts > package 1.3: the pre-step check and the step hold (proof row B7) > 1.3 T3 (B7, drawn): each call's hold is drawn from the step's hold, and spent + open holds + reserved room stays at the step's budget at every forward 75ms
+ ✓ test/step-hold.test.ts > package 1.3: the pre-step check and the step hold (proof row B7) > 1.3 T4: a call that needs more than the room left in its step is refused (402, step_budget_reached) and not forwarded, though the project's free budget would fit it 44ms
+ ✓ test/step-hold.test.ts > package 1.3: the pre-step check and the step hold (proof row B7) > 1.3 T5 (B7, released): when the step ends its unused room is released, and a call outside the step that needed that room now fits 36ms
+ ✓ test/step-hold.test.ts > package 1.3: the pre-step check and the step hold (proof row B7) > 1.3 T5: a call that costs more than its hold and the room left is charged in full, and the close's figures still add up (the overrun not covered is named) 26ms
+ ✓ test/step-hold.test.ts > package 1.3: the pre-step check and the step hold (proof row B7) > 1.3 T6: an engine that throws part-way still has its step closed; a call kept after a server error stays open at its full amount 24ms
+ ✓ test/step-hold.test.ts > package 1.3: the pre-step check and the step hold (proof row B7) > 1.3 T7: a call made with the step's token after the step ended is refused as an unknown token (401): the token was revoked 23ms
+ ✓ test/step-hold.test.ts > package 1.3: the pre-step check and the step hold (proof row B7) > 1.3 T7: a call whose token was accepted before its step closed, and judged after, is refused (401, step_closed) and not forwarded 19ms
+ ✓ test/step-hold.test.ts > package 1.3: the pre-step check and the step hold (proof row B7) > 1.3 T9: during a step, a cap lowering below spent + open holds + the room reserved is refused, naming a floor that includes the room; a raise is accepted and leaves the room as it was 43ms
+stdout | test/step-hold.test.ts > package 1.3: the pre-step check and the step hold (proof row B7) > 1.3 T10: a step's admission, a call's admission and a cap change are judged one at a time: with room for only one of two, exactly one gets it
+1.3 T10: round 1 admitted the call; round 2 made the lowering and refused the step
+
+ ✓ test/step-hold.test.ts > package 1.3: the pre-step check and the step hold (proof row B7) > 1.3 T10: a step's admission, a call's admission and a cap change are judged one at a time: with room for only one of two, exactly one gets it 83ms
+ ✓ test/step-hold.test.ts > package 1.3: the pre-step check and the step hold (proof row B7) > 1.3 T11: a step past its deadline is closed by the sweep: its room is released and its token stops working 22ms
+ ✓ test/step-hold.test.ts > package 1.3: the pre-step check and the step hold (proof row B7) > 1.3 T11: a step past its deadline is closed by the next decision in its project, before the sweep: its call is refused (step_closed) 316ms
+ ✓ test/step-hold.test.ts > package 1.3: the pre-step check and the step hold (proof row B7) > 1.3 T11: closing a step that is already closed writes nothing and does not throw, so a step that ends after the sweep closed it keeps its result 26ms
+ ✓ test/step-hold.test.ts > package 1.3: the pre-step check and the step hold (proof row B7) > 1.3 T12: a turn limit or profile that is not a whole, finite, positive number is refused before anything is opened; the database refuses a NaN or negative step figure on its own 46ms
+ ✓ test/step-hold.test.ts > package 1.3: the pre-step check and the step hold (proof row B7) > 1.3 T13: a step call outside the limits its budget was worked out from, or naming another step, is refused and not forwarded; a call within them goes through 36ms
+ ✓ test/step-hold.test.ts > package 1.3: the pre-step check and the step hold (proof row B7) > 1.3: no step token was written to the event log, and no fault was raised 1ms
+
+ Test Files  1 passed (1)
+      Tests  18 passed (18)
+   Start at  07:32:14
+   Duration  1.09s (tests 89%, import 7%, transform 4%)
+
+exit code: 0

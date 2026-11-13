@@ -120,7 +120,7 @@ async function showEvents(id: string) {
       log(`  event ${e.kind}: hold #${p["hold_id"]} of ${usd(p["amount_usd"] as number)} settled at ${usd(p["actual_usd"] as number)}; ${usd(p["returned_usd"] as number)} returned to the budget`);
     } else if (e.kind === "gateway.refused") {
       const detail = Object.entries(p)
-        .filter(([k]) => !["reason", "path", "cap_usd", "spent_usd", "open_holds_usd", "this_hold_usd"].includes(k))
+        .filter(([k]) => !["reason", "path", "cap_usd", "spent_usd", "open_holds_usd", "step_room_usd", "this_hold_usd"].includes(k))
         .map(([k, v]) => `${k} ${typeof v === "string" ? v : JSON.stringify(v)}`)
         .join(", ");
       log(`  event ${e.kind}: reason ${p["reason"]}` + (p["this_hold_usd"] !== undefined ? `; spent ${usd(p["spent_usd"] as number)} + open holds ${usd(p["open_holds_usd"] as number)} + this hold ${usd(p["this_hold_usd"] as number)} > cap ${usd(p["cap_usd"] as number)}` : "") + (detail ? `; ${detail}` : ""));

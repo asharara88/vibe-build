@@ -23,7 +23,7 @@ import { Hono } from "hono";
 import type pg from "pg";
 import { appendEvent } from "../store/events.js";
 import { expireHolds, keepHold, openHold, recoverHolds, releaseUnsentHold, settleHold } from "../store/holds.js";
-import { projectForToken, type Project } from "../store/projects.js";
+import { tokenOwner, type Project } from "../store/projects.js";
 import { costUsd, emptyUsage, itemisedCacheWrites, mergeUsage, statesSpeed, USAGE_COUNTS, usageAsPriced, usageIsReadable, type ProviderUsage, type Usage } from "./cost.js";
 import { betasNotAllowed, computeHold, countRequestBody, DEFAULT_PROFILES, guardRequest, mayAskForOneHourCache, type MeteredRequest, type ProfileLimits } from "./hold.js";
 import { spellsKey } from "./key-reader.js";
@@ -212,10 +212,20 @@ export function createGateway(opts: GatewayOptions) {
   app.all("/v1/*", async (c) => {
     const token = c.req.header("x-api-key") ?? bearer(c.req.header("authorization"));
     if (!token) return c.json(errorBody("authentication_error", "No project token was sent. The engine must send its project token as the API key."), 401);
-    const project: Project | null = await projectForToken(opts.pool, token);
-    if (!project) return c.json(errorBody("authentication_error", "This project token is not recognised or has been revoked."), 401);
+    const owner = await tokenOwner(opts.pool, token);
+    if (!owner) return c.json(errorBody("authentication_error", "This project token is not recognised or has been revoked."), 401);
+    const project: Project = owner.project;
 
-    const step = c.req.header("x-builder-step") ?? null;
+    // A step's token (package 1.3) names its step: the label comes from the step hold, never from the
+    // caller. A step header that says otherwise is refused. Calls made without a step's token are still
+    // labelled by the header the caller sends, which nothing checks (known gap 18).
+    const stepHold = owner.stepHold;
+    const stepHeader = c.req.header("x-builder-step") ?? null;
+    const step = stepHold ? stepHold.stepId : stepHeader;
+    if (stepHold && stepHeader !== null && stepHeader !== stepHold.stepId) {
+      await appendEvent(opts.pool, project.id, "gateway.refused", { reason: "step_label_differs", path: normalisePath(new URL(c.req.url).pathname), step_hold_id: Number(stepHold.id) }, step);
+      return c.json(errorBody("invalid_request_error", "The step named in the x-builder-step header is not the step this token was issued for. The gateway forwarded nothing."), 400);
+    }
     const url = new URL(c.req.url);
     const path = normalisePath(url.pathname);
     const metered = path === METERED_PATH;
@@ -337,16 +347,42 @@ export function createGateway(opts: GatewayOptions) {
       gateway: gatewayId,
       arithmetic: { ...arithmetic },
       path,
+      stepHoldId: stepHold?.id ?? null,
+      model: requestedModel,
+      maxTokens: body.max_tokens as number,
     });
     if (!opened.ok) {
       const b = opened.budget;
+      const s = opened.step;
+      // A step call (package 1.3). Nothing was forwarded in any of these cases.
+      if (opened.reason === "step_closed") {
+        return c.json(errorBody("step_closed", "This step has ended, so its token no longer lets calls through. The gateway forwarded nothing."), 401);
+      }
+      if (opened.reason === "step_call_outside_limits" && s) {
+        const why =
+          s.which === "model" ? `this call asks for the model "${requestedModel}", and the step's budget was worked out for "${s.model}"`
+          : s.which === "max_tokens" ? `this call asks for up to ${String(body.max_tokens)} output tokens, and the step's budget allows ${s.maxTokensCeiling} per call`
+          : `this call's hold ($${arithmetic.hold_usd.toFixed(6)}) is more than one turn's share of the step's budget ($${s.perTurn.toFixed(6)}): its prompt is larger than the step's budget allows for`;
+        return c.json(errorBody("invalid_request_error", `This call is outside the limits its step's budget was worked out from: ${why}. The gateway forwarded nothing.`), 400);
+      }
+      if (opened.reason === "step_budget_used_up" && s) {
+        return c.json(
+          errorBody(
+            "step_budget_reached",
+            `This step has used up its budget: $${centsDown(s.room)} is left of the $${centsUp(s.budget)} reserved for it, and this call needed up to $${centsUp(arithmetic.hold_usd)}. The gateway forwarded nothing. Raising the project's cap does not add to a running step's budget: the step has to end, and a new one be started.`,
+          ),
+          402,
+        );
+      }
       // Shown to the cent, rounded so that the figures never appear to fit: what this call needs,
       // what is spent and what is held are rounded up, the cap down, so the room left that the
-      // figures imply is rounded down (review of 13 Nov 2026). The wording is the design note's (5.5).
+      // figures imply is rounded down (review of 13 Nov 2026). The wording is the design note's (5.5),
+      // with the room reserved for running steps named when there is any (package 1.3).
+      const reserved = b.stepRoom > 0 ? `, and $${centsUp(b.stepRoom)} reserved for running steps` : "";
       return c.json(
         errorBody(
           "budget_reached",
-          `This project has reached its budget of $${centsDown(b.cap)} (spent $${centsUp(b.spent)}, with $${centsUp(b.openHolds)} held for work in progress or awaiting reconciliation; this call needed up to $${centsUp(arithmetic.hold_usd)}). The gateway will forward nothing more until the budget is raised.`,
+          `This project has reached its budget of $${centsDown(b.cap)} (spent $${centsUp(b.spent)}, with $${centsUp(b.openHolds)} held for work in progress or awaiting reconciliation${reserved}; this call needed up to $${centsUp(arithmetic.hold_usd)}). The gateway will forward nothing more until the budget is raised.`,
         ),
         402,
       );

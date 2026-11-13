@@ -1,0 +1,104 @@
+Package 1.3, 13 Nov 2026: scripts/demo-step-hold.ts, at commit 85c5959
+Development machine (a cloud session), in builder/, directly on the host. BUILDER_TEST_DATABASE_URL names the test database
+builder_test_pkg13 over the local socket (peer authentication, no password). Stand-in provider and stand-in engine in the
+script's own process; change-cap.ts run as its own process. No key exists; nothing spent. Made-up data; role names only.
+
+$ npx tsx scripts/demo-step-hold.ts
+Package 1.3 demonstration: the pre-step check and the step hold. Stand-in provider and stand-in engine; nothing spent.
+Database: builder_test_pkg13 (its name only). Prices: Claude Opus 5.5, $8 per million for a one-hour cache write, $20 per million output.
+One turn's share: (42 counted + 5% + 200 margin = 245 tokens) x $8 + 400 x $20 per million = $0.009960. A 3-turn step: $0.029880.
+
+== 1. A step refused before it starts, at a cap of $0.02 ==
+  before: cap $0.020000 | spent $0.000000 | open holds $0.000000 (0) | reserved for running steps $0.000000 (0)
+  result: ok false, turns 0; engine created 0 time(s); calls forwarded 0
+  the message shown: This step needs up to $0.03 to finish (3 turns); this project has $0.02 left of its budget of $0.02 (spent $0.00, with $0.00 held for work in progress or awaiting reconciliation). The step was not started. A cap of at least $0.03 would let it start now.
+  the step's event: failed
+  event step.refused: spent $0.000000 + open holds $0.000000 + reserved $0.000000 + this step's budget $0.029880 (3 turns x $0.009960) > cap $0.020000
+  step holds opened: 0
+
+== 2. The cap raised to $0.03 with scripts/change-cap.ts ==
+  $ npx tsx scripts/change-cap.ts --project demo13_mwensicj_1 --cap 0.03 --asked-by "the demonstration script (scripts/demo-step-hold.ts)" --by "Claude Code" --reason "demonstration of package 1.3: raise the cap so the step can start"
+  | Database: builder_test_pkg13 (its name only; the address is not printed)
+  | Cap changed for project demo13_mwensicj_1
+  |   old cap:     $0.0200
+  |   new cap:     $0.0300
+  |   spent:       $0.000000
+  |   open holds:  $0.000000 (0 open hold(s))
+  |   reserved:    $0.000000 for 0 running step(s) (package 1.3; counted with open holds)
+  |   asked by:    the demonstration script (scripts/demo-step-hold.ts)
+  |   changed by:  Claude Code
+  |   reason:      demonstration of package 1.3: raise the cap so the step can start
+  |   event:       cap.changed, id 3179
+  |   changed at:  2026-11-13T07:32:13.028Z (the database's clock, under the project's lock)
+  exit code: 0
+  event cap.changed: $0.020000 -> $0.030000; asked by "the demonstration script (scripts/demo-step-hold.ts)", run by "Claude Code"; spent $0.000000, open holds $0.000000, reserved $0.000000 (0 step(s))
+
+== 3. The same step let start: three calls draw from its hold; the unused part is released when it ends ==
+  engine: call 1 answered 200
+  engine: call 2 answered 200
+  engine: call 3 answered 200
+  result: ok true, turns 3; engine created 1 time(s)
+  event step.hold_opened: step hold #215, budget $0.029880 = 3 turns x $0.009960 (claude-opus-5-5, up to 400 output tokens and a 42-token prompt per call)
+  event hold.opened: hold #746 for $0.009960, drawn from step hold #215: room $0.029880 -> $0.019920
+  event model.call: actual cost $0.006142
+  event hold.settled: hold #746 of $0.009960 settled at $0.006142; $0.003818 back to the step's room: $0.019920 -> $0.023738
+  event hold.opened: hold #747 for $0.009960, drawn from step hold #215: room $0.023738 -> $0.013778
+  event model.call: actual cost $0.006142
+  event hold.settled: hold #747 of $0.009960 settled at $0.006142; $0.003818 back to the step's room: $0.013778 -> $0.017596
+  event hold.opened: hold #748 for $0.009960, drawn from step hold #215: room $0.017596 -> $0.007636
+  event model.call: actual cost $0.006142
+  event hold.settled: hold #748 of $0.009960 settled at $0.006142; $0.003818 back to the step's room: $0.007636 -> $0.011454
+  event step.hold_closed (step_ended): budget $0.029880; drawn $0.029880 by 3 call(s); spent in the step $0.018426; still held $0.000000; released $0.011454; overrun not covered $0.000000; tokens revoked 1
+      check: released + still held + spent in the step - overrun not covered = $0.029880; the budget was $0.029880
+  after the step: cap $0.030000 | spent $0.018426 | open holds $0.000000 (0) | reserved for running steps $0.000000 (0)
+
+== 4. A step runs out of room: a 2-turn step ($0.019920) whose engine makes three calls, at a cap of $1 ==
+  engine: call 1 answered 200
+  engine: call 2 answered 200
+  engine: call 3 answered 402 step_budget_reached: This step has used up its budget: $0.00 is left of the $0.02 reserved for it, and this call needed up to $0.01. The gateway forwarded nothing. Raising the project's cap does not add to a running step's budget: the step has to end, and a new one be started.
+  calls forwarded: 2
+  event step.hold_opened: step hold #216, budget $0.019920 = 2 turns x $0.009960 (claude-opus-5-5, up to 400 output tokens and a 42-token prompt per call)
+  event hold.opened: hold #749 for $0.009960, drawn from step hold #216: room $0.019920 -> $0.009960
+  event model.call: actual cost $0.006142
+  event hold.settled: hold #749 of $0.009960 settled at $0.006142; $0.003818 back to the step's room: $0.009960 -> $0.013778
+  event hold.opened: hold #750 for $0.009960, drawn from step hold #216: room $0.013778 -> $0.003818
+  event model.call: actual cost $0.006142
+  event hold.settled: hold #750 of $0.009960 settled at $0.006142; $0.003818 back to the step's room: $0.003818 -> $0.007636
+  event gateway.refused: reason step_budget_used_up; room left $0.007636 of $0.019920; this call's hold $0.009960; cap $1.000000, spent $0.012284, open holds $0.000000, reserved $0.007636
+  event step.hold_closed (step_ended): budget $0.019920; drawn $0.019920 by 2 call(s); spent in the step $0.012284; still held $0.000000; released $0.007636; overrun not covered $0.000000; tokens revoked 1
+      check: released + still held + spent in the step - overrun not covered = $0.019920; the budget was $0.019920
+
+== 5. During a step, change-cap.ts: a lowering below spent + open holds + the room reserved is refused; a raise is accepted ==
+  engine: call 1 answered 200
+  during the step: cap $0.050000 | spent $0.006142 | open holds $0.000000 (0) | reserved for running steps $0.023738 (1)
+  room of the running step: $0.023738
+  $ npx tsx scripts/change-cap.ts --project demo13_mwensicj_3 --cap 0.02 --asked-by "the demonstration script (scripts/demo-step-hold.ts)" --by "Claude Code" --reason "demonstration of package 1.3: a lowering during a step"
+  | Database: builder_test_pkg13 (its name only; the address is not printed)
+  | Refused by the store (below_spent_plus_open_holds): The new cap $0.0200 is below what this project has already spent plus its open holds ($0.006142 spent + $0.000000 held in 0 open hold(s) and $0.023738 reserved for 1 running step(s) = $0.029880). The lowest cap allowed now is $0.0299. Nothing was changed and nothing was written.
+  exit code: 2
+  $ npx tsx scripts/change-cap.ts --project demo13_mwensicj_3 --cap 0.06 --asked-by "the demonstration script (scripts/demo-step-hold.ts)" --by "Claude Code" --reason "demonstration of package 1.3: a raise during a step"
+  | Database: builder_test_pkg13 (its name only; the address is not printed)
+  | Cap changed for project demo13_mwensicj_3
+  |   old cap:     $0.0500
+  |   new cap:     $0.0600
+  |   spent:       $0.006142
+  |   open holds:  $0.000000 (0 open hold(s))
+  |   reserved:    $0.023738 for 1 running step(s) (package 1.3; counted with open holds)
+  |   asked by:    the demonstration script (scripts/demo-step-hold.ts)
+  |   changed by:  Claude Code
+  |   reason:      demonstration of package 1.3: a raise during a step
+  |   event:       cap.changed, id 3204
+  |   changed at:  2026-11-13T07:32:13.904Z (the database's clock, under the project's lock)
+  exit code: 0
+  room of the running step after the raise: $0.023738
+  event step.hold_opened: step hold #217, budget $0.029880 = 3 turns x $0.009960 (claude-opus-5-5, up to 400 output tokens and a 42-token prompt per call)
+  event hold.opened: hold #751 for $0.009960, drawn from step hold #217: room $0.029880 -> $0.019920
+  event model.call: actual cost $0.006142
+  event hold.settled: hold #751 of $0.009960 settled at $0.006142; $0.003818 back to the step's room: $0.019920 -> $0.023738
+  event cap.changed: $0.050000 -> $0.060000; asked by "the demonstration script (scripts/demo-step-hold.ts)", run by "Claude Code"; spent $0.006142, open holds $0.000000, reserved $0.023738 (1 step(s))
+  event step.hold_closed (step_ended): budget $0.029880; drawn $0.009960 by 1 call(s); spent in the step $0.006142; still held $0.000000; released $0.023738; overrun not covered $0.000000; tokens revoked 1
+      check: released + still held + spent in the step - overrun not covered = $0.029880; the budget was $0.029880
+
+Events of these projects that contain a step token: 0. Calls forwarded to the stand-in in all: 6.
+exit code: 0
+step tokens (bpt_) in this file, counted after the run: 0
