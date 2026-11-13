@@ -1,0 +1,64 @@
+Package 1.4c: the two full runs made before the code was committed, on the same code as commit acb5d5b less scripts/demo-overrun.ts (not yet written).
+Run 1 failed one test, test/egress.test.ts 'lets an allowed HTTPS host through and logs it as allowed': a curl from this machine through the builder's egress proxy and the session's proxy to registry.npmjs.org got no answer (000) after 7.5 seconds. Nothing in this package touches the egress proxy or that network path.
+Then, in the session's terminal (output not saved to a file; copied here): a direct curl to https://registry.npmjs.org/-/ping answered 200, and test/egress.test.ts alone under the lock passed, 5 of 5 (started 10:56:42 UTC). Run 2, below, passed in full. Run 3 (run-tests-full.txt), at the committed code, passed in full.
+The script used (as at run 3; for runs 1 and 2 its "Commit:" line read "plus the working tree (N changed or new files)" instead):
+    #!/usr/bin/env bash
+    # Package 1.4c: the full suite, under the shared lock, on this package's own test database.
+    set -uo pipefail
+    S=<scratchpad>
+    cd $S/wt-14c/builder
+    export TMPDIR=$S/p14c-tmp
+    export BUILDER_TEST_DATABASE_URL="postgres:///builder_test_p14c?host=/var/run/postgresql"
+    export BUILDER_BROWSER_CACHE=$S/p31-cache
+    echo "Commit: $(git rev-parse --short HEAD) (the code; $(git status --short | wc -l) changed or new files outside it, all under docs/ or evidence/); started $(date -u +%FT%TZ)"
+    flock $S/live-tests.lock npx vitest run 2>&1
+    code=$?
+    echo "Exit code: $code; finished $(date -u +%FT%TZ)"
+
+================ Run 1 ================
+Commit: 8927027 plus the working tree (10 changed or new files); started 2026-11-13T10:50:46Z
+
+ RUN  v5.1.0 <scratchpad>/wt-14c/builder
+
+ ❯ test/egress.test.ts (5 tests | 1 failed) 7840ms
+   ❯ egress proxy (5)
+     × lets an allowed HTTPS host through and logs it as allowed 7454ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/egress.test.ts > egress proxy > lets an allowed HTTPS host through and logs it as allowed
+AssertionError: expected '000' to be '200' // Object.is equality
+
+Expected: "200"
+Received: "000"
+
+ ❯ test/egress.test.ts:53:20
+     51|   it("lets an allowed HTTPS host through and logs it as allowed", asyn…
+     52|     const status = await viaProxy("https://registry.npmjs.org/-/ping");
+     53|     expect(status).toBe("200");
+       |                    ^
+     54|     const rec = records.find((r) => r.host === "registry.npmjs.org");
+     55|     expect(rec?.decision).toBe("allowed");
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed | 15 passed (16)
+      Tests  1 failed | 408 passed (409)
+   Start at  10:52:51
+   Duration  210.05s (tests 99%)
+
+Exit code: 1; finished 2026-11-13T10:56:21Z
+
+================ Run 2 ================
+Commit: 8927027 plus the working tree (14 changed or new files); started 2026-11-13T10:56:48Z
+
+ RUN  v5.1.0 <scratchpad>/wt-14c/builder
+
+
+ Test Files  16 passed (16)
+      Tests  409 passed (409)
+   Start at  10:56:49
+   Duration  203.02s (tests 99%, import 1%)
+
+Exit code: 0; finished 2026-11-13T11:00:12Z
