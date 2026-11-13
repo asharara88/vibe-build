@@ -93,8 +93,10 @@ export async function versionMatchesEvent(pool: pg.Pool, projectId: string, vers
   const last = events[events.length - 1];
   if (!last) return `the event log has no record of version ${version} being written`;
   if (last.payload.manifest_sha256 !== manifestSha256) return `the manifest on disk is not the one the event log recorded for version ${version}`;
-  const recorded = JSON.stringify(last.payload.items);
-  const onDisk = JSON.stringify(items.map((i) => ({ number: i.number, file: i.file, sha256: i.sha256 })));
+  // Compared item by item: the database stores the event's fields in an order of its own.
+  const line = (i: { number?: unknown; file?: unknown; sha256?: unknown }) => `${String(i.number)}|${String(i.file)}|${String(i.sha256)}`;
+  const recorded = (Array.isArray(last.payload.items) ? (last.payload.items as Array<Record<string, unknown>>) : []).map(line).join("\n");
+  const onDisk = items.map(line).join("\n");
   if (recorded !== onDisk) return `the manifest's items are not the ones the event log recorded for version ${version}`;
   return null;
 }
