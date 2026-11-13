@@ -6,7 +6,7 @@
 | Done means (build plan, 7.3) | "A step refused before it starts when its budget does not fit, with the message shown." Proof row B7 (design note 7.2) adds: "In a step that does start: each call's hold is drawn from the step hold, and the unused part is released when the step ends" |
 | Built to | Option (a) of the owner's question 16 (B7 in full), before his answer, with every correction of the design's review applied |
 | Run on | The development machine (a cloud session), on the host: PostgreSQL 16.15, test database `builder_test_pkg13`; a **stand-in provider** and **stand-in engines** in the test's own process. No key exists; no model was called; nothing was spent. Code of every run: commit `85c5959` (the controls: `2a32c12` and `c969917`, whose code under test is the same as `85c5959`'s) |
-| State | **Built, not tested.** Every row below ran and passed; every new test failed with its safeguard removed. Its adversarial review (plan section 3, step 6) has not run |
+| State | **Tested at the commit its pull request merges**, against a stand-in provider and engines only. Every row below ran and passed; every new test failed with its safeguard removed; its one adversarial review (plan section 3, step 6) found nothing blocking ("After the review", below) |
 
 **For the owner:** `run-demo-step-hold.txt`, section 1 (a step refused at a $0.02 cap, with the message), section 2 (the cap raised to $0.03 with `change-cap.ts`) and section 3 (the step let start, its three calls drawn from its hold, $0.011454 released when it ended).
 
@@ -14,7 +14,7 @@
 
 - `src/store/migrations/008_step_holds.sql`: the `step_holds` table (`:13-45`) with checks that refuse a NaN or negative figure (`:36-44`); composite keys so a token or a hold names a step hold of its own project only (`:51-57`); the budget view with `step_room_usd` beside open holds (`:63-86`).
 - `src/gateway/hold.ts`: `stepBudget` (`:308-342`), turns x one turn's share in whole millionths, refused by `StepBudgetInvalid` before the database unless the turns are a whole number from 1 to 1,000 and the budget a finite amount above 0; `stepPromptTokens` (`:33`, 8,000 in the standard profile, not measured).
-- `src/store/holds.ts`: `openStepHold` (`:592-638`; the equation `:614`, the token `:627-628`, only its hash stored); step calls in `openHold` (`:164-196`: the re-check that the step is open `:171-175`, the limits `:176-184`, the room `:185-188`); the room returned on settle and release (`returnToStepIn`, `:497-507`); `closeStepHold` (`:647-660`, a closed step left as it is `:657`) and `closeStepIn` (`:510-557`, the token revoked `:536`); steps past their deadline closed by every decision (`:159`, `:238`, `:305`, `:604`, `:654`) and by the sweep (`:385`); the cap change's floor counting the room (`:802`) and naming it (`:769`); the step's message (`stepRefusalMessage`, `:568-577`).
+- `src/store/holds.ts`: `openStepHold` (`:592-638`; the equation `:614`, the token `:627-628`, only its hash stored); step calls in `openHold` (`:164-196`: the re-check that the step is open `:171-175`, the limits `:176-184`, the room `:185-188`); the room returned on settle and release (`returnToStepIn`, `:497-507`); `closeStepHold` (`:647-660`, a closed step left as it is `:657`) and `closeStepIn` (`:510-557`, the token revoked `:536`); steps past their deadline closed by every decision (`:159`, `:238`, `:305`, `:604`, `:654`, `:799`) and by the sweep (`:385`), of which only the call's admission (`:159`) and the sweep are tested (T11; known gap 74); the cap change's floor counting the room (`:802`) and naming it (`:769`); the step's message (`stepRefusalMessage`, `:568-577`).
 - `src/gateway/app.ts`: a step token's label from its step hold, another step's name refused (`:222-228`); the answers `step_closed` 401, `step_call_outside_limits` 400 and `step_budget_reached` 402 (`:358-376`); "reserved for running steps" in the call's refusal (`:381`). `src/store/projects.ts`: `tokenOwner` (`:63`).
 - `src/orchestrator/steps.ts`: `runBudgetedStep` (`:52-91`): the step hold opened before the engine is made; refused, the engine is never made; the hold closed in `finally` (`:79-90`).
 - `scripts/demo-step-hold.ts`; `scripts/change-cap.ts` prints the room reserved; `test/step-hold.test.ts` (18 tests); one existing test, B20's exact `cap.changed` payload, gained the two new fields (`test/gateway.test.ts:1817-1831`).
@@ -47,10 +47,16 @@ T8 (one open step per project) was cut, as the review advised (known gap 72).
 | The whole suite once, live tests included, under the shared lock | `run-tests-full.txt` | 10 files; 266 passed; exit 0; no container before or after |
 | `npm run check:licences`; no dependency added (`package.json`, the lock file, `licences.csv` unchanged) | `run-licences.txt` | RESULT: PASSED; exit 0 |
 
+## After the review
+
+One adversarial review (money and tests) read `4bd46f7`: **nothing blocking**, eight notes. No code changed, so no new test or control: `builder/` is the same as at `85c5959`. Notes 1 to 3 (three safeguards with no test of their own, shown by the reviewer's controls X3, X4 and X8, X6) are known gaps 73 to 75, and the "What was built" line above now says which deadline closes are tested; note 4 (no upper limit on a step's time limit) is in gap 71; note 5 (the 402 message rounds the room left to "$0.00") is gap 76; note 6 brought gaps 64 and 18 up to date; note 7 carried gap 66's items to 1.4. Note 8, checked: every summary row of `run-controls-2.txt` ends with its `|` (C0 and C15 included); the row that reads oddly is C0 in `run-controls-1.txt`, where vitest's own `|` was kept, and that output is left as it ran.
+
+Run again at `ec358c1`, with its own test database `builder_test_pkg13_rev`: `run-typecheck-after-review.txt` (exit 0, twice); `run-tests-full-after-review.txt` (the whole suite under the shared lock: 10 files, 266 passed, exit 0, no container before or after); `run-licences-after-review.txt` (RESULT: PASSED, exit 0; no dependency changed).
+
 ## What this does not show
 
 - **Anything about a real engine or provider.** The engines are stand-ins; no engine in the builder takes a token yet (known gap 69).
 - **That a step's budget is enough for a real step.** The prompt limit is not measured (gap 67), and one turn is assumed to be one call (gap 68). A step's budget is a reservation from an estimate plus a margin, not a proven ceiling (gap 41).
 - **"Room to finish" beyond the stored limits.** It holds for the step's turn limit of calls on its model, within its output ceiling and one turn's share, unless a call costs more than its hold. A larger call is refused, so the step stops.
 - **A stop.** Nothing stops a running step; its reservation blocks a cap lowering until it ends or reaches its deadline (gap 71; the owner's question 16).
-- **No reviewer has read it.** Nothing here says it is ready or safe.
+- **That the review's notes are fixed.** One adversarial review read it; the notes that need more than a line are open as known gaps 71 and 73 to 76. Nothing here says it is ready or safe.

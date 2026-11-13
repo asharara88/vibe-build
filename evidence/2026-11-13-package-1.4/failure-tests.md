@@ -32,7 +32,7 @@
 | B13 | The checker runs in every case above: 88 states and 17 billing points checked, no violation (`run-traces.md`). "B13: the checker flags each kind of breach ..." (`:820`) | C16 to C20: each of its rules switched off in turn |
 | Also | Liveness lost (`:847`); database not usable (`:864`) | C21, C22 |
 
-"Every moment" is read as: after every event of the project, in id order, plus every billing point. Id order is commit order only because every budget write takes the project's row lock. A bill counts as owed from its call's `hold.opened`, which is stricter than from the answer. "No settled call costs more than its hold" is checked on these runs, not enforced: 1.2's over-hold test stays the named exception (known gaps 41, 79).
+"Every moment" is read as: after every event of the project, in id order, plus every billing point. Id order is commit order only because every budget write takes the project's row lock. A bill counts as owed from its call's `hold.opened`, which is stricter than from the answer. "No settled call costs more than its hold" is checked on these runs, not enforced: 1.2's over-hold test stays the named exception (known gaps 41, 83).
 
 ## Checks
 
@@ -42,5 +42,5 @@
 
 ## Not shown, or resting on assumptions
 
-- B10 rests on a design no engineer has reviewed (gap 35). A SIGKILL before the journal line is on disk loses the freeze (gap 73); survival of a power cut is designed, not shown (gap 74); the journal's edges (gap 75); a gateway whose machine stops answering (gap 76).
+- B10 rests on a design no engineer has reviewed (gap 35). A SIGKILL before the journal line is on disk loses the freeze (gap 77); survival of a power cut is designed, not shown (gap 78); the journal's edges (gap 79); a gateway whose machine stops answering (gap 80).
 - Against a stand-in only. A hold is a reservation from the provider's estimate plus an assumed margin, not a proven ceiling.
