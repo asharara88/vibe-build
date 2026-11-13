@@ -28,7 +28,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { createGateway } from "../src/gateway/app.js";
 import { FaultGate, FaultJournal } from "../src/gateway/journal.js";
 import { DEFAULT_PROFILES } from "../src/gateway/hold.js";
-import { createPool } from "../src/store/db.js";
+import { createClient, createPool } from "../src/store/db.js";
 import { listEvents } from "../src/store/events.js";
 import { activeFreeze, listFreezes, recordFreeze, type UnrecordedEnding } from "../src/store/freezes.js";
 import { changeCap, listHolds, openHold, openStepHold, OWNER_GONE } from "../src/store/holds.js";
@@ -1079,7 +1079,111 @@ describe("package 1.4: failure tests, proof rows B8 to B13 (against a stand-in p
       await nowhere.end();
     }
   });
+
+  /* ------------------------------------------------------------------ stopped while a request waits before its first forward (review bot on 899cbf0) */
+
+  it("B10 (10): requests that passed the gate while it was open, and waited for their token to be read, forward nothing once it has closed: not a call's counting call, not a counting request passed through; each gets the 503 and nothing is written (review bot on 899cbf0)", async () => {
+    const g = await inProcessGateway("gw_b10_10", { journalDir: await newJournalDir() });
+    const p = await newProject(HOLD_USD * 3);
+    const q = await newProject(5); // another project, never frozen: only the gate can stop its requests
+    const a = callAt(g.url, p.token, body(p.id, "park", "b10-10a"));
+    await until("call A at the stand-in", () => (stand.arrivedByTag.get("b10-10a") ?? 0) === 1);
+    const held = await holdTokenReads();
+    try {
+      // B (a metered call) and C (a counting request, passed through) pass the gate while it is open, then wait for their token to be read.
+      const b = callAt(g.url, q.token, body(q.id, "ok", "b10-10b"));
+      const cr = callAt(g.url, q.token, { model: MODEL, messages: [{ role: "user", content: "b10-10c" }] }, "/v1/messages/count_tokens");
+      await until("B and C waiting for their token to be read", async () => (await held.waiting()) === 2);
+      // A's ending and the freeze are both refused: the gate closes and stays closed.
+      await fault.on(p.id, "model.call");
+      await fault.on(p.id, "project_freezes");
+      release("b10-10a");
+      expect((await a).status).toBe(200);
+      expect(g.gate.closed()).toBe(true);
+      const before = { messages: stand.messages, counts: stand.counts };
+      await held.letGo();
+      const [rb, rc] = await Promise.all([b, cr]);
+      expect({
+        metered: await outcome(rb),
+        passthrough: await outcome(rc),
+        reached_the_stand_in: { messages: stand.messages - before.messages, counts: stand.counts - before.counts },
+        written_for_q: await kinds(q.id),
+      }).toEqual({
+        metered: { status: 503, type: "gateway_unrecorded", nothing_forwarded: true },
+        passthrough: { status: 503, type: "gateway_unrecorded", nothing_forwarded: true },
+        reached_the_stand_in: { messages: 0, counts: 0 },
+        written_for_q: [],
+      });
+    } finally {
+      await held.letGo();
+      await fault.off();
+    }
+    // The database takes writes again: the freeze is written, the gate opens, and the other project's calls go through.
+    expect(await g.gate.drain()).toBe(true);
+    expect(await kinds(p.id)).toEqual(["hold.opened", "hold.kept", "gateway.fault", "project.frozen"]);
+    expect((await callAt(g.url, q.token, body(q.id))).status).toBe(200);
+    await invariantsHold(p.id);
+    await invariantsHold(q.id);
+  }, 60_000);
+
+  it("1.4: requests that passed the liveness check, and waited for their token to be read, forward nothing once the gateway has lost its lock: not a call's counting call, not a counting request passed through; each gets the 503 and nothing is written (review bot on 899cbf0)", async () => {
+    const g = await inProcessGateway("gw_live_tok", { retryMs: 120_000 }); // the lock is not taken again during the test
+    const p = await newProject(5);
+    const held = await holdTokenReads();
+    try {
+      const b = callAt(g.url, p.token, body(p.id, "ok", "live-tok-b"));
+      const cr = callAt(g.url, p.token, { model: MODEL, messages: [{ role: "user", content: "live-tok-c" }] }, "/v1/messages/count_tokens");
+      await until("B and C waiting for their token to be read", async () => (await held.waiting()) === 2);
+      await pool.query("select pg_terminate_backend($1)", [g.liveness.pid()]);
+      await until("the gateway to see its lock lost", () => !g.liveness.ok());
+      const before = { messages: stand.messages, counts: stand.counts };
+      await held.letGo();
+      const [rb, rc] = await Promise.all([b, cr]);
+      expect({
+        metered: await outcome(rb),
+        passthrough: await outcome(rc),
+        reached_the_stand_in: { messages: stand.messages - before.messages, counts: stand.counts - before.counts },
+        written_for_p: await kinds(p.id),
+      }).toEqual({
+        metered: { status: 503, type: "gateway_unavailable", nothing_forwarded: true },
+        passthrough: { status: 503, type: "gateway_unavailable", nothing_forwarded: true },
+        reached_the_stand_in: { messages: 0, counts: 0 },
+        written_for_p: [],
+      });
+    } finally {
+      await held.letGo();
+    }
+  });
 });
+
+/**
+ * Holds every request that reaches its token read (in the gateway, just after the gate and liveness checks on arrival)
+ * until `letGo`: a connection of its own, outside the pool, takes the token table's strongest lock, so the read waits
+ * on it. `waiting` counts the sessions waiting on that lock (review bot on 899cbf0).
+ */
+async function holdTokenReads() {
+  const holder = createClient(TEST_DB_URL);
+  await holder.connect();
+  await holder.query("begin");
+  await holder.query("lock table project_tokens in access exclusive mode");
+  const pid = (await holder.query<{ pid: number }>("select pg_backend_pid() as pid")).rows[0]!.pid;
+  let held = true;
+  return {
+    waiting: () => blockedBehind(pid),
+    letGo: async () => {
+      if (!held) return;
+      held = false;
+      await holder.query("rollback");
+      await holder.end();
+    },
+  };
+}
+
+/** What a request got back: its status, the error type if any, and whether the answer says nothing was forwarded. */
+async function outcome(res: Response) {
+  const j = (await res.json()) as { error?: { type?: string; message?: string } };
+  return { status: res.status, type: j.error?.type ?? null, nothing_forwarded: j.error?.message?.endsWith("Nothing was forwarded.") ?? false };
+}
 
 /** A journal record for a hold, as the gateway writes one (made-up call fields). */
 function unrecordedFor(projectId: string, holdId: string): UnrecordedEnding {
