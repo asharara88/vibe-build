@@ -8,10 +8,11 @@ from the changes shown in evidence/2026-11-13-package-3.1b/run-controls.txt. Eac
 test that covers it (expected: FAIL), then restores the file and runs it again (expected: pass). Run under the lock
 shared with other sessions: some of these tests can start a container when their safeguard is removed.
 
-Usage: controls-merge.py <tree-ish> <work-dir> <out-file> <test-database-name>"""
+Usage: controls-merge.py <tree-ish> <work-dir> <out-file> <test-database-name> [only-ids...]"""
 import ast, datetime, os, subprocess, sys
 
 tree, work, out, dbname = sys.argv[1:5]
+only = set(sys.argv[5:])
 HERE = os.path.dirname(os.path.abspath(__file__))
 WT = os.path.abspath(os.path.join(HERE, "..", "..", ".."))
 S = "builder/src/sandbox/"
@@ -61,6 +62,8 @@ for c in controls_from("controls.py"):
         ALL.append(C12B)
 ALL += [(c[0], c[1], c[2], c[3], c[4], c[5], c[6]) for c in controls_from("controls-3.py")]
 ALL += P31B
+if only:
+    ALL = [c for c in ALL if c[0] in only]
 
 copy = os.path.join(work, "copy")
 if not os.path.isdir(copy):

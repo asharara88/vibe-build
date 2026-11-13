@@ -266,3 +266,16 @@ Each project container made 55 attempts, not 53 as in `demo/run-2`: the machine 
 | 3.1b C1 (the skip put back on the live tests), C3, C3b, C4 (the runner image check removed), C5 (the label check accepts any image) | Each **failed** with its change and passed once restored. With C1's skip, the live file alone and an empty cache folder **passed with 7 skipped**, exit code 0: what `npm test` would do without the gate |
 
 **C12b, explained.** With "direct" accepted, the machine side went on and stopped only when it could not open its socket under `/sock/` (which exists only inside its container), with the same exit code 2 and the same `refusedToStart` line, only with another reason: "listen EACCES: permission denied /sock/egress.sock" (run by hand in this session on the control's copy; with the safeguard in place it says that "direct" is not allowed). The test checks the exit code and that line, not its reason, so it cannot tell the two apart. Before `dcfebcf`, a socket that could not be opened ended the program with exit code 1, so the test did tell them apart (C12 failed in `checks/controls-2.txt`). The machine side still refuses "direct" (the run with the safeguard in place, above, and the isolation run's machine side going out only through the session's proxy); what was weak is the test. It is made to check the reason in the commit after this one, and C12b is run again there.
+
+**The test made to check the reason (the commit after the merge, `e614e80`).** `builder/test/door.test.ts`, the test "the machine side refuses to start without a valid upstream": for each bad way out (missing, empty, "direct", not an address, no port) it now requires the `refusedToStart` line to begin "The egress proxy's way out", the words of every refusal of the way out, not only exit code 2 and a `refusedToStart` line. Nothing else changed; no check was weakened.
+
+| Check, on the working tree that became that commit (the tree of `builder/` was `2c338fc…`, the commit's; nothing unstaged) | Result | File |
+| --- | --- | --- |
+| `npm run typecheck` | Passed, exit code 0 | `checks/merge-fix-typecheck.txt` |
+| The door test's controls again: C9 to C11, C12b, C13 to C16, C34 to C38 (on a `git archive` copy, under the shared lock) | **C12b now fails with its change:** "direct: expected { status: 2, said: false } to deeply equal { status: 2, said: true }". The other 12 failed with theirs, as before; every one passed once restored. C12 as written: not run, as above | `checks/merge-fix-controls.txt` |
+| The whole suite, live tests included, under the shared lock, with the approved zip | **23 files, 517 tests, 517 passed, none skipped**, exit code 0 (14:57 to 15:07 UTC); no container before or after | `checks/merge-fix-tests-full.txt` |
+| `npm run check:licences` | Passed; no package dependency added | `checks/merge-fix-licences.txt` |
+
+**Not run again after the fix,** because it changed one test's check and no code: the isolation run, the live acceptance test alone with and without the zip (the whole suite above ran it with the zip), and the controls outside `door.test.ts`.
+
+**What this does not show.** As before this merge: no engineer has read this package (question 7); the server profile (0.6b), IPv6 and package 2.2's own engine are not shown; nothing a model wrote was run. The merge was not read by a fresh reviewer.

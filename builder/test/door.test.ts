@@ -108,7 +108,9 @@ describe("the egress proxy's way out fails closed (package 0.6c)", () => {
     const machine = { EGRESS_ALLOW: "registry.npmjs.org", EGRESS_SOCKET: "/sock/egress.sock", GATEWAY_SOCKET: "/sock/gateway.sock", GATEWAY_TARGET: "127.0.0.1:4010" };
     for (const upstream of [undefined, "", "direct", "garbage", "http://127.0.0.1"]) {
       const r = start("egress-machine-main.ts", upstream === undefined ? machine : { ...machine, EGRESS_UPSTREAM_PROXY: upstream });
-      expect({ status: r.status, said: /refusedToStart/.test(r.stdout) }, String(upstream)).toEqual({ status: 2, said: true });
+      // The refusal must be about the way out itself: with that check gone, the machine side also stops with exit code 2
+      // and a refusedToStart line, later, when it cannot open its socket under /sock/ (control C12b, 13 Nov 2026).
+      expect({ status: r.status, said: /"refusedToStart":"The egress proxy's way out/.test(r.stdout) }, String(upstream)).toEqual({ status: 2, said: true });
     }
     // A gateway that is not on the loopback address is refused too.
     const gw = start("egress-machine-main.ts", { ...machine, EGRESS_UPSTREAM_PROXY: "http://127.0.0.1:3999", GATEWAY_TARGET: "10.0.0.5:4010" });
