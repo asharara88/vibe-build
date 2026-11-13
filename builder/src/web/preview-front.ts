@@ -20,7 +20,9 @@
  *   (`responseRefusal`, `downstreamHeaders`), and the front's own security headers set.
  * - It logs no header value. It tells the interface, over the fork channel, only: listening, entered (and whether
  *   Sec-Fetch-Site came), refused (why), closed (why).
- * Its own pages carry no script.
+ * Its own pages carry no script. They carry no referrer rule of their own either: the front's header,
+ * Referrer-Policy: same-origin, lets the browser send the gate's POST with its Origin (with "no-referrer", Chromium
+ * sends Origin: null, which the gate refuses; seen in M3).
  */
 import http from "node:http";
 import net from "node:net";
@@ -84,7 +86,8 @@ let pass: Pass | null = null;
 let session: Session | null = null;
 const lock = { wrong: 0, until: 0, nextMs: GATE_LOCK_FIRST_MS };
 let controls: MappingControls = {};
-let cspSandbox = false;
+/** The content-security-policy's `sandbox` value is on: M3 showed the app works with it (section 4.6). */
+let cspSandbox = true;
 let texts: Texts | null = null;
 
 const tell = (m: FromFront) => {
@@ -115,7 +118,7 @@ const tx = (lang: "en" | "ar", key: keyof Texts["en"], vars: Record<string, stri
 function page(res: http.ServerResponse, status: number, body: (lang: "en" | "ar") => string, extra: Record<string, string | string[]> = {}): void {
   const block = (lang: "en" | "ar") =>
     `<section lang="${lang}" dir="${lang === "ar" ? "rtl" : "ltr"}"><h1>${esc(tx(lang, "title"))}</h1><p class="label">${esc(tx(lang, "label_sim"))}</p><p class="label">${esc(tx(lang, "label_data"))}</p>${body(lang)}</section>`;
-  const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="referrer" content="no-referrer"><title>${esc(tx("en", "title"))}</title><style>body{font:16px/1.5 system-ui,sans-serif;margin:0;padding:16px;background:#f6f7f9;color:#1d2330}section{background:#fff;border:1px solid #d5d9e2;border-radius:8px;padding:12px 14px;margin:0 0 14px;max-width:640px}.label{display:inline-block;font-weight:700;color:#7a4b00;background:#fff2d6;border-radius:6px;padding:2px 8px;margin:2px 0}.warn{color:#9b1c1c;font-weight:600}input{font:inherit;padding:8px;border:1px solid #d5d9e2;border-radius:6px;width:100%;max-width:240px;letter-spacing:2px}button{font:inherit;padding:8px 14px;border-radius:6px;border:1px solid #1f4fbf;background:#1f4fbf;color:#fff}</style></head><body>${block("en")}${block("ar")}</body></html>`;
+  const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${esc(tx("en", "title"))}</title><style>body{font:16px/1.5 system-ui,sans-serif;margin:0;padding:16px;background:#f6f7f9;color:#1d2330}section{background:#fff;border:1px solid #d5d9e2;border-radius:8px;padding:12px 14px;margin:0 0 14px;max-width:640px}.label{display:inline-block;font-weight:700;color:#7a4b00;background:#fff2d6;border-radius:6px;padding:2px 8px;margin:2px 0}.warn{color:#9b1c1c;font-weight:600}input{font:inherit;padding:8px;border:1px solid #d5d9e2;border-radius:6px;width:100%;max-width:240px;letter-spacing:2px}button{font:inherit;padding:8px 14px;border-radius:6px;border:1px solid #1f4fbf;background:#1f4fbf;color:#fff}</style></head><body>${block("en")}${block("ar")}</body></html>`;
   const headers: Record<string, string | string[]> = { "content-type": "text/html; charset=utf-8", ...frontHeaders({ own: true }), ...extra };
   res.writeHead(status, headers);
   res.end(html);

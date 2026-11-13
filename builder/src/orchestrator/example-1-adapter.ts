@@ -231,15 +231,15 @@ export const LIVE_CAMERA_TIMEOUT_MS = 300_000;
 /**
  * Package J3 (final design, section 4.8): the live camera, in a sandbox's own `acceptance` service, started as the app
  * camera is (`runStreaming`): the approved runner image, its user 1001, `front` only, no video and no trace. Its
- * mounts: the script (read-only), one output folder, the pass and the sample password as read-only files, and the
- * camera socket's folder read-only at /psock. Its script loads only http://127.0.0.1:4030 inside its own container,
+ * mounts: the script (read-only), one output folder, a folder of passes (pass-1, and pass-2 when a walk asks for a new
+ * entry) and the sample password, read-only, and the camera socket's folder read-only at /psock. Its script loads only http://127.0.0.1:4030 inside its own container,
  * which it forwards to /psock/c.sock; on the machine that socket leads to the preview front (preview.ts,
  * `cameraSocket`). Before it starts, the image is checked (`cameraImageProblem`) and the service's networks
  * (`cameraNetworkProblem`). `env` names the walk (the live test's refusals use their own).
  */
 export async function liveCamera(
   sb: Sandbox,
-  a: { cameraDir: string; outDir: string; passFile: string; sampleFile: string; onLine: (line: string) => void; env?: Record<string, string>; signal?: AbortSignal },
+  a: { cameraDir: string; outDir: string; passDir: string; sampleFile: string; onLine: (line: string) => void; env?: Record<string, string>; signal?: AbortSignal },
 ): Promise<StreamingEnd> {
   const image = await cameraImageProblem(sb);
   if (image) throw new JourneyRefused(`The live camera did not start: ${image}.`);
@@ -250,7 +250,7 @@ export async function liveCamera(
     volumes: [
       `${join(CAMERA_DIR, "live-shots.mjs")}:/camera/live-shots.mjs:ro`,
       `${a.outDir}:/shots`,
-      `${a.passFile}:/run/secrets/live-pass:ro`,
+      `${a.passDir}:/run/secrets/live:ro`,
       `${a.sampleFile}:/run/secrets/sample-password:ro`,
       `${a.cameraDir}:/psock:ro`,
     ],

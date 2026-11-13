@@ -367,7 +367,7 @@ export function responseRefusal(status: number, headers: Record<string, string |
 /** The content-security-policy the front sets on every answer of the app (section 4.6). */
 export const APP_CSP =
   "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; form-action 'self'; frame-src 'none'; frame-ancestors 'none'; worker-src 'none'; object-src 'none'; base-uri 'self'";
-/** The sandbox value M3 tries; added only if the app works with it. */
+/** The sandbox value M3 tried; the app works with it (M3), so the front adds it to every answer of the app. */
 export const CSP_SANDBOX = "sandbox allow-scripts allow-forms allow-same-origin";
 /** The content-security-policy of the front's own pages: no script at all. */
 export const FRONT_CSP = "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'";
