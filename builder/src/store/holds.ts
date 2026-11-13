@@ -416,8 +416,8 @@ export async function recoverHolds(
       const cur = (await c.query<Hold>("select * from holds where id = $1 and project_id = $2 for update", [h.id, h.project_id])).rows[0];
       if (!cur || cur.state !== "open" || (cur.seen_at_startup && cur.unreconciled)) return;
       // The probe takes the owner's lock only for this transaction: if it can, nobody holds it.
-      const gone = !cur.unreconciled && (await c.query<{ gone: boolean }>(`select pg_try_advisory_xact_lock(${gatewayLockKeySql("$1")}) as gone`, [cur.gateway])).rows[0]!.gone;
-      if (gone) {
+      const gone = (await c.query<{ gone: boolean }>(`select pg_try_advisory_xact_lock(${gatewayLockKeySql("$1")}) as gone`, [cur.gateway])).rows[0]!.gone;
+      if (gone && !cur.unreconciled) {
         ownerGone++;
         await c.query("update holds set unreconciled = true, kept_reason = coalesce(kept_reason, $2) where id = $1", [cur.id, OWNER_GONE]);
       }
@@ -438,7 +438,7 @@ export async function recoverHolds(
             expired: cur.expired,
             owner_gone: gone,
             unreconciled: cur.unreconciled || gone,
-            ...(gone ? { reason: OWNER_GONE } : {}),
+            ...(gone && !cur.unreconciled ? { reason: OWNER_GONE } : {}),
           },
           cur.step,
         );
