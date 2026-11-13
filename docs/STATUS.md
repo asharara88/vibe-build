@@ -17,7 +17,7 @@ Nothing blocking; nine notes. Fixed, each with a test that failed before and a c
 1. **Tested:** 0.1 to 0.5, 0.6a (development profile), 1.1, 1.2, 1.2b, 1.3, 1.4, 1.5 (stand-in only), 2.1, W4.
 2. **Built, not tested:** 3.1, 1.4c, 3.1b, 1.4b, 0.6c, J1 (merged), J3 (branch `claude/j3-live-preview`, not pushed).
 3. **Checked after the review:** on `a792e52`, the whole suite, 680 of 680 (live tests included), typecheck and licence check passed; 36 of 36 controls failed with their safeguard removed. Not repeated: 0.6c's isolation run (no container, network or stream changed). **Assumed:** your phone's browser behaves as Chromium did; the tunnel and your app's pane (M1).
-4. **Your 4020 interface:** stopped at 19:24 UTC by this session's two-hour limit for background programs. Claude Code restarts it from the merged code, live preview off.
+4. **Your 4020 interface:** stopped at 19:24 UTC by the session's two-hour background limit. Claude Code restarts it from the merged code, live preview off.
 
 ## Next
 
