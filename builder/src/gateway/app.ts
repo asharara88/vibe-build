@@ -22,6 +22,10 @@
  *   call; a gateway that has lost its liveness lock forwards nothing; a database that cannot be reached
  *   gets a 503 with the reason, not a bare 500. The gate and the liveness lock are checked on arrival and
  *   again just before each forward (a passed-through request, a counting call, a metered call).
+ * - Since package 1.4c (the owner's answer to question 17, "(a) Yes, freeze"): a call settled at a cost above its
+ *   hold is charged in full, and the same database transaction freezes its project (store/holds.ts, `settleHold`);
+ *   the frozen project is refused as above until the owner records that bill (store/reconcile.ts, `recordOverrun`).
+ *   The first such bill is not stopped: it is known only once the provider's answer is read.
  *
  * Design note: docs/design/stage-1.md, sections 2.4 and 5.5. Build plan: packages 1.2 and 1.4.
  */
@@ -336,7 +340,7 @@ export function createGateway(opts: GatewayOptions) {
     // the project's lock in openHold is the one that decides; this one keeps the counting call from going.
     const frozen = await activeFreeze(opts.pool, project.id);
     if (frozen) {
-      await appendEvent(opts.pool, project.id, "gateway.refused", { reason: "project_frozen", freeze_id: Number(frozen.id), journal_id: frozen.journal_id, path }, step);
+      await appendEvent(opts.pool, project.id, "gateway.refused", { reason: "project_frozen", freeze_id: Number(frozen.id), freeze_kind: frozen.kind, journal_id: frozen.journal_id, path }, step);
       return c.json(errorBody("project_frozen", frozenMessage(frozen)), 402);
     }
 
@@ -519,8 +523,10 @@ export function createGateway(opts: GatewayOptions) {
           await keepHold(opts.pool, { projectId: project.id, holdId, step, reason: "the answer came from a model that has no price in the gateway's table", seen: fields });
           return;
         }
-        const r = await settleHold(opts.pool, { projectId: project.id, holdId, step, actualUsd: cost ?? Number.NaN, call: fields });
-        if (r.exceeded) fault("A settled call cost more than its hold.", { project: project.id, hold: holdId, hold_usd: r.amountUsd, actual_usd: cost });
+        const r = await settleHold(opts.pool, { projectId: project.id, holdId, step, actualUsd: cost ?? Number.NaN, call: fields, gateway: gatewayId, endedAt: new Date(endedAt) });
+        // Since package 1.4c the settle that charged it also froze the project, in the same transaction (holds.ts).
+        if (r.exceeded) fault("A settled call cost more than its hold.", { project: project.id, hold: holdId, hold_usd: r.amountUsd, actual_usd: cost, project_frozen: r.freeze !== null, freeze_id: r.freeze ? Number(r.freeze.id) : null });
+        else if (r.freeze) fault("An answer that arrived after its hold was kept or expired says the call cost more than its hold.", { project: project.id, hold: holdId, hold_usd: r.amountUsd, cost_usd_as_read: cost, project_frozen: true, freeze_id: Number(r.freeze.id) });
       } catch (err) {
         // The hold stays open in the database at its full amount: nothing was released.
         await unrecorded({ ending: "settle", kept_reason: null, cost_usd_as_read: cost ?? null, call: fields, ended_at: endedAt }, err, "A finished model call could not be written to the event log. Its hold stays open at its full amount.");
