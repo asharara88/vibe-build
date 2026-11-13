@@ -4,7 +4,11 @@ Rules: build plan section 8, rule 11. At most six lines each, with the options a
 
 ## Blocking work
 
-None open right now. The approval request for the browser and the runner's two base images (it holds up 3.1) is being prepared and will be added here.
+**15. The runner's two base images and Google's test browser, for internal development and testing only** (holds up 3.1). Detail: [`docs/licences/runner-base-images.md`](licences/runner-base-images.md), [`docs/licences/browser-terms.md`](licences/browser-terms.md).
+(a) **Approve both:** `ubuntu:24.04` and `node:22-bookworm-slim` pinned by digest (the runner also carries Node's notice and lists its system packages each build), and the Chrome for Testing headless shell 153.0.8010.12, the download with SHA-256 `a9da0288…`, unchanged, no video, under Google's Chrome Additional Terms (30 Sep 2025) and Terms of Service (30 Jul 2026); your yes is the business's agreement to those terms.
+Recommended: no clause found forbids this use on these conditions, apart from one unsettled point — the terms forbid copying the software with no stated exception for installing it (a lawyer can settle it if you want certainty).
+(b) Approve the images; the browser after a lawyer (fee shown first).
+(c) Neither; 3.1 stays parked.
 
 ## Not blocking yet
 
@@ -50,3 +54,5 @@ Claude Code's readings and work, recorded as such, not as your decisions. Detail
 - Gap 60: the boundary is fixed (package 0.6c) before code from the builder's own model calls runs; "fixed" means 0.6a's probe shows each such container reaching only what design note 2.5 allows.
 - A caller who leaves before the call is forwarded has its hold released (package 1.2; design note 5.5, step 3).
 - A hold kept after an error answer is not marked unreconciled, unlike design note 5.5's table (gap 62).
+- The approved-images check lets the builder's own images (`builder_<project>-app` and `-tools`, built from the template, never pulled) go without a digest (gap 67).
+- The counting rules for the runner's base images: "and/or" not split; both keyring packages counted as copyleft (`docs/licences/runner-base-images.md`, section 3).

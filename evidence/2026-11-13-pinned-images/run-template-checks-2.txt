@@ -1,0 +1,370 @@
+13 Nov 2026, at commit 56ea32b, after the template's packages were reinstalled from its lock file (run-template-reinstall.txt). Development machine, in templates/next/. The template's three checks as its package.json defines them.
+
+$ npm run check:licences
+
+> house-template-next@0.0.1 check:licences
+> bash scripts/check-licences.sh
+
+Lock file:
+Lock file check (templates/next/package-lock.json): 405 entries read.
+No sharp or @img package from the registry; caniuse-lite is under the approved licence; no unexpected local package.
+RESULT: PASSED
+Licence check for next
+Rule: licence-rule.json
+Packages checked: 263 installed on this machine, and 135 more that the lock file lists for other machines (judged by the licence the lock file records). Shipped, that is not development-only: 132.
+This component's own packages (a folder of its own, no outside licence):
+  sharp@0.0.0-removed | vendor/no-sharp | installed
+Permitted licences: MIT, Apache-2.0, BSD-2-Clause, BSD-3-Clause, ISC, 0BSD, BlueOak-1.0.0, CC0-1.0, Python-2.0, PostgreSQL, Unlicense
+Named exceptions in use:
+  caniuse-lite@1.0.30001823 | CC-BY-4.0 | approved 2026-11-12 for shipped use | shipped
+  lightningcss-android-arm64@1.33.0 (build package of lightningcss) | MPL-2.0 | approved 2026-11-12 for development use | development only
+  lightningcss-darwin-arm64@1.33.0 (build package of lightningcss) | MPL-2.0 | approved 2026-11-12 for development use | development only
+  lightningcss-darwin-x64@1.33.0 (build package of lightningcss) | MPL-2.0 | approved 2026-11-12 for development use | development only
+  lightningcss-freebsd-x64@1.33.0 (build package of lightningcss) | MPL-2.0 | approved 2026-11-12 for development use | development only
+  lightningcss-linux-arm-gnueabihf@1.33.0 (build package of lightningcss) | MPL-2.0 | approved 2026-11-12 for development use | development only
+  lightningcss-linux-arm64-gnu@1.33.0 (build package of lightningcss) | MPL-2.0 | approved 2026-11-12 for development use | development only
+  lightningcss-linux-arm64-musl@1.33.0 (build package of lightningcss) | MPL-2.0 | approved 2026-11-12 for development use | development only
+  lightningcss-linux-x64-gnu@1.33.0 (build package of lightningcss) | MPL-2.0 | approved 2026-11-12 for development use | development only
+  lightningcss-linux-x64-musl@1.33.0 (build package of lightningcss) | MPL-2.0 | approved 2026-11-12 for development use | development only
+  lightningcss-win32-arm64-msvc@1.33.0 (build package of lightningcss) | MPL-2.0 | approved 2026-11-12 for development use | development only
+  lightningcss-win32-x64-msvc@1.33.0 (build package of lightningcss) | MPL-2.0 | approved 2026-11-12 for development use | development only
+  lightningcss@1.33.0 | MPL-2.0 | approved 2026-11-12 for development use | development only
+  spdx-exceptions@2.5.0 | CC-BY-3.0 | approved 2026-11-12 for development use | development only
+  spdx-ranges@2.1.1 | (MIT AND CC-BY-3.0) | approved 2026-11-12 for development use | development only
+Notices file THIRD-PARTY-NOTICES.md is up to date.
+RESULT: PASSED
+exit code: 0
+
+$ npm run check:guards
+
+> house-template-next@0.0.1 check:guards
+> tsx scripts/check-guards.ts
+
+Guard check (rule 5): 38 code files read in the component.
+Pages, form actions and data routes, each with its guard and what the guard is given:
+  action  src/app/[locale]/example/action/actions.ts  runExampleAction = guardedAction(["manager", "hr_admin"])
+  page    src/app/[locale]/example/action/page.tsx  guardedPage(ROLES)
+  page    src/app/[locale]/example/restricted/page.tsx  guardedPage(["hr_admin"])
+  page    src/app/[locale]/home/page.tsx  guardedPage(ROLES)
+  page    src/app/[locale]/no-access/page.tsx  publicPage("the plain \"no access\" message: it shows no data and must be readable by someone who was)
+  page    src/app/[locale]/page.tsx  publicPage("shows nothing: it only sends a visitor to the home page or to sign-in")
+  page    src/app/[locale]/sign-in/page.tsx  publicPage("the sign-in form: it must be reachable before anyone is signed in")
+  route   src/app/api/auth/[...all]/route.ts  GET = publicRoute(reason)
+  route   src/app/api/auth/[...all]/route.ts  POST = publicRoute(reason)
+  route   src/app/api/example/roles/route.ts  GET = guardedRoute(["manager", "hr_admin"])
+RESULT: PASSED
+exit code: 0
+
+$ npm test
+
+> house-template-next@0.0.1 test
+> tsx --test tests/*.test.ts
+
+TAP version 13
+# Subtest: who is asking
+    # Subtest: nobody, when there is no session
+    ok 1 - nobody, when there is no session
+      ---
+      duration_ms: 0.925384
+      type: 'test'
+      ...
+    # Subtest: a user with the role employee
+    ok 2 - a user with the role employee
+      ---
+      duration_ms: 0.124062
+      type: 'test'
+      ...
+    # Subtest: a user with the role manager
+    ok 3 - a user with the role manager
+      ---
+      duration_ms: 0.168106
+      type: 'test'
+      ...
+    # Subtest: a user with the role hr_admin
+    ok 4 - a user with the role hr_admin
+      ---
+      duration_ms: 0.118856
+      type: 'test'
+      ...
+    # Subtest: "none", the role a new account is given, is refused even if the list of roles were ever to name it
+    ok 5 - "none", the role a new account is given, is refused even if the list of roles were ever to name it
+      ---
+      duration_ms: 0.308569
+      type: 'test'
+      ...
+    # Subtest: an account with no role this app recognises is not given the lowest role
+    ok 6 - an account with no role this app recognises is not given the lowest role
+      ---
+      duration_ms: 0.13172
+      type: 'test'
+      ...
+    1..6
+ok 1 - who is asking
+  ---
+  duration_ms: 2.536426
+  type: 'suite'
+  ...
+# Subtest: may they: a page, action or route for HR admins only
+    # Subtest: employee: refused, role not allowed
+    ok 1 - employee: refused, role not allowed
+      ---
+      duration_ms: 0.333135
+      type: 'test'
+      ...
+    # Subtest: manager: refused, role not allowed
+    ok 2 - manager: refused, role not allowed
+      ---
+      duration_ms: 0.176903
+      type: 'test'
+      ...
+    # Subtest: HR admin: allowed, and the user is handed on
+    ok 3 - HR admin: allowed, and the user is handed on
+      ---
+      duration_ms: 0.155233
+      type: 'test'
+      ...
+    # Subtest: no recognised role: refused, even where every role is allowed
+    ok 4 - no recognised role: refused, even where every role is allowed
+      ---
+      duration_ms: 0.183507
+      type: 'test'
+      ...
+    # Subtest: nobody: refused, not signed in
+    ok 5 - nobody: refused, not signed in
+      ---
+      duration_ms: 0.071013
+      type: 'test'
+      ...
+    1..5
+ok 2 - may they: a page, action or route for HR admins only
+  ---
+  duration_ms: 1.109274
+  type: 'suite'
+  ...
+# Subtest: may they: the list of roles itself
+    # Subtest: an empty list allows nobody
+    ok 1 - an empty list allows nobody
+      ---
+      duration_ms: 0.144813
+      type: 'test'
+      ...
+    # Subtest: every recognised role is allowed where the list is every role
+    ok 2 - every recognised role is allowed where the list is every role
+      ---
+      duration_ms: 0.073972
+      type: 'test'
+      ...
+    # Subtest: a name on the list that is not a role lets nobody in under it
+    ok 3 - a name on the list that is not a role lets nobody in under it
+      ---
+      duration_ms: 0.063694
+      type: 'test'
+      ...
+    1..3
+ok 3 - may they: the list of roles itself
+  ---
+  duration_ms: 0.374619
+  type: 'suite'
+  ...
+# Subtest: the guard check on this template
+    # Subtest: passes, and lists every page, action and route with its guard
+    ok 1 - passes, and lists every page, action and route with its guard
+      ---
+      duration_ms: 253.344014
+      type: 'test'
+      ...
+    1..1
+ok 4 - the guard check on this template
+  ---
+  duration_ms: 254.088424
+  type: 'suite'
+  ...
+# Subtest: a page without a guard fails the check
+    # Subtest: a plain page component
+    ok 1 - a plain page component
+      ---
+      duration_ms: 160.499045
+      type: 'test'
+      ...
+    # Subtest: a page that calls something else, or keeps the guard in a variable first
+    ok 2 - a page that calls something else, or keeps the guard in a variable first
+      ---
+      duration_ms: 410.016814
+      type: 'test'
+      ...
+    # Subtest: a guard of the same name that does not come from the guards' own file
+    ok 3 - a guard of the same name that does not come from the guards' own file
+      ---
+      duration_ms: 553.871927
+      type: 'test'
+      ...
+    # Subtest: a page in the older pages folder, which is not checked and so not allowed
+    ok 4 - a page in the older pages folder, which is not checked and so not allowed
+      ---
+      duration_ms: 200.801525
+      type: 'test'
+      ...
+    1..4
+ok 5 - a page without a guard fails the check
+  ---
+  duration_ms: 1325.525121
+  type: 'suite'
+  ...
+# Subtest: a data route without a guard fails the check
+    # Subtest: a plain handler, as a function or as a constant
+    ok 1 - a plain handler, as a function or as a constant
+      ---
+      duration_ms: 425.865881
+      type: 'test'
+      ...
+    # Subtest: one guarded method beside one that is not
+    ok 2 - one guarded method beside one that is not
+      ---
+      duration_ms: 193.70877
+      type: 'test'
+      ...
+    # Subtest: handlers exported together or passed on from another file
+    ok 3 - handlers exported together or passed on from another file
+      ---
+      duration_ms: 352.083856
+      type: 'test'
+      ...
+    # Subtest: passes when every method has its guard, with settings beside them
+    ok 4 - passes when every method has its guard, with settings beside them
+      ---
+      duration_ms: 178.034429
+      type: 'test'
+      ...
+    1..4
+ok 6 - a data route without a guard fails the check
+  ---
+  duration_ms: 1150.253584
+  type: 'suite'
+  ...
+# Subtest: a form action without a guard fails the check
+    # Subtest: a plain action in a file marked "use server"
+    ok 1 - a plain action in a file marked "use server"
+      ---
+      duration_ms: 333.135636
+      type: 'test'
+      ...
+    # Subtest: a function marked "use server" inside a page or a component
+    ok 2 - a function marked "use server" inside a page or a component
+      ---
+      duration_ms: 170.405029
+      type: 'test'
+      ...
+    # Subtest: the same, for a function written with an arrow, and for one inside an event handler
+    ok 3 - the same, for a function written with an arrow, and for one inside an event handler
+      ---
+      duration_ms: 417.353946
+      type: 'test'
+      ...
+    # Subtest: passes when the action is written with its guard
+    ok 4 - passes when the action is written with its guard
+      ---
+      duration_ms: 234.98435
+      type: 'test'
+      ...
+    1..4
+ok 7 - a form action without a guard fails the check
+  ---
+  duration_ms: 1156.156477
+  type: 'suite'
+  ...
+# Subtest: found by the review of the first version, and kept fixed
+    # Subtest: an action file whose opening directives put "use strict" before "use server"
+    ok 1 - an action file whose opening directives put "use strict" before "use server"
+      ---
+      duration_ms: 375.819023
+      type: 'test'
+      ...
+    # Subtest: an action file outside src/
+    ok 2 - an action file outside src/
+      ---
+      duration_ms: 221.870662
+      type: 'test'
+      ...
+    # Subtest: an action or a route exported with "let", which could be replaced afterwards
+    ok 3 - an action or a route exported with "let", which could be replaced afterwards
+      ---
+      duration_ms: 489.370754
+      type: 'test'
+      ...
+    # Subtest: a page file that exports anything beside its page, such as generateMetadata or metadata
+    ok 4 - a page file that exports anything beside its page, such as generateMetadata or metadata
+      ---
+      duration_ms: 832.705306
+      type: 'test'
+      ...
+    # Subtest: a route file that exports something other than its methods and plain settings
+    ok 5 - a route file that exports something other than its methods and plain settings
+      ---
+      duration_ms: 187.587062
+      type: 'test'
+      ...
+    # Subtest: a top-level app/ folder, which Next.js would serve in place of src/app
+    ok 6 - a top-level app/ folder, which Next.js would serve in place of src/app
+      ---
+      duration_ms: 207.932557
+      type: 'test'
+      ...
+    # Subtest: special files that answer with data by themselves
+    ok 7 - special files that answer with data by themselves
+      ---
+      duration_ms: 450.364771
+      type: 'test'
+      ...
+    # Subtest: a change to where "@/" points, a build script that is not exactly the check then the build, and the Next.js settings
+    ok 8 - a change to where "@/" points, a build script that is not exactly the check then the build, and the Next.js settings
+      ---
+      duration_ms: 1925.400869
+      type: 'test'
+      ...
+    # Subtest: folders named .git or .next below the top, and node_modules below the top
+    ok 9 - folders named .git or .next below the top, and node_modules below the top
+      ---
+      duration_ms: 483.88548
+      type: 'test'
+      ...
+    # Subtest: special files with a number after their name
+    ok 10 - special files with a number after their name
+      ---
+      duration_ms: 385.880262
+      type: 'test'
+      ...
+    # Subtest: a page or route set to be built ahead of time ("force-static"), which would give everyone the same answer
+    ok 11 - a page or route set to be built ahead of time ("force-static"), which would give everyone the same answer
+      ---
+      duration_ms: 217.158676
+      type: 'test'
+      ...
+    1..11
+ok 8 - found by the review of the first version, and kept fixed
+  ---
+  duration_ms: 5779.061822
+  type: 'suite'
+  ...
+# Subtest: a check that read nothing has not passed
+    # Subtest: fails on a folder with no app in it
+    ok 1 - fails on a folder with no app in it
+      ---
+      duration_ms: 194.620687
+      type: 'test'
+      ...
+    1..1
+ok 9 - a check that read nothing has not passed
+  ---
+  duration_ms: 194.777195
+  type: 'suite'
+  ...
+1..9
+# tests 39
+# suites 9
+# pass 39
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 10052.220443
+exit code: 0

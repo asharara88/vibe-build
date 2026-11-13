@@ -1,0 +1,7 @@
+13 Nov 2026, at commit 56ea32b (the code of this pull request; only records change after it). Development machine, in builder/.
+$ npm run typecheck
+
+> builder@0.0.1 typecheck
+> tsc --noEmit
+
+exit code: 0
