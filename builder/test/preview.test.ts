@@ -170,6 +170,26 @@ describe("the preview front: the gate", () => {
     expect(ui.lockedFor()).toBe(0);
   });
 
+  it("the pump socket takes a stream only once the pass has been used: before that, a connection to it is closed and no stream is opened", async () => {
+    const t = await preview();
+    const o = await t.open();
+    const knock = () =>
+      new Promise<void>((resolve) => {
+        const c = net.connect(t.p.pumpSocket()!);
+        c.on("error", () => resolve());
+        c.on("close", () => resolve());
+        setTimeout(() => (c.destroy(), resolve()), 2000);
+      });
+    await knock();
+    expect(t.p.refusedStreams).toBe(1);
+    expect(t.state.streams).toBe(0);
+    expect((await t.enter(o.shown)).status).toBe(303);
+    await pause(50);
+    await knock();
+    expect(t.state.streams).toBe(1);
+    expect(t.p.refusedStreams).toBe(1);
+  });
+
   it("the gate refuses an Origin of null, a POST with neither Origin nor Sec-Fetch-Site: same-origin, and a POST from another site", async () => {
     const t = await preview();
     const o = await t.open();

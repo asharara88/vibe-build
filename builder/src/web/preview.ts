@@ -167,6 +167,11 @@ export class LivePreview {
 
   constructor(private readonly o: LivePreviewOptions) {}
 
+  /** The pump socket's path while the preview runs (the tests connect to it as the front would). */
+  pumpSocket(): string | null {
+    return this.dir ? join(this.dir, "p.sock") : null;
+  }
+
   /** The front's port on 127.0.0.1. */
   port(): number {
     return this.o.port;
