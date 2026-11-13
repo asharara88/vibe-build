@@ -10,8 +10,8 @@ import { createGateway, normalisePath, startHoldKeeper } from "../src/gateway/ap
 import { costUsd, emptyUsage } from "../src/gateway/cost.js";
 import { COUNT_MARGIN, computeHold, DEFAULT_PROFILES, guardRequest, type ProfileLimits } from "../src/gateway/hold.js";
 import { listEvents } from "../src/store/events.js";
-import { expireHolds, getBudget, listHolds, openHold, releaseUnsentHold, settleHold } from "../src/store/holds.js";
-import { createProject, getSpend, issueProjectToken } from "../src/store/projects.js";
+import { CapChangeRefused, changeCap, expireHolds, getBudget, listHolds, micro, openHold, releaseUnsentHold, settleHold } from "../src/store/holds.js";
+import { createProject, getProject, getSpend, issueProjectToken } from "../src/store/projects.js";
 import { TEST_DB_URL, testPool, uniqueId } from "./helpers.js";
 
 const REAL_KEY = "test-real-key-never-leaves-the-gateway";
@@ -1768,6 +1768,301 @@ describe("model gateway: what is refused", () => {
   });
 
   it("raised no faults during this run", () => {
+    expect(faults).toEqual([]);
+  });
+});
+
+describe("the cap change: proof rows B20 to B22 of the design note (package 1.2b)", () => {
+  // Role names only (hard rule 10): who asked and who ran it are stated by the caller and not checked.
+  const who = { askedBy: "the owner", changedBy: "Claude Code", reason: "test of package 1.2b" };
+  const capChanges = (id: string) => listEvents(pool, id, "cap.changed");
+  const eventCount = async (id: string) => (await listEvents(pool, id)).length;
+  const deadline = () => new Date(Date.now() + 600_000);
+  const storeHold = (projectId: string, amountUsd: number, p: pg.Pool = pool) =>
+    openHold(p, { projectId, step: null, amountUsd, deadline: deadline(), gateway: "gw_test_cap", arithmetic: {}, path: "/v1/messages" });
+  /** The refusal a change ends in. Anything else, a database error included, fails the test: the reason is asserted, not only that it threw. */
+  async function refusal(change: Promise<unknown>): Promise<CapChangeRefused> {
+    try {
+      await change;
+    } catch (e) {
+      if (e instanceof CapChangeRefused) return e;
+      throw e;
+    }
+    throw new Error("expected the change to be refused, but it was made");
+  }
+  /** A project with $0.0025 spent and one hold of $0.0075 open: spent plus open holds is exactly $0.01. */
+  async function projectWithSpendAndHold(capUsd: number) {
+    const p = await newProject(capUsd);
+    const first = await storeHold(p.id, 0.004);
+    if (!first.ok) throw new Error("hold not opened");
+    expect((await settleHold(pool, { projectId: p.id, holdId: first.hold.id, step: null, actualUsd: 0.0025, call: {} })).settled).toBe(true);
+    expect((await storeHold(p.id, 0.0075)).ok).toBe(true);
+    const b = await getBudget(pool, p.id);
+    expect([b.spent, b.openHolds, b.openHoldCount]).toEqual([0.0025, 0.0075, 1]);
+    return p;
+  }
+
+  it("B20: a raise is recorded with its event, and the next call is judged against the new cap", async () => {
+    const { id, token } = await newProject(0.005); // too small for one plain call's hold ($0.00996)
+    const before = forwarded;
+    expect((await call(token, plain())).status).toBe(402);
+    expect(forwarded).toBe(before);
+    expect(((await listEvents(pool, id, "gateway.refused"))[0]!.payload as { cap_usd: number }).cap_usd).toBe(0.005);
+    const budgetBefore = await getBudget(pool, id);
+    const change = await changeCap(pool, { projectId: id, newCapUsd: 0.05, ...who });
+    expect(change).toMatchObject({ projectId: id, oldCapUsd: 0.005, newCapUsd: 0.05, spentUsd: 0, openHoldsUsd: 0, openHolds: 0, ...who });
+    const events = await capChanges(id);
+    expect(events).toHaveLength(1);
+    expect(events[0]!.id).toBe(change.eventId);
+    expect(events[0]!.payload).toEqual({
+      old_cap_usd: 0.005,
+      new_cap_usd: 0.05,
+      asked_by: "the owner",
+      changed_by: "Claude Code",
+      reason: "test of package 1.2b",
+      changed_at: change.changedAt,
+      spent_usd: 0,
+      open_holds_usd: 0,
+      open_holds: 0,
+    });
+    expect(Number.isNaN(Date.parse(change.changedAt))).toBe(false);
+    // Spent and open holds are what they were; only the cap moved.
+    expect(await getBudget(pool, id)).toEqual({ ...budgetBefore, cap: 0.05 });
+    // The same call, now let through and judged against the new cap.
+    expect((await call(token, plain())).status).toBe(200);
+    expect(((await listEvents(pool, id, "hold.opened"))[0]!.payload as { budget_before: { cap_usd: number } }).budget_before.cap_usd).toBe(0.05);
+    expect(await kinds(id)).toEqual(["gateway.refused", "cap.changed", "hold.opened", "model.call", "hold.settled"]);
+  });
+
+  it("B20: a lowering to exactly spent plus open holds is accepted and recorded, and the next call is refused", async () => {
+    const { id, token } = await projectWithSpendAndHold(1);
+    const change = await changeCap(pool, { projectId: id, newCapUsd: 0.01, ...who, reason: "test: lowered to spent plus open holds" });
+    expect(change).toMatchObject({ oldCapUsd: 1, newCapUsd: 0.01, spentUsd: 0.0025, openHoldsUsd: 0.0075, openHolds: 1 });
+    const events = await capChanges(id);
+    expect(events).toHaveLength(1);
+    expect(events[0]!.payload).toMatchObject({ old_cap_usd: 1, new_cap_usd: 0.01, spent_usd: 0.0025, open_holds_usd: 0.0075, open_holds: 1 });
+    const before = forwarded;
+    const res = await call(token, plain());
+    expect(res.status).toBe(402);
+    expect(forwarded).toBe(before);
+    const refused = (await listEvents(pool, id, "gateway.refused")).at(-1)!.payload;
+    expect(refused).toMatchObject({ reason: "budget_reached", cap_usd: 0.01, spent_usd: 0.0025, open_holds_usd: 0.0075 });
+    // The rule the failure tests will check: spent plus open holds is not above the cap.
+    const b = await getBudget(pool, id);
+    expect(micro(b.spent) + micro(b.openHolds)).toBeLessThanOrEqual(micro(b.cap));
+    // The hold that was open stays open at its amount; nothing about it changed.
+    expect((await listHolds(pool, id)).filter((h) => h.state === "open").map((h) => Number(h.amount_usd))).toEqual([0.0075]);
+  });
+
+  it("B20: the figures at the edges of what is allowed are accepted as written: 0, 0.0003 and 99999999.9999", async () => {
+    const { id } = await newProject(5);
+    const steps: [number, number][] = [
+      [5, 0],
+      [0, 0.0003],
+      [0.0003, 99999999.9999],
+    ];
+    for (const [old, next] of steps) {
+      const c = await changeCap(pool, { projectId: id, newCapUsd: next, ...who });
+      expect([c.oldCapUsd, c.newCapUsd]).toEqual([old, next]);
+      expect((await getBudget(pool, id)).cap).toBe(next);
+    }
+    expect((await capChanges(id)).map((e) => [(e.payload as { old_cap_usd: number }).old_cap_usd, (e.payload as { new_cap_usd: number }).new_cap_usd])).toEqual(steps);
+  });
+
+  /** A pool of one connection whose session carries a name, so that the test can see it wait in pg_stat_activity. */
+  const namedPool = async (name: string): Promise<pg.Pool> => new (await import("pg")).default.Pool({ connectionString: TEST_DB_URL, application_name: name, max: 1 });
+  /** Wait until every named session is waiting for a lock another session holds (pg_blocking_pids is not empty), or fail after about 10 seconds. */
+  async function waitUntilAllWait(names: string[]) {
+    for (let i = 0; i < 500; i++) {
+      const r = await pool.query<{ application_name: string; blocked_by: number[] }>(
+        "select application_name, pg_blocking_pids(pid) as blocked_by from pg_stat_activity where application_name = any($1::text[])",
+        [names],
+      );
+      const waiting = r.rows.filter((x) => x.blocked_by.length > 0).map((x) => x.application_name);
+      if (names.every((n) => waiting.includes(n))) return;
+      await new Promise((res) => setTimeout(res, 20));
+    }
+    throw new Error(`not every one of ${names.join(", ")} was seen waiting for a lock`);
+  }
+  /**
+   * A third session takes the project's row lock and keeps it; `start` starts the work, each piece on a
+   * pool of its own; once every piece is seen waiting, the lock is released and the work finishes.
+   */
+  async function withProjectLockHeld(id: string, names: string[], start: (pools: pg.Pool[]) => Promise<unknown>[]) {
+    const pools = await Promise.all(names.map(namedPool));
+    const holder = await pool.connect();
+    let work: Promise<unknown>[] = [];
+    let open = false;
+    try {
+      await holder.query("begin");
+      open = true;
+      await holder.query("select id from projects where id = $1 for update", [id]);
+      work = start(pools);
+      for (const w of work) w.catch(() => undefined); // judged below, once the lock is released
+      await waitUntilAllWait(names);
+      expect(await capChanges(id)).toHaveLength(0); // nothing is written while the lock is held
+      await holder.query("commit");
+      open = false;
+      await Promise.all(work);
+    } finally {
+      if (open) await holder.query("rollback").catch(() => undefined);
+      holder.release();
+      await Promise.allSettled(work);
+      await Promise.all(pools.map((p) => p.end()));
+    }
+  }
+
+  it("B21: two changes to one project are judged one at a time: the second starts from the figure the first left", async () => {
+    const { id } = await newProject(20);
+    const names = [uniqueId("b21_change_a"), uniqueId("b21_change_b")];
+    await withProjectLockHeld(id, names, ([a, b]) => [
+      changeCap(a!, { projectId: id, newCapUsd: 30, ...who, reason: "test: change a" }),
+      changeCap(b!, { projectId: id, newCapUsd: 40, ...who, reason: "test: change b" }),
+    ]);
+    const events = (await capChanges(id)).map((e) => e.payload as { old_cap_usd: number; new_cap_usd: number; changed_at: string; reason: string });
+    expect(events).toHaveLength(2);
+    expect(events[0]!.old_cap_usd).toBe(20);
+    expect(events[1]!.old_cap_usd).toBe(events[0]!.new_cap_usd); // the chain: old figure of the second = new figure of the first
+    expect(events.map((e) => e.new_cap_usd).sort()).toEqual([30, 40]);
+    expect((await getBudget(pool, id)).cap).toBe(events[1]!.new_cap_usd);
+    expect(Date.parse(events[1]!.changed_at)).toBeGreaterThanOrEqual(Date.parse(events[0]!.changed_at));
+    console.log(`B21, two changes: ${events.map((e) => `${e.reason} (${e.old_cap_usd} to ${e.new_cap_usd})`).join(", then ")}`);
+  });
+
+  it("B21: a change and an admission are judged one at a time, and their events agree in the order they were written", async () => {
+    // Two rounds; in each, the two are started in the opposite order. Whichever is judged first, the other must see its result.
+    for (const changeFirst of [true, false]) {
+      const { id } = await newProject(1);
+      const names = [uniqueId("b21_change"), uniqueId("b21_admission")];
+      await withProjectLockHeld(id, names, ([a, b]) => {
+        const change = () => changeCap(a!, { projectId: id, newCapUsd: 2, ...who, reason: "test: change against an admission" });
+        const admission = () => storeHold(id, 0.01, b!);
+        return changeFirst ? [change(), admission()] : [admission(), change()];
+      });
+      const log = (await listEvents(pool, id)).filter((e) => e.kind === "cap.changed" || e.kind === "hold.opened");
+      expect(log.map((e) => e.kind).sort()).toEqual(["cap.changed", "hold.opened"]);
+      const changed = log.find((e) => e.kind === "cap.changed")!.payload as { old_cap_usd: number; new_cap_usd: number; open_holds: number; open_holds_usd: number };
+      const opened = log.find((e) => e.kind === "hold.opened")!.payload as { budget_before: { cap_usd: number } };
+      if (log[0]!.kind === "cap.changed") {
+        // The change was judged first: the admission was judged against the new cap, and the change saw no open hold.
+        expect(opened.budget_before.cap_usd).toBe(2);
+        expect(changed).toMatchObject({ old_cap_usd: 1, new_cap_usd: 2, open_holds: 0, open_holds_usd: 0 });
+      } else {
+        // The admission was judged first: it was judged against the old cap, and the change saw its hold open.
+        expect(opened.budget_before.cap_usd).toBe(1);
+        expect(changed).toMatchObject({ old_cap_usd: 1, new_cap_usd: 2, open_holds: 1, open_holds_usd: 0.01 });
+      }
+      console.log(`B21, a change and an admission (started ${changeFirst ? "change first" : "admission first"}): judged ${log.map((e) => e.kind).join(", then ")}`);
+    }
+  });
+
+  it("B22: a figure that is not a number of dollars, 0 or more, below $100,000,000 with at most 4 decimals is refused: nothing changed, nothing written", async () => {
+    const { id } = await newProject(20);
+    const before = await eventCount(id);
+    const cases: [unknown, string][] = [
+      [Number.NaN, "cap_not_a_number"],
+      [Number.POSITIVE_INFINITY, "cap_not_a_number"],
+      [Number.NEGATIVE_INFINITY, "cap_not_a_number"],
+      ["30", "cap_not_a_number"],
+      [-1, "cap_below_zero"],
+      [-0.0001, "cap_below_zero"],
+      [1e8, "cap_too_large"],
+      [1e21, "cap_too_large"],
+      [0.00001, "cap_more_than_4_decimals"],
+      [20.12345, "cap_more_than_4_decimals"],
+    ];
+    for (const [figure, code] of cases) {
+      const r = await refusal(changeCap(pool, { projectId: id, newCapUsd: figure as number, ...who }));
+      expect([figure, r.code]).toEqual([figure, code]);
+      expect(r.message).toContain("Nothing was changed and nothing was written.");
+      expect((await getBudget(pool, id)).cap).toBe(20);
+    }
+    expect(await eventCount(id)).toBe(before);
+  });
+
+  it("B22: a name or reason that is missing, empty, longer than 500 characters, or holds a character the log cannot store is refused: nothing changed, nothing written", async () => {
+    const { id } = await newProject(20);
+    const before = await eventCount(id);
+    const fields = [
+      ["askedBy", "asked_by"],
+      ["changedBy", "changed_by"],
+      ["reason", "reason"],
+    ] as const;
+    const bad: [unknown, string][] = [
+      [undefined, "missing"],
+      ["", "missing"],
+      ["   ", "missing"],
+      [42, "missing"],
+      ["x".repeat(501), "too_long"],
+      ["the\u0000owner", "not_storable"],
+      ["half \ud800 of a pair", "not_storable"],
+    ];
+    for (const [key, field] of fields) {
+      for (const [value, kind] of bad) {
+        const p: Record<string, unknown> = { projectId: id, newCapUsd: 30, ...who, [key]: value };
+        if (value === undefined) delete p[key];
+        const r = await refusal(changeCap(pool, p as Parameters<typeof changeCap>[1]));
+        expect([key, value, r.code]).toEqual([key, value, `${field}_${kind}`]);
+        expect((await getBudget(pool, id)).cap).toBe(20);
+      }
+    }
+    expect(await eventCount(id)).toBe(before);
+    // At the edge: exactly 500 characters, with spaces around them that are trimmed, is accepted.
+    const c = await changeCap(pool, { projectId: id, newCapUsd: 30, ...who, reason: `  ${"r".repeat(500)}  ` });
+    expect(c.reason).toBe("r".repeat(500));
+    expect(((await capChanges(id))[0]!.payload as { reason: string }).reason).toBe("r".repeat(500));
+  });
+
+  it("B22: an unknown project, or a figure equal to the current cap, is refused: nothing changed, nothing written", async () => {
+    const missing = uniqueId("p_missing");
+    expect((await refusal(changeCap(pool, { projectId: missing, newCapUsd: 30, ...who }))).code).toBe("unknown_project");
+    expect(await getProject(pool, missing)).toBeNull();
+    const { id } = await newProject(20);
+    const before = await eventCount(id);
+    expect((await refusal(changeCap(pool, { projectId: id, newCapUsd: 20, ...who }))).code).toBe("no_change");
+    expect((await getBudget(pool, id)).cap).toBe(20);
+    expect(await eventCount(id)).toBe(before);
+  });
+
+  it("B22: a lowering below spent plus open holds is refused, naming the lowest figure allowed now: nothing changed, nothing written", async () => {
+    const { id } = await projectWithSpendAndHold(1);
+    const before = await eventCount(id);
+    for (const lower of [0.0099, 0.005, 0]) {
+      const r = await refusal(changeCap(pool, { projectId: id, newCapUsd: lower, ...who }));
+      expect([lower, r.code, r.lowestAllowedUsd]).toEqual([lower, "below_spent_plus_open_holds", 0.01]);
+      expect(r.message).toContain("The lowest cap allowed now is $0.0100.");
+      expect(await getBudget(pool, id)).toMatchObject({ cap: 1, spent: 0.0025, openHolds: 0.0075, openHoldCount: 1 });
+    }
+    expect(await eventCount(id)).toBe(before);
+    // When spent plus open holds has more than 4 decimals, the lowest figure allowed is rounded up to 4.
+    const other = await newProject(1);
+    expect((await call(other.token, plain())).status).toBe(200);
+    const b = await getBudget(pool, other.id);
+    expect([micro(b.spent), b.openHolds]).toEqual([micro(PLAIN_COST), 0]); // $0.006142 spent, nothing held
+    const r = await refusal(changeCap(pool, { projectId: other.id, newCapUsd: 0.0061, ...who }));
+    expect([r.code, r.lowestAllowedUsd]).toEqual(["below_spent_plus_open_holds", 0.0062]);
+    expect((await getBudget(pool, other.id)).cap).toBe(1);
+    expect(await capChanges(other.id)).toHaveLength(0);
+    // The figure it names is accepted.
+    expect((await changeCap(pool, { projectId: other.id, newCapUsd: 0.0062, ...who })).newCapUsd).toBe(0.0062);
+  });
+
+  it("the cap change: a cap that is not a number is refused by the database (migration 007) and by createProject", async () => {
+    const { id } = await newProject(20);
+    await expect(pool.query("update projects set cap_usd = 'NaN' where id = $1", [id])).rejects.toThrow(/projects_cap_is_a_number/);
+    await expect(pool.query("insert into projects(id, name, cap_usd) values ($1, 'raw insert', 'NaN')", [uniqueId("p")])).rejects.toThrow(/projects_cap_is_a_number/);
+    expect((await getBudget(pool, id)).cap).toBe(20);
+    for (const bad of [Number.NaN, Number.POSITIVE_INFINITY, -1, 1e8]) {
+      const pid = uniqueId("p");
+      await expect(createProject(pool, { id: pid, name: "gateway test", capUsd: bad })).rejects.toThrow(/^A project's cap must be a real number of dollars/);
+      expect(await getProject(pool, pid)).toBeNull();
+    }
+    // A cap with more than 4 decimals is still taken by createProject and rounded by the database, as package 1.2's tests need.
+    const rounded = await createProject(pool, { id: uniqueId("p"), name: "gateway test", capUsd: 0.017264 });
+    expect(rounded.cap_usd).toBe("0.0173");
+  });
+
+  it("the cap change raised no faults", () => {
     expect(faults).toEqual([]);
   });
 });
