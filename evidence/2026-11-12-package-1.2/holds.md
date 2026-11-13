@@ -737,3 +737,18 @@ Both failed; the tree was clean after each, and no tracked file was changed afte
 **Records.** Row B5 above names the two tests and control 24, with a dated note. Design note 5.5, step 4, has a dated as-built note, and its table of changes a row. Known gap 62 has a dated sentence: the clock, and a hold kept after its deadline that reads as kept, not expired, until the next pass. No row in `docs/DECISIONS.md`: this is a defect fixed to match row B5 and step 4 as written, not a new rule.
 
 **What this does not show.** A settlement that really waits on the lock past a deadline: the tests move the deadline into the past instead, and call the store directly, not through the gateway. Two gateway processes whose clocks differ. The demonstration was not run again (its section B5 does not cover this case; its script was type-checked, Run 20).
+
+**Run 20: the checks at the end.** On the development machine, in `builder/`, with the test database `builder_test_pkg12`; no provider was called, the tests use stand-ins and the store directly. All at `756766a`, whose code is that of `9dc236d` (the commits after `9dc236d` change evidence and records only).
+
+| Check | Result | Output |
+| --- | --- | --- |
+| Type check (`npm run typecheck`), and `scripts/demo-cap.ts` type-checked on its own, as in Run 17 | Exit code 0, and exit code 0 | `run-2026-11-13-review-bot-typecheck.txt` |
+| Every test except the live ones | 9 files; 218 passed, 19 skipped (each skipped test is a live one), 237 in all; exit code 0. The two new B5 tests passed | `run-2026-11-13-review-bot-tests-not-live.txt` |
+| The whole test suite, live tests included, run once under the shared lock (`flock <lock> npx vitest run --reporter=verbose`) | 9 files, 237 tests, all passed, none skipped; exit code 0. The machine's containers were listed before and after, while the lock was held: none either time. The image digests Docker gave after the run are at the end of the file, the same as in Run 17 | `run-2026-11-13-review-bot-tests-full.txt` |
+| Licence check (`npm run check:licences`), run last | RESULT: PASSED, exit code 0; the notices file up to date; `builder/licences.csv` unchanged. No dependency was added or removed (`builder/package.json` and `package-lock.json` are as at `7ce5a33`) | `run-2026-11-13-review-bot-licences.txt` |
+
+The outputs were searched for key-like text and none was found. No real provider was called, no real key exists in these runs, and nothing was spent.
+
+**Hand-off.**
+- **For Claude Code:** push; post the reply on the review bot's thread; the pull request's description, if it lists the commits each review read, can add `7ce5a33` (the review bot) and this section.
+- **This fix has not been read by a fresh reviewer.**
