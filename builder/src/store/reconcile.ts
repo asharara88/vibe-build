@@ -14,9 +14,20 @@
  *
  * Who asked and who recorded it are written as the caller states them: nothing here checks them, and nothing
  * here checks the evidence against the provider (known gap 99). A refusal changes nothing and writes nothing.
+ *
+ * Package 1.4c (the owner's answer to question 17, 13 Nov 2026): a call the gateway settles above its hold freezes
+ * its project (holds.ts, `settleHold`). Its hold is closed, so `reconcileHold` cannot clear that freeze;
+ * `recordOverrun` is the owner's recorded action that does, and the list shows such freezes with the bill, the hold
+ * and the difference (`overrunFreezes`). A late answer above its hold freezes the project too; that hold is still
+ * open, so its reconciliation clears it. A reconciliation above the hold does not freeze the project: it is the
+ * owner's own recorded action (Claude Code's decision, docs/DECISIONS.md, 13 Nov 2026). After the review of 1.4c, a
+ * call kept with usage figures as read above its hold freezes its project too (kind 'kept_above_hold'); its hold is
+ * open, so its reconciliation clears that freeze as well. So does package 1.4b's freeze after an unreadable journal
+ * line set aside naming an open kept hold (kind 'journal_line_set_aside', migration 012): its hold's reconciliation
+ * clears it; `recordOverrun` refuses it, as it refuses every kind but 'bill_above_hold'.
  */
 import type pg from "pg";
-import { activeFreezeIn, type Freeze } from "./freezes.js";
+import { activeFreezeIn, type Freeze, type FreezeKind } from "./freezes.js";
 import { closeStepsPastDeadlineIn, expireHoldsIn, LONE_SURROGATE_IN, micro, OWNER_GONE, readBudget, returnToStepIn, type Budget, type Hold } from "./holds.js";
 import { event, inTransaction, type Queryable } from "./tx.js";
 
@@ -40,6 +51,10 @@ export type HoldKind =
   | "froze its project"
   /** An answer arrived after it was kept or expired: written down, not settled. */
   | "late answer written down"
+  /** Such an answer's cost as read is above the hold, which froze its project (package 1.4c). */
+  | "late answer above its hold"
+  /** Kept with usage figures, read before its call ended, that already priced it above its hold, which froze its project (after the review of 1.4c). */
+  | "kept above its hold"
   | "kept for another reason";
 
 const ERROR_ANSWER = new Set([
@@ -101,18 +116,39 @@ export interface UnreconciledHold {
   seen: { status: unknown; servedModel: unknown; usage: unknown; error: unknown } | null;
   /** Answers that arrived after it was kept or expired, written down and not settled. */
   lateAnswers: { eventId: string; at: string; costUsdAsRead: number | null; reason: string }[];
-  /** The freezes this hold caused (package 1.4). */
-  freezes: { freezeId: string; journalId: string; endedAt: string; frozenAt: string; cleared: boolean; costUsdAsRead: number | null }[];
+  /** The freezes this hold caused (package 1.4; since 1.4c, also a late answer above it, or a keep with figures as read above it; package 1.4b, an unreadable journal line set aside naming it), each with its kind. */
+  freezes: { freezeId: string; kind: FreezeKind; journalId: string | null; endedAt: string; frozenAt: string; cleared: boolean; costUsdAsRead: number | null }[];
 }
 
-/** A freeze not cleared whose hold is not open (or was not found): reconciling cannot clear it (known gap 100). */
+/**
+ * A freeze not cleared whose hold is not open (or was not found): reconciling cannot clear it (known gap 100).
+ * A freeze after a bill above its hold is not one of these: its hold was settled by design, and it is listed with
+ * `overrunFreezes` (package 1.4c).
+ */
 export interface FreezeWithNoOpenHold {
   freezeId: string;
   projectId: string;
   holdId: string | null;
   holdState: string | null;
-  journalId: string;
+  journalId: string | null;
   endedAt: string;
+}
+
+/** A freeze after a bill above its hold, not yet cleared (package 1.4c): cleared by the owner's record of the bill (`recordOverrun`). */
+export interface OverrunFreeze {
+  freezeId: string;
+  projectId: string;
+  holdId: string;
+  step: string | null;
+  /** What the hold held, what the call was billed (charged in full when it was settled) and the difference. */
+  heldUsd: number;
+  billUsd: number;
+  aboveByUsd: number;
+  /** When the call ended, by the gateway's clock, and when the project was frozen. */
+  endedAt: string;
+  frozenAt: string;
+  gateway: string;
+  model: string | null;
 }
 
 export interface UnreconciledList {
@@ -120,6 +156,8 @@ export interface UnreconciledList {
   asOf: string;
   holds: UnreconciledHold[];
   freezesWithNoOpenHold: FreezeWithNoOpenHold[];
+  /** Package 1.4c: projects frozen after a bill above its hold, each until the owner records that bill. */
+  overrunFreezes: OverrunFreeze[];
 }
 
 const num = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
@@ -155,7 +193,11 @@ async function describe(q: Queryable, rows: Hold[], now: Date): Promise<Unreconc
     const add = (k: HoldKind | null) => {
       if (k && !kinds.includes(k)) kinds.push(k);
     };
-    if (freezes.length > 0) add("froze its project");
+    // Package 1.4b: a freeze from an unreadable journal line set aside naming this hold is listed as package 1.4b listed
+    // it, "froze its project"; the script's line for the freeze says where it came from (scripts/reconcile.ts).
+    if (freezes.some((f) => f.kind === "unrecorded_ending" || f.kind === "journal_line_set_aside")) add("froze its project");
+    if (freezes.some((f) => f.kind === "late_answer_above_hold")) add("late answer above its hold");
+    if (freezes.some((f) => f.kind === "kept_above_hold")) add("kept above its hold");
     if (h.kept_reason !== null) add(reasonKind(h.kept_reason));
     if (h.expired || h.deadline_at.getTime() <= now.getTime()) add("expired");
     if (late.length > 0) add("late answer written down");
@@ -181,6 +223,7 @@ async function describe(q: Queryable, rows: Hold[], now: Date): Promise<Unreconc
       lateAnswers: late.map((e) => ({ eventId: String(e.id), at: e.at.toISOString(), costUsdAsRead: num(obj(e.payload["seen"])!["cost_usd_as_read"]), reason: String(e.payload["reason"] ?? "") })),
       freezes: freezes.map((f) => ({
         freezeId: String(f.id),
+        kind: f.kind,
         journalId: f.journal_id,
         endedAt: f.ended_at.toISOString(),
         frozenAt: f.frozen_at.toISOString(),
@@ -207,7 +250,16 @@ export async function listUnreconciled(pool: pg.Pool, o: { projectId?: string; n
   const others = (
     await pool.query<Freeze & { hold_state: string | null }>(
       `select f.*, h.state as hold_state from project_freezes f left join holds h on h.id = f.hold_id
-        where f.cleared_at is null and (h.id is null or h.state <> 'open') and ($1::text is null or f.project_id = $1)
+        where f.cleared_at is null and f.kind <> 'bill_above_hold' and (h.id is null or h.state <> 'open') and ($1::text is null or f.project_id = $1)
+        order by f.project_id, f.id`,
+      [o.projectId ?? null],
+    )
+  ).rows;
+  // Package 1.4c: freezes after a bill above its hold, with the bill, the hold and the difference.
+  const overruns = (
+    await pool.query<Freeze & { step: string | null }>(
+      `select f.*, h.step from project_freezes f join holds h on h.id = f.hold_id
+        where f.cleared_at is null and f.kind = 'bill_above_hold' and ($1::text is null or f.project_id = $1)
         order by f.project_id, f.id`,
       [o.projectId ?? null],
     )
@@ -216,6 +268,27 @@ export async function listUnreconciled(pool: pg.Pool, o: { projectId?: string; n
     asOf: now.toISOString(),
     holds: await describe(pool, rows, now),
     freezesWithNoOpenHold: others.map((f) => ({ freezeId: String(f.id), projectId: f.project_id, holdId: f.hold_id === null ? null : String(f.hold_id), holdState: f.hold_state, journalId: f.journal_id, endedAt: f.ended_at.toISOString() })),
+    overrunFreezes: overruns.map(overrunOf),
+  };
+}
+
+/** One freeze after a bill above its hold, as listed and as recorded (package 1.4c). Figures worked in millionths. */
+function overrunOf(f: Freeze & { step: string | null }): OverrunFreeze {
+  const held = micro(Number(f.hold_amount_usd));
+  const bill = micro(Number(f.bill_usd));
+  const model = obj(f.record)?.["model"];
+  return {
+    freezeId: String(f.id),
+    projectId: f.project_id,
+    holdId: String(f.hold_id),
+    step: f.step,
+    heldUsd: held / 1e6,
+    billUsd: bill / 1e6,
+    aboveByUsd: (bill - held) / 1e6,
+    endedAt: f.ended_at.toISOString(),
+    frozenAt: f.frozen_at.toISOString(),
+    gateway: f.gateway,
+    model: typeof model === "string" ? model : null,
   };
 }
 
@@ -233,7 +306,11 @@ export type ReconcileRefusalCode =
   | "unknown_hold"
   | "hold_already_closed"
   | "hold_not_kept"
-  | "cost_already_recorded";
+  | "cost_already_recorded"
+  /** Package 1.4c, `recordOverrun`: the hold has no freeze after a bill above it (none, or only of another kind). */
+  | "no_overrun_freeze"
+  /** Package 1.4c, `recordOverrun`: that freeze was already cleared. */
+  | "overrun_already_recorded";
 
 export class ReconcileRefused extends Error {
   constructor(
@@ -395,7 +472,7 @@ export async function reconcileHold(
         c,
         p.projectId,
         "project.freeze_cleared",
-        { freeze_id: Number(f.id), journal_id: f.journal_id, hold_id: Number(hold.id), cleared_at: f.cleared_at!.toISOString(), by: "the owner's reconciliation of its hold", hold_reconciled_event_id: Number(eventId), project_still_frozen: stillFrozen },
+        { freeze_id: Number(f.id), kind: f.kind, journal_id: f.journal_id, hold_id: Number(hold.id), cleared_at: f.cleared_at!.toISOString(), by: "the owner's reconciliation of its hold", hold_reconciled_event_id: Number(eventId), project_still_frozen: stillFrozen },
         hold.step,
       );
     }
@@ -419,5 +496,106 @@ export async function reconcileHold(
       budgetBefore,
       budgetAfter,
     };
+  });
+}
+
+/* ------------------------------------------------------------------ the owner's record of a bill above its hold (package 1.4c) */
+
+/** What each kind of freeze is called in a refusal. */
+const FREEZE_KIND_TEXT: Record<FreezeKind, string> = {
+  unrecorded_ending: "its call's ending could not be recorded",
+  bill_above_hold: "a bill above its hold",
+  late_answer_above_hold: "a late answer above its hold",
+  kept_above_hold: "the usage figures read before its call ended put it above its hold",
+  journal_line_set_aside: "an unreadable line of the gateway's journal was set aside naming it",
+};
+
+export interface OverrunRecord extends OverrunFreeze {
+  evidence: string;
+  askedBy: string;
+  recordedBy: string;
+  reason: string;
+  /** The database's clock, read under the project's lock. */
+  recordedAt: string;
+  /** The `hold.overrun_recorded` event, and the `project.freeze_cleared` event. */
+  eventId: string;
+  clearedEventId: string;
+  /** Whether the project is still frozen by another freeze. */
+  projectStillFrozen: boolean;
+  /** The budget at that moment: this record moves no money. */
+  budget: Budget;
+}
+
+/**
+ * Record the owner's review of a bill above its hold, and clear the freeze that bill caused (package 1.4c; the
+ * owner's answer to question 17, 13 Nov 2026, "(a) Yes, freeze"). The bill was charged in full when the call was
+ * settled, so this moves no money. The hold is closed, so `reconcileHold` refuses it; this is the recorded action
+ * that clears such a freeze. Checks the hold's id and the texts first; then, in one transaction under the project's
+ * lock: refuses it unless the project exists, the hold is this project's, and the hold has a freeze after a bill
+ * above it that is not cleared; clears that freeze, and only that one; writes `hold.overrun_recorded` with the hold,
+ * the bill, the difference, the evidence, who asked, who recorded it and why, and `project.freeze_cleared`. Who asked
+ * and who recorded it are written as stated, as for a reconciliation (known gap 99). Throws `ReconcileRefused`,
+ * having changed and written nothing, when it cannot be recorded.
+ */
+export async function recordOverrun(
+  pool: pg.Pool,
+  p: { projectId: string; holdId: string; evidence: string; askedBy: string; recordedBy: string; reason: string },
+): Promise<OverrunRecord> {
+  if (typeof p.holdId !== "string" || !/^[1-9][0-9]{0,17}$/.test(p.holdId)) throw new ReconcileRefused("hold_id_not_valid", `A hold's id is a whole number above 0. ${NOTHING_CHANGED}`);
+  const evidence = checkText("evidence", p.evidence, MAX_EVIDENCE);
+  const askedBy = checkText("asked_by", p.askedBy, MAX_TEXT);
+  const recordedBy = checkText("recorded_by", p.recordedBy, MAX_TEXT);
+  const reason = checkText("reason", p.reason, MAX_TEXT);
+  return inTransaction(pool, p.projectId, async (c) => {
+    // inTransaction holds the project's row lock from here on; it does not say whether the row exists.
+    if ((await c.query("select 1 from projects where id = $1", [p.projectId])).rowCount === 0) throw new ReconcileRefused("unknown_project", `There is no project with the id given. ${NOTHING_CHANGED}`);
+    const hold = (await c.query<Hold>("select * from holds where id = $1 and project_id = $2", [p.holdId, p.projectId])).rows[0];
+    if (!hold) throw new ReconcileRefused("unknown_hold", `Project ${p.projectId} has no hold ${p.holdId}. ${NOTHING_CHANGED}`);
+    const freezes = (await c.query<Freeze>("select * from project_freezes where project_id = $1 and hold_id = $2 order by id", [p.projectId, hold.id])).rows;
+    const overrun = freezes.find((f) => f.kind === "bill_above_hold");
+    if (!overrun) {
+      const others = [...new Set(freezes.filter((f) => f.cleared_at === null).map((f) => FREEZE_KIND_TEXT[f.kind] ?? f.kind))];
+      throw new ReconcileRefused(
+        "no_overrun_freeze",
+        `Hold ${p.holdId} has no freeze after a bill above its hold${others.length > 0 ? `; it froze its project for another reason (${others.join("; ")}), which a reconciliation of the hold with its actual cost clears` : ""}. ${NOTHING_CHANGED}`,
+      );
+    }
+    if (overrun.cleared_at !== null) {
+      throw new ReconcileRefused("overrun_already_recorded", `The freeze after hold ${p.holdId}'s bill above its hold was already cleared, at ${overrun.cleared_at.toISOString()}. ${NOTHING_CHANGED}`);
+    }
+    const recordedAt = (await c.query<{ t: Date }>("select clock_timestamp() as t")).rows[0]!.t.toISOString();
+    const cleared = (await c.query<Freeze>("update project_freezes set cleared_at = clock_timestamp() where id = $1 and cleared_at is null returning *", [overrun.id])).rows[0]!;
+    const stillFrozen = (await activeFreezeIn(c, p.projectId)) !== null;
+    const budget = await readBudget(c, p.projectId);
+    const o = overrunOf({ ...overrun, step: hold.step });
+    const eventId = await event(
+      c,
+      p.projectId,
+      "hold.overrun_recorded",
+      {
+        hold_id: Number(hold.id),
+        freeze_id: Number(overrun.id),
+        amount_usd: o.heldUsd,
+        bill_usd: o.billUsd,
+        above_by_usd: o.aboveByUsd,
+        ended_at: o.endedAt,
+        evidence,
+        asked_by: askedBy,
+        recorded_by: recordedBy,
+        reason,
+        recorded_at: recordedAt,
+        project_still_frozen: stillFrozen,
+        budget: { cap_usd: budget.cap, spent_usd: budget.spent, open_holds_usd: budget.openHolds, step_room_usd: budget.stepRoom },
+      },
+      hold.step,
+    );
+    const clearedEventId = await event(
+      c,
+      p.projectId,
+      "project.freeze_cleared",
+      { freeze_id: Number(cleared.id), kind: cleared.kind, hold_id: Number(hold.id), cleared_at: cleared.cleared_at!.toISOString(), by: "the owner's record of a bill above its hold", hold_overrun_recorded_event_id: Number(eventId), project_still_frozen: stillFrozen },
+      hold.step,
+    );
+    return { ...o, evidence, askedBy, recordedBy, reason, recordedAt, eventId, clearedEventId, projectStillFrozen: stillFrozen, budget };
   });
 }

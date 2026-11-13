@@ -1,0 +1,186 @@
+Package 3.1b, after its review: controls, 2026-11-13T11:56:02Z. Each: a fresh copy of commit c3a7570 (git archive into the scratch folder, builder/node_modules linked from the worktree), one new safeguard removed as shown, the gate test file run in the copy's builder/, the copy then removed. No container is started (the gate's child run has Docker not answering and an empty cache folder).
+
+=== R1. The scan: `fails` taken out of the word list ===
+--- a/builder/test/gate-scan.ts
++++ b/builder/test/gate-scan.ts
+@@ -19 +19 @@
+-export const LEFT_OUT_WORDS = [skip, `${skip}If`, ["run", "If"].join(""), ["to", "do"].join(""), ["on", "ly"].join(""), ["fa", "ils"].join("")] as const;
++export const LEFT_OUT_WORDS = [skip, `${skip}If`, ["run", "If"].join(""), ["to", "do"].join(""), ["on", "ly"].join("")] as const;
+$ npx vitest run test/acceptance-gate.test.ts --reporter=verbose   (in the copy's builder/)
+ ✓ test/acceptance-gate.test.ts > the live acceptance tests' prerequisites, each named with how to put it right > Docker: not answering, or not installed 46ms
+ ✓ test/acceptance-gate.test.ts > the live acceptance tests' prerequisites, each named with how to put it right > the browser zip: the setting unset, a folder without the zip, another file, a link 3ms
+ ✓ test/acceptance-gate.test.ts > the live acceptance tests' prerequisites, each named with how to put it right > Docker's own message, when long, is cut at a word and marked with '…' (after the review: it was cut mid-word) 3ms
+ ✓ test/acceptance-gate.test.ts > the live acceptance tests' prerequisites, each named with how to put it right > both missing: both are named 42ms
+ ✓ test/acceptance-gate.test.ts > the gate: npm test cannot pass while the browser was not exercised > the live acceptance test file, run with the zip absent and Docker not answering, fails: all 7 of its tests, none skipped, each naming both and how to put them right 1003ms
+ ✓ test/acceptance-gate.test.ts > the gate: npm test cannot pass while the browser was not exercised > no test file can skip a test, mark one to do, run one alone, run one only if something holds, or expect it to fail; the test runner runs every test file in test/; npm test runs the whole suite 295ms
+ × test/acceptance-gate.test.ts > the gate's scan, on made-up folders: each rule finds what it is for (added after the package's review) > a failure turned into a pass: `fails` after it or test is found 8ms
+ ✓ test/acceptance-gate.test.ts > the gate's scan, on made-up folders: each rule finds what it is for (added after the package's review) > a file in a subfolder of test/ is read 1ms
+ ✓ test/acceptance-gate.test.ts > the gate's scan, on made-up folders: each rule finds what it is for (added after the package's review) > a file the test runner runs outside test/ is read 1ms
+ ✓ test/acceptance-gate.test.ts > the gate's scan, on made-up folders: each rule finds what it is for (added after the package's review) > a test file in test/ that the test runner would not run is named, whatever setting leaves it out (here one the settings file takes from another file, so no word in it shows) 321ms
+ ✓ test/acceptance-gate.test.ts > the gate's scan, on made-up folders: each rule finds what it is for (added after the package's review) > settings that name projects, dir, root or workspace, and another settings file or a workspace file, are named; so are the earlier ones 2ms
+ Test Files  1 failed (1)
+      Tests  1 failed | 10 passed (11)
+AssertionError: expected [] to deeply equal [ …(2) ]
+exit code: 1
+
+=== R2. The scan: the subfolders of test/ not read ===
+--- a/builder/test/gate-scan.ts
++++ b/builder/test/gate-scan.ts
+@@ -39 +39 @@
+-        if (e.name !== "node_modules") walk(p);
++        void p; // control: subfolders not read
+$ npx vitest run test/acceptance-gate.test.ts --reporter=verbose   (in the copy's builder/)
+ ✓ test/acceptance-gate.test.ts > the live acceptance tests' prerequisites, each named with how to put it right > Docker: not answering, or not installed 45ms
+ ✓ test/acceptance-gate.test.ts > the live acceptance tests' prerequisites, each named with how to put it right > the browser zip: the setting unset, a folder without the zip, another file, a link 3ms
+ ✓ test/acceptance-gate.test.ts > the live acceptance tests' prerequisites, each named with how to put it right > Docker's own message, when long, is cut at a word and marked with '…' (after the review: it was cut mid-word) 3ms
+ ✓ test/acceptance-gate.test.ts > the live acceptance tests' prerequisites, each named with how to put it right > both missing: both are named 70ms
+ ✓ test/acceptance-gate.test.ts > the gate: npm test cannot pass while the browser was not exercised > the live acceptance test file, run with the zip absent and Docker not answering, fails: all 7 of its tests, none skipped, each naming both and how to put them right 1329ms
+ ✓ test/acceptance-gate.test.ts > the gate: npm test cannot pass while the browser was not exercised > no test file can skip a test, mark one to do, run one alone, run one only if something holds, or expect it to fail; the test runner runs every test file in test/; npm test runs the whole suite 274ms
+ ✓ test/acceptance-gate.test.ts > the gate's scan, on made-up folders: each rule finds what it is for (added after the package's review) > a failure turned into a pass: `fails` after it or test is found 2ms
+ × test/acceptance-gate.test.ts > the gate's scan, on made-up folders: each rule finds what it is for (added after the package's review) > a file in a subfolder of test/ is read 9ms
+ ✓ test/acceptance-gate.test.ts > the gate's scan, on made-up folders: each rule finds what it is for (added after the package's review) > a file the test runner runs outside test/ is read 2ms
+ × test/acceptance-gate.test.ts > the gate's scan, on made-up folders: each rule finds what it is for (added after the package's review) > a test file in test/ that the test runner would not run is named, whatever setting leaves it out (here one the settings file takes from another file, so no word in it shows) 244ms
+ ✓ test/acceptance-gate.test.ts > the gate's scan, on made-up folders: each rule finds what it is for (added after the package's review) > settings that name projects, dir, root or workspace, and another settings file or a workspace file, are named; so are the earlier ones 2ms
+ Test Files  1 failed (1)
+      Tests  2 failed | 9 passed (11)
+AssertionError: expected [ Array(1) ] to deeply equal [ …(2) ]
+AssertionError: expected [] to deeply equal [ Array(1) ]
+exit code: 1
+
+=== R3. The scan: the files the test runner lists not read (test/ only) ===
+--- a/builder/test/gate-scan.ts
++++ b/builder/test/gate-scan.ts
+@@ -63 +63 @@
+-  for (const f of [...new Set([...inFolder, ...listed])].sort()) {
++  for (const f of [...new Set([...inFolder])].sort()) {
+$ npx vitest run test/acceptance-gate.test.ts --reporter=verbose   (in the copy's builder/)
+ ✓ test/acceptance-gate.test.ts > the live acceptance tests' prerequisites, each named with how to put it right > Docker: not answering, or not installed 66ms
+ ✓ test/acceptance-gate.test.ts > the live acceptance tests' prerequisites, each named with how to put it right > the browser zip: the setting unset, a folder without the zip, another file, a link 5ms
+ ✓ test/acceptance-gate.test.ts > the live acceptance tests' prerequisites, each named with how to put it right > Docker's own message, when long, is cut at a word and marked with '…' (after the review: it was cut mid-word) 4ms
+ ✓ test/acceptance-gate.test.ts > the live acceptance tests' prerequisites, each named with how to put it right > both missing: both are named 59ms
+ ✓ test/acceptance-gate.test.ts > the gate: npm test cannot pass while the browser was not exercised > the live acceptance test file, run with the zip absent and Docker not answering, fails: all 7 of its tests, none skipped, each naming both and how to put them right 1103ms
+ ✓ test/acceptance-gate.test.ts > the gate: npm test cannot pass while the browser was not exercised > no test file can skip a test, mark one to do, run one alone, run one only if something holds, or expect it to fail; the test runner runs every test file in test/; npm test runs the whole suite 299ms
+ ✓ test/acceptance-gate.test.ts > the gate's scan, on made-up folders: each rule finds what it is for (added after the package's review) > a failure turned into a pass: `fails` after it or test is found 1ms
+ ✓ test/acceptance-gate.test.ts > the gate's scan, on made-up folders: each rule finds what it is for (added after the package's review) > a file in a subfolder of test/ is read 1ms
+ × test/acceptance-gate.test.ts > the gate's scan, on made-up folders: each rule finds what it is for (added after the package's review) > a file the test runner runs outside test/ is read 8ms
+ ✓ test/acceptance-gate.test.ts > the gate's scan, on made-up folders: each rule finds what it is for (added after the package's review) > a test file in test/ that the test runner would not run is named, whatever setting leaves it out (here one the settings file takes from another file, so no word in it shows) 278ms
+ ✓ test/acceptance-gate.test.ts > the gate's scan, on made-up folders: each rule finds what it is for (added after the package's review) > settings that name projects, dir, root or workspace, and another settings file or a workspace file, are named; so are the earlier ones 2ms
+ Test Files  1 failed (1)
+      Tests  1 failed | 10 passed (11)
+AssertionError: expected [] to deeply equal [ Array(1) ]
+exit code: 1
+
+=== R4. The scan: a test file in test/ that the test runner would not run no longer named ===
+--- a/builder/test/gate-scan.ts
++++ b/builder/test/gate-scan.ts
+@@ -70 +70 @@
+-  for (const f of inFolder) if (TEST_FILE.test(f) && !listed.has(f)) found.push(`${relative(root, f)}: a test file the test runner would not run`);
++  for (const f of inFolder) if (false && TEST_FILE.test(f) && !listed.has(f)) found.push(`${relative(root, f)}: a test file the test runner would not run`);
+$ npx vitest run test/acceptance-gate.test.ts --reporter=verbose   (in the copy's builder/)
+ ✓ test/acceptance-gate.test.ts > the live acceptance tests' prerequisites, each named with how to put it right > Docker: not answering, or not installed 52ms
+ ✓ test/acceptance-gate.test.ts > the live acceptance tests' prerequisites, each named with how to put it right > the browser zip: the setting unset, a folder without the zip, another file, a link 5ms
+ ✓ test/acceptance-gate.test.ts > the live acceptance tests' prerequisites, each named with how to put it right > Docker's own message, when long, is cut at a word and marked with '…' (after the review: it was cut mid-word) 4ms
+ ✓ test/acceptance-gate.test.ts > the live acceptance tests' prerequisites, each named with how to put it right > both missing: both are named 50ms
+ ✓ test/acceptance-gate.test.ts > the gate: npm test cannot pass while the browser was not exercised > the live acceptance test file, run with the zip absent and Docker not answering, fails: all 7 of its tests, none skipped, each naming both and how to put them right 2190ms
+ ✓ test/acceptance-gate.test.ts > the gate: npm test cannot pass while the browser was not exercised > no test file can skip a test, mark one to do, run one alone, run one only if something holds, or expect it to fail; the test runner runs every test file in test/; npm test runs the whole suite 268ms
+ ✓ test/acceptance-gate.test.ts > the gate's scan, on made-up folders: each rule finds what it is for (added after the package's review) > a failure turned into a pass: `fails` after it or test is found 1ms
+ ✓ test/acceptance-gate.test.ts > the gate's scan, on made-up folders: each rule finds what it is for (added after the package's review) > a file in a subfolder of test/ is read 1ms
+ ✓ test/acceptance-gate.test.ts > the gate's scan, on made-up folders: each rule finds what it is for (added after the package's review) > a file the test runner runs outside test/ is read 2ms
+ × test/acceptance-gate.test.ts > the gate's scan, on made-up folders: each rule finds what it is for (added after the package's review) > a test file in test/ that the test runner would not run is named, whatever setting leaves it out (here one the settings file takes from another file, so no word in it shows) 269ms
+ ✓ test/acceptance-gate.test.ts > the gate's scan, on made-up folders: each rule finds what it is for (added after the package's review) > settings that name projects, dir, root or workspace, and another settings file or a workspace file, are named; so are the earlier ones 1ms
+ Test Files  1 failed (1)
+      Tests  1 failed | 10 passed (11)
+AssertionError: expected [] to deeply equal [ Array(1) ]
+exit code: 1
+
+=== R5. The settings check: projects, dir, root and workspace taken out of the list ===
+--- a/builder/test/gate-scan.ts
++++ b/builder/test/gate-scan.ts
+@@ -28 +28 @@
+-const SETTINGS = ["passWithNoTests", ["allow", "Only"].join(""), "exclude", "include", "filter", "projects", "dir", "root", "workspace"];
++const SETTINGS = ["passWithNoTests", ["allow", "Only"].join(""), "exclude", "include", "filter"];
+$ npx vitest run test/acceptance-gate.test.ts --reporter=verbose   (in the copy's builder/)
+ ✓ test/acceptance-gate.test.ts > the live acceptance tests' prerequisites, each named with how to put it right > Docker: not answering, or not installed 55ms
+ ✓ test/acceptance-gate.test.ts > the live acceptance tests' prerequisites, each named with how to put it right > the browser zip: the setting unset, a folder without the zip, another file, a link 4ms
+ ✓ test/acceptance-gate.test.ts > the live acceptance tests' prerequisites, each named with how to put it right > Docker's own message, when long, is cut at a word and marked with '…' (after the review: it was cut mid-word) 3ms
+ ✓ test/acceptance-gate.test.ts > the live acceptance tests' prerequisites, each named with how to put it right > both missing: both are named 53ms
+ ✓ test/acceptance-gate.test.ts > the gate: npm test cannot pass while the browser was not exercised > the live acceptance test file, run with the zip absent and Docker not answering, fails: all 7 of its tests, none skipped, each naming both and how to put them right 1471ms
+ ✓ test/acceptance-gate.test.ts > the gate: npm test cannot pass while the browser was not exercised > no test file can skip a test, mark one to do, run one alone, run one only if something holds, or expect it to fail; the test runner runs every test file in test/; npm test runs the whole suite 297ms
+ ✓ test/acceptance-gate.test.ts > the gate's scan, on made-up folders: each rule finds what it is for (added after the package's review) > a failure turned into a pass: `fails` after it or test is found 1ms
+ ✓ test/acceptance-gate.test.ts > the gate's scan, on made-up folders: each rule finds what it is for (added after the package's review) > a file in a subfolder of test/ is read 1ms
+ ✓ test/acceptance-gate.test.ts > the gate's scan, on made-up folders: each rule finds what it is for (added after the package's review) > a file the test runner runs outside test/ is read 1ms
+ ✓ test/acceptance-gate.test.ts > the gate's scan, on made-up folders: each rule finds what it is for (added after the package's review) > a test file in test/ that the test runner would not run is named, whatever setting leaves it out (here one the settings file takes from another file, so no word in it shows) 286ms
+ × test/acceptance-gate.test.ts > the gate's scan, on made-up folders: each rule finds what it is for (added after the package's review) > settings that name projects, dir, root or workspace, and another settings file or a workspace file, are named; so are the earlier ones 7ms
+ Test Files  1 failed (1)
+      Tests  1 failed | 10 passed (11)
+AssertionError: projects: expected [] to deeply equal [ 'vitest.config.ts names projects' ]
+exit code: 1
+
+=== R5b. The settings check: workspace alone taken out of the list ===
+--- a/builder/test/gate-scan.ts
++++ b/builder/test/gate-scan.ts
+@@ -28 +28 @@
+-const SETTINGS = ["passWithNoTests", ["allow", "Only"].join(""), "exclude", "include", "filter", "projects", "dir", "root", "workspace"];
++const SETTINGS = ["passWithNoTests", ["allow", "Only"].join(""), "exclude", "include", "filter", "projects", "dir", "root"];
+$ npx vitest run test/acceptance-gate.test.ts --reporter=verbose   (in the copy's builder/)
+ ✓ test/acceptance-gate.test.ts > the live acceptance tests' prerequisites, each named with how to put it right > Docker: not answering, or not installed 49ms
+ ✓ test/acceptance-gate.test.ts > the live acceptance tests' prerequisites, each named with how to put it right > the browser zip: the setting unset, a folder without the zip, another file, a link 3ms
+ ✓ test/acceptance-gate.test.ts > the live acceptance tests' prerequisites, each named with how to put it right > Docker's own message, when long, is cut at a word and marked with '…' (after the review: it was cut mid-word) 3ms
+ ✓ test/acceptance-gate.test.ts > the live acceptance tests' prerequisites, each named with how to put it right > both missing: both are named 46ms
+ ✓ test/acceptance-gate.test.ts > the gate: npm test cannot pass while the browser was not exercised > the live acceptance test file, run with the zip absent and Docker not answering, fails: all 7 of its tests, none skipped, each naming both and how to put them right 1474ms
+ ✓ test/acceptance-gate.test.ts > the gate: npm test cannot pass while the browser was not exercised > no test file can skip a test, mark one to do, run one alone, run one only if something holds, or expect it to fail; the test runner runs every test file in test/; npm test runs the whole suite 258ms
+ ✓ test/acceptance-gate.test.ts > the gate's scan, on made-up folders: each rule finds what it is for (added after the package's review) > a failure turned into a pass: `fails` after it or test is found 1ms
+ ✓ test/acceptance-gate.test.ts > the gate's scan, on made-up folders: each rule finds what it is for (added after the package's review) > a file in a subfolder of test/ is read 1ms
+ ✓ test/acceptance-gate.test.ts > the gate's scan, on made-up folders: each rule finds what it is for (added after the package's review) > a file the test runner runs outside test/ is read 2ms
+ ✓ test/acceptance-gate.test.ts > the gate's scan, on made-up folders: each rule finds what it is for (added after the package's review) > a test file in test/ that the test runner would not run is named, whatever setting leaves it out (here one the settings file takes from another file, so no word in it shows) 253ms
+ × test/acceptance-gate.test.ts > the gate's scan, on made-up folders: each rule finds what it is for (added after the package's review) > settings that name projects, dir, root or workspace, and another settings file or a workspace file, are named; so are the earlier ones 7ms
+ Test Files  1 failed (1)
+      Tests  1 failed | 10 passed (11)
+AssertionError: workspace: expected [] to deeply equal [ 'vitest.config.ts names workspace' ]
+exit code: 1
+
+=== R6. The settings check: another settings or workspace file no longer named ===
+--- a/builder/test/gate-scan.ts
++++ b/builder/test/gate-scan.ts
+@@ -84 +84 @@
+-  for (const n of names.sort()) if (/^(?:vitest|vite)\.(?:config|workspace|projects)\./.test(n) && n !== "vitest.config.ts") found.push(`${n}: another settings file for the test runner`);
++  for (const n of names.sort()) if (false && /^(?:vitest|vite)\.(?:config|workspace|projects)\./.test(n) && n !== "vitest.config.ts") found.push(`${n}: another settings file for the test runner`);
+$ npx vitest run test/acceptance-gate.test.ts --reporter=verbose   (in the copy's builder/)
+ ✓ test/acceptance-gate.test.ts > the live acceptance tests' prerequisites, each named with how to put it right > Docker: not answering, or not installed 51ms
+ ✓ test/acceptance-gate.test.ts > the live acceptance tests' prerequisites, each named with how to put it right > the browser zip: the setting unset, a folder without the zip, another file, a link 3ms
+ ✓ test/acceptance-gate.test.ts > the live acceptance tests' prerequisites, each named with how to put it right > Docker's own message, when long, is cut at a word and marked with '…' (after the review: it was cut mid-word) 3ms
+ ✓ test/acceptance-gate.test.ts > the live acceptance tests' prerequisites, each named with how to put it right > both missing: both are named 58ms
+ ✓ test/acceptance-gate.test.ts > the gate: npm test cannot pass while the browser was not exercised > the live acceptance test file, run with the zip absent and Docker not answering, fails: all 7 of its tests, none skipped, each naming both and how to put them right 823ms
+ ✓ test/acceptance-gate.test.ts > the gate: npm test cannot pass while the browser was not exercised > no test file can skip a test, mark one to do, run one alone, run one only if something holds, or expect it to fail; the test runner runs every test file in test/; npm test runs the whole suite 258ms
+ ✓ test/acceptance-gate.test.ts > the gate's scan, on made-up folders: each rule finds what it is for (added after the package's review) > a failure turned into a pass: `fails` after it or test is found 1ms
+ ✓ test/acceptance-gate.test.ts > the gate's scan, on made-up folders: each rule finds what it is for (added after the package's review) > a file in a subfolder of test/ is read 1ms
+ ✓ test/acceptance-gate.test.ts > the gate's scan, on made-up folders: each rule finds what it is for (added after the package's review) > a file the test runner runs outside test/ is read 1ms
+ ✓ test/acceptance-gate.test.ts > the gate's scan, on made-up folders: each rule finds what it is for (added after the package's review) > a test file in test/ that the test runner would not run is named, whatever setting leaves it out (here one the settings file takes from another file, so no word in it shows) 273ms
+ × test/acceptance-gate.test.ts > the gate's scan, on made-up folders: each rule finds what it is for (added after the package's review) > settings that name projects, dir, root or workspace, and another settings file or a workspace file, are named; so are the earlier ones 9ms
+ Test Files  1 failed (1)
+      Tests  1 failed | 10 passed (11)
+AssertionError: expected [] to deeply equal [ …(3) ]
+exit code: 1
+
+=== R7. Docker's message: cut at 200 characters again, inside a word if it falls there, no mark ===
+--- a/builder/src/acceptance/prerequisites.ts
++++ b/builder/src/acceptance/prerequisites.ts
+@@ -21 +21 @@
+-  if (line.length <= max) return line;
++  return line.slice(0, max); // control
+$ npx vitest run test/acceptance-gate.test.ts --reporter=verbose   (in the copy's builder/)
+ ✓ test/acceptance-gate.test.ts > the live acceptance tests' prerequisites, each named with how to put it right > Docker: not answering, or not installed 47ms
+ ✓ test/acceptance-gate.test.ts > the live acceptance tests' prerequisites, each named with how to put it right > the browser zip: the setting unset, a folder without the zip, another file, a link 3ms
+ × test/acceptance-gate.test.ts > the live acceptance tests' prerequisites, each named with how to put it right > Docker's own message, when long, is cut at a word and marked with '…' (after the review: it was cut mid-word) 7ms
+ ✓ test/acceptance-gate.test.ts > the live acceptance tests' prerequisites, each named with how to put it right > both missing: both are named 44ms
+ ✓ test/acceptance-gate.test.ts > the gate: npm test cannot pass while the browser was not exercised > the live acceptance test file, run with the zip absent and Docker not answering, fails: all 7 of its tests, none skipped, each naming both and how to put them right 700ms
+ ✓ test/acceptance-gate.test.ts > the gate: npm test cannot pass while the browser was not exercised > no test file can skip a test, mark one to do, run one alone, run one only if something holds, or expect it to fail; the test runner runs every test file in test/; npm test runs the whole suite 261ms
+ ✓ test/acceptance-gate.test.ts > the gate's scan, on made-up folders: each rule finds what it is for (added after the package's review) > a failure turned into a pass: `fails` after it or test is found 3ms
+ ✓ test/acceptance-gate.test.ts > the gate's scan, on made-up folders: each rule finds what it is for (added after the package's review) > a file in a subfolder of test/ is read 1ms
+ ✓ test/acceptance-gate.test.ts > the gate's scan, on made-up folders: each rule finds what it is for (added after the package's review) > a file the test runner runs outside test/ is read 1ms
+ ✓ test/acceptance-gate.test.ts > the gate's scan, on made-up folders: each rule finds what it is for (added after the package's review) > a test file in test/ that the test runner would not run is named, whatever setting leaves it out (here one the settings file takes from another file, so no word in it shows) 277ms
+ ✓ test/acceptance-gate.test.ts > the gate's scan, on made-up folders: each rule finds what it is for (added after the package's review) > settings that name projects, dir, root or workspace, and another settings file or a workspace file, are named; so are the earlier ones 2ms
+ Test Files  1 failed (1)
+      Tests  1 failed | 10 passed (11)
+AssertionError: expected 'Cannot connect to the Docker daemon a…' to match /^Cannot connect to the Docker daemon…/\
+exit code: 1

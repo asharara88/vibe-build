@@ -1,0 +1,136 @@
+The migration chain at commit 64e67b5 (the merge), 2026-11-13T13:15:07Z. Databases of this run only, dropped after.
+
+== 1. From empty: npm run db:migrate on a new database, then again
+NOTICE:  database "builder_test_m14b_chain2" does not exist, skipping
+$ npm run db:migrate
+Applied: 001_init.sql, 002_events_truncate.sql, 003_holds.sql, 004_holds_checks.sql, 005_budget_view.sql, 006_budget_view_guards.sql, 007_project_cap_checks.sql, 008_step_holds.sql, 009_project_freezes.sql, 010_overrun_freezes.sql, 011_kept_above_hold.sql, 012_journal_set_asides.sql
+exit code: 0
+$ npm run db:migrate   (again: nothing to apply)
+Nothing to apply.
+exit code: 0
+            name            
+----------------------------
+ 001_init.sql
+ 002_events_truncate.sql
+ 003_holds.sql
+ 004_holds_checks.sql
+ 005_budget_view.sql
+ 006_budget_view_guards.sql
+ 007_project_cap_checks.sql
+ 008_step_holds.sql
+ 009_project_freezes.sql
+ 010_overrun_freezes.sql
+ 011_kept_above_hold.sql
+ 012_journal_set_asides.sql
+(12 rows)
+
+             conname             |                                                                                                                                                                                                                           definition                                                                                                                                                                                                                            
+---------------------------------+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ project_freezes_journal_line    | CHECK (((kind <> 'unrecorded_ending'::text) OR (journal_id IS NOT NULL)))
+ project_freezes_kind_known      | CHECK ((kind = ANY (ARRAY['unrecorded_ending'::text, 'bill_above_hold'::text, 'late_answer_above_hold'::text, 'kept_above_hold'::text, 'journal_line_set_aside'::text])))
+ project_freezes_overrun_figures | CHECK (((kind = ANY (ARRAY['unrecorded_ending'::text, 'journal_line_set_aside'::text])) OR ((hold_id IS NOT NULL) AND (hold_amount_usd IS NOT NULL) AND (bill_usd IS NOT NULL) AND (bill_usd <> 'NaN'::numeric) AND (hold_amount_usd <> 'NaN'::numeric) AND (bill_usd > hold_amount_usd))))
+ project_freezes_set_aside_line  | CHECK (((kind <> 'journal_line_set_aside'::text) OR ((hold_id IS NOT NULL) AND (hold_amount_usd IS NOT NULL) AND (hold_amount_usd <> 'NaN'::numeric) AND (bill_usd IS NULL) AND (journal_id IS NOT NULL) AND ((record ->> 'set_aside_id'::text) IS NOT NULL) AND (journal_id = ('set-aside:'::text || (record ->> 'set_aside_id'::text))) AND ((record ->> 'fingerprint'::text) IS NOT NULL) AND ((record ->> 'fingerprint'::text) ~ '^[0-9a-f]{64}$'::text))))
+(4 rows)
+
+              indexname               |                                                                                               indexdef                                                                                                
+--------------------------------------+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ project_freezes_active               | CREATE INDEX project_freezes_active ON public.project_freezes USING btree (project_id) WHERE (cleared_at IS NULL)
+ project_freezes_journal_id_key       | CREATE UNIQUE INDEX project_freezes_journal_id_key ON public.project_freezes USING btree (journal_id)
+ project_freezes_one_overrun_per_hold | CREATE UNIQUE INDEX project_freezes_one_overrun_per_hold ON public.project_freezes USING btree (hold_id, kind) WHERE (kind <> ALL (ARRAY['unrecorded_ending'::text, 'journal_line_set_aside'::text]))
+ project_freezes_pkey                 | CREATE UNIQUE INDEX project_freezes_pkey ON public.project_freezes USING btree (id)
+(4 rows)
+
+
+== 2. The checks of the new kind and of 1.4c's kinds, on that database (evidence/2026-11-13-package-1.4b/migration-checks-merge.sql)
+INSERT 0 1
+INSERT 0 1
+--- 1. a set-aside freeze as journal-recovery.ts writes it: accepted
+INSERT 0 1
+--- 2. a second set-aside freeze naming the same hold (another line): accepted, as on 1.4b
+INSERT 0 1
+--- 3. refused: no hold named
+evidence/2026-11-13-package-1.4b/migration-checks-merge.sql:20: ERROR:  23514: new row for relation "project_freezes" violates check constraint "project_freezes_set_aside_line"
+CONSTRAINT NAME:  project_freezes_set_aside_line
+--- 4. refused: no fingerprint
+evidence/2026-11-13-package-1.4b/migration-checks-merge.sql:24: ERROR:  23514: new row for relation "project_freezes" violates check constraint "project_freezes_set_aside_line"
+CONSTRAINT NAME:  project_freezes_set_aside_line
+--- 5. refused: a fingerprint that is not 64 hex digits
+evidence/2026-11-13-package-1.4b/migration-checks-merge.sql:28: ERROR:  23514: new row for relation "project_freezes" violates check constraint "project_freezes_set_aside_line"
+CONSTRAINT NAME:  project_freezes_set_aside_line
+--- 6. refused: a journal id that is not set-aside: and its id
+evidence/2026-11-13-package-1.4b/migration-checks-merge.sql:32: ERROR:  23514: new row for relation "project_freezes" violates check constraint "project_freezes_set_aside_line"
+CONSTRAINT NAME:  project_freezes_set_aside_line
+--- 7. refused: no journal id
+evidence/2026-11-13-package-1.4b/migration-checks-merge.sql:36: ERROR:  23514: new row for relation "project_freezes" violates check constraint "project_freezes_set_aside_line"
+CONSTRAINT NAME:  project_freezes_set_aside_line
+--- 8. refused: a bill (what the call cost is not known)
+evidence/2026-11-13-package-1.4b/migration-checks-merge.sql:40: ERROR:  23514: new row for relation "project_freezes" violates check constraint "project_freezes_set_aside_line"
+CONSTRAINT NAME:  project_freezes_set_aside_line
+--- 9. refused: no hold amount
+evidence/2026-11-13-package-1.4b/migration-checks-merge.sql:44: ERROR:  23514: new row for relation "project_freezes" violates check constraint "project_freezes_set_aside_line"
+CONSTRAINT NAME:  project_freezes_set_aside_line
+--- 10. 1.4c kept: a bill_above_hold whose bill is not above its hold is refused by its own check
+evidence/2026-11-13-package-1.4b/migration-checks-merge.sql:47: ERROR:  23514: new row for relation "project_freezes" violates check constraint "project_freezes_overrun_figures"
+CONSTRAINT NAME:  project_freezes_overrun_figures
+--- 11. 1.4c kept: one kept_above_hold per hold (the first accepted, the second refused by the index)
+INSERT 0 1
+evidence/2026-11-13-package-1.4b/migration-checks-merge.sql:52: ERROR:  23505: duplicate key value violates unique constraint "project_freezes_one_overrun_per_hold"
+DETAIL:  Key (hold_id, kind)=(9001, kept_above_hold) already exists.
+CONSTRAINT NAME:  project_freezes_one_overrun_per_hold
+--- 12. 1.4c kept: an unknown kind is refused
+evidence/2026-11-13-package-1.4b/migration-checks-merge.sql:55: ERROR:  23514: new row for relation "project_freezes" violates check constraint "project_freezes_kind_known"
+CONSTRAINT NAME:  project_freezes_kind_known
+--- 13. the ON CONFLICT clause freezes.ts uses (freezeAfterOverrunIn) still finds its index: the same kept_above_hold adds nothing
+ id 
+----
+(0 rows)
+
+INSERT 0 0
+--- the rows
+ id |          kind          | hold_id |          journal_id           | bill_usd 
+----+------------------------+---------+-------------------------------+----------
+  1 | journal_line_set_aside |    9001 | set-aside:sa_0000000000000001 |         
+  2 | journal_line_set_aside |    9001 | set-aside:sa_0000000000000002 |         
+ 11 | kept_above_hold        |    9001 |                               | 0.012284
+(3 rows)
+
+
+== 3. On top of 1.4b's branch alone (commit b1476a6: migrations 001 to 009 and 010_journal_set_asides.sql), with one set-aside freeze written as 1.4b wrote it
+NOTICE:  database "builder_test_m14b_legacy2" does not exist, skipping
+1.4b's chain applied: exit code 0
+INSERT 0 1
+INSERT 0 1
+INSERT 0 1
+            name            
+----------------------------
+ 001_init.sql
+ 002_events_truncate.sql
+ 003_holds.sql
+ 004_holds_checks.sql
+ 005_budget_view.sql
+ 006_budget_view_guards.sql
+ 007_project_cap_checks.sql
+ 008_step_holds.sql
+ 009_project_freezes.sql
+ 010_journal_set_asides.sql
+(10 rows)
+
+$ npm run db:migrate   (the merge's chain on top)
+Applied: 010_overrun_freezes.sql, 011_kept_above_hold.sql, 012_journal_set_asides.sql
+exit code: 0
+ id |       kind        | hold_id |          journal_id           
+----+-------------------+---------+-------------------------------
+  1 | unrecorded_ending |    9001 | set-aside:sa_00000000000000aa
+(1 row)
+
+             conname             
+---------------------------------
+ project_freezes_journal_line
+ project_freezes_kind_known
+ project_freezes_overrun_figures
+ project_freezes_set_aside_line
+(4 rows)
+
+(The freeze written before the merge keeps the kind 'unrecorded_ending' that migration 010 gave it: a freeze is never rewritten. The refusal message and the script also read it by its reason and journal id.)
+
+Databases builder_test_m14b_chain2 and builder_test_m14b_legacy2 dropped.

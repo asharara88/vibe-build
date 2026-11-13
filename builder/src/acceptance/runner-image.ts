@@ -6,7 +6,9 @@
  * The browser is not downloaded by the build. It is read from a folder named by the setting
  * BUILDER_BROWSER_CACHE, which must hold chrome-headless-shell-linux64.zip with exactly the approved
  * SHA-256; the build stops before anything else if it does not. The zip is checked again inside the
- * build. Its original address is in docs/SOURCES.md (13 Nov 2026).
+ * build. Its original address is in docs/SOURCES.md (13 Nov 2026) and in BROWSER_ZIP_URL below;
+ * scripts/fetch-browser.ts fetches it from there into the cache (package 3.1b). The image is labelled
+ * with the zip's fingerprint, and an acceptance run checks that label before it starts (runnerImageProblem).
  *
  * After every build, cached or not, the image's whole package list is read from a container of it
  * (no network) and compared with the base image's list plus the approved packages; the list is
@@ -27,6 +29,12 @@ export const RUNNER_IMAGE = "builder-acceptance-runner:local";
 export const BROWSER_ZIP = "chrome-headless-shell-linux64.zip";
 /** Chrome for Testing 153.0.8010.12, chrome-headless-shell-linux64.zip (docs/licences/runtime-inventory.md, section 3). */
 export const BROWSER_ZIP_SHA256 = "a9da028861a0cf789ff25c2fed45f5f1aaf969ed9247835b6a7821a4f7af9d1d";
+/** Its exact size in bytes (docs/SOURCES.md, 13 Nov 2026). */
+export const BROWSER_ZIP_BYTES = 119_809_080;
+/** Its recorded address (docs/SOURCES.md, 13 Nov 2026). scripts/fetch-browser.ts fetches it from here, and from nowhere else. */
+export const BROWSER_ZIP_URL = "https://storage.googleapis.com/chrome-for-testing-public/153.0.8010.12/linux64/chrome-headless-shell-linux64.zip";
+/** The label every runner image gets at its build: the fingerprint of the zip it was built from (package 3.1b). */
+export const BROWSER_ZIP_LABEL = "builder.browser-zip-sha256";
 export const BROWSER_VERSION = "153.0.8010.12";
 /** The two base images, each at the digest the owner approved (question 15 (a)). */
 export const RUNNER_BASE_IMAGES = {
@@ -104,7 +112,7 @@ export async function buildRunnerImage(opts: { hostProxy?: { url: string; caBund
     if ((await sha256File(join(ctx, "browser", BROWSER_ZIP))) !== BROWSER_ZIP_SHA256) throw new Error("The browser zip changed while it was copied into the build folder.");
     mkdirSync(join(ctx, "certs"));
     if (opts.hostProxy) copyFileSync(opts.hostProxy.caBundlePath, join(ctx, "certs", "session-ca.crt"));
-    const args = ["build", "--progress", "plain", "--tag", RUNNER_IMAGE, "--label", "builder.package=3.1", "--label", "builder.never-pushed=true"];
+    const args = ["build", "--progress", "plain", "--tag", RUNNER_IMAGE, "--label", "builder.package=3.1", "--label", "builder.never-pushed=true", "--label", `${BROWSER_ZIP_LABEL}=${zip.sha256}`];
     if (opts.noCache) args.push("--no-cache");
     if (opts.hostProxy) {
       args.push("--network", "host");
@@ -152,6 +160,40 @@ export async function buildRunnerImage(opts: { hostProxy?: { url: string; caBund
   } finally {
     rmSync(ctx, { recursive: true, force: true });
   }
+}
+
+/**
+ * Why an acceptance run cannot use this runner image, or null (package 3.1b). Asked of Docker before a run
+ * starts: Docker must answer, the image must be on this machine, and it must carry the label its build
+ * gives it, the approved zip's fingerprint. The label shows which zip the builder's own build used; it is
+ * not a protection, since any build can set a label (known gap 98).
+ */
+export async function runnerImageProblem(image: string, env: NodeJS.ProcessEnv): Promise<string | null> {
+  let out: string;
+  try {
+    out = (await run("docker", ["image", "inspect", "--format", "{{json .Config.Labels}}", image], { env, timeout: 60_000 })).stdout;
+  } catch (err) {
+    const e = err as { stderr?: string; code?: unknown; message?: string };
+    const said = (e.stderr || e.message || "").trim().split("\n")[0] ?? "";
+    if (/no such image/i.test(said)) return `the runner image ${image} is not on this machine: it is built from the approved browser zip (scripts/fetch-browser.ts fetches the zip; the image is built by buildRunnerImage)`;
+    return `Docker did not answer (${e.code === "ENOENT" ? "the docker program is not installed" : said.slice(0, 200)}), so the runner image could not be checked: start Docker as CLAUDE.md, Commands, says`;
+  }
+  return runnerImageLabelProblem(image, out);
+}
+
+/** The label check of runnerImageProblem, on `docker image inspect`'s output: the image's labels as JSON. */
+export function runnerImageLabelProblem(image: string, labelsJson: string): string | null {
+  let labels: unknown;
+  try {
+    labels = JSON.parse(labelsJson);
+  } catch {
+    return `the runner image ${image}'s labels could not be read`;
+  }
+  const found = labels && typeof labels === "object" ? (labels as Record<string, unknown>)[BROWSER_ZIP_LABEL] : undefined;
+  if (found === BROWSER_ZIP_SHA256) return null;
+  return found === undefined
+    ? `the runner image ${image} has no ${BROWSER_ZIP_LABEL} label, so it was not built by this version of the builder from the approved browser zip: build it again`
+    : `the runner image ${image} was built from a browser zip with another fingerprint, not the approved ${BROWSER_ZIP_SHA256}: build it again`;
 }
 
 /** True if the runner image exists on this machine. */

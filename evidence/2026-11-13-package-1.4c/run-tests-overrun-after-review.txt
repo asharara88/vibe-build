@@ -1,0 +1,73 @@
+Package 1.4c after its review: npx vitest run test/overrun.test.ts --reporter=verbose, from builder/, at 0842aaf (builder/ unchanged since: 0 files differ), on builder_test_f14c, 2026-11-13T12:26:26Z
+
+ RUN  v5.1.0 <scratchpad>/wt-14c/builder
+
+ ✓ test/overrun.test.ts > package 1.4c: a bill above its hold freezes the project until the owner records it (against a stand-in provider) > 1.4c (a1) not streamed: a bill above its hold is charged in full and, in the same transaction as its hold.exceeded, freezes the project naming that hold; the project's next calls are refused with nothing forwarded; another project's call is forwarded 113ms
+ ✓ test/overrun.test.ts > package 1.4c: a bill above its hold freezes the project until the owner records it (against a stand-in provider) > 1.4c (a2) streamed: the same, for a stream, settled when the provider's body ends (its last bytes reach the caller first: known gap 131) 72ms
+ ✓ test/overrun.test.ts > package 1.4c: a bill above its hold freezes the project until the owner records it (against a stand-in provider) > 1.4c (a3) one transaction: with the freeze's write refused, nothing of the settle is written (no cost, no hold.exceeded, no freeze of this kind); the ending goes to package 1.4's journal path and the project is still frozen; the owner's reconciliation above the hold does not freeze 77ms
+ ✓ test/overrun.test.ts > package 1.4c: a bill above its hold freezes the project until the owner records it (against a stand-in provider) > 1.4c (b) a step-held call above its hold: charged in full, the step's room takes the difference, the project is frozen naming that hold; the step's next call and a new step are refused; once the bill is recorded, the step's next call is forwarded and settled 62ms
+ ✓ test/overrun.test.ts > package 1.4c: a bill above its hold freezes the project until the owner records it (against a stand-in provider) > 1.4c (c1) the owner's record of the bill clears that freeze, and only that one, with who, why, the evidence, the bill and the hold; it moves no money; the project's next call is forwarded and settled 135ms
+ ✓ test/overrun.test.ts > package 1.4c: a bill above its hold freezes the project until the owner records it (against a stand-in provider) > 1.4c (c2) the record is refused, changing and writing nothing: a freeze of another kind, a hold with no freeze, one already recorded, missing or unstorable texts, a bad id, an unknown project, another project's hold 137ms
+ ✓ test/overrun.test.ts > package 1.4c: a bill above its hold freezes the project until the owner records it (against a stand-in provider) > 1.4c (c3) two calls billed above their holds: two freezes; each record clears only its own, and the project runs again only after both 32ms
+ ✓ test/overrun.test.ts > package 1.4c: a bill above its hold freezes the project until the owner records it (against a stand-in provider) > 1.4c (c4) the script: --list shows each project frozen after a bill above its hold with the bill, the hold and the difference; --overrun records it (exit 0) and is refused a second time (exit 2); misuse is refused before the database (exit 1); no address is printed 3013ms
+ ✓ test/overrun.test.ts > package 1.4c: a bill above its hold freezes the project until the owner records it (against a stand-in provider) > 1.4c (late) an answer that arrives after its hold expired, with a cost above the hold, freezes the project (kind 'late_answer_above_hold') in the same transaction as its hold.kept; one below its hold does not; the owner's reconciliation of that hold clears it, and the record of a bill refuses it 53ms
+stderr | test/overrun.test.ts > package 1.4c: a bill above its hold freezes the project until the owner records it (against a stand-in provider) > 1.4c (e1) after its review: a streamed call the gateway keeps, whose usage figures read before it ended already price it above its hold ($0.012284 against $0.009960), freezes the project in the same transaction as its hold.kept, and the next call is refused with nothing forwarded: the time limit, reached after the end marker while the provider's body stays open; the hold is listed as kept above it, the record of a bill refuses it, and the owner's reconciliation of the hold clears it
+Error: time limit reached
+    at Timeout._onTimeout (<scratchpad>/wt-14c/builder/src/gateway/app.ts:616:53)
+    at listOnTimeout (node:internal/timers:585:17)
+    at process.processTimers (node:internal/timers:521:7)
+
+ ✓ test/overrun.test.ts > package 1.4c: a bill above its hold freezes the project until the owner records it (against a stand-in provider) > 1.4c (e1) after its review: a streamed call the gateway keeps, whose usage figures read before it ended already price it above its hold ($0.012284 against $0.009960), freezes the project in the same transaction as its hold.kept, and the next call is refused with nothing forwarded: the time limit, reached after the end marker while the provider's body stays open; the hold is listed as kept above it, the record of a bill refuses it, and the owner's reconciliation of the hold clears it 581ms
+ ✓ test/overrun.test.ts > package 1.4c: a bill above its hold freezes the project until the owner records it (against a stand-in provider) > 1.4c (e2) after its review: a streamed call the gateway keeps, whose usage figures read before it ended already price it above its hold ($0.012284 against $0.009960), freezes the project in the same transaction as its hold.kept, and the next call is refused with nothing forwarded: the caller leaves once it has read the end marker, before the provider's body ends 66ms
+ ✓ test/overrun.test.ts > package 1.4c: a bill above its hold freezes the project until the owner records it (against a stand-in provider) > 1.4c (e3) after its review: a streamed call the gateway keeps, whose usage figures read before it ended already price it above its hold ($0.012284 against $0.009960), freezes the project in the same transaction as its hold.kept, and the next call is refused with nothing forwarded: an error event after the figures 33ms
+ ✓ test/overrun.test.ts > package 1.4c: a bill above its hold freezes the project until the owner records it (against a stand-in provider) > 1.4c (e4) after its review: a streamed call the gateway keeps, whose usage figures read before it ended already price it above its hold ($0.012284 against $0.009960), freezes the project in the same transaction as its hold.kept, and the next call is refused with nothing forwarded: a body that ends with no end marker 29ms
+stderr | test/overrun.test.ts > package 1.4c: a bill above its hold freezes the project until the owner records it (against a stand-in provider) > 1.4c (e5) after its review: a streamed call the gateway keeps, whose usage figures read before it ended already price it above its hold ($0.012284 against $0.009960), freezes the project in the same transaction as its hold.kept, and the next call is refused with nothing forwarded: a connection dropped after the figures
+TypeError: terminated
+    at Fetch.onAborted (node:internal/deps/undici/undici:11581:53)
+    at Fetch.emit (node:events:519:28)
+    at Fetch.terminate (node:internal/deps/undici/undici:10738:14)
+    at Object.onError (node:internal/deps/undici/undici:11701:38)
+    at Request.onError (node:internal/deps/undici/undici:2304:31)
+    at Object.errorRequest (node:internal/deps/undici/undici:1742:17)
+    at Socket.<anonymous> (node:internal/deps/undici/undici:6595:16)
+    at Socket.emit (node:events:531:35)
+    at TCP.<anonymous> (node:net:347:12) {
+  [cause]: SocketError: other side closed
+      at Socket.<anonymous> (node:internal/deps/undici/undici:6569:28)
+      at Socket.emit (node:events:531:35)
+      at endReadableNT (node:internal/streams/readable:1698:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:89:21) {
+    code: 'UND_ERR_SOCKET',
+    socket: {
+      localAddress: '127.0.0.1',
+      localPort: 38028,
+      remoteAddress: '127.0.0.1',
+      remotePort: 41301,
+      remoteFamily: 'IPv4',
+      timeout: undefined,
+      bytesWritten: 2429,
+      bytesRead: 2463
+    },
+    [Symbol(undici.error.UND_ERR)]: true,
+    [Symbol(undici.error.UND_ERR_SOCKET)]: true
+  }
+}
+
+ ✓ test/overrun.test.ts > package 1.4c: a bill above its hold freezes the project until the owner records it (against a stand-in provider) > 1.4c (e5) after its review: a streamed call the gateway keeps, whose usage figures read before it ended already price it above its hold ($0.012284 against $0.009960), freezes the project in the same transaction as its hold.kept, and the next call is refused with nothing forwarded: a connection dropped after the figures 131ms
+stderr | test/overrun.test.ts > package 1.4c: a bill above its hold freezes the project until the owner records it (against a stand-in provider) > 1.4c (e6) after its review: a streamed call kept below its hold, or with figures that cannot be trusted, does not freeze its project
+Error: time limit reached
+    at Timeout._onTimeout (<scratchpad>/wt-14c/builder/src/gateway/app.ts:616:53)
+    at listOnTimeout (node:internal/timers:585:17)
+    at process.processTimers (node:internal/timers:521:7)
+
+ ✓ test/overrun.test.ts > package 1.4c: a bill above its hold freezes the project until the owner records it (against a stand-in provider) > 1.4c (e6) after its review: a streamed call kept below its hold, or with figures that cannot be trusted, does not freeze its project 564ms
+ ✓ test/overrun.test.ts > package 1.4c: a bill above its hold freezes the project until the owner records it (against a stand-in provider) > 1.4c (f) after its review: a plain answer kept because its usage does not state the speed, whose figures at the standard rates already price it above its hold (which allowed for fast mode), freezes the project in the same transaction as its hold.kept; one below its hold does not 65ms
+ ✓ test/overrun.test.ts > package 1.4c: a bill above its hold freezes the project until the owner records it (against a stand-in provider) > 1.4c (g) after its review: the database refuses a freeze of the three new kinds whose bill is not above its hold, is not a number, or names no hold, and a second one of the same kind for the same hold; writing one twice through the store adds nothing 124ms
+ ✓ test/overrun.test.ts > package 1.4c: a bill above its hold freezes the project until the owner records it (against a stand-in provider) > 1.4c (d) the invariant checker: rule 3 (a settlement's hold.exceeded needs a 'bill_above_hold' freeze of that hold, written in the same transaction) and rule 4 (nothing opens while a freeze is not cleared), on made-up traces 1ms
+
+ Test Files  1 passed (1)
+      Tests  18 passed (18)
+   Start at  12:26:26
+   Duration  5.60s (tests 97%, import 2%, transform 1%)
+
+Exit code: 0

@@ -1,0 +1,127 @@
+$ SCRATCHPAD=<scratchpad> bash evidence/2026-11-13-package-1.4b/controls.sh 236c70a
+Scratch copy: git archive 236c70a builder, with the checkout's node_modules linked in
+=== X1: the start-up block: unreadable lines found by the replay keep the gate closed
+    file: src/gateway/journal.ts; test: \(a\) the review
+    -    if (unreadable.length > 0) this.unreadable = unreadable; // before anything else is awaited
+    |      × (a) the review's required test: the journal's last record cut short mid-line, as a crash during its append leaves it, then the gateway restarted (main.ts as a process): every request, metered, counting or passed through, any project, is refused 503 gateway_journal_unreadable; the stand-in receives nothing, no hold is opened, nothing is written 835ms
+    | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+    | AssertionError: expected [ …(4) ] to deeply equal [ { status: 503, …(3) }, …(3) ]
+    |       Tests  1 failed | 9 skipped (10)
+    RESULT: the test FAILED, as it should (exit 1)
+=== X2: markDone keeping the lines it does not move (here: keeping only readable records)
+    file: src/gateway/journal.ts; test: \(c\) markDone
+    -    await this.rewrite(lines.filter((l) => !isIt(l)));
+    +    await this.rewrite(lines.filter((l) => !isIt(l) && readLine(l).kind === "record"));
+    |      × (c) markDone keeps every line it does not move byte for byte (one not JSON, one not UTF-8, a blank one, and a last one with no line end), and an append after that last line starts on a line of its own 30ms
+    | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+    | AssertionError: expected false to be true // Object.is equality
+    |       Tests  1 failed | 9 skipped (10)
+    RESULT: the test FAILED, as it should (exit 1)
+=== X3: the set-aside's refusal while a gateway holds the folder's lock
+    file: src/gateway/journal-recovery.ts; test: \(e\) the script
+    -    if (!got) {
+    +    if (false) {
+    |      × (e) the script's refusals, each changing nothing: a missing reason, a line number out of range, a fingerprint that differs, a readable line, a hold not open, a hold still in flight, a running gateway, and a second set-aside of the same line; --no-hold records the set-aside and freezes nothing 3824ms
+    | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+    | AssertionError: expected { code: +0, says: false } to deeply equal { code: 2, says: true }
+    |       Tests  1 failed | 9 skipped (10)
+    RESULT: the test FAILED, as it should (exit 1)
+=== X4: the journal's own refusal at the re-checks before each forward (the gate's closed state alone would answer gateway_unrecorded)
+    file: src/gateway/app.ts; test: \(a2\) the same refusal
+    -    gate.unreadableLines().length > 0 ? "journal" : gate.closed() ? "gate" : opts.liveness && !opts.liveness.ok() ? "liveness" : null;
+    +    false ? "journal" : gate.closed() ? "gate" : opts.liveness && !opts.liveness.ok() ? "liveness" : null;
+    |      × (a2) the same refusal at the re-checks just before each forward: requests that passed the arrival checks and waited for their token are refused 503 gateway_journal_unreadable once the journal's replay finds an unreadable line; nothing reaches the stand-in 86ms
+    | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+    | AssertionError: expected [ { status: 503, …(2) }, …(1) ] to deeply equal [ { status: 503, …(2) }, …(1) ]
+    |       Tests  1 failed | 9 skipped (10)
+    RESULT: the test FAILED, as it should (exit 1)
+=== X5: start-up stopping on a journal file that cannot be read (here: read as empty)
+    file: src/gateway/journal.ts; test: \(f\) a journal file
+    -    if ((err as { code?: string }).code === "ENOENT") return { lines: [], sha256: fingerprintOf(Buffer.alloc(0)), size: 0 };
+    +    if (true) return { lines: [], sha256: fingerprintOf(Buffer.alloc(0)), size: 0 };
+    |      × (f) a journal file that exists and cannot be read stops start-up, with a plain message, before the gateway listens; a second gateway on a folder in use does not start either 30016ms
+    | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+    | AssertionError: expected 'still running' to be 1 // Object.is equality
+    |       Tests  1 failed | 9 skipped (10)
+    RESULT: the test FAILED, as it should (exit 1)
+=== X6: the record's shape check (here: back to package 1.4's, journal_id and project_id only)
+    file: src/gateway/journal.ts; test: \(b2\) each kind
+    +  if (typeof v["journal_id"] === "string" && typeof v["project_id"] === "string") return true;
+    |      × (b2) each kind of line that cannot be read is found and closes the gate: not JSON, JSON not of a record's shape (one the 1.4 check took), not valid UTF-8, and a whole record that is the file's last line with no line end; blank lines are skipped 39ms
+    | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+    | AssertionError: a record's two ids only (the 1.4 check took it): expected { unreadable: +0, why: null, …(1) } to deeply equal { unreadable: 1, …(2) }
+    |       Tests  1 failed | 9 skipped (10)
+    RESULT: the test FAILED, as it should (exit 1)
+=== X7: a last line with no line end never taken as read
+    file: src/gateway/journal.ts; test: \(b2\) each kind
+    -  if (!l.ended) return { kind: "unreadable", why: "torn: the file ends inside it, with no line end" };
+    |      × (b2) each kind of line that cannot be read is found and closes the gate: not JSON, JSON not of a record's shape (one the 1.4 check took), not valid UTF-8, and a whole record that is the file's last line with no line end; blank lines are skipped 58ms
+    | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+    | AssertionError: a whole record with no line end: expected { unreadable: +0, why: null, …(1) } to deeply equal { unreadable: 1, …(2) }
+    |       Tests  1 failed | 9 skipped (10)
+    RESULT: the test FAILED, as it should (exit 1)
+=== X8: an append after a last line with no line end starting on a line of its own
+    file: src/gateway/journal.ts; test: \(c\) markDone
+    -      await appendSynced(this.file, (await endsInsideALine(this.file)) ? "\n" + line : line);
+    +      await appendSynced(this.file, line);
+    |      × (c) markDone keeps every line it does not move byte for byte (one not JSON, one not UTF-8, a blank one, and a last one with no line end), and an append after that last line starts on a line of its own 160ms
+    | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+    | AssertionError: expected false to be true // Object.is equality
+    |       Tests  1 failed | 9 skipped (10)
+    RESULT: the test FAILED, as it should (exit 1)
+=== X9: a second set-aside of the same line recognised by its fingerprint
+    file: src/gateway/journal-recovery.ts; test: \(e\) the script
+    -  if (before.length > 0 && unreadableWith(lines, fingerprint).length === 0) {
+    +  if (false && before.length > 0) {
+    |      × (e) the script's refusals, each changing nothing: a missing reason, a line number out of range, a fingerprint that differs, a readable line, a hold not open, a hold still in flight, a running gateway, and a second set-aside of the same line; --no-hold records the set-aside and freezes nothing 4335ms
+    | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+    | AssertionError: expected { code: 2, says: false } to deeply equal { code: 2, says: true }
+    |       Tests  1 failed | 9 skipped (10)
+    RESULT: the test FAILED, as it should (exit 1)
+=== X10: the refusal of a hold that is not open
+    file: src/gateway/journal-recovery.ts; test: \(e\) the script
+    -      if (h.state !== "open") {
+    +      if (false) {
+    |      × (e) the script's refusals, each changing nothing: a missing reason, a line number out of range, a fingerprint that differs, a readable line, a hold not open, a hold still in flight, a running gateway, and a second set-aside of the same line; --no-hold records the set-aside and freezes nothing 2216ms
+    | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+    | AssertionError: expected { name: 'a hold not open', …(2) } to deeply equal { name: 'a hold not open', …(2) }
+    |       Tests  1 failed | 9 skipped (10)
+    RESULT: the test FAILED, as it should (exit 1)
+=== X11: finishing a set-aside cut short, instead of recording it again
+    file: src/gateway/journal-recovery.ts; test: \(e2\) a set-aside cut short
+    -  const rows = (await pool.query<SetAsideRow>("select * from journal_set_asides where journal_folder_id = $1 and moved_at is null order by id", [journal.folderId])).rows;
+    +  const rows = (await pool.query<SetAsideRow>("select * from journal_set_asides where journal_folder_id = $1 and moved_at is null and false order by id", [journal.folderId])).rows;
+    |      × (e2) a set-aside cut short after its record is finished by the same command run again: the line moved out, nothing written to the database twice 96ms
+    | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+    | AssertionError: expected [] to deeply equal [ 'sa_9fa73cdaa1248ef7' ]
+    |       Tests  1 failed | 9 skipped (10)
+    RESULT: the test FAILED, as it should (exit 1)
+=== X12: the gateway's lock on its journal folder (a second gateway on the same folder)
+    file: src/store/liveness.ts; test: \(f\) a journal file
+    -    if (o.journalFolderId !== undefined) {
+    +    if (false) {
+    |      × (f) a journal file that exists and cannot be read stops start-up, with a plain message, before the gateway listens; a second gateway on a folder in use does not start either 30520ms
+    | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+    | AssertionError: expected 'still running' to be 1 // Object.is equality
+    |       Tests  1 failed | 9 skipped (10)
+    RESULT: the test FAILED, as it should (exit 1)
+=== X13: the journal writing nothing while the gateway does not hold its folder's lock
+    file: src/gateway/journal.ts; test: \(g\) the folder
+    -    if (!this.mayWrite()) throw Object.assign(new Error("The gateway does not hold its journal folder's lock now; it writes nothing to the folder."), { code: "JOURNAL_FOLDER_NOT_HELD" });
+    +    if (false) throw Object.assign(new Error("The gateway does not hold its journal folder's lock now; it writes nothing to the folder."), { code: "JOURNAL_FOLDER_NOT_HELD" });
+    |      × (g) the folder's lock: a gateway that loses its connection does not take the folder back while a recovery holds it (it stays stopped meanwhile), and its journal writes nothing while it does not hold the lock 1053ms
+    | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+    | AssertionError: expected 'written' to be 'JOURNAL_FOLDER_NOT_HELD' // Object.is equality
+    |       Tests  1 failed | 9 skipped (10)
+    RESULT: the test FAILED, as it should (exit 1)
+=== X14: readable lines replayed beside an unreadable one
+    file: src/gateway/journal.ts; test: \(b\) a line that is not JSON
+    -    for (const rec of records) if (!this.waiting.some((w) => w.rec.journal_id === rec.journal_id)) this.waiting.push({ rec, journaled: true });
+    +    for (const rec of unreadable.length > 0 ? [] : records) if (!this.waiting.some((w) => w.rec.journal_id === rec.journal_id)) this.waiting.push({ rec, journaled: true });
+    |      × (b) a line that is not JSON between two readable records: both records are written (their projects frozen), the gate stays closed for every project, and the line is kept as it was 28ms
+    | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+    | AssertionError: expected undefined to be 'j_test14b_72b64da4' // Object.is equality
+    |       Tests  1 failed | 9 skipped (10)
+    RESULT: the test FAILED, as it should (exit 1)
+=== controls that failed as they should: 14; that did not: 0
+exit code: 0

@@ -1,0 +1,237 @@
+Before the fix: the code at fa2b38c (git archive), with this round's two test files (test/journal-recovery.test.ts, test/journal-files.test.ts) copied in from the fix
+$ npx vitest run test/journal-recovery.test.ts test/journal-files.test.ts
+
+ RUN  v5.1.0 <scratchpad>/p14bfix/before/builder
+
+ ❯ test/journal-recovery.test.ts (13 tests | 5 failed) 27410ms
+   ❯ the third outside review, item 1: an unreadable journal line keeps the gateway closed until it is recovered (package 1.4b, against a stand-in provider) (13)
+     × (a) the review's required test: the journal's last record cut short mid-line, as a crash during its append leaves it, then the gateway restarted (main.ts as a process): every request, metered, counting or passed through, any project, is refused 503 gateway_journal_unreadable; the stand-in receives nothing, no hold is opened, nothing is written 899ms
+     × (g) the folder's lock: a gateway that loses its connection does not take the folder back while a recovery holds it (it stays stopped meanwhile); its journal moves nothing in its file while it does not hold the lock, and still appends (1.4b's review) 1047ms
+     × (e3) after 1.4b's review: a set-aside cut short, then run again naming another hold, finishes the earlier record (its hold's project frozen), writes nothing for the hold asked now, and the script says so 520ms
+     × (h) after 1.4b's review, the review's probe: the gateway's lock connection lost and kept from it, then a call's ending refused by the database, then the gateway killed: the ending is in its journal, and the restarted gateway (main.ts as a process) freezes the project and forwards nothing for it 15385ms
+     × (i) after 1.4b's review: --list takes no lock, even for a moment, yet says when the folder is in use; and it decodes only the start of a very long line 58ms
+ ❯ test/journal-files.test.ts (5 tests | 5 failed) 246ms
+   ❯ 1.4b's review: the journal's files when another process writes the same folder (the files only, with the file system wrapped to fix the order) (5)
+     × (r1) an append that lands in the old journal file after a rewrite read it, and before its rename, is carried over into the new file 17ms
+     × (r1b) a line still being written into the old file when it is replaced is carried over once it ends, not cut 206ms
+     × (r2) an append that opened the old journal file before a rewrite's rename, and writes after it, writes its line again into the new file 9ms
+     × (r3) the folder's id file is never left empty: a write of it that fails leaves no id file, and the next start makes a whole one 5ms
+     × (r4) an entry appended to the set-aside file after an entry cut short by a crash starts on a line of its own, and can be read 3ms
+
+⎯⎯⎯⎯⎯⎯ Failed Tests 10 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/journal-files.test.ts > 1.4b's review: the journal's files when another process writes the same folder (the files only, with the file system wrapped to fix the order) > (r1) an append that lands in the old journal file after a rewrite read it, and before its rename, is carried over into the new file
+AssertionError: expected '{"journal_id":"j_made_up_files_1","ga…' to be '{"journal_id":"j_made_up_files_1","ga…' // Object.is equality
+
+- Expected
++ Received
+
+- {"journal_id":"j_made_up_files_1","gateway":"gw_made_up_files","project_id":"made_up_project_files","hold_id":"1","step":null,"ended_at":"2026-11-13T12:05:14.938Z","ending":"settle","kept_reason":null,"cost_usd_as_read":0.006142,"call":{"model":"claude-opus-5-5","status":200},"error":{"name":"error","code":"P0001"}}
+- {"journal_id":"j_made_up_files_2","gateway":"gw_made_up_files","project_id":"made_up_project_files","hold_id":"2","step":null,"ended_at":"2026-11-13T12:05:14.939Z","ending":"settle","kept_reason":null,"cost_usd_as_read":0.006142,"call":{"model":"claude-opus-5-5","status":200},"error":{"name":"error","code":"P0001"}}
++ {"journal_id":"j_made_up_files_1","gateway":"gw_made_up_files","project_id":"made_up_project_files","hold_id":"1","step":null,"ended_at":"2026-11-13T12:05:14.938Z","ending":"settle","kept_reason":null,"cost_usd_as_read":0.006142,"call":{"model":"claude-opus-5-5","status":200},"error":{"name":"error","code":"P0001"}}
+
+
+ ❯ test/journal-files.test.ts:114:50
+    112|     };
+    113|     const r = await recovery.removeLine(2, fingerprintOf(TORN));
+    114|     expect(await readFile(gateway.file, "utf8")).toBe(line(a) + line(b…
+       |                                                  ^
+    115|     const left = await recovery.pending();
+    116|     expect({ records: left.records.map((x) => x.journal_id), unreadabl…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/10]⎯
+
+ FAIL  test/journal-files.test.ts > 1.4b's review: the journal's files when another process writes the same folder (the files only, with the file system wrapped to fix the order) > (r1b) a line still being written into the old file when it is replaced is carried over once it ends, not cut
+AssertionError: expected '{"journal_id":"j_made_up_files_3","ga…' to be '{"journal_id":"j_made_up_files_3","ga…' // Object.is equality
+
+- Expected
++ Received
+
+- {"journal_id":"j_made_up_files_3","gateway":"gw_made_up_files","project_id":"made_up_project_files","hold_id":"3","step":null,"ended_at":"2026-11-13T12:05:14.953Z","ending":"settle","kept_reason":null,"cost_usd_as_read":0.006142,"call":{"model":"claude-opus-5-5","status":200},"error":{"name":"error","code":"P0001"}}
+- {"journal_id":"j_made_up_files_4","gateway":"gw_made_up_files","project_id":"made_up_project_files","hold_id":"4","step":null,"ended_at":"2026-11-13T12:05:14.953Z","ending":"settle","kept_reason":null,"cost_usd_as_read":0.006142,"call":{"model":"claude-opus-5-5","status":200},"error":{"name":"error","code":"P0001"}}
++ {"journal_id":"j_made_up_files_3","gateway":"gw_made_up_files","project_id":"made_up_project_files","hold_id":"3","step":null,"ended_at":"2026-11-13T12:05:14.953Z","ending":"settle","kept_reason":null,"cost_usd_as_read":0.006142,"call":{"model":"claude-opus-5-5","status":200},"error":{"name":"error","code":"P0001"}}
+
+
+ ❯ test/journal-files.test.ts:142:50
+    140|     const r = await recovery.removeLine(2, fingerprintOf(TORN));
+    141|     await ended;
+    142|     expect(await readFile(gateway.file, "utf8")).toBe(line(a) + b.toSt…
+       |                                                  ^
+    143|     expect((await recovery.pending()).unreadable).toEqual([]);
+    144|     expect(r.carriedOver).toBe(b.length);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/10]⎯
+
+ FAIL  test/journal-files.test.ts > 1.4b's review: the journal's files when another process writes the same folder (the files only, with the file system wrapped to fix the order) > (r2) an append that opened the old journal file before a rewrite's rename, and writes after it, writes its line again into the new file
+AssertionError: expected '{"journal_id":"j_made_up_files_5","ga…' to be '{"journal_id":"j_made_up_files_5","ga…' // Object.is equality
+
+- Expected
++ Received
+
+- {"journal_id":"j_made_up_files_5","gateway":"gw_made_up_files","project_id":"made_up_project_files","hold_id":"5","step":null,"ended_at":"2026-11-13T12:05:15.162Z","ending":"settle","kept_reason":null,"cost_usd_as_read":0.006142,"call":{"model":"claude-opus-5-5","status":200},"error":{"name":"error","code":"P0001"}}
+- {"journal_id":"j_made_up_files_6","gateway":"gw_made_up_files","project_id":"made_up_project_files","hold_id":"6","step":null,"ended_at":"2026-11-13T12:05:15.162Z","ending":"settle","kept_reason":null,"cost_usd_as_read":0.006142,"call":{"model":"claude-opus-5-5","status":200},"error":{"name":"error","code":"P0001"}}
++ {"journal_id":"j_made_up_files_5","gateway":"gw_made_up_files","project_id":"made_up_project_files","hold_id":"5","step":null,"ended_at":"2026-11-13T12:05:15.162Z","ending":"settle","kept_reason":null,"cost_usd_as_read":0.006142,"call":{"model":"claude-opus-5-5","status":200},"error":{"name":"error","code":"P0001"}}
+
+
+ ❯ test/journal-files.test.ts:165:50
+    163|     letWrite();
+    164|     await appending;
+    165|     expect(await readFile(gateway.file, "utf8")).toBe(line(a) + line(b…
+       |                                                  ^
+    166|     expect((await recovery.pending()).records.map((x) => x.journal_id)…
+    167|     expect(r.carriedOver).toBe(0); // nothing had landed in the old fi…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/10]⎯
+
+ FAIL  test/journal-files.test.ts > 1.4b's review: the journal's files when another process writes the same folder (the files only, with the file system wrapped to fix the order) > (r3) the folder's id file is never left empty: a write of it that fails leaves no id file, and the next start makes a whole one
+AssertionError: expected [ 'journal-folder-id' ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   "journal-folder-id",
++ ]
+
+ ❯ test/journal-files.test.ts:178:81
+    176|     };
+    177|     await expect(FaultJournal.open(dir)).rejects.toMatchObject({ code:…
+    178|     expect((await readdir(dir)).filter((f) => f.includes("journal-fold…
+       |                                                                                 ^
+    179|     const j = await FaultJournal.open(dir);
+    180|     expect(j.folderId).toMatch(/^jf_[0-9a-f]{32}$/);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/10]⎯
+
+ FAIL  test/journal-files.test.ts > 1.4b's review: the journal's files when another process writes the same folder (the files only, with the file system wrapped to fix the order) > (r4) an entry appended to the set-aside file after an entry cut short by a crash starts on a line of its own, and can be read
+AssertionError: expected '{"set_aside_id":"sa_made_up_cut","lin…' to be '{"set_aside_id":"sa_made_up_cut","lin…' // Object.is equality
+
+- Expected
++ Received
+
+- {"set_aside_id":"sa_made_up_cut","line_ba
+- {"set_aside_id":"sa_made_up_next","reason":"made up for the test"}
++ {"set_aside_id":"sa_made_up_cut","line_ba{"set_aside_id":"sa_made_up_next","reason":"made up for the test"}
+
+
+ ❯ test/journal-files.test.ts:191:52
+    189|     await writeFile(j.setAsideFile, cut);
+    190|     await j.appendSetAside({ set_aside_id: "sa_made_up_next", reason: …
+    191|     expect(await readFile(j.setAsideFile, "utf8")).toBe(cut + "\n" + l…
+       |                                                    ^
+    192|     expect((await j.setAsides()).map((e) => e["set_aside_id"])).toEqua…
+    193|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/10]⎯
+
+ FAIL  test/journal-recovery.test.ts > the third outside review, item 1: an unreadable journal line keeps the gateway closed until it is recovered (package 1.4b, against a stand-in provider) > (a) the review's required test: the journal's last record cut short mid-line, as a crash during its append leaves it, then the gateway restarted (main.ts as a process): every request, metered, counting or passed through, any project, is refused 503 gateway_journal_unreadable; the stand-in receives nothing, no hold is opened, nothing is written
+AssertionError: expected { status: 200, ok: true, …(1) } to deeply equal { status: 503, ok: false, …(1) }
+
+- Expected
++ Received
+
+  {
+-   "ok": false,
+-   "status": 503,
+-   "type": "gateway_journal_unreadable",
++   "ok": true,
++   "status": 200,
++   "type": undefined,
+  }
+
+ ❯ test/journal-recovery.test.ts:370:74
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/10]⎯
+
+ FAIL  test/journal-recovery.test.ts > the third outside review, item 1: an unreadable journal line keeps the gateway closed until it is recovered (package 1.4b, against a stand-in provider) > (g) the folder's lock: a gateway that loses its connection does not take the folder back while a recovery holds it (it stays stopped meanwhile); its journal moves nothing in its file while it does not hold the lock, and still appends (1.4b's review)
+AssertionError: expected 'JOURNAL_FOLDER_NOT_HELD' to be 'written' // Object.is equality
+
+Expected: "written"
+Received: "JOURNAL_FOLDER_NOT_HELD"
+
+ ❯ test/journal-recovery.test.ts:730:53
+    728|       const refusedWith = async (op: Promise<unknown>) => op.then(() =…
+    729|       // A call's ending is still appended: that is when the database …
+    730|       expect(await refusedWith(journal.append(r2))).toBe("written");
+       |                                                     ^
+    731|       const withR2 = await readFile(journal.file);
+    732|       expect(withR2.equals(Buffer.concat([before, Buffer.from(line(r2)…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/10]⎯
+
+ FAIL  test/journal-recovery.test.ts > the third outside review, item 1: an unreadable journal line keeps the gateway closed until it is recovered (package 1.4b, against a stand-in provider) > (e3) after 1.4b's review: a set-aside cut short, then run again naming another hold, finishes the earlier record (its hold's project frozen), writes nothing for the hold asked now, and the script says so
+AssertionError: expected 'Database: builder_test_p14bfix_ctl (i…' to contain 'NOTE: this line was set aside earlier…'
+
+- Expected
++ Received
+
+- NOTE: this line was set aside earlier (a run cut short, finished now) naming hold 22, not hold 23 as asked now.
++ Database: builder_test_p14bfix_ctl (its name only; the address is not printed)
++ Journal folder: <scratchpad>/p14bfix-tmp/pkg14b-journal-1PB0cb
++ First finished set-aside sa_61c1cdd40a1c01b4, recorded earlier but cut short: its line moved out of the journal file; nothing was written to the database again.
++ Line 1 set aside (set-aside sa_61c1cdd40a1c01b4, row 6)
++   line:        33 bytes; torn: the file ends inside it, with no line end; fingerprint 379f857aa5bd5d280e98b28c3b8f7b3b5395c437c5b544265372a35affb5faa8
++   text:        {"journal_id":"j_made_up_e3","gat
++   hold:        22 of project j14b_3a61339e, $0.009960 held: the project is FROZEN (freeze 13) until the owner reconciles that hold (scripts/reconcile.ts)
++   by:          the test (a made-up operator)
++   reason:      package 1.4b test: the line stands for the call on this hold, by the project and hold its readable part names
++   events:      gateway.journal_line_set_aside 78; project.frozen 79
++   recorded at: 2026-11-13T12:04:58.855Z (the database's clock)
++   moved:       to unrecorded-endings.set-aside.jsonl in the folder (forced to disk); the journal file now holds 0 line(s)
++ Restart the gateway now: it reads its journal only when it starts.
++
+
+ ❯ test/journal-recovery.test.ts:767:23
+    765|     const again = await recover(["--set-aside", "--dir", dir, "--line"…
+    766|     expect(again.code).toBe(0);
+    767|     expect(again.out).toContain(`NOTE: this line was set aside earlier…
+       |                       ^
+    768|     expect(again.out).toContain(`hold:        ${first} of project ${p.…
+    769|     expect((await listFreezes(pool, p.id)).map((f) => f.hold_id)).toEq…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/10]⎯
+
+ FAIL  test/journal-recovery.test.ts > the third outside review, item 1: an unreadable journal line keeps the gateway closed until it is recovered (package 1.4b, against a stand-in provider) > (h) after 1.4b's review, the review's probe: the gateway's lock connection lost and kept from it, then a call's ending refused by the database, then the gateway killed: the ending is in its journal, and the restarted gateway (main.ts as a process) freezes the project and forwards nothing for it
+Error: timed out waiting for: the ending written to the journal file
+ ❯ until test/journal-recovery.test.ts:119:33
+    117|   const end = Date.now() + ms;
+    118|   while (!(await ok())) {
+    119|     if (Date.now() > end) throw new Error(`timed out waiting for: ${wh…
+       |                                 ^
+    120|     await sleep(20);
+    121|   }
+ ❯ test/journal-recovery.test.ts:805:7
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/10]⎯
+
+ FAIL  test/journal-recovery.test.ts > the third outside review, item 1: an unreadable journal line keeps the gateway closed until it is recovered (package 1.4b, against a stand-in provider) > (i) after 1.4b's review: --list takes no lock, even for a moment, yet says when the folder is in use; and it decodes only the start of a very long line
+AssertionError: expected [ …(2) ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   "select pg_try_advisory_xact_lock(('x' || substr(md5('builder-gateway-journal-folder:' || $1), 1, 16))::bit(64)::bigint) as free",
++   "select pg_try_advisory_xact_lock(('x' || substr(md5('builder-gateway-journal-folder:' || $1), 1, 16))::bit(64)::bigint) as free",
++ ]
+
+ ❯ test/journal-recovery.test.ts:865:75
+    863|     }
+    864|     expect({ free: free.inUse, held: held.inUse }).toEqual({ free: fal…
+    865|     expect(sent.filter((q) => /pg_(try_)?advisory(_xact)?_lock/.test(q…
+       |                                                                           ^
+    866|     const u = free.unreadable[0]!;
+    867|     expect({ lines: free.unreadable.length, length: u.length, why: u.w…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[10/10]⎯
+
+
+ Test Files  2 failed (2)
+      Tests  10 failed | 8 passed (18)
+   Start at  12:04:46
+   Duration  28.28s (tests 99%, transform 1%)
+
+exit code: 1

@@ -1,0 +1,596 @@
+Before the fix: the code at 88e984b (git archive 88e984b builder), with the two new test files (builder/test/journal-crash.test.ts, builder/test/journal-recovery-lock.test.ts) copied in from the fix. Lines "Warning: Closing file descriptor ... on garbage collection" (the stopped rewrites never close their handles, as a killed process would not) are left out.
+$ npx vitest run test/journal-crash.test.ts test/journal-recovery-lock.test.ts
+
+ RUN  v5.1.0 <scratchpad>/bot14b-before/builder
+
+ ❯ test/journal-crash.test.ts (5 tests | 5 failed) 1157ms
+   ❯ the review bot on 88e984b, finding 1: no call's ending appended to the journal is lost by a rewrite stopped part-way (package 1.4b) (5)
+     × (k1) the bot's case: a gateway that lost its lock appends a call's ending after the recovery script's rewrite read the journal; the script is stopped right after its rename; the gateway then started (main.ts as a process) replays the ending and freezes its project 432ms
+     × (k2) the gateway's move to the done file, stopped at each step of its rewrite with a call's ending appended after it read the file: the ending is on disk at every step, --list shows it waiting, and the gateway started afterwards freezes its project; nothing set aside comes back, and nothing is left over 284ms
+     × (k2) the recovery script's removal of a set-aside line, stopped at each step of its rewrite with a call's ending appended after it read the file: the ending is on disk at every step, --list shows it waiting, and the gateway started afterwards freezes its project; nothing set aside comes back, and nothing is left over 364ms
+     × (k3) fails closed: while the database's set-asides cannot be read, every unreadable line of a leftover counts and the leftover is kept; once they can be read, a leftover's unreadable line never set aside is moved into the journal file, keeps the gateway closed, and is set aside as any other 13ms
+     × (k4) --list numbers what a leftover alone holds as the line it will be in the journal file, leaving out a line set aside already; the recovery script moves the leftover in first, so a line listed so is set aside at that number; a record only the leftover held is kept for the gateway 31ms
+ ❯ test/journal-recovery-lock.test.ts (3 tests | 3 failed) 911ms
+   ❯ the review bot on 88e984b, finding 2: a recovery that has lost the journal folder's lock writes nothing more and says it stopped (package 1.4b) (3)
+     × (l1) the bot's case: the recovery's lock connection ends right after it took the lock, and another process takes the lock: the run writes no set-aside row, freeze or event and changes no file in the folder, and stops with RecoveryStopped 57ms
+     × (l2) the script, as a process of its own: its lock connection ends while its set-aside's transaction waits for the project's lock; the transaction then reaches its commit and is rolled back; the script exits with code 4 and a plain message, having written nothing 462ms
+     × (l3) the lock lost right before each write of a set-aside (a leftover moved in; an earlier set-aside's entry, removal and row; the record, its commit; the entry, the removal, the row): from there on nothing is written, the run stops with RecoveryStopped, and the same set-aside run again finishes it 365ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 8 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/journal-crash.test.ts > the review bot on 88e984b, finding 1: no call's ending appended to the journal is lost by a rewrite stopped part-way (package 1.4b) > (k1) the bot's case: a gateway that lost its lock appends a call's ending after the recovery script's rewrite read the journal; the script is stopped right after its rename; the gateway then started (main.ts as a process) replays the ending and freezes its project
+AssertionError: expected { …(9) } to deeply equal { …(9) }
+
+- Expected
++ Received
+
+  {
+-   "inTheDoneFile": true,
++   "inTheDoneFile": false,
+    "itsNextCall": {
+-     "status": 402,
+-     "type": "project_frozen",
++     "status": 200,
++     "type": null,
+    },
+    "journalFileBytes": 0,
+    "leftovers": [],
+-   "projectFrozenNaming": "j_test14bc_49ceedf3",
+-   "reachedTheStandIn": 0,
+-   "replayedAtStart": "journal lines replayed at start-up: 1; all recorded: true",
++   "projectFrozenNaming": "not frozen",
++   "reachedTheStandIn": 2,
++   "replayedAtStart": "journal lines replayed at start-up: 0; all recorded: true",
+    "setAsideHoldFrozen": "237",
+    "unreadableAtStart": "journal lines that could not be read at start-up: 0",
+  }
+
+ ❯ test/journal-crash.test.ts:341:10
+    339|         journalFileBytes: (await readFile(join(dir, PENDING))).length,
+    340|         inTheDoneFile: doneFile.includes(b.journal_id),
+    341|       }).toEqual({
+       |          ^
+    342|         replayedAtStart: "journal lines replayed at start-up: 1; all r…
+    343|         unreadableAtStart: "journal lines that could not be read at st…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/8]⎯
+
+ FAIL  test/journal-crash.test.ts > the review bot on 88e984b, finding 1: no call's ending appended to the journal is lost by a rewrite stopped part-way (package 1.4b) > (k2) the gateway's move to the done file, stopped at each step of its rewrite with a call's ending appended after it read the file: the ending is on disk at every step, --list shows it waiting, and the gateway started afterwards freezes its project; nothing set aside comes back, and nothing is left over
+AssertionError: expected { …(9) } to deeply equal { …(9) }
+
+- Expected
++ Received
+
+@@ -9,11 +9,11 @@
+      "frozen": true,
+      "leftoversAfterStart": 0,
+      "listedUnreadable": 0,
+      "listedWaiting": true,
+      "onDisk": true,
+-     "stoppedThere": true,
++     "stoppedThere": false,
+      "unreadableAtStart": 0,
+    },
+    "2. after the second name is made, before the folder is forced to disk": {
+      "appended": true,
+      "closed": false,
+@@ -24,11 +24,11 @@
+      "frozen": true,
+      "leftoversAfterStart": 0,
+      "listedUnreadable": 0,
+      "listedWaiting": true,
+      "onDisk": true,
+-     "stoppedThere": true,
++     "stoppedThere": false,
+      "unreadableAtStart": 0,
+    },
+    "3. after the folder is forced to disk, before the new file is written": {
+      "appended": true,
+      "closed": false,
+@@ -64,30 +64,30 @@
+      "closed": false,
+      "faults": 0,
+      "freezesOfTheMovedRecord": [
+        "j_test14bc_d53acc2b",
+      ],
+-     "frozen": true,
++     "frozen": false,
+      "leftoversAfterStart": 0,
+      "listedUnreadable": 0,
+-     "listedWaiting": true,
+-     "onDisk": true,
++     "listedWaiting": false,
++     "onDisk": false,
+      "stoppedThere": true,
+      "unreadableAtStart": 0,
+    },
+    "6. after the folder is forced to disk, before the carry-over reads the old file": {
+      "appended": true,
+      "closed": false,
+      "faults": 0,
+      "freezesOfTheMovedRecord": [
+        "j_test14bc_168f6940",
+      ],
+-     "frozen": true,
++     "frozen": false,
+      "leftoversAfterStart": 0,
+      "listedUnreadable": 0,
+-     "listedWaiting": true,
+-     "onDisk": true,
++     "listedWaiting": false,
++     "onDisk": false,
+      "stoppedThere": true,
+      "unreadableAtStart": 0,
+    },
+    "7. after the carry-over is forced to disk, before the second name is removed": {
+      "appended": true,
+@@ -99,11 +99,11 @@
+      "frozen": true,
+      "leftoversAfterStart": 0,
+      "listedUnreadable": 0,
+      "listedWaiting": true,
+      "onDisk": true,
+-     "stoppedThere": true,
++     "stoppedThere": false,
+      "unreadableAtStart": 0,
+    },
+    "8. after the second name is removed, before the folder is forced to disk": {
+      "appended": true,
+      "closed": false,
+@@ -114,11 +114,11 @@
+      "frozen": true,
+      "leftoversAfterStart": 0,
+      "listedUnreadable": 0,
+      "listedWaiting": true,
+      "onDisk": true,
+-     "stoppedThere": true,
++     "stoppedThere": false,
+      "unreadableAtStart": 0,
+    },
+    "9. not stopped (the whole rewrite)": {
+      "appended": true,
+      "closed": false,
+
+ ❯ test/journal-crash.test.ts:453:20
+    451|         expected[name] = want;
+    452|       }
+    453|       expect(seen).toEqual(expected);
+       |                    ^
+    454|     }, 180_000);
+    455|   }
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/8]⎯
+
+ FAIL  test/journal-crash.test.ts > the review bot on 88e984b, finding 1: no call's ending appended to the journal is lost by a rewrite stopped part-way (package 1.4b) > (k2) the recovery script's removal of a set-aside line, stopped at each step of its rewrite with a call's ending appended after it read the file: the ending is on disk at every step, --list shows it waiting, and the gateway started afterwards freezes its project; nothing set aside comes back, and nothing is left over
+AssertionError: expected { …(9) } to deeply equal { …(9) }
+
+- Expected
++ Received
+
+@@ -1,41 +1,31 @@
+  {
+    "1. after the lines are chosen (and copied to the done file or the set-aside file), before the old file gets its second name": {
+      "appended": true,
+-     "closed": true,
+-     "faults": 1,
++     "closed": false,
++     "faults": 0,
+      "frozen": true,
+      "leftoversAfterStart": 0,
+-     "listedUnreadable": 1,
++     "listedUnreadable": 0,
+      "listedWaiting": true,
+-     "nextStart": {
+-       "closed": false,
+-       "freezes": 1,
+-       "leftovers": 0,
+-       "unreadable": 0,
+-     },
++     "nextStart": "failed: already_set_aside",
+      "onDisk": true,
+-     "stoppedThere": true,
+-     "unreadableAtStart": 1,
++     "stoppedThere": false,
++     "unreadableAtStart": 0,
+    },
+    "2. after the second name is made, before the folder is forced to disk": {
+      "appended": true,
+-     "closed": true,
+-     "faults": 1,
++     "closed": false,
++     "faults": 0,
+      "frozen": true,
+      "leftoversAfterStart": 0,
+-     "listedUnreadable": 1,
++     "listedUnreadable": 0,
+      "listedWaiting": true,
+-     "nextStart": {
+-       "closed": false,
+-       "freezes": 1,
+-       "leftovers": 0,
+-       "unreadable": 0,
+-     },
++     "nextStart": "failed: already_set_aside",
+      "onDisk": true,
+-     "stoppedThere": true,
+-     "unreadableAtStart": 1,
++     "stoppedThere": false,
++     "unreadableAtStart": 0,
+    },
+    "3. after the folder is forced to disk, before the new file is written": {
+      "appended": true,
+      "closed": true,
+      "faults": 1,
+@@ -75,40 +65,40 @@
+    },
+    "5. right after the rename, before the folder is forced to disk (the review bot's case)": {
+      "appended": true,
+      "closed": false,
+      "faults": 0,
+-     "frozen": true,
++     "frozen": false,
+      "leftoversAfterStart": 0,
+      "listedUnreadable": 0,
+-     "listedWaiting": true,
++     "listedWaiting": false,
+      "nextStart": {
+        "closed": false,
+        "freezes": 1,
+        "leftovers": 0,
+        "unreadable": 0,
+      },
+-     "onDisk": true,
++     "onDisk": false,
+      "runAgainFinished": 1,
+      "stoppedThere": true,
+      "unreadableAtStart": 0,
+    },
+    "6. after the folder is forced to disk, before the carry-over reads the old file": {
+      "appended": true,
+      "closed": false,
+      "faults": 0,
+-     "frozen": true,
++     "frozen": false,
+      "leftoversAfterStart": 0,
+      "listedUnreadable": 0,
+-     "listedWaiting": true,
++     "listedWaiting": false,
+      "nextStart": {
+        "closed": false,
+        "freezes": 1,
+        "leftovers": 0,
+        "unreadable": 0,
+      },
+-     "onDisk": true,
++     "onDisk": false,
+      "runAgainFinished": 1,
+      "stoppedThere": true,
+      "unreadableAtStart": 0,
+    },
+    "7. after the carry-over is forced to disk, before the second name is removed": {
+@@ -117,36 +107,26 @@
+      "faults": 0,
+      "frozen": true,
+      "leftoversAfterStart": 0,
+      "listedUnreadable": 0,
+      "listedWaiting": true,
+-     "nextStart": {
+-       "closed": false,
+-       "freezes": 1,
+-       "leftovers": 0,
+-       "unreadable": 0,
+-     },
++     "nextStart": "failed: already_set_aside",
+      "onDisk": true,
+-     "stoppedThere": true,
++     "stoppedThere": false,
+      "unreadableAtStart": 0,
+    },
+    "8. after the second name is removed, before the folder is forced to disk": {
+      "appended": true,
+      "closed": false,
+      "faults": 0,
+      "frozen": true,
+      "leftoversAfterStart": 0,
+      "listedUnreadable": 0,
+      "listedWaiting": true,
+-     "nextStart": {
+-       "closed": false,
+-       "freezes": 1,
+-       "leftovers": 0,
+-       "unreadable": 0,
+-     },
++     "nextStart": "failed: already_set_aside",
+      "onDisk": true,
+-     "stoppedThere": true,
++     "stoppedThere": false,
+      "unreadableAtStart": 0,
+    },
+    "9. not stopped (the whole rewrite)": {
+      "appended": true,
+      "closed": false,
+
+ ❯ test/journal-crash.test.ts:453:20
+    451|         expected[name] = want;
+    452|       }
+    453|       expect(seen).toEqual(expected);
+       |                    ^
+    454|     }, 180_000);
+    455|   }
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/8]⎯
+
+ FAIL  test/journal-crash.test.ts > the review bot on 88e984b, finding 1: no call's ending appended to the journal is lost by a rewrite stopped part-way (package 1.4b) > (k3) fails closed: while the database's set-asides cannot be read, every unreadable line of a leftover counts and the leftover is kept; once they can be read, a leftover's unreadable line never set aside is moved into the journal file, keeps the gateway closed, and is set aside as any other
+AssertionError: expected { loaded: +0, unreadable: +0, …(1) } to deeply equal { loaded: 1, unreadable: 1, …(1) }
+
+- Expected
++ Received
+
+  {
+-   "loaded": 1,
++   "loaded": 0,
+    "recorded": true,
+-   "unreadable": 1,
++   "unreadable": 0,
+  }
+
+ ❯ test/journal-crash.test.ts:477:34
+    475|     const faults: string[] = [];
+    476|     const blind = new FaultGate({ pool: failing, journal: await FaultJ…
+    477|     expect(await blind.replay()).toEqual({ loaded: 1, unreadable: 1, r…
+       |                                  ^
+    478|     expect(blind.closed()).toBe(true);
+    479|     expect(blind.unreadableLines().map((u) => ({ number: u.number, lef…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/8]⎯
+
+ FAIL  test/journal-crash.test.ts > the review bot on 88e984b, finding 1: no call's ending appended to the journal is lost by a rewrite stopped part-way (package 1.4b) > (k4) --list numbers what a leftover alone holds as the line it will be in the journal file, leaving out a line set aside already; the recovery script moves the leftover in first, so a line listed so is set aside at that number; a record only the leftover held is kept for the gateway
+TypeError: Cannot read properties of undefined (reading 'map')
+ ❯ test/journal-crash.test.ts:514:35
+    512|     const listed = await listJournal(pool, dir);
+    513|     expect({
+    514|       leftovers: listed.leftovers.map((l) => [l.name, l.lines]),
+       |                                   ^
+    515|       waiting: listed.waiting.map((w) => [w.number, w.journalId, w.lef…
+    516|       unreadable: listed.unreadable.map((u) => [u.number, u.fingerprin…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/8]⎯
+
+ FAIL  test/journal-recovery-lock.test.ts > the review bot on 88e984b, finding 2: a recovery that has lost the journal folder's lock writes nothing more and says it stopped (package 1.4b) > (l1) the bot's case: the recovery's lock connection ends right after it took the lock, and another process takes the lock: the run writes no set-aside row, freeze or event and changes no file in the folder, and stops with RecoveryStopped
+AssertionError: expected { name: 'done', code: null } to match object { name: 'RecoveryStopped', …(1) }
+
+- Expected
++ Received
+
+  {
+-   "code": "folder_lock_lost",
+-   "name": "RecoveryStopped",
++   "code": null,
++   "name": "done",
+  }
+
+ ❯ test/journal-recovery-lock.test.ts:146:19
+    144|       const out = await outcomeOf(setAsideLine(pool, TEST_DB_URL, f.re…
+    145|       expect(other).not.toBeNull(); // the other process held the fold…
+    146|       expect(out).toMatchObject({ name: "RecoveryStopped", code: "fold…
+       |                   ^
+    147|       expect((out as { message: string }).message).toContain("lost the…
+    148|       expect(await state(f.dir, f.journal.folderId, [f.project])).toEq…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/8]⎯
+
+ FAIL  test/journal-recovery-lock.test.ts > the review bot on 88e984b, finding 2: a recovery that has lost the journal folder's lock writes nothing more and says it stopped (package 1.4b) > (l2) the script, as a process of its own: its lock connection ends while its set-aside's transaction waits for the project's lock; the transaction then reaches its commit and is rolled back; the script exits with code 4 and a plain message, having written nothing
+AssertionError: expected { code: +0, stopped: false, …(1) } to deeply equal { code: 4, stopped: true, says: true }
+
+- Expected
++ Received
+
+  {
+-   "code": 4,
+-   "says": true,
+-   "stopped": true,
++   "code": 0,
++   "says": false,
++   "stopped": false,
+  }
+
+ ❯ test/journal-recovery-lock.test.ts:183:176
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/8]⎯
+
+ FAIL  test/journal-recovery-lock.test.ts > the review bot on 88e984b, finding 2: a recovery that has lost the journal folder's lock writes nothing more and says it stopped (package 1.4b) > (l3) the lock lost right before each write of a set-aside (a leftover moved in; an earlier set-aside's entry, removal and row; the record, its commit; the entry, the removal, the row): from there on nothing is written, the run stops with RecoveryStopped, and the same set-aside run again finishes it
+AssertionError: expected { 'absorb leftovers': { …(5) }, …(9) } to deeply equal { 'absorb leftovers': { …(5) }, …(9) }
+
+- Expected
++ Received
+
+  {
+    "absorb leftovers": {
+-     "code": "folder_lock_lost",
+-     "name": "RecoveryStopped",
+-     "reached": true,
++     "code": null,
++     "name": "done",
++     "reached": false,
+      "runAgain": {
+        "lineGone": true,
+        "moved": 1,
+-       "name": "done",
++       "name": "RecoveryRefused",
+        "rows": 1,
+      },
+-     "unchangedSinceTheStop": true,
++     "unchangedSinceTheStop": false,
+    },
+    "earlier: journal line removed": {
+-     "code": "folder_lock_lost",
+-     "name": "RecoveryStopped",
+-     "reached": true,
++     "code": null,
++     "name": "done",
++     "reached": false,
+      "runAgain": {
+        "lineGone": true,
+        "moved": 1,
+-       "name": "done",
++       "name": "RecoveryRefused",
+        "rows": 1,
+      },
+-     "unchangedSinceTheStop": true,
++     "unchangedSinceTheStop": false,
+    },
+    "earlier: row marked moved": {
+-     "code": "folder_lock_lost",
+-     "name": "RecoveryStopped",
+-     "reached": true,
++     "code": null,
++     "name": "done",
++     "reached": false,
+      "runAgain": {
+        "lineGone": true,
+        "moved": 1,
+-       "name": "done",
++       "name": "RecoveryRefused",
+        "rows": 1,
+      },
+-     "unchangedSinceTheStop": true,
++     "unchangedSinceTheStop": false,
+    },
+    "earlier: set-aside entry": {
+-     "code": "folder_lock_lost",
+-     "name": "RecoveryStopped",
+-     "reached": true,
++     "code": null,
++     "name": "done",
++     "reached": false,
+      "runAgain": {
+        "lineGone": true,
+        "moved": 1,
+-       "name": "done",
++       "name": "RecoveryRefused",
+        "rows": 1,
+      },
+-     "unchangedSinceTheStop": true,
++     "unchangedSinceTheStop": false,
+    },
+    "journal line removed": {
+-     "code": "folder_lock_lost",
+-     "name": "RecoveryStopped",
+-     "reached": true,
++     "code": null,
++     "name": "done",
++     "reached": false,
+      "runAgain": {
+        "lineGone": true,
+        "moved": 1,
+-       "name": "done",
++       "name": "RecoveryRefused",
+        "rows": 1,
+      },
+-     "unchangedSinceTheStop": true,
++     "unchangedSinceTheStop": false,
+    },
+    "record: commit": {
+-     "code": "folder_lock_lost",
+-     "name": "RecoveryStopped",
+-     "reached": true,
++     "code": null,
++     "name": "done",
++     "reached": false,
+      "runAgain": {
+        "lineGone": true,
+        "moved": 1,
+-       "name": "done",
++       "name": "RecoveryRefused",
+        "rows": 1,
+      },
+-     "unchangedSinceTheStop": true,
++     "unchangedSinceTheStop": false,
+    },
+    "record: row": {
+-     "code": "folder_lock_lost",
+-     "name": "RecoveryStopped",
+-     "reached": true,
++     "code": null,
++     "name": "done",
++     "reached": false,
+      "runAgain": {
+        "lineGone": true,
+        "moved": 1,
+-       "name": "done",
++       "name": "RecoveryRefused",
+        "rows": 1,
+      },
+-     "unchangedSinceTheStop": true,
++     "unchangedSinceTheStop": false,
+    },
+    "record: transaction": {
+-     "code": "folder_lock_lost",
+-     "name": "RecoveryStopped",
+-     "reached": true,
++     "code": null,
++     "name": "done",
++     "reached": false,
+      "runAgain": {
+        "lineGone": true,
+        "moved": 1,
+-       "name": "done",
++       "name": "RecoveryRefused",
+        "rows": 1,
+      },
+-     "unchangedSinceTheStop": true,
++     "unchangedSinceTheStop": false,
+    },
+    "row marked moved": {
+-     "code": "folder_lock_lost",
+-     "name": "RecoveryStopped",
+-     "reached": true,
++     "code": null,
++     "name": "done",
++     "reached": false,
+      "runAgain": {
+        "lineGone": true,
+        "moved": 1,
+-       "name": "done",
++       "name": "RecoveryRefused",
+        "rows": 1,
+      },
+-     "unchangedSinceTheStop": true,
++     "unchangedSinceTheStop": false,
+    },
+    "set-aside entry": {
+-     "code": "folder_lock_lost",
+-     "name": "RecoveryStopped",
+-     "reached": true,
++     "code": null,
++     "name": "done",
++     "reached": false,
+      "runAgain": {
+        "lineGone": true,
+        "moved": 1,
+-       "name": "done",
++       "name": "RecoveryRefused",
+        "rows": 1,
+      },
+-     "unchangedSinceTheStop": true,
++     "unchangedSinceTheStop": false,
+    },
+  }
+
+ ❯ test/journal-recovery-lock.test.ts:263:17
+    261|       want[c.write] = { reached: true, name: "RecoveryStopped", code: …
+    262|     }
+    263|     expect(got).toEqual(want);
+       |                 ^
+    264|   }, 180_000);
+    265| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/8]⎯
+
+
+ Test Files  2 failed (2)
+      Tests  8 failed (8)
+   Start at  12:42:04
+   Duration  2.40s (tests 93%, import 4%, transform 3%)
+

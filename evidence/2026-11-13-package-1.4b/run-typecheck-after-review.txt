@@ -1,0 +1,7 @@
+$ (working tree: the commit fa2b38c plus this round's changes, committed next; builder tree 70e93853)
+$ npm run typecheck
+
+> builder@0.0.1 typecheck
+> tsc --noEmit
+
+exit code: 0

@@ -1,0 +1,7 @@
+$ (builder at 64e67b5, the merge; git status of builder/ empty)
+$ npm run typecheck
+
+> builder@0.0.1 typecheck
+> tsc --noEmit
+
+exit code: 0

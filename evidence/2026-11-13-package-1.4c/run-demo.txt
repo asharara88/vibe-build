@@ -1,0 +1,69 @@
+Package 1.4c demonstration: npx tsx scripts/demo-overrun.ts from builder/, at commit acb5d5b's code (run just before that commit, which added only this script), on builder_demo_p14c made empty for it (BUILDER_TEST_DATABASE_URL names it). Exit code 0.
+Database: builder_demo_p14c (its name only). Stand-in provider; made-up key; nothing is spent.
+
+== 1. A bill above its hold ==
+Project demo14c_mwev8okc_a, cap $1, and project demo14c_mwev8okc_b, cap $1.
+  project a, an ordinary call: HTTP 200; cap $1.0000; spent $0.006142; open holds $0.000000
+  [gateway fault] A settled call cost more than its hold. {"project":"demo14c_mwev8okc_a","hold":"2","hold_usd":0.00996,"actual_usd":0.012284,"project_frozen":true,"freeze_id":1}
+  project a, a call the stand-in says was served in fast mode (not asked for): HTTP 200
+  its hold 2: held $0.009960; settled at $0.012284, charged in full; cap $1.0000; spent $0.018426; open holds $0.000000
+  project a frozen: yes, freeze 1, kind bill_above_hold, naming hold 2, bill $0.012284
+  written by one database transaction (each row's xmin): model.call 829441; hold.settled 829441; hold.exceeded 829441; project.frozen 829441; the freeze's row 829441
+
+== 2. Project a is refused; project b is not ==
+  project a's next call: HTTP 402: This project is stopped: a model call that ended at 2026-11-13T11:00:44.645Z was billed $0.012284, more than its hold of $0.009960 (above it by $0.002324). That bill is charged in full. The gateway forwarded nothing, and no further call will be made for this project until the owner records that bill.
+  forwarded to the stand-in for it: 0 calls, 0 counting calls
+  project b's call: HTTP 200; forwarded: yes; cap $1.0000; spent $0.006142; open holds $0.000000
+
+== 3. The list ==
+$ npx tsx scripts/reconcile.ts --list --project demo14c_mwev8okc_a
+  Database: builder_demo_p14c (its name only; the address is not printed)
+  The unreconciled list, as of 2026-11-13T11:00:45.024Z: 0 hold(s) kept at their full amount in project demo14c_mwev8okc_a
+  
+  Projects frozen after a bill above its hold (package 1.4c; cleared by --overrun): 1
+    freeze 1, project demo14c_mwev8okc_a: hold 2 held $0.009960; the call was billed $0.012284, above its hold by $0.002324, charged in full
+      model claude-opus-5-5; step: (none); call ended 2026-11-13T11:00:44.645Z (gateway gw_demo14c_mwev8okc); frozen 2026-11-13T11:00:44.646Z
+  (exit code 0)
+
+== 4. The owner's record of that bill, with its evidence (a made-up usage record) ==
+$ npx tsx scripts/reconcile.ts --overrun --hold 2 --evidence "Provider usage record (made up for this demonstration): request req_demo_14c_0001, Claude Opus 5.5, fast mode, 30 input, 4 cache-write, 8 cache-read and 300 output tokens, billed $0.012284" --asked-by "the owner (demonstration; made up)" --by "Claude Code" --reason "package 1.4c demonstration: the bill above its hold was looked at; fast mode was served though not asked for"
+  Database: builder_demo_p14c (its name only; the address is not printed)
+  Bill above its hold recorded for hold 2 of project demo14c_mwev8okc_a
+    held:          $0.009960
+    billed:        $0.012284, charged in full when the call was settled (nothing is charged now)
+    above it by:   $0.002324
+    evidence:      Provider usage record (made up for this demonstration): request req_demo_14c_0001, Claude Opus 5.5, fast mode, 30 input, 4 cache-write, 8 cache-read and 300 output tokens, billed $0.012284
+    asked by:      the owner (demonstration; made up)
+    recorded by:   Claude Code
+    reason:        package 1.4c demonstration: the bill above its hold was looked at; fast mode was served though not asked for
+    events:        hold.overrun_recorded 13; project.freeze_cleared 14
+    recorded at:   2026-11-13T11:00:45.394Z (the database's clock, under the project's lock)
+    budget:        spent $0.018426; open holds $0.000000; cap $1.0000
+    freezes:       cleared 1; the project is not frozen
+  (exit code 0)
+
+== 5. Project a runs again ==
+  its next call: HTTP 200; forwarded to the stand-in: yes; cap $1.0000; spent $0.024568; open holds $0.000000
+  its event log:
+    1 hold.opened hold_id=1 amount_usd=0.00996
+    2 model.call hold_id=1 cost_usd=0.006142
+    3 hold.settled hold_id=1 amount_usd=0.00996 actual_usd=0.006142
+    4 hold.opened hold_id=2 amount_usd=0.00996
+    5 model.call hold_id=2 cost_usd=0.012284
+    6 hold.settled hold_id=2 amount_usd=0.00996 actual_usd=0.012284
+    7 hold.exceeded hold_id=2 amount_usd=0.00996 actual_usd=0.012284
+    8 project.frozen hold_id=2 kind="bill_above_hold" bill_usd=0.012284 above_by_usd=0.002324 reason="a model call was billed more than its hold" freeze_id=1
+    9 gateway.refused reason="project_frozen" freeze_id=1 freeze_kind="bill_above_hold"
+    13 hold.overrun_recorded hold_id=2 amount_usd=0.00996 bill_usd=0.012284 above_by_usd=0.002324 reason="package 1.4c demonstration: the bill above its hold was looked at; fast mode was served though not asked for" freeze_id=1 evidence="Provider usage record (made up for this demonstration): request req_demo_14c_0001, Claude Opus 5.5, fast mode, 30 input, 4 cache-write, 8 cache-read and 300 output tokens, billed $0.012284" asked_by="the owner (demonstration; made up)" recorded_by="Claude Code" project_still_frozen=false
+    14 project.freeze_cleared hold_id=2 kind="bill_above_hold" freeze_id=1 project_still_frozen=false
+    15 hold.opened hold_id=4 amount_usd=0.00996
+    16 model.call hold_id=4 cost_usd=0.006142
+    17 hold.settled hold_id=4 amount_usd=0.00996 actual_usd=0.006142
+
+== 6. The same record again ==
+$ npx tsx scripts/reconcile.ts --overrun --hold 2 --evidence "Provider usage record (made up for this demonstration): request req_demo_14c_0001, Claude Opus 5.5, fast mode, 30 input, 4 cache-write, 8 cache-read and 300 output tokens, billed $0.012284" --asked-by "the owner (demonstration; made up)" --by "Claude Code" --reason "package 1.4c demonstration: the bill above its hold was looked at; fast mode was served though not asked for"
+  Database: builder_demo_p14c (its name only; the address is not printed)
+  Refused by the store (overrun_already_recorded): The freeze after hold 2's bill above its hold was already cleared, at 2026-11-13T11:00:45.395Z. Nothing was changed and nothing was written.
+  (exit code 2)
+
+Every step as expected.

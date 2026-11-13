@@ -1,0 +1,191 @@
+Run on 2026-11-13T13:19:23Z, on a copy of commit 64e67b5 (the merge), on test databases of its own (builder_test_m14b_w; builder_test_m14b_wfresh, made empty for each control that changes a migration).
+NOTICE:  database "builder_test_m14b_wfresh" does not exist, skipping
+NOTICE:  database "builder_test_m14b_wfresh" does not exist, skipping
+NOTICE:  database "builder_test_m14b_wfresh" does not exist, skipping
+NOTICE:  database "builder_test_m14b_wfresh" does not exist, skipping
+Scratch copy: git archive 64e67b5 builder, with the checkout's node_modules linked in
+=== unchanged copy: test/journal-recovery.test.ts -t '\(m\) brought': Tests  1 passed | 13 skipped (14) (exit 0)
+=== unchanged copy: test/overrun.test.ts -t '1\.4c \(g\)': Tests  1 passed | 17 skipped (18) (exit 0)
+=== M1: the set-aside's freeze written with its own kind (here: the column's default, 'unrecorded_ending', as 1.4b's insert gives on 1.4c's schema)
+    test: test/journal-recovery.test.ts -t '\(m\) brought'
+    file: src/gateway/journal-recovery.ts
+    - insert into project_freezes(project_id, kind, hold_id, journal_id, gateway, reason, ended_at, hold_amount_usd, record)
+    - values ($1, 'journal_line_set_aside', $2, $3, $4, $5, clock_timestamp(), $6, $7) returning *
+    + insert into project_freezes(project_id, hold_id, journal_id, gateway, reason, ended_at, hold_amount_usd, record)
+    + values ($1, $2, $3, $4, $5, clock_timestamp(), $6, $7) returning *
+    | × (m) brought up to date with 1.4c: a set-aside's freeze is of kind 'journal_line_set_aside' (two lines may name one hold); the database refuses one with no hold, no fingerprint or a bill; it is refused with its own message, listed as freezing its project, refused by the record of a bill above its h
+    | Tests  1 failed | 13 skipped (14)
+    | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+    | AssertionError: expected [ …(2) ] to deeply equal [ …(2) ]
+    RESULT: the test FAILED, as it should (exit 1)
+=== M2: the kind named in the set-aside's project.frozen event
+    test: test/journal-recovery.test.ts -t '\(m\) brought'
+    file: src/gateway/journal-recovery.ts
+    - { freeze_id: Number(freeze.id), kind: freeze.kind, journal_id: freeze.journal_id,
+    + { freeze_id: Number(freeze.id), journal_id: freeze.journal_id,
+    | × (m) brought up to date with 1.4c: a set-aside's freeze is of kind 'journal_line_set_aside' (two lines may name one hold); the database refuses one with no hold, no fingerprint or a bill; it is refused with its own message, listed as freezing its project, refused by the record of a bill above its h
+    | Tests  1 failed | 13 skipped (14)
+    | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+    | AssertionError: expected [ Array(2) ] to deeply equal [ …(2) ]
+    RESULT: the test FAILED, as it should (exit 1)
+=== M3: migration 012's check of a set-aside freeze (project_freezes_set_aside_line), made always true
+    test: test/journal-recovery.test.ts -t '\(m\) brought'; on a database of its own, made empty for it
+    file: src/store/migrations/012_journal_set_asides.sql
+    - check (kind <> 'journal_line_set_aside'
+    + check (true or kind <> 'journal_line_set_aside'
+    | × (m) brought up to date with 1.4c: a set-aside's freeze is of kind 'journal_line_set_aside' (two lines may name one hold); the database refuses one with no hold, no fingerprint or a bill; it is refused with its own message, listed as freezing its project, refused by the record of a bill above its h
+    | Tests  1 failed | 13 skipped (14)
+    | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+    | AssertionError: expected null to match object { code: '23514', …(1) }
+    RESULT: the test FAILED, as it should (exit 1)
+=== M4: that check's part on the line's fingerprint
+    test: test/journal-recovery.test.ts -t '\(m\) brought'; on a database of its own, made empty for it
+    file: src/store/migrations/012_journal_set_asides.sql
+    - 
+    - and (record->>'fingerprint') is not null and (record->>'fingerprint') ~ '^[0-9a-f]{64}$'
+    | × (m) brought up to date with 1.4c: a set-aside's freeze is of kind 'journal_line_set_aside' (two lines may name one hold); the database refuses one with no hold, no fingerprint or a bill; it is refused with its own message, listed as freezing its project, refused by the record of a bill above its h
+    | Tests  1 failed | 13 skipped (14)
+    | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+    | AssertionError: expected null to match object { code: '23514', …(1) }
+    RESULT: the test FAILED, as it should (exit 1)
+=== M5: that check's parts on the hold named and on no bill
+    test: test/journal-recovery.test.ts -t '\(m\) brought'; on a database of its own, made empty for it
+    file: src/store/migrations/012_journal_set_asides.sql
+    - or (hold_id is not null and hold_amount_usd is not null and hold_amount_usd <> 'NaN'::numeric and bill_usd is null
+    + or (hold_amount_usd is not null and hold_amount_usd <> 'NaN'::numeric
+    | × (m) brought up to date with 1.4c: a set-aside's freeze is of kind 'journal_line_set_aside' (two lines may name one hold); the database refuses one with no hold, no fingerprint or a bill; it is refused with its own message, listed as freezing its project, refused by the record of a bill above its h
+    | Tests  1 failed | 13 skipped (14)
+    | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+    | AssertionError: expected null to match object { code: '23514', …(1) }
+    RESULT: the test FAILED, as it should (exit 1)
+=== M6: the refusal's own message for a set-aside freeze
+    test: test/journal-recovery.test.ts -t '\(m\) brought'
+    file: src/store/freezes.ts
+    - if (f.kind === "journal_line_set_aside" || f.reason === SET_ASIDE_FREEZE_REASON) {
+    + if (false) {
+    | × (m) brought up to date with 1.4c: a set-aside's freeze is of kind 'journal_line_set_aside' (two lines may name one hold); the database refuses one with no hold, no fingerprint or a bill; it is refused with its own message, listed as freezing its project, refused by the record of a bill above its h
+    | Tests  1 failed | 13 skipped (14)
+    | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+    | AssertionError: expected 'This project is stopped: a model call…' to contain 'a line of the gateway\'s journal that…'
+    RESULT: the test FAILED, as it should (exit 1)
+=== M7: the list's kind for a hold a set-aside froze ("froze its project", as on 1.4b's branch)
+    test: test/journal-recovery.test.ts -t '\(m\) brought'
+    file: src/store/reconcile.ts
+    - if (freezes.some((f) => f.kind === "unrecorded_ending" || f.kind === "journal_line_set_aside")) add("froze its project");
+    + if (freezes.some((f) => f.kind === "unrecorded_ending")) add("froze its project");
+    | × (m) brought up to date with 1.4c: a set-aside's freeze is of kind 'journal_line_set_aside' (two lines may name one hold); the database refuses one with no hold, no fingerprint or a bill; it is refused with its own message, listed as freezing its project, refused by the record of a bill above its h
+    | Tests  1 failed | 13 skipped (14)
+    | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+    | AssertionError: expected [ [ '10', false, [ …(2) ] ] ] to deeply equal [ [ '10', true, [ …(2) ] ] ]
+    RESULT: the test FAILED, as it should (exit 1)
+=== M8: the words --overrun's refusal uses for this kind (here: none, so the kind's bare name is shown)
+    test: test/journal-recovery.test.ts -t '\(m\) brought'
+    file: src/store/reconcile.ts
+    - journal_line_set_aside: "an unreadable line of the gateway's journal was set aside naming it",
+    | × (m) brought up to date with 1.4c: a set-aside's freeze is of kind 'journal_line_set_aside' (two lines may name one hold); the database refuses one with no hold, no fingerprint or a bill; it is refused with its own message, listed as freezing its project, refused by the record of a bill above its h
+    | Tests  1 failed | 13 skipped (14)
+    | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+    | AssertionError: expected 'Hold 11 has no freeze after a bill ab…' to contain 'an unreadable line of the gateway\'s …'
+    RESULT: the test FAILED, as it should (exit 1)
+=== M9: the script's line saying a freeze came from a line set aside
+    test: test/journal-recovery.test.ts -t '\(m\) brought'
+    file: scripts/reconcile.ts
+    - : setAside ? ` (an unreadable journal line set aside as
+    + : false ? ` (an unreadable journal line set aside as
+    | × (m) brought up to date with 1.4c: a set-aside's freeze is of kind 'journal_line_set_aside' (two lines may name one hold); the database refuses one with no hold, no fingerprint or a bill; it is refused with its own message, listed as freezing its project, refused by the record of a bill above its hNOTICE:  database "builder_test_m14b_wfresh" does not exist, skipping
+NOTICE:  database "builder_test_m14b_wfresh" does not exist, skipping
+NOTICE:  database "builder_test_m14b_wfresh" does not exist, skipping
+NOTICE:  database "builder_test_m14b_wfresh" does not exist, skipping
+
+    | Tests  1 failed | 13 skipped (14)
+    | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+    | AssertionError: expected 'Database: builder_test_m14b_w (its na…' to contain '    froze its project: freeze 31 (an …'
+    RESULT: the test FAILED, as it should (exit 1)
+=== M10: two lines set aside naming one hold (here: 1.4c's index of one freeze per hold and kind, and the store's clause, as in migration 010)
+    test: test/journal-recovery.test.ts -t '\(m\) brought'; on a database of its own, made empty for it
+    file: src/store/migrations/012_journal_set_asides.sql
+    - on project_freezes(hold_id, kind) where kind not in ('unrecorded_ending', 'journal_line_set_aside');
+    + on project_freezes(hold_id, kind) where kind <> 'unrecorded_ending';
+    file: src/store/freezes.ts
+    - on conflict (hold_id, kind) where kind not in ('unrecorded_ending', 'journal_line_set_aside') do nothing
+    + on conflict (hold_id, kind) where kind <> 'unrecorded_ending' do nothing
+    | × (m) brought up to date with 1.4c: a set-aside's freeze is of kind 'journal_line_set_aside' (two lines may name one hold); the database refuses one with no hold, no fingerprint or a bill; it is refused with its own message, listed as freezing its project, refused by the record of a bill above its h
+    | Tests  1 failed | 13 skipped (14)
+    | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+    | error: duplicate key value violates unique constraint "project_freezes_one_overrun_per_hold"
+    RESULT: the test FAILED, as it should (exit 1)
+=== Z8m: 1.4c's Z8 on migration 012: the database's check that a freeze's bill is a number above its hold's amount
+    test: test/overrun.test.ts -t '1\.4c \(g\)'; on a database of its own, made empty for it
+    file: src/store/migrations/012_journal_set_asides.sql
+    - 
+    - and bill_usd <> 'NaN'::numeric and hold_amount_usd <> 'NaN'::numeric and bill_usd > hold_amount_usd));
+    + ));
+    | × 1.4c (g) after its review: the database refuses a freeze of the three new kinds whose bill is not above its hold, is not a number, or names no hold, and a second one of the same kind for the same hold; writing one twice through the store adds nothing 24ms
+    | Tests  1 failed | 17 skipped (18)
+    | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+    | AssertionError: project_freezes_overrun_figures: expected null to match object { code: '23514', …(1) }
+    RESULT: the test FAILED, as it should (exit 1)
+=== Z9m: 1.4c's Z9 on migration 012: the same check's refusal of 'NaN' (which PostgreSQL ranks above every number)
+    test: test/overrun.test.ts -t '1\.4c \(g\)'; on a database of its own, made empty for it
+    file: src/store/migrations/012_journal_set_asides.sql
+    - and bill_usd <> 'NaN'::numeric and hold_amount_usd <> 'NaN'::numeric and bill_usd > hold_amount_usd));
+    + and bill_usd > hold_amount_usd));
+    | × 1.4c (g) after its review: the database refuses a freeze of the three new kinds whose bill is not above its hold, is not a number, or names no hold, and a second one of the same kind for the same hold; writing one twice through the store adds nothing 29ms
+    | Tests  1 failed | 17 skipped (18)
+    | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+    | AssertionError: project_freezes_overrun_figures: expected null to match object { code: '23514', …(1) }
+    RESULT: the test FAILED, as it should (exit 1)
+=== Z10m: 1.4c's Z10 on migration 012: one freeze per hold and kind (the index made not unique)
+    test: test/overrun.test.ts -t '1\.4c \(g\)'; on a database of its own, made empty for it
+    file: src/store/migrations/012_journal_set_asides.sql
+    - create unique index project_freezes_one_overrun_per_hold
+    + create index project_freezes_one_overrun_per_hold
+    | × 1.4c (g) after its review: the database refuses a freeze of the three new kinds whose bill is not above its hold, is not a number, or names no hold, and a second one of the same kind for the same hold; writing one twice through the store adds nothing 114ms
+    | Tests  1 failed | 17 skipped (18)
+    | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+    | error: there is no unique or exclusion constraint matching the ON CONFLICT specification
+    RESULT: the test FAILED, as it should (exit 1)
+=== Y7m: 1.4c's Y7 on its code as merged (after 1.4c's review the condition names a third kind, so Y7's text is no longer found): the refusal's message naming the bill, the hold and the difference
+    test: test/overrun.test.ts -t '1\.4c \(a1\)'
+    file: src/store/freezes.ts
+    - if (f.kind === "bill_above_hold" || f.kind === "late_answer_above_hold" || f.kind === "kept_above_hold") {
+    + if (false) {
+    | × 1.4c (a1) not streamed: a bill above its hold is charged in full and, in the same transaction as its hold.exceeded, freezes the project naming that hold; the project's next calls are refused with nothing forwarded; another project's call is forwarded 95ms
+    | Tests  1 failed | 17 skipped (18)
+    | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+    | AssertionError: expected 'This project is stopped: a model call…' to contain 'was billed $0.012284, more than its h…'
+    RESULT: the test FAILED, as it should (exit 1)
+=== X2m: 1.4b's X2 on its code since its review (markDone now rewrites through rewriteWithout): markDone keeping the lines it does not move (here: also moving every line that is not a readable record)
+    test: test/journal-recovery.test.ts -t '\(c\) markDone'
+    file: src/gateway/journal.ts
+    - (lines) => lines.filter(isIt),
+    + (lines) => lines.filter((l) => isIt(l) || readLine(l).kind !== "record"),
+    | × (c) markDone keeps every line it does not move byte for byte (one not JSON, one not UTF-8, a blank one, and a last one with no line end), and an append after that last line starts on a line of its own 47ms
+    | Tests  1 failed | 13 skipped (14)
+    | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+    | AssertionError: expected false to be true // Object.is equality
+    RESULT: the test FAILED, as it should (exit 1)
+=== X8m: 1.4b's X8 on its code since its review (appends go through appendWhole): an append after a last line with no line end starting on a line of its own
+    test: test/journal-recovery.test.ts -t '\(c\) markDone'
+    file: src/gateway/journal.ts
+    - await fh.writeFile(endsInsideALine ? Buffer.concat([NL, data]) : data);
+    + await fh.writeFile(data);
+    | × (c) markDone keeps every line it does not move byte for byte (one not JSON, one not UTF-8, a blank one, and a last one with no line end), and an append after that last line starts on a line of its own 39ms
+    | Tests  1 failed | 13 skipped (14)
+    | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+    | AssertionError: expected false to be true // Object.is equality
+    RESULT: the test FAILED, as it should (exit 1)
+=== X13m: 1.4b's X13 on its code since its review (only moves are guarded; an append still goes on, decision of 13 Nov): the journal moving nothing in its file while the gateway does not hold its folder's lock
+    test: test/journal-recovery.test.ts -t '\(g\) the folder'
+    file: src/gateway/journal.ts
+    - if (!this.mayWrite()) {
+    - throw Object.assign(
+    + if (false) {
+    + throw Object.assign(
+    | × (g) the folder's lock: a gateway that loses its connection does not take the folder back while a recovery holds it (it stays stopped meanwhile); its journal moves nothing in its file while it does not hold the lock, and still appends (1.4b's review) 1066ms
+    | Tests  1 failed | 13 skipped (14)
+    | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+    | AssertionError: expected 'written' to be 'JOURNAL_FOLDER_NOT_HELD' // Object.is equality
+    RESULT: the test FAILED, as it should (exit 1)
+=== controls that failed as they should: 17; that did not: 0
+exit code: 0
