@@ -22,6 +22,9 @@
  *   call; a gateway that has lost its liveness lock forwards nothing; a database that cannot be reached
  *   gets a 503 with the reason, not a bare 500. The gate and the liveness lock are checked on arrival and
  *   again just before each forward (a passed-through request, a counting call, a metered call).
+ * - Since package 1.4b: a journal line that could not be read at start-up keeps the gate closed for every
+ *   project until an operator recovers it and the gateway is restarted; every request then gets a 503 of its
+ *   own (`gateway_journal_unreadable`), on arrival and at the same re-checks, and nothing is forwarded.
  *
  * Design note: docs/design/stage-1.md, sections 2.4 and 5.5. Build plan: packages 1.2 and 1.4.
  */
@@ -244,16 +247,26 @@ export function createGateway(opts: GatewayOptions) {
       "gateway_unrecorded",
       `This gateway has stopped forwarding: a model call that ended at ${gate.oldest()?.ended_at ?? "an unknown time"} could not be recorded in the event log, and until it is, the gateway forwards nothing for any project. ${sent}`,
     );
+  // Package 1.4b: the refusal while the journal held a line that could not be read at start-up.
+  const journalUnreadable = (sent: string) =>
+    errorBody(
+      "gateway_journal_unreadable",
+      `This gateway forwards nothing, for any project: when it started, ${gate.unreadableLines().length} line(s) of its journal file could not be read. Such a line may be the record of a model call whose cost was not recorded, for a project that cannot be told. An operator has to recover the journal (builder/scripts/journal-recover.ts) and then restart the gateway, which reads its journal only when it starts. ${sent}`,
+    );
   /**
-   * Why this gateway must forward nothing now, if it must: its gate is closed, or it has lost its liveness lock.
-   * Checked again, with no await in between, just before each forward: a passed-through request, a metered call's
-   * counting call, and the metered call itself. A request that passed the checks on arrival may have waited for its
-   * token, its body or a database read while one closed (review of 1.4; review bot on 899cbf0).
+   * Why this gateway must forward nothing now, if it must: its journal held a line that could not be read (package
+   * 1.4b), its gate is closed, or it has lost its liveness lock. Checked again, with no await in between, just before
+   * each forward: a passed-through request, a metered call's counting call, and the metered call itself. A request
+   * that passed the checks on arrival may have waited for its token, its body or a database read while one closed
+   * (review of 1.4; review bot on 899cbf0).
    */
-  const stoppedNow = (): "gate" | "liveness" | null => (gate.closed() ? "gate" : opts.liveness && !opts.liveness.ok() ? "liveness" : null);
-  const stoppedBody = (why: "gate" | "liveness", sent: string) => (why === "gate" ? gateClosed(sent) : livenessLost(sent));
+  const stoppedNow = (): "journal" | "gate" | "liveness" | null =>
+    gate.unreadableLines().length > 0 ? "journal" : gate.closed() ? "gate" : opts.liveness && !opts.liveness.ok() ? "liveness" : null;
+  const stoppedBody = (why: "journal" | "gate" | "liveness", sent: string) => (why === "journal" ? journalUnreadable(sent) : why === "gate" ? gateClosed(sent) : livenessLost(sent));
 
   app.all("/v1/*", async (c) => {
+    // Package 1.4b. A journal line that could not be read at start-up: refused before anything else, nothing written.
+    if (gate.unreadableLines().length > 0) return c.json(journalUnreadable("Nothing was forwarded."), 503);
     // Package 1.4. These two refusals come before anything else, and write nothing to the database.
     if (opts.liveness && !opts.liveness.ok()) return c.json(livenessLost("Nothing was forwarded."), 503);
     // The gate: closed while a call's ending is unrecorded. It tries to record it first.
@@ -545,7 +558,12 @@ export function createGateway(opts: GatewayOptions) {
     const stoppedSince = stoppedNow();
     if (stoppedSince) {
       ended = true;
-      const why = stoppedSince === "gate" ? "a call's ending could not be recorded, so the gateway's gate closed" : "the gateway lost its liveness lock";
+      const why =
+        stoppedSince === "journal"
+          ? "a line of the gateway's journal could not be read, so its gate is closed"
+          : stoppedSince === "gate"
+            ? "a call's ending could not be recorded, so the gateway's gate closed"
+            : "the gateway lost its liveness lock";
       try {
         await releaseUnsentHold(opts.pool, { projectId: project.id, holdId, step, reason: `${why} before this call was forwarded (only the counting call, assumed to cost nothing, was sent)` });
       } catch (err) {
