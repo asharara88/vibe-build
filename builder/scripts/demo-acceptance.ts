@@ -179,7 +179,7 @@ try {
   for (const t of traceFiles(runA.runFolder.results)) {
     const entries = zipEntryNames(readFileSync(t));
     const frames = traceScreenFrames(entries);
-    log(`  Trace ${t.slice(runA.runFolder.results.length + 1)}: ${entries.length} entries; frames of the screen (screencast/*.jpeg): ${frames.length}; still images: ${entries.filter((e) => /\.png$/i.test(e)).length} (the screenshots the run keeps).`);
+    log(`  Trace ${t.slice(runA.runFolder.results.length + 1)}: ${entries.length} entries; frames of the screen (screencast/*.jpeg): ${frames.length}; other images in it (.png): ${entries.filter((e) => /\.png$/i.test(e)).length}. (The run's own screenshots are kept beside the trace, not in it.)`);
     if (frames.length) throw new Error("run A's trace holds frames of the screen, which the runner's configuration turns off");
   }
   const reason = `stand-in test run ${runA.runId}`;
