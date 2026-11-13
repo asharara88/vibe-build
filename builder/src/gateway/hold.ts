@@ -1,13 +1,20 @@
 /**
- * The worst-case hold for one model call (design note 5.5; build plan package 1.2).
+ * The hold for one model call (design note 5.5; build plan package 1.2): a reservation worked out
+ * from the provider's token estimate plus an assumed margin, not a proven ceiling on the bill.
+ * The gateway enforces a limit when a call is admitted (spend plus open holds plus this hold within
+ * the cap); it does not enforce that a bill stays within its hold (docs/KNOWN-GAPS.md, gaps 41 and 62).
  *
  * The hold is worked out from the request itself, before anything is forwarded:
- *   input  = the prompt's token count (from the provider's counting call, plus a margin)
+ *   input  = the prompt's token count (from the provider's counting call, which the provider calls
+ *            an estimate, plus an assumed margin)
  *            at the dearest input rate that could apply: the one-hour cache-write rate,
- *            at the long-prompt price when the prompt could reach that threshold;
+ *            at the long-prompt price when the counted prompt plus the margin reaches that
+ *            threshold (a prompt counted below it but billed above it is not covered);
  *   output = the request's max_tokens at the dearest output rate that could apply;
  *   both doubled when fast mode could apply.
- * A request the hold cannot bound is refused, never estimated.
+ * Requests that ask for what these inputs would not cover (non-default inference_geo, tools the
+ * provider runs, unlisted fields or beta features, fast mode without a listed price or permission)
+ * are refused, never estimated.
  */
 import { FAST_MODE_FACTOR, HAIKU_LONG_PROMPT, PRICES, type ModelPrice } from "./prices.js";
 
@@ -96,7 +103,7 @@ export function guardRequest(body: MeteredRequest, profile: ProfileLimits): Refu
   if (unknown.length > 0) {
     return {
       reason: "field_not_allowed",
-      message: `The request carries ${unknown.length === 1 ? "a field" : "fields"} the gateway does not forward (${unknown.slice(0, 5).join(", ")}). The most a call can cost is worked out from a fixed list of fields; anything else could change the price or add prompt content that was not counted.`,
+      message: `The request carries ${unknown.length === 1 ? "a field" : "fields"} the gateway does not forward (${unknown.slice(0, 5).join(", ")}). A call's hold is worked out from a fixed list of fields; anything else could change the price or add prompt content that was not counted.`,
       detail: { fields: unknown.slice(0, 20) },
     };
   }

@@ -1,0 +1,7 @@
+# Never sent to the image build: local settings, installed packages, build output.
+node_modules
+.next
+.env
+.env.*
+!.env.example
+licences.csv

@@ -327,7 +327,7 @@ describe("model gateway: key and metering", () => {
 
 describe("holds: a call that ends without readable usage keeps its hold open", () => {
   // Marking these holds for the owner's list, and closing them, are packages 1.4 and 1.5.
-  // What package 1.2 guarantees is the direction: nothing is released.
+  // What these tests check is the direction: nothing is released.
   const expectKept = async (id: string, reasonPart: string) => {
     const kept = await waitForEvents(id, "hold.kept", 1);
     expect(kept).toHaveLength(1);

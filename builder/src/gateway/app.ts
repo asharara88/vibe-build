@@ -280,11 +280,11 @@ export function createGateway(opts: GatewayOptions) {
       });
       const cj = cr.ok ? ((await cr.json()) as { input_tokens?: unknown }) : null;
       if (!cj || typeof cj.input_tokens !== "number" || !Number.isFinite(cj.input_tokens) || cj.input_tokens < 0) {
-        return refuse(502, "prompt_not_counted", "prompt_not_counted", "The prompt could not be counted by the provider, so the most this call could cost is not known. The gateway did not forward it.", { count_status: cr.status });
+        return refuse(502, "prompt_not_counted", "prompt_not_counted", "The prompt could not be counted by the provider, so this call's hold cannot be worked out. The gateway did not forward it.", { count_status: cr.status });
       }
       counted = Math.ceil(cj.input_tokens);
     } catch (err) {
-      return refuse(502, "prompt_not_counted", "prompt_not_counted", "The prompt could not be counted by the provider, so the most this call could cost is not known. The gateway did not forward it.", { error: errorSummary(err) });
+      return refuse(502, "prompt_not_counted", "prompt_not_counted", "The prompt could not be counted by the provider, so this call's hold cannot be worked out. The gateway did not forward it.", { error: errorSummary(err) });
     }
 
     // 3: work out the hold and check the budget equation, in one locked transaction.

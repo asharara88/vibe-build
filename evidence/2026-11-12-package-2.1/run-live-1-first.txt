@@ -1,0 +1,179 @@
+# Run 1, the first run. Edited after the run: drizzle-kit's terminal colour codes were removed from this file, and the checkout's path is shown as <checkout>. The build was not told to skip Docker's cache, and this output does not say which steps came from it (see scripted-engine.md, run 1).
+Template copied from <checkout>/templates/next to the project workspace.
+Compose project builder_demo_scripted: db, egress, app, tools, and engine for one step at a time. Secrets written to the sandbox's secrets folder only.
+Workspace handed to the engine's user (uid 1000).
+
+== 1. The project's history, kept outside the workspace ==
+  git --git-dir=<sandbox>/workspace.git --work-tree=<sandbox>/workspace: first commit f69dc95 (the template copy).
+  The repository folder holds: COMMIT_EDITMSG, HEAD, branches, builder-ignored-files.json, config, description, hooks, index, info, logs, objects, refs
+  The workspace holds no .git: true
+
+== 2. The two fixed steps, each in a fresh engine container ==
+  Engine: scripted. Steps of example-1: 01-data, 02-submitter-screen.
+  Protected paths, each mounted read-only over itself (12): src/auth.ts, src/lib/roles.tsx, src/lib/access.ts, src/app-config.ts, src/db/schema.ts, scripts/check-guards.ts, package.json, package-lock.json, Dockerfile, .dockerignore, next.config.ts, tsconfig.json
+
+  -- step 01-data --
+  event text: Scripted engine: fixed change example-1/01-data. The instruction (70 characters) is not read. No model is called.
+  event text: Scripted engine: The data step: the leave-request table, the configuration that names it, and the banner sentence that labels the app as built by the scripted engine (4 files).
+  event tool_call: scripted.write {"op":"add","path":"src/db/app-schema.ts","sha256":"89b7086a7ec0162537892c3786587354bd69df43c597a15e88934239484d5c87"}
+  event tool_call: scripted.write {"op":"replace","path":"drizzle.config.ts","sha256":"ab958c36ecc0b3f1f8f4238fc2b0a6ce9a42fe733ccbf4f55c4c420b25783192"}
+  event tool_call: scripted.write {"op":"replace","path":"messages/en.json","sha256":"a5baa4d2febeebcd453b1c6ddd91747cf87a027939dd301eed6a082cacb81b61"}
+  event tool_call: scripted.write {"op":"replace","path":"messages/ar.json","sha256":"1138ac8b1e73cc273d50ef9c54a1087570f1523134402b38435c729de669fdf0"}
+  event finished
+  result: ok=true, turns=4, usage={"input_tokens":0,"output_tokens":0,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"cache_creation_1h_tokens":0,"speed":"standard"}
+  files git saw changed (4): drizzle.config.ts, messages/ar.json, messages/en.json, src/db/app-schema.ts
+  commit: 111cfa1 Scripted engine <scripted@example.invalid>, committed by Builder: [scripted] example-1 01-data
+
+  -- step 02-submitter-screen --
+  event text: Scripted engine: fixed change example-1/02-submitter-screen. The instruction (82 characters) is not read. No model is called.
+  event text: Scripted engine: The submitter's screen: an employee's list of their own requests, and a form to add one, with validation (8 files).
+  event tool_call: scripted.write {"op":"add","path":"src/app/[locale]/my-requests/rules.ts","sha256":"d76ce93b1e679e3273ba6ce8ae07eed8b7ccfbcb74765d1eda27931a491b6de4"}
+  event tool_call: scripted.write {"op":"add","path":"src/app/[locale]/my-requests/page.tsx","sha256":"1d8312095a1d19cdec6ed24f70fc7d7ed76e627ebe129557c1c6b17078cbf54b"}
+  event tool_call: scripted.write {"op":"add","path":"src/app/[locale]/my-requests/new/page.tsx","sha256":"f22909bc853cdc2a9decb4326cf8cd367e69fbbba886c42998545da4373eb70d"}
+  event tool_call: scripted.write {"op":"add","path":"src/app/[locale]/my-requests/new/NewRequestForm.tsx","sha256":"0dc39f5cb6743b996f9b2dde55d8cce128bb2e3a70e2f5dbeaf27d877724c468"}
+  event tool_call: scripted.write {"op":"add","path":"src/app/[locale]/my-requests/new/actions.ts","sha256":"a661302f9789a15a30dcb70777b26b4598cb10f9ae3f2c3cad20a620f0494908"}
+  event tool_call: scripted.write {"op":"replace","path":"src/app/[locale]/home/page.tsx","sha256":"5b885e59ccb293d7ae9de8d6a0e63e7fb8159e5a89c46779f94c4370ea06b139"}
+  event tool_call: scripted.write {"op":"replace","path":"messages/en.json","sha256":"71cc5745853eaae1762d5427a8a7826e5a5ba528daf8405a37b1f8b5c8f02d9c"}
+  event tool_call: scripted.write {"op":"replace","path":"messages/ar.json","sha256":"b9a668bf4396310679658847f77cec1ce49832637f7bae24887a36b453eb2057"}
+  event finished
+  result: ok=true, turns=8, usage={"input_tokens":0,"output_tokens":0,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"cache_creation_1h_tokens":0,"speed":"standard"}
+  files git saw changed (8): messages/ar.json, messages/en.json, src/app/[locale]/home/page.tsx, src/app/[locale]/my-requests/new/NewRequestForm.tsx, src/app/[locale]/my-requests/new/actions.ts, src/app/[locale]/my-requests/new/page.tsx, src/app/[locale]/my-requests/page.tsx, src/app/[locale]/my-requests/rules.ts
+  commit: 4eebcce Scripted engine <scripted@example.invalid>, committed by Builder: [scripted] example-1 02-submitter-screen
+
+== 3. A probe in the engine service, with the same mounts as a step ==
+  user id: 1000
+  write /workspace/src/auth.ts: refused (EROFS)
+  write /workspace/src/lib/roles.tsx: refused (EROFS)
+  write /workspace/certs/planted.crt: refused (EROFS)
+  write /engine/planted.txt: refused (EROFS)
+  certs folder as the engine sees it: []
+  mount / read-only
+  mount /engine read-only
+  mount /tmp read-write
+  mount /workspace read-write
+  mount /workspace/.dockerignore read-only
+  mount /workspace/Dockerfile read-only
+  mount /workspace/certs read-only
+  mount /workspace/next.config.ts read-only
+  mount /workspace/package-lock.json read-only
+  mount /workspace/package.json read-only
+  mount /workspace/tsconfig.json read-only
+  mount /workspace/scripts/check-guards.ts read-only
+  mount /workspace/src/app-config.ts read-only
+  mount /workspace/src/auth.ts read-only
+  mount /workspace/src/db/schema.ts read-only
+  mount /workspace/src/lib/access.ts read-only
+  mount /workspace/src/lib/roles.tsx read-only
+  network interfaces: lo
+  settings inside (names only): HOME, HOSTNAME, NODE_VERSION, PATH, YARN_VERSION
+  connect to 127.0.0.1:5557 (the project database port on the host): failed (ECONNREFUSED)
+  name lookup of registry.npmjs.org: failed (EAI_AGAIN)
+  probe exit code 0
+
+== 4. The image build: the template's guard check, then next build ==
+  Guard check (rule 5): 44 code files read in the component.
+  action  src/app/[locale]/example/action/actions.ts  runExampleAction = guardedAction(["manager", "hr_admin"])
+  page    src/app/[locale]/example/action/page.tsx  guardedPage(ROLES)
+  page    src/app/[locale]/example/restricted/page.tsx  guardedPage(["hr_admin"])
+  page    src/app/[locale]/home/page.tsx  guardedPage(ploye)
+  action  src/app/[locale]/my-requests/new/actions.ts  submitLeaveRequest = guardedAction(loyee record)
+  page    src/app/[locale]/my-requests/new/page.tsx  guardedPage( "./NewReque)
+  page    src/app/[locale]/my-requests/page.tsx  guardedPage(n requests, )
+  page    src/app/[locale]/no-access/page.tsx  publicPage("the plain \"no access\" message: it shows no data and must be readable by someone who was)
+  page    src/app/[locale]/page.tsx  publicPage("shows nothing: it only sends a visitor to the home page or to sign-in")
+  page    src/app/[locale]/sign-in/page.tsx  publicPage("the sign-in form: it must be reachable before anyone is signed in")
+  route   src/app/api/auth/[...all]/route.ts  GET = publicRoute(reason)
+  route   src/app/api/auth/[...all]/route.ts  POST = publicRoute(reason)
+  route   src/app/api/example/roles/route.ts  GET = guardedRoute(["manager", "hr_admin"])
+  RESULT: PASSED
+  next build listed:
+  ├ ƒ /[locale]/home
+  ├ ƒ /[locale]/my-requests
+  ├ ƒ /[locale]/my-requests/new
+  Images built in 34 s from the start of the run.
+
+== 5. Tables and sample users in the tools container; the table read back; the app started ==
+  drizzle-kit push (last lines):
+  Using 'pg' driver for database querying
+  [⣷] Pulling schema from database...
+  [✓] Pulling schema from database...
+  [✓] Changes applied
+  created: employee@example.test (employee)
+  created: manager@example.test (manager)
+  created: hr.admin@example.test (hr_admin)
+  columns of leave_request:
+  column_name | data_type | is_nullable | coalesce
+  id | uuid | NO | gen_random_uuid()
+  employee | text | NO | 
+  start_date | date | NO | 
+  end_date | date | NO | 
+  days | integer | NO | 
+  reason | text | YES | 
+  status | text | NO | 'waiting'::text
+  decision_note | text | YES | 
+  created_at | timestamp with time zone | NO | now()
+  created_by | text | NO | 
+  updated_at | timestamp with time zone | NO | now()
+  updated_by | text | NO | 
+  (12 rows)
+  checks and links of leave_request:
+  conname | pg_get_constraintdef
+  leave_request_created_by_user_id_fk | FOREIGN KEY (created_by) REFERENCES "user"(id)
+  leave_request_days_within_range | CHECK (((days >= 1) AND (days <= ((end_date - start_date) + 1))))
+  leave_request_employee_user_id_fk | FOREIGN KEY (employee) REFERENCES "user"(id)
+  leave_request_last_day_not_before_first | CHECK ((end_date >= start_date))
+  leave_request_pkey | PRIMARY KEY (id)
+  leave_request_status_known | CHECK ((status = ANY (ARRAY['waiting'::text, 'approved'::text, 'rejected'::text, 'withdrawn'::text])))
+  leave_request_updated_by_user_id_fk | FOREIGN KEY (updated_by) REFERENCES "user"(id)
+  (7 rows)
+  With the database now listening on the host, from the engine container again:
+  connect to 127.0.0.1:5557 (the project database port on the host): failed (ECONNREFUSED)
+  name lookup of registry.npmjs.org: failed (EAI_AGAIN)
+  Starting the app container and waiting for it to answer...
+  Container app: running (healthy)
+  Container db: running (healthy)
+
+== 6. The screens, as the sample employee sees them (scripts/screenshot-scripted.ts) ==
+  PASS  banner (English) names the scripted engine: expected true; saw true
+  PASS  My requests before any request: requests listed: expected 0; saw 0
+  PASS  My requests before any request: empty state: expected You have no leave requests yet; saw You have no leave requests yet
+  PASS  form refuses 9 working days from Monday 3 to Friday 7 May 2027: expected Working days requested cannot be more than 5, the number of calendar days from the first day of leave to the last.; saw Working days requested cannot be more than 5, the number of calendar days from the first day of leave to the last.
+  PASS  nothing was sent: still on the form: expected /en/my-requests/new; saw /en/my-requests/new
+  PASS  My requests after sending: requests listed: expected 1; saw 1
+  PASS  the request's status, as stored: expected waiting; saw waiting
+  PASS  the request's status, as shown (English): expected Waiting; saw Waiting
+        (the request as listed: May 3, 2027 to May 7, 2027 / Waiting / Working days requested: 5 / Reason: Made-up family visit. / Sent on November 12, 2026)
+  PASS  the confirmation: expected Your request was saved. Its status is Waiting.; saw Your request was saved. Its status is Waiting.
+  PASS  My requests in Arabic: direction of the page: expected rtl; saw rtl
+  PASS  the request's status, as shown (Arabic): expected قيد الانتظار; saw قيد الانتظار
+  PASS  banner (Arabic) names the scripted engine: expected true; saw true
+  PASS  My requests at phone width 390, Arabic: no sideways scrolling: expected true; saw true
+  PASS  My requests at phone width 390, English: no sideways scrolling: expected true; saw true
+  
+  RESULT: PASSED
+  the request as stored:
+  email | start_date | end_date | days | status | created_by_is_employee | updated_by_is_employee
+  employee@example.test | 2027-05-03 | 2027-05-07 | 5 | waiting | t | t
+  (1 row)
+
+== 7. The project's history ==
+  4eebcce  Scripted engine <scripted@example.invalid>  [scripted] example-1 02-submitter-screen
+  111cfa1  Scripted engine <scripted@example.invalid>  [scripted] example-1 01-data
+  f69dc95  Builder <builder@example.invalid>  Template copy: templates/next as copied into the project
+    files in 4eebcce:
+    M	messages/ar.json
+    M	messages/en.json
+    M	src/app/[locale]/home/page.tsx
+    A	src/app/[locale]/my-requests/new/NewRequestForm.tsx
+    A	src/app/[locale]/my-requests/new/actions.ts
+    A	src/app/[locale]/my-requests/new/page.tsx
+    A	src/app/[locale]/my-requests/page.tsx
+    A	src/app/[locale]/my-requests/rules.ts
+    files in 111cfa1:
+    M	drizzle.config.ts
+    M	messages/ar.json
+    M	messages/en.json
+    A	src/db/app-schema.ts
+
+Whole run: 56 s.
+Removed: containers, network, volume, images and the temporary folder. Containers of the project left: none. Images of the project left: none.

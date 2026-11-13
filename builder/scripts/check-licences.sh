@@ -1,24 +1,15 @@
 #!/usr/bin/env bash
-# Automated licence check (hard rule 2). Fails if any production dependency carries a licence
-# outside the permitted list. Exceptions the owner approved in writing are listed by name.
+# Licence check (hard rule 2; build plan package 0.4). One rule for every installed package,
+# shipped or development: a licence on the permitted list, or a package the owner approved by
+# name for a named use. The rule and the names are in licence-rule.json; the code is in
+# src/licence/. Every problem is listed; the exit code is 1 if there is any.
 set -euo pipefail
 cd "$(dirname "$0")/.."
-ALLOW="MIT;Apache-2.0;BSD-2-Clause;BSD-3-Clause;ISC;0BSD;BlueOak-1.0.0;CC0-1.0;Python-2.0;PostgreSQL;Unlicense"
-# Owner-approved exceptions, each with the date and place of the written approval:
-# - @anthropic-ai/claude-agent-sdk: Anthropic Commercial Terms of Service. Approved by the owner
-#   on 11 Nov 2026, recorded in docs/DECISIONS.md.
-EXCLUDE="@anthropic-ai/claude-agent-sdk"
-echo "Production dependencies:"
-npx license-checker-rseidelsohn --production --onlyAllow "$ALLOW" --excludePackages "$EXCLUDE" --excludePrivatePackages --summary
-# Development tools are not shipped to customers. They must still be free of strong copyleft, and any
-# licence outside the permitted list is printed here so it is seen and recorded (docs/OPEN-DECISIONS.md).
-FAIL_ON="GPL-1.0;GPL-2.0;GPL-3.0;AGPL-1.0;AGPL-3.0;LGPL-2.0;LGPL-2.1;LGPL-3.0;SSPL-1.0;BUSL-1.1;CC-BY-NC-4.0"
-echo "All dependencies, development tools included (summary):"
-npx license-checker-rseidelsohn --failOn "$FAIL_ON" --excludePackages "$EXCLUDE" --excludePrivatePackages --summary
-echo "Development-only packages whose licence is outside the permitted list:"
-npx license-checker-rseidelsohn --development --excludePackages "$EXCLUDE" --excludePrivatePackages --csv 2>/dev/null \
-  | awk -F'","' 'NR>1 { gsub(/"/, "", $0); split($0, f, ","); print f[1] " | " f[2] }' \
-  | grep -vE ' \| (MIT|Apache-2\.0|BSD-2-Clause|BSD-3-Clause|ISC|0BSD|BlueOak-1\.0\.0|CC0-1\.0|Python-2\.0|PostgreSQL|Unlicense)( OR .*)?$' \
-  || echo "  none"
-npx license-checker-rseidelsohn --excludePrivatePackages --csv --out licences.csv >/dev/null
-echo "Licence report (every dependency) written to builder/licences.csv"
+# The only argument taken is --write (rewrite the notices file and the report). The rule file and
+# the folder are fixed here: this script always checks this component with its own rule.
+if [ "$#" -gt 1 ] || { [ "$#" -eq 1 ] && [ "$1" != "--write" ]; }; then
+  echo "PROBLEM: this script takes no argument other than --write."
+  echo "RESULT: FAILED"
+  exit 1
+fi
+exec npx tsx src/licence/check.ts "$@"

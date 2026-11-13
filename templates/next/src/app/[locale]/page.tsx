@@ -1,10 +1,7 @@
-import { setRequestLocale } from "next-intl/server";
 import { redirect } from "@/i18n/navigation";
-import { currentUser } from "@/lib/roles";
+import { publicPage, whoIsAsking } from "@/lib/roles";
 
-export default async function Index({ params }: { params: Promise<{ locale: string }> }) {
-  const { locale } = await params;
-  setRequestLocale(locale);
-  const user = await currentUser();
-  redirect({ href: user ? "/home" : "/sign-in", locale });
-}
+export default publicPage("shows nothing: it only sends a visitor to the home page or to sign-in", async ({ locale }) => {
+  const who = await whoIsAsking();
+  return redirect({ href: who.kind === "nobody" ? "/sign-in" : "/home", locale });
+});

@@ -1,0 +1,14 @@
+# How long a process lives after it kills a streaming run (review note on kill()'s 15-second timer).
+# Script: the measurement script kept beside this file as measure-kill-timer.mts. It starts the engine service's
+# container with a command that waits 60 s, kills it after 1.5 s with kill(), removes the project, and prints when
+# all work was done and when the process exited. Made-up data only; no model; run on 12 Nov 2026 17:06 UTC.
+
+== Before the fix: builder/src/sandbox/manager.ts as at commit 3f42df2 ==
+line: running
+run ended with code 137; all work done 1.7 s after the start
+process exits 16.6 s after the start
+
+== After the fix: builder/src/sandbox/manager.ts in this branch's working tree (committed next) ==
+line: running
+run ended with code 137; all work done 1.7 s after the start
+process exits 1.7 s after the start

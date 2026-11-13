@@ -1,0 +1,22 @@
+# Read on the machine itself, read-only, on 12 Nov 2026 21:31 UTC, after the run at cf5d41f, with no project running and no container attached to Docker's default network. Nothing was changed or connected to.
+# Each interface's state and carrier, as the kernel lists them (/sys/class/net/<name>/operstate and carrier; "not readable" means the kernel refused to give the carrier for that interface):
+docker0: operstate down, carrier 0
+eth0: operstate up, carrier 1
+ifb0: operstate down, carrier not readable
+ifb1: operstate down, carrier not readable
+lo: operstate unknown, carrier 1
+
+# Each interface's IPv4 address, asked of the kernel one by one (Python's socket module, the read-only SIOCGIFADDR request; the 'ip' command is not installed here):
+docker0: 172.17.0.1
+eth0: 192.0.2.2
+ifb0: no IPv4 address (errno 99)
+ifb1: no IPv4 address (errno 99)
+lo: 127.0.0.1
+
+# The machine's own (local) IPv4 addresses, from /proc/net/fib_trie:
+127.0.0.1
+172.17.0.1
+192.0.2.2
+
+# Node's own list on the machine (os.networkInterfaces(), which leaves out an interface that is not up and running):
+lo (127.0.0.1); eth0 (192.0.2.2)

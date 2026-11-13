@@ -1,0 +1,22 @@
+# The template's checks on the integration branch claude/stage-1 at commit 3259e1e (the merge of pull request #15). 12 November 2026.
+$ npm run check:guards
+Guard check (rule 5): 38 code files read in the component.
+Pages, form actions and data routes, each with its guard and what the guard is given:
+  action  src/app/[locale]/example/action/actions.ts  runExampleAction = guardedAction(["manager", "hr_admin"])
+  page    src/app/[locale]/example/action/page.tsx  guardedPage(ROLES)
+  page    src/app/[locale]/example/restricted/page.tsx  guardedPage(["hr_admin"])
+  page    src/app/[locale]/home/page.tsx  guardedPage(ROLES)
+  page    src/app/[locale]/no-access/page.tsx  publicPage("the plain \"no access\" message: it shows no data and must be readable by someone who was)
+  page    src/app/[locale]/page.tsx  publicPage("shows nothing: it only sends a visitor to the home page or to sign-in")
+  page    src/app/[locale]/sign-in/page.tsx  publicPage("the sign-in form: it must be reachable before anyone is signed in")
+  route   src/app/api/auth/[...all]/route.ts  GET = publicRoute(reason)
+  route   src/app/api/auth/[...all]/route.ts  POST = publicRoute(reason)
+  route   src/app/api/example/roles/route.ts  GET = guardedRoute(["manager", "hr_admin"])
+RESULT: PASSED
+exit code: 0
+
+$ npm test
+# tests 39
+# pass 39
+# fail 0
+exit code: 0

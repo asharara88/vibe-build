@@ -1,0 +1,67 @@
+Template copied from <repository>/templates/next to the project workspace.
+Compose project builder_demo_template: db, egress, app. Secrets written to the sandbox's secrets folder only.
+Building the app image inside Docker (development profile: build steps use the session proxy)...
+Image built in 15 s.
+Creating the tables (drizzle-kit push) and the three sample users (seed)...
+  created: employee@example.test (employee)
+  created: manager@example.test (manager)
+  created: hr.admin@example.test (hr_admin)
+Starting the app container and waiting for it to answer...
+  Container app: running (healthy)
+  Container db: running (healthy)
+
+Screenshots, taken by a browser as a person would see the pages:
+  sign-in (English): title "Internal app", dir=ltr
+  sign-in (Arabic): title "تطبيق داخلي", dir=rtl
+  validation messages shown: Enter your work email address. | Enter your password.
+  home (English): Signed in as Sample Employee (Employee)
+  home (Arabic): مسجّل الدخول باسم Sample Employee (موظف), dir=rtl
+  wrong password message: The email or password is not right. Check both and try again.
+  phone width 390: page scroll width 390 (no sideways scrolling when 390)
+
+The role guard, tried by each kind of visitor (scripts/guard-checks.ts):
+  (a new account was made through the sign-up route for the "no role" visitor: HTTP 200)
+  
+  1. The example page for HR admins only (/en/example/restricted)
+  PASS  page, employee: expected the "no access" page (role_not_allowed); saw the "no access" page (role_not_allowed)
+  PASS  page, manager: expected the "no access" page (role_not_allowed); saw the "no access" page (role_not_allowed)
+  PASS  page, HR admin: expected the page (example-restricted); saw the page (example-restricted)
+  PASS  page, no recognised role: expected the "no access" page (role_not_recognised); saw the "no access" page (role_not_recognised)
+  PASS  page, not signed in: expected the sign-in page; saw the sign-in page
+  PASS  page in Arabic, employee: direction of the page: expected rtl; saw rtl
+  
+  2. The home page, open to every recognised role (/en/home)
+  PASS  home, employee: expected the page (signed-in-as); saw the page (signed-in-as)
+  PASS  home, manager: expected the page (signed-in-as); saw the page (signed-in-as)
+  PASS  home, HR admin: expected the page (signed-in-as); saw the page (signed-in-as)
+  PASS  home, no recognised role: expected the "no access" page (role_not_recognised); saw the "no access" page (role_not_recognised)
+  PASS  home, not signed in: expected the sign-in page; saw the sign-in page
+  
+  3. The example data route for managers and HR admins (/api/example/roles)
+  PASS  route, employee: expected 403 no_access; saw 403 no_access
+  PASS  route, manager: expected 200 {"role":"manager"}; saw 200 {"role":"manager"}
+  PASS  route, HR admin: expected 200 {"role":"hr_admin"}; saw 200 {"role":"hr_admin"}
+  PASS  route, no recognised role: expected 403 no_access; saw 403 no_access
+  PASS  route, not signed in: expected 401 not_signed_in; saw 401 not_signed_in
+  
+  4. The example form action for managers and HR admins, through the page's button (/en/example/action)
+  PASS  action by button, employee: expected sent to /en/no-access; saw sent to /en/no-access
+  PASS  action by button, manager: expected done, for the role Manager; saw done, for the role Manager
+  PASS  action by button, HR admin: expected done, for the role HR admin; saw done, for the role HR admin
+  
+  4b. The same, from the Arabic page: a refused employee lands on the Arabic "no access" page
+  PASS  action by button from the Arabic page, employee: expected /ar/no-access; saw /ar/no-access
+  
+  5. The same form action, sent directly as the form would send it, by each visitor
+  (hidden fields of the form: 1)
+  PASS  action sent directly, employee: expected 303 to /en/no-access; saw 303 to /en/no-access
+  PASS  action sent directly, manager: expected 303 to /en/example/action?done=manager; saw 303 to /en/example/action?done=manager
+  PASS  action sent directly, HR admin: expected 303 to /en/example/action?done=hr_admin; saw 303 to /en/example/action?done=hr_admin
+  PASS  action sent directly, no recognised role: expected 303 to /en/no-access; saw 303 to /en/no-access
+  PASS  action sent directly, not signed in: expected 303 to /en/sign-in; saw 303 to /en/sign-in
+  PASS  "no access" page at phone width 390, Arabic: no sideways scrolling: expected true; saw true
+  
+  RESULT: PASSED
+
+Whole run: 87 s.
+Containers, network, volume, image and the temporary folder removed.

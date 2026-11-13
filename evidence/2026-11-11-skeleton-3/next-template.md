@@ -50,3 +50,7 @@ Package "caniuse-lite@1.0.30001823" is licensed under "CC-BY-4.0" which is not p
 ```
 
 The template's own licence check **fails on purpose** at this point: Next.js depends on the browser-support data file `caniuse-lite`, which is under Creative Commons Attribution 4.0, a licence outside the permitted list. It is a data file, not code, and the licence asks for credit. The owner's written exception is requested in `docs/OPEN-DECISIONS.md` (item 11). Until then the check stays red rather than being weakened (hard rule 8).
+
+## Correction, 12 November 2026
+
+The statement above that the template's licence check fails on `caniuse-lite` is true but incomplete. The tool behind that check stops at the first package it refuses. A check that lists every problem (package 0.4a) shows three more packages outside the permitted list in the template, all part of the image library `sharp` and carrying LGPL-3.0-or-later; two are among the shipped dependencies. See `evidence/2026-11-12-package-0.4a/licence-rule.md` and known gap 40.
