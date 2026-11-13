@@ -14,8 +14,8 @@
  * run every 30 seconds) has marked it yet: every function here that can close a hold first marks,
  * in its own transaction and under the project's lock, the project's open holds past their
  * deadline, as the sweep does, and only then reads the hold (review bot on 7ce5a33). Deadlines are
- * judged by the gateway's clock (`new Date()` in the gateway process), as the sweep and admission
- * judge them, taken once the lock is held.
+ * judged by the gateway's clock (`new Date()` in the gateway process): settlement, release and
+ * admission read it once the project's lock is held; the 30-second pass reads it once, at its start.
  */
 import type pg from "pg";
 
@@ -62,8 +62,8 @@ export function getBudget(pool: pg.Pool, projectId: string): Promise<Budget> {
   return readBudget(pool, projectId);
 }
 
-async function event(q: Queryable, projectId: string, kind: string, payload: Record<string, unknown>, step: string | null) {
-  await q.query("insert into events(project_id, kind, step, payload) values ($1, $2, $3, $4)", [projectId, kind, step, JSON.stringify(payload)]);
+async function event(q: Queryable, projectId: string, kind: string, payload: Record<string, unknown>, step: string | null): Promise<string> {
+  return (await q.query<{ id: string }>("insert into events(project_id, kind, step, payload) values ($1, $2, $3, $4) returning id", [projectId, kind, step, JSON.stringify(payload)])).rows[0]!.id;
 }
 
 async function inTransaction<T>(pool: pg.Pool, projectId: string, fn: (c: pg.PoolClient) => Promise<T>): Promise<T> {
@@ -309,4 +309,169 @@ export async function recoverHolds(pool: pg.Pool, gateway: string, now: Date = n
 export async function listHolds(pool: pg.Pool, projectId: string): Promise<Hold[]> {
   const r = await pool.query<Hold>("select * from holds where project_id = $1 order by id", [projectId]);
   return r.rows;
+}
+
+/*
+ * Changing a project's cap (build plan package 1.2b; the owner's answer to question 13, 13 Nov 2026,
+ * "a, add the cap change after 1.2"; design note 5.5 and proof rows B20 to B22).
+ *
+ * `changeCap` is run by Claude Code or an engineer when the owner asks (`builder/scripts/change-cap.ts`).
+ * Who asked and who ran it are stated by the caller: nothing here checks them. The change and its
+ * `cap.changed` event are written in ONE transaction, under the same lock on the project's row that
+ * every admission takes, so a change and a call being let through are judged one after the other.
+ *
+ * A lowering below what the project has already spent plus its open holds is refused (Claude Code's
+ * default, pending the owner's question 14): it would make "recorded spend plus open holds is never
+ * above the approved cap" (design note 5.5, the two invariants) untrue. The refusal names the lowest
+ * figure allowed at that moment. A refusal of any kind changes nothing and writes nothing.
+ */
+
+/** Why a cap change was refused. Each refusal has its own code. */
+export type CapChangeRefusalCode =
+  | "cap_not_a_number"
+  | "cap_below_zero"
+  | "cap_too_large"
+  | "cap_more_than_4_decimals"
+  | `${"asked_by" | "changed_by" | "reason"}_${"missing" | "too_long" | "not_storable"}`
+  | "unknown_project"
+  | "no_change"
+  | "below_spent_plus_open_holds"
+  | "stored_figure_differs";
+
+/** A cap change that was refused: nothing was changed and nothing was written. */
+export class CapChangeRefused extends Error {
+  constructor(
+    readonly code: CapChangeRefusalCode,
+    message: string,
+    /** Only for a lowering below spent plus open holds: the lowest cap allowed at that moment, in dollars, rounded up to 4 decimals. */
+    readonly lowestAllowedUsd: number | null = null,
+  ) {
+    super(message);
+    this.name = "CapChangeRefused";
+  }
+}
+
+export interface CapChange {
+  projectId: string;
+  oldCapUsd: number;
+  newCapUsd: number;
+  /** What the project had spent, and held in open holds, at the moment of the change. */
+  spentUsd: number;
+  openHoldsUsd: number;
+  openHolds: number;
+  askedBy: string;
+  changedBy: string;
+  reason: string;
+  /** The id of the `cap.changed` event. Events written under the project's lock are numbered in the order the lock was held. */
+  eventId: string;
+  /** The database's clock (`clock_timestamp()`), read under the project's lock. The event's own `at` is when its transaction began, which can be before the wait for the lock. */
+  changedAt: string;
+}
+
+const NOTHING_CHANGED = "Nothing was changed and nothing was written.";
+/** The longest name or reason accepted, in characters. */
+const MAX_TEXT = 500;
+/** Half of a surrogate pair: the database's JSON type refuses it, as it refuses a NUL character. */
+const LONE_SURROGATE_IN = /[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[\udc00-\udfff]/;
+
+/**
+ * The new figure must be a number of dollars, 0 or more, below $100,000,000 (the bound `settleHold`
+ * uses, and the most the column holds), with at most 4 decimals (what the column keeps: the database
+ * would round a fifth decimal silently, and turn 0.00001 into 0).
+ */
+function checkCapFigure(x: unknown): number {
+  if (typeof x !== "number" || !Number.isFinite(x)) {
+    throw new CapChangeRefused("cap_not_a_number", `The new cap is not a number of dollars (got ${typeof x === "number" ? String(x) : typeof x}). ${NOTHING_CHANGED}`);
+  }
+  if (x < 0) throw new CapChangeRefused("cap_below_zero", `The new cap is below $0 (got ${x}). ${NOTHING_CHANGED}`);
+  if (x >= 1e8) throw new CapChangeRefused("cap_too_large", `The new cap must be below $100,000,000 (got ${x}). ${NOTHING_CHANGED}`);
+  // Measured by a critic of the design: Number.isInteger(x * 1e4) refuses valid figures such as 0.0003; the round trip through toFixed(4) does not.
+  if (Number(x.toFixed(4)) !== x) {
+    throw new CapChangeRefused("cap_more_than_4_decimals", `The new cap has more than 4 decimal places (got ${x}); the database keeps 4 and would round it. ${NOTHING_CHANGED}`);
+  }
+  return x;
+}
+
+/** Who asked, who ran it and why: text, trimmed, not empty, at most 500 characters, and storable in the event log. */
+function checkText(field: "asked_by" | "changed_by" | "reason", value: unknown): string {
+  const text = typeof value === "string" ? value.trim() : "";
+  if (text === "") throw new CapChangeRefused(`${field}_missing`, `${field} is missing or empty. ${NOTHING_CHANGED}`);
+  if ([...text].length > MAX_TEXT) throw new CapChangeRefused(`${field}_too_long`, `${field} is longer than ${MAX_TEXT} characters. ${NOTHING_CHANGED}`);
+  if (text.includes("\u0000") || LONE_SURROGATE_IN.test(text)) {
+    throw new CapChangeRefused(`${field}_not_storable`, `${field} holds a character the event log cannot store (a NUL character, or half of a surrogate pair). ${NOTHING_CHANGED}`);
+  }
+  return text;
+}
+
+/** The refusal of a lowering below spent plus open holds, naming the lowest figure allowed now. */
+function belowCommitted(newCap: number, b: Budget): CapChangeRefused {
+  const committed = micro(b.spent) + micro(b.openHolds);
+  // Rounded up to the cap's 4 decimals: a cap's step, $0.0001, is 100 millionths of a dollar.
+  const lowest = Math.ceil(committed / 100) / 1e4;
+  return new CapChangeRefused(
+    "below_spent_plus_open_holds",
+    `The new cap $${newCap.toFixed(4)} is below what this project has already spent plus its open holds ($${b.spent.toFixed(6)} spent + $${b.openHolds.toFixed(6)} held in ${b.openHoldCount} open hold(s) = $${(committed / 1e6).toFixed(6)}). The lowest cap allowed now is $${lowest.toFixed(4)}. ${NOTHING_CHANGED}`,
+    lowest,
+  );
+}
+
+/**
+ * Change a project's cap, with a record. One transaction, under the project's row lock: the cap is
+ * updated and a `cap.changed` event is written with the old and new figures, who asked, who ran it,
+ * the reason, the time (the database's clock under the lock), and what was spent and held at that
+ * moment. Spent and open holds are not touched: holds already open stay as they are, and the next
+ * admission is judged against the new cap. Throws `CapChangeRefused`, having changed and written
+ * nothing, when the change cannot be made.
+ */
+export async function changeCap(
+  pool: pg.Pool,
+  p: { projectId: string; newCapUsd: number; askedBy: string; changedBy: string; reason: string },
+): Promise<CapChange> {
+  const newCap = checkCapFigure(p.newCapUsd);
+  const askedBy = checkText("asked_by", p.askedBy);
+  const changedBy = checkText("changed_by", p.changedBy);
+  const reason = checkText("reason", p.reason);
+  return inTransaction(pool, p.projectId, async (c) => {
+    // inTransaction holds the project's row lock from here on; it does not say whether the row exists.
+    const found = await c.query("select 1 from projects where id = $1", [p.projectId]);
+    if (found.rowCount === 0) throw new CapChangeRefused("unknown_project", `There is no project with the id given. ${NOTHING_CHANGED}`);
+    const budget = await readBudget(c, p.projectId);
+    if (micro(newCap) === micro(budget.cap)) throw new CapChangeRefused("no_change", `The project's cap is already $${budget.cap.toFixed(4)}. ${NOTHING_CHANGED}`);
+    if (micro(newCap) < micro(budget.spent) + micro(budget.openHolds)) throw belowCommitted(newCap, budget);
+    const u = await c.query<{ cap_usd: string; changed_at: Date }>(
+      "update projects set cap_usd = $2 where id = $1 returning cap_usd, clock_timestamp() as changed_at",
+      [p.projectId, newCap],
+    );
+    const row = u.rows[0]!;
+    // Compared here, in JavaScript: in PostgreSQL 'NaN' = 'NaN' is true. On a mismatch the transaction is rolled back.
+    if (micro(Number(row.cap_usd)) !== micro(newCap)) {
+      throw new CapChangeRefused("stored_figure_differs", `The database stored a different figure ($${row.cap_usd}) from the one given; the change was rolled back. ${NOTHING_CHANGED}`);
+    }
+    const changedAt = row.changed_at.toISOString();
+    const payload = {
+      old_cap_usd: budget.cap,
+      new_cap_usd: newCap,
+      asked_by: askedBy,
+      changed_by: changedBy,
+      reason,
+      changed_at: changedAt,
+      spent_usd: budget.spent,
+      open_holds_usd: budget.openHolds,
+      open_holds: budget.openHoldCount,
+    };
+    const eventId = await event(c, p.projectId, "cap.changed", payload, null);
+    return {
+      projectId: p.projectId,
+      oldCapUsd: budget.cap,
+      newCapUsd: newCap,
+      spentUsd: budget.spent,
+      openHoldsUsd: budget.openHolds,
+      openHolds: budget.openHoldCount,
+      askedBy,
+      changedBy,
+      reason,
+      eventId,
+      changedAt,
+    };
+  });
 }

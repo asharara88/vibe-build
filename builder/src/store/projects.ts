@@ -10,6 +10,12 @@ export interface Project {
 }
 
 export async function createProject(pool: pg.Pool, p: { id: string; name: string; capUsd: number; profile?: string }): Promise<Project> {
+  // A cap must be a real number of dollars, 0 or more and below $100,000,000: a NaN cap would refuse no
+  // call (migration 007 refuses it in the database too). Decimals beyond the fourth are still rounded by
+  // the database, as before: package 1.2's tests create such caps (docs/DECISIONS.md, 13 Nov 2026).
+  if (typeof p.capUsd !== "number" || !Number.isFinite(p.capUsd) || p.capUsd < 0 || p.capUsd >= 1e8) {
+    throw new Error(`A project's cap must be a real number of dollars, 0 or more and below $100,000,000 (got ${typeof p.capUsd === "number" ? String(p.capUsd) : typeof p.capUsd})`);
+  }
   const r = await pool.query<Project>(
     "insert into projects(id, name, profile, cap_usd) values ($1, $2, $3, $4) returning *",
     [p.id, p.name, p.profile ?? "standard", p.capUsd],
