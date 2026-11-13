@@ -5,31 +5,36 @@
  * mount path, destroy. Plain Docker Compose sits behind it in Stage 1; gVisor's runtime or E2B
  * could replace it without the rest of the builder noticing.
  *
- * Two profiles:
- * - `server`: the project's containers share an internal Docker network with no route out.
- *   The egress proxy is attached to that network and to the outside, and is the only way out
- *   (designed, not shown: package 0.6b).
- * - `development-cloud-session`: every container except the engine shares the host's network. The
- *   image build runs on the host's network and is given the cloud session's proxy as build
- *   arguments; its certificate is copied into the build stage (`createSandbox`, `build`), so the
- *   tools image, which is that stage, holds a copy. The egress proxy is given the session proxy as
- *   its way out and has the certificate mounted. The app and tools containers are given no proxy
- *   setting (seen in package 0.6a's run, 12 Nov 2026); the app container holds no copy of the
- *   certificate (none at the two places that run's probe looked; the Dockerfile's `run` stage copies
- *   none). The session proxy is on the machine's own loopback address, which a container on
- *   Docker's default ("bridge") network could not reach (refused at the machine's address on that
- *   network, attempt G45887). It is not the machine's only way out: in the same run, requests sent
- *   with no proxy got answers, from the app and tools containers and from one on Docker's default
- *   network. On this profile the app and tools containers are not isolated from the machine
- *   (evidence/2026-11-12-package-0.6a/isolation-checks.md). Development only (known gaps 1, 2 and 60).
- * In both, the engine container of package 2.1 (the scripted engine) has no network at all.
+ * Both profiles give the project's containers the same private networks (package 0.6c; design note 2.5,
+ * amendment of 13 Nov 2026), each `internal` (no route out), with Docker's "isolated" gateway mode (no
+ * address of the machine on it) and no IPv6:
+ * - `data`: the database, the app, and the tools container (tables and sample users);
+ * - `front`: the app, the acceptance runner, and the short-lived `check` container that asks the app for
+ *   its sign-in page before a run;
+ * - `out`: the way out, `egress`, and package 2.2's engine when it is given a network (`engine.network`).
+ * The engine of package 2.1 (the scripted engine) has no network at all.
+ *
+ * How `egress` leads out differs:
+ * - `server`: `egress` is the builder's egress proxy itself, on `out` and on an ordinary bridge (`ext`),
+ *   going out directly (designed, not shown: package 0.6b).
+ * - `development-cloud-session`: `egress` is a door. It forwards its port 3128 to the builder's egress
+ *   proxy and its port 4010 to the model gateway, each through a Unix socket in the project's socket folder
+ *   on the machine (owner uid 1000, mode 750; each socket mode 600). The proxy and the gateway forwarder run
+ *   in the `egress-host` service, on the machine's network, listening only on those sockets and, for the
+ *   image build, on one port of the machine's loopback address. The proxy goes out only through the cloud
+ *   session's proxy and refuses to start without one. The image build runs on the machine's network with
+ *   that loopback port as its proxy, for npm only, with install scripts off; every step that runs the
+ *   workspace's code (the guard check, `next build`) has no network at all (templates/next/Dockerfile).
+ *   No project container and no build step is given the cloud session's certificate.
+ * Measured before it was built: evidence/2026-11-13-package-0.6c/measurements.md. As built and run:
+ * evidence/2026-11-13-package-0.6c/network-boundary.md.
  *
  * Package 3.1 adds the acceptance runner's container (`acceptance`), started one run at a time, and a
  * rule: no engine container is given a mount of the acceptance store's data folder, of a folder inside
  * it, or of a folder that holds it (`runStreaming`, `createSandbox`).
  */
 import { execFile, spawn } from "node:child_process";
-import { copyFileSync, existsSync, lstatSync, mkdirSync, readFileSync, realpathSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, chownSync, existsSync, lstatSync, mkdirSync, readFileSync, realpathSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, isAbsolute, join, resolve, sep } from "node:path";
 import { createInterface } from "node:readline";
@@ -44,23 +49,35 @@ export interface SandboxSpec {
   /** Directory that holds the project's compose file and workspace. */
   dir: string;
   profile: SandboxProfile;
-  /** Hosts the project's containers may reach through the egress proxy (server profile). */
+  /** Hosts the project's containers may reach through the egress proxy. */
   allowHosts: string[];
-  /** Where the engine's model calls go: the gateway's address as seen from the containers. */
+  /**
+   * Where the engine's model calls go: the gateway's address. On the development profile, its address on the
+   * machine, which must be on the loopback address (the gateway listens on 127.0.0.1 by default); containers
+   * reach it at the door, http://egress:4010.
+   */
   gatewayUrl: string;
   /** Images to use instead of DEFAULT_IMAGES. Nothing sets this today; a value given here at run time is not seen by the approved-images check. */
   images?: { postgres?: string; node?: string };
-  /** Development profile only: the session proxy and its certificate on the host. */
-  hostProxy?: { url: string; caBundlePath: string };
-  /** Development profile only: the host port for the project's database (the host's own PostgreSQL uses 5432). */
-  devDbPort?: number;
+  /**
+   * Development profile only: the cloud session's proxy, the egress proxy's only way out. Only its host and
+   * port are used (a user name or password in it is dropped); no certificate is given to anything.
+   */
+  hostProxy?: { url: string };
+  /**
+   * Development profile, when the project has an app: the port on the machine's loopback address where the
+   * image build's npm finds the egress proxy (its list: `buildAllowHosts`). It must be free on the machine.
+   */
+  buildProxyPort?: number;
+  /** The hosts the image build may reach through `buildProxyPort`. Default: the package registry only. */
+  buildAllowHosts?: string[];
   /** Absolute path of the builder's own source, mounted read-only so the egress proxy can run from it. */
   builderDir: string;
   /** The app container, once the project has an app to run. */
   app?: {
     /** Build context: the project's workspace (the template plus the engine's changes). */
     buildContext: string;
-    /** Port the app listens on inside the container (and on the host in the development profile). */
+    /** Port the app listens on inside its container. Other project containers reach it at http://app:<port>. */
     port: number;
     /** Extra environment for the app. Secrets go through `secrets`, not here. */
     env?: Record<string, string>;
@@ -84,20 +101,25 @@ export interface SandboxSpec {
     workspace: string;
     /** The scripted engine's change sets on the host (builder/scripted), mounted read-only at /engine. */
     changeSets: string;
+    /**
+     * Package 2.2's option, not used by any engine yet: "egress" puts the engine on the `out` network only,
+     * with the proxy settings pointing at the door (http://egress:3128, NO_PROXY=egress) and the gateway at
+     * http://egress:4010 (development profile). Default "none": no network at all (the scripted engine).
+     */
+    network?: "none" | "egress";
   };
   /**
    * The acceptance runner's container (package 3.1). It exists only while a run goes on, started through
    * `runStreaming` with the run's own mounts: the version of the tests at /acceptance (read-only), a fresh
    * run folder at /results, and the sample password at /run/secrets/sample-password. It has the hardening
    * every project container gets, a 512 MB /tmp, the runner image's unprivileged user, no settings file,
-   * and one setting of its own here, BASE_URL (RUN_ID is given per run). On the development profile it
-   * shares the host's network, as the app does (known gap 60); on the server profile it is on the
-   * project's internal network (designed, not shown).
+   * and one setting of its own here, BASE_URL (RUN_ID is given per run). It is on the project's `front`
+   * network only, with the app (package 0.6c).
    */
   acceptance?: {
     /** The runner image, built on this machine by builder/src/acceptance/runner-image.ts and never pushed. */
     image: string;
-    /** The app's address as the runner reaches it. Development profile: the app's own APP_URL. */
+    /** The app's address as the runner reaches it, http://app:<port>: the app's own APP_URL. */
     baseUrl: string;
   };
 }
@@ -121,6 +143,60 @@ export const HARDENING = {
   mem_limit: "1g",
   read_only: true,
 };
+
+/**
+ * Every project network (package 0.6c): `internal` (Docker gives it no route out), the "isolated" gateway
+ * mode (Docker puts no address of the machine on it, so nothing listening on the machine can be reached
+ * from it; Docker Engine 28.0.0 and later accept it on internal networks only) and no IPv6. No gateway
+ * address is set: on such a network the first container can be given the `.1` address.
+ */
+export const PROJECT_NETWORK = {
+  internal: true,
+  enable_ipv6: false,
+  driver_opts: { "com.docker.network.bridge.gateway_mode_ipv4": "isolated" },
+} as const;
+
+/** The door's two ports on the `out` network (development profile): the egress proxy and the gateway. */
+export const DOOR_PORTS = { proxy: 3128, gateway: 4010 } as const;
+
+/** The project's socket folder on the machine (development profile): the egress proxy's and the gateway forwarder's sockets. */
+export const socketDir = (sandboxDir: string) => join(sandboxDir, "egress-sockets");
+
+/**
+ * Who owns the socket folder and runs the door and the machine side (development profile): the user `node`
+ * of the approved Node image (1000:1000) when the builder runs as root, which then gives the folder to that
+ * user; otherwise the builder's own user, since it cannot give the folder away.
+ */
+export function socketOwner(): { uid: number; gid: number } {
+  const uid = process.getuid?.() ?? 0;
+  return uid === 0 ? { uid: 1000, gid: 1000 } : { uid, gid: process.getgid?.() ?? uid };
+}
+
+/** The gateway's address on the machine, host and port, from `gatewayUrl`; it must be a loopback address (development profile). */
+export function gatewayOnMachine(gatewayUrl: string): string {
+  let u: URL;
+  try {
+    u = new URL(gatewayUrl);
+  } catch {
+    throw new Error(`The gateway's address is not an address: ${gatewayUrl}`);
+  }
+  const host = u.hostname.replace(/^\[|\]$/g, "");
+  if (!["127.0.0.1", "localhost", "::1"].includes(host) || !u.port)
+    throw new Error("On the development profile the gateway must be on the machine's loopback address, with its port (for example http://127.0.0.1:4010): the door forwards only there.");
+  return `${host === "::1" ? "[::1]" : host}:${u.port}`;
+}
+
+/** The session proxy as http://host:port, with any user name or password dropped. */
+function proxyHostPort(url: string): string {
+  let u: URL;
+  try {
+    u = new URL(url);
+  } catch {
+    // Passed on as given: the machine side refuses it and says why (egress-proxy.ts, parseUpstream).
+    return url;
+  }
+  return u.protocol === "http:" && u.hostname && u.port ? `http://${u.host}` : url;
+}
 
 export function composeProjectName(projectId: string): string {
   return `builder_${projectId.toLowerCase().replace(/[^a-z0-9_-]/g, "_")}`;
@@ -172,16 +248,28 @@ const bindMount = (source: string, target: string, readOnly: boolean) => ({
 });
 
 /**
- * The engine service (package 2.1). The same in both profiles: no network at all, because the
- * scripted engine calls no model and fetches nothing. The real engine (package 2.2) needs a route to
- * the gateway; its network is decided there, and what 3.1 shows from this container about the
- * network does not carry over to it (known gap 50). It runs as the unprivileged user `node`, with the
- * hardening every project container gets, a read-only root, a small `/tmp`, no settings file and no
- * environment entry, and without the base image's start-up script, which would add PWD and SHLVL.
- * Under the "engine" profile, so it starts only when a step is run on purpose; `up` refuses it.
+ * The engine service (package 2.1). The scripted engine has no network at all, because it calls no model
+ * and fetches nothing. Package 2.2's engine needs the gateway (design note 2.4, 2.5); `engine.network:
+ * "egress"` is that arrangement, built and probed in package 0.6c but not used by any engine yet (known
+ * gap 50): the `out` network only, the proxy settings pointing at the door, and the gateway's address. It
+ * runs as the unprivileged user `node`, with the hardening every project container gets, a read-only root,
+ * a small `/tmp`, no settings file, and without the base image's start-up script, which would add PWD and
+ * SHLVL. Under the "engine" profile, so it starts only when a step is run on purpose; `up` refuses it.
  */
 function engineService(spec: SandboxSpec, common: Record<string, unknown>, image: string) {
   if (!spec.engine) return null;
+  const network =
+    spec.engine.network === "egress"
+      ? {
+          networks: ["out"],
+          environment: {
+            HTTPS_PROXY: `http://egress:${DOOR_PORTS.proxy}`,
+            HTTP_PROXY: `http://egress:${DOOR_PORTS.proxy}`,
+            NO_PROXY: "egress",
+            ANTHROPIC_BASE_URL: spec.profile === "server" ? spec.gatewayUrl : `http://egress:${DOOR_PORTS.gateway}`,
+          },
+        }
+      : { network_mode: "none" };
   return {
     image,
     profiles: ["engine"],
@@ -189,7 +277,7 @@ function engineService(spec: SandboxSpec, common: Record<string, unknown>, image
     read_only: true,
     tmpfs: ["/tmp:rw,noexec,nosuid,size=16m"],
     user: "node",
-    network_mode: "none",
+    ...network,
     entrypoint: [],
     working_dir: "/workspace",
     volumes: [
@@ -201,8 +289,29 @@ function engineService(spec: SandboxSpec, common: Record<string, unknown>, image
 }
 
 /**
- * The acceptance runner's service (package 3.1). The same in both profiles but for its network, added
- * below. Under the "acceptance" profile, so it starts only when a run is started on purpose; `up` refuses it.
+ * The `check` service (package 0.6c): a short-lived container on the `front` network, the runner's, that
+ * asks the app for a page (`sandbox.askApp`), so that the builder never connects to the app from the
+ * machine. The approved Node image, the hardening, the user `node`, no settings and no mount. Under the
+ * "check" profile, so it starts only when it is run on purpose; `up` refuses it.
+ */
+function checkService(spec: SandboxSpec, common: Record<string, unknown>, image: string) {
+  if (!spec.app) return null;
+  return {
+    image,
+    profiles: ["check"],
+    ...common,
+    read_only: true,
+    tmpfs: ["/tmp:rw,noexec,nosuid,size=16m"],
+    user: "node",
+    entrypoint: [],
+    networks: ["front"],
+  };
+}
+
+/**
+ * The acceptance runner's service (package 3.1). The same in both profiles: on the `front` network only
+ * (package 0.6c). Under the "acceptance" profile, so it starts only when a run is started on purpose; `up`
+ * refuses it.
  */
 function acceptanceService(spec: SandboxSpec, common: Record<string, unknown>) {
   if (!spec.acceptance) return null;
@@ -217,6 +326,7 @@ function acceptanceService(spec: SandboxSpec, common: Record<string, unknown>) {
     entrypoint: [],
     working_dir: "/runner",
     environment: { BASE_URL: spec.acceptance.baseUrl },
+    networks: ["front"],
   };
 }
 
@@ -225,8 +335,8 @@ function appService(spec: SandboxSpec, common: Record<string, unknown>, database
   if (!spec.app) return null;
   const tmpfs = ["/tmp:rw,noexec,nosuid,size=64m", ...(spec.app.writablePaths ?? []).map((p) => `${p}:rw,nosuid,size=128m`)];
   return {
-    // The image is built by `sandbox.build`, not by Compose: in development the build steps must
-    // reach the session proxy on the host's loopback address, which needs `docker build --network host`.
+    // The image is built by `sandbox.build`, not by Compose: in development npm must reach the egress
+    // proxy's build port on the machine's loopback address, which needs `docker build --network host`.
     image: appImageName(spec.projectId),
     pull_policy: "never",
     ...common,
@@ -241,11 +351,20 @@ function appService(spec: SandboxSpec, common: Record<string, unknown>, database
       retries: 40,
       start_period: "10s",
     },
+    // Both: its database on `data`, and the runner and the check on `front`. No way out.
+    networks: ["data", "front"],
   };
 }
 
+/**
+ * A health check's script: it passes once `port` listens on the address `addressHex` (as /proc/net/tcp writes
+ * it: 00000000 for every address, 0100007F for 127.0.0.1), read from /proc/net/tcp; it opens no connection.
+ */
+const listeningCheck = (addressHex: string, port: number) =>
+  `process.exit(require('fs').readFileSync('/proc/net/tcp','utf8').includes(' ${addressHex}:${port.toString(16).toUpperCase().padStart(4, "0")} 00000000:0000 0A')?0:1)`;
+
 /** Build the Compose document for a project. Returned as an object so tests can inspect it. */
-export function composeDocument(spec: SandboxSpec): Record<string, unknown> {
+export function composeDocument(spec: SandboxSpec, owner: { uid: number; gid: number } = { uid: 1000, gid: 1000 }): Record<string, unknown> {
   const images = { ...DEFAULT_IMAGES, ...spec.images };
   const common = {
     cap_drop: HARDENING.cap_drop,
@@ -258,99 +377,110 @@ export function composeDocument(spec: SandboxSpec): Record<string, unknown> {
   // the postgres user. With every capability dropped it cannot do that, so it gets back the five it
   // needs for that step and nothing else.
   const dbCaps = { cap_add: ["CHOWN", "DAC_OVERRIDE", "FOWNER", "SETGID", "SETUID"] };
+  // The same in both profiles: the database on `data` only, reached as db:5432, with no port on the machine.
+  const databaseUrl = "postgres://app:${DB_PASSWORD}@db:5432/app";
+  const app = appService(spec, common, databaseUrl);
+  const tools = toolsService(spec, common, databaseUrl);
+  const engine = engineService(spec, common, images.node);
+  const acceptance = acceptanceService(spec, common);
+  const check = checkService(spec, common, images.node);
+  const db = {
+    image: images.postgres,
+    ...common,
+    ...dbCaps,
+    read_only: false,
+    environment: dbEnv,
+    secrets: ["db_password"],
+    volumes: ["dbdata:/var/lib/postgresql/data"],
+    networks: ["data"],
+    // Over TCP, so that it passes only once the real server listens on its network port, not on the image's
+    // temporary set-up server, which listens on its local socket only (known gap 69).
+    healthcheck: { test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -p 5432 -U app -d app"], interval: "2s", retries: 30 },
+  };
+  const projectServices = {
+    ...(app ? { app } : {}),
+    // The tools container needs the project's database and nothing else.
+    ...(tools ? { tools: { ...tools, networks: ["data"] } } : {}),
+    ...(engine ? { engine } : {}),
+    ...(acceptance ? { acceptance } : {}),
+    ...(check ? { check } : {}),
+    db,
+  };
+  const egressBase = {
+    image: images.node,
+    ...common,
+    read_only: true,
+    tmpfs: ["/tmp:rw,noexec,nosuid,size=32m"],
+    working_dir: "/builder",
+  };
 
   if (spec.profile === "server") {
-    const app = appService(spec, common, "postgres://app:${DB_PASSWORD}@db:5432/app");
-    const tools = toolsService(spec, common, "postgres://app:${DB_PASSWORD}@db:5432/app");
-    const engine = engineService(spec, common, images.node);
-    const acceptance = acceptanceService(spec, common);
     return {
       name: composeProjectName(spec.projectId),
-      networks: { internal: { internal: true }, egress: {} },
+      networks: { data: PROJECT_NETWORK, front: PROJECT_NETWORK, out: PROJECT_NETWORK, ext: { enable_ipv6: false } },
       secrets: { db_password: { file: "./secrets/db_password" } },
       volumes: { dbdata: {} },
       services: {
-        ...(app ? { app: { ...app, networks: ["internal"] } } : {}),
-        ...(tools ? { tools: { ...tools, networks: ["internal"] } } : {}),
-        ...(engine ? { engine } : {}),
-        ...(acceptance ? { acceptance: { ...acceptance, networks: ["internal"] } } : {}),
-        db: {
-          image: images.postgres,
-          ...common,
-          ...dbCaps,
-          read_only: false,
-          environment: dbEnv,
-          secrets: ["db_password"],
-          volumes: ["dbdata:/var/lib/postgresql/data"],
-          networks: ["internal"],
-          healthcheck: { test: ["CMD-SHELL", "pg_isready -U app -d app"], interval: "2s", retries: 30 },
-        },
+        ...projectServices,
         egress: {
-          image: images.node,
-          ...common,
-          read_only: true,
-          tmpfs: ["/tmp:rw,noexec,nosuid,size=32m"],
+          ...egressBase,
           user: "node",
-          working_dir: "/builder",
           command: ["node", "--import", "tsx", "src/sandbox/egress-main.ts"],
           environment: {
             EGRESS_ALLOW: spec.allowHosts.join(","),
-            EGRESS_PORT: "3128",
+            EGRESS_PORT: String(DOOR_PORTS.proxy),
+            // Said explicitly: the egress proxy refuses to start with this setting empty or missing.
+            EGRESS_UPSTREAM_PROXY: "direct",
           },
           volumes: [`${spec.builderDir}:/builder:ro`],
-          networks: ["internal", "egress"],
+          networks: ["out", "ext"],
         },
       },
     };
   }
 
-  // development-cloud-session: the host's network for every service but the engine; the session proxy
-  // and its certificate for the egress proxy only (and for the image build, in createSandbox).
-  if (!spec.hostProxy) throw new Error("The development profile needs the host proxy URL and certificate path.");
-  const devPort = spec.devDbPort ?? 5433;
-  const app = appService(spec, common, `postgres://app:\${DB_PASSWORD}@127.0.0.1:${devPort}/app`);
-  // The tools container is given no proxy setting: it needs the project's database and nothing else.
-  const tools = toolsService(spec, common, `postgres://app:\${DB_PASSWORD}@127.0.0.1:${devPort}/app`);
-  // The engine is the one project container without the host's network on this profile: it needs none.
-  const engine = engineService(spec, common, images.node);
-  // The runner shares the host's network on this profile, as the app does: it reaches the app at its APP_URL.
-  const acceptance = acceptanceService(spec, common);
+  // development-cloud-session: the door on `out`, and the egress proxy and the gateway forwarder on the
+  // machine's network behind two Unix sockets.
+  if (!spec.hostProxy) throw new Error("The development profile needs the cloud session's proxy (hostProxy): the egress proxy goes out only through it.");
+  const gateway = gatewayOnMachine(spec.gatewayUrl);
+  const user = `${owner.uid}:${owner.gid}`;
+  const buildEnv = spec.buildProxyPort
+    ? { EGRESS_BUILD_PORT: String(spec.buildProxyPort), EGRESS_BUILD_ALLOW: (spec.buildAllowHosts ?? ["registry.npmjs.org"]).join(",") }
+    : {};
+  const sockCheck = "const fs=require('fs');for(const p of ['/sock/egress.sock','/sock/gateway.sock'])if(!fs.statSync(p,{throwIfNoEntry:false})?.isSocket())process.exit(1);";
+  const buildCheck = spec.buildProxyPort ? listeningCheck("0100007F", spec.buildProxyPort) : "process.exit(0)";
   return {
     name: composeProjectName(spec.projectId),
+    networks: { data: PROJECT_NETWORK, front: PROJECT_NETWORK, out: PROJECT_NETWORK },
     secrets: { db_password: { file: "./secrets/db_password" } },
     volumes: { dbdata: {} },
     services: {
-      ...(app ? { app: { ...app, network_mode: "host" } } : {}),
-      ...(tools ? { tools: { ...tools, network_mode: "host" } } : {}),
-      ...(engine ? { engine } : {}),
-      ...(acceptance ? { acceptance: { ...acceptance, network_mode: "host" } } : {}),
-      db: {
-        image: images.postgres,
-        ...common,
-        ...dbCaps,
-        read_only: false,
-        network_mode: "host",
-        environment: { ...dbEnv, PGPORT: String(devPort) },
-        secrets: ["db_password"],
-        volumes: ["dbdata:/var/lib/postgresql/data"],
-        healthcheck: { test: ["CMD-SHELL", `pg_isready -U app -d app -p ${devPort}`], interval: "2s", retries: 30 },
-      },
+      ...projectServices,
       egress: {
-        image: images.node,
-        ...common,
-        read_only: true,
-        tmpfs: ["/tmp:rw,noexec,nosuid,size=32m"],
-        user: "node",
+        ...egressBase,
+        user,
+        command: ["node", "--import", "tsx", "src/sandbox/door-main.ts"],
+        environment: { DOOR_ROUTES: `${DOOR_PORTS.proxy}=/sock/egress.sock,${DOOR_PORTS.gateway}=/sock/gateway.sock` },
+        volumes: [bindMount(spec.builderDir, "/builder", true), bindMount(socketDir(spec.dir), "/sock", true)],
+        networks: ["out"],
+        depends_on: { "egress-host": { condition: "service_healthy" } },
+        healthcheck: { test: ["CMD", "node", "-e", listeningCheck("00000000", DOOR_PORTS.proxy)], interval: "60s", start_period: "60s", start_interval: "1s" },
+      },
+      "egress-host": {
+        ...egressBase,
+        user,
         network_mode: "host",
-        working_dir: "/builder",
-        command: ["node", "--import", "tsx", "src/sandbox/egress-main.ts"],
+        command: ["node", "--import", "tsx", "src/sandbox/egress-machine-main.ts"],
         environment: {
           EGRESS_ALLOW: spec.allowHosts.join(","),
-          EGRESS_PORT: "3128",
-          EGRESS_UPSTREAM_PROXY: spec.hostProxy.url,
-          NODE_EXTRA_CA_CERTS: "/certs/session-ca.crt",
+          EGRESS_UPSTREAM_PROXY: proxyHostPort(spec.hostProxy.url),
+          EGRESS_SOCKET: "/sock/egress.sock",
+          GATEWAY_SOCKET: "/sock/gateway.sock",
+          GATEWAY_TARGET: gateway,
+          ...buildEnv,
         },
-        volumes: [`${spec.builderDir}:/builder:ro`, `${spec.hostProxy.caBundlePath}:/certs/session-ca.crt:ro`],
+        volumes: [bindMount(spec.builderDir, "/builder", true), bindMount(socketDir(spec.dir), "/sock", false)],
+        healthcheck: { test: ["CMD", "node", "-e", sockCheck + buildCheck], interval: "60s", start_period: "60s", start_interval: "1s" },
       },
     },
   };
@@ -384,8 +514,11 @@ export interface Sandbox {
   dir: string;
   composeFile: string;
   projectName: string;
-  /** How to build the app image and the tools image, when the project has an app. */
-  appBuild?: { context: string; image: string; toolsImage: string; hostNetwork: boolean; args: Record<string, string> };
+  /**
+   * How to build the app image and the tools image, when the project has an app. `before`: services started
+   * before the build (development profile: `egress-host`, whose loopback port the build's npm uses).
+   */
+  appBuild?: { context: string; image: string; toolsImage: string; hostNetwork: boolean; args: Record<string, string>; before: string[] };
   /** The names, and only the names, of the settings the tools container is given. */
   toolsEnvNames?: string[];
   /** The host folders the engine service mounts in every run (package 3.1's mount rule checks them too). */
@@ -462,10 +595,15 @@ export function createSandbox(spec: SandboxSpec, dbPassword: string, appSecrets:
     .map(([k, v]) => `${k}=${v}`)
     .join("\n");
   writeFileSync(join(spec.dir, "secrets", "app.env"), appEnv + "\n", { mode: 0o600 });
-  if (spec.app && spec.hostProxy) {
-    // The development build needs the session certificate inside the build context.
-    mkdirSync(join(spec.app.buildContext, "certs"), { recursive: true });
-    copyFileSync(spec.hostProxy.caBundlePath, join(spec.app.buildContext, "certs", "session-ca.crt"));
+  const dev = spec.profile === "development-cloud-session";
+  if (dev && spec.app && !spec.buildProxyPort) throw new Error("The development profile needs buildProxyPort for a project with an app: the image build's npm reaches the egress proxy there.");
+  const owner = socketOwner();
+  if (dev) {
+    // The socket folder: the door (read-only) and the machine side (read-write) run as its owner; nobody else may enter it.
+    const sockets = socketDir(spec.dir);
+    mkdirSync(sockets, { recursive: true, mode: 0o750 });
+    chmodSync(sockets, 0o750);
+    if (process.getuid?.() === 0) chownSync(sockets, owner.uid, owner.gid);
   }
   // The engine sees this empty folder in place of the workspace's certs folder (package 2.1).
   if (spec.engine) mkdirSync(engineEmptyDir(spec.dir), { recursive: true, mode: 0o755 });
@@ -476,16 +614,18 @@ export function createSandbox(spec: SandboxSpec, dbPassword: string, appSecrets:
     if (refusal) throw new Error(`The engine service is refused: ${refusal}.`);
   }
   const composeFile = join(spec.dir, "compose.yaml");
-  writeFileSync(composeFile, toYaml(composeDocument(spec)));
+  writeFileSync(composeFile, toYaml(composeDocument(spec, owner)));
+  // Development profile: the build's npm goes to the egress proxy's build port on the machine's loopback
+  // address (the registry only), never to the cloud session's proxy directly; no certificate is given.
+  const buildProxy = `http://127.0.0.1:${spec.buildProxyPort}`;
   const appBuild = spec.app
     ? {
         context: spec.app.buildContext,
         image: appImageName(spec.projectId),
         toolsImage: toolsImageName(spec.projectId),
-        hostNetwork: Boolean(spec.hostProxy),
-        args: (spec.hostProxy
-          ? { HTTPS_PROXY: spec.hostProxy.url, HTTP_PROXY: spec.hostProxy.url, NODE_EXTRA_CA_CERTS: "/certs/session-ca.crt" }
-          : {}) as Record<string, string>,
+        hostNetwork: dev,
+        args: (dev ? { HTTPS_PROXY: buildProxy, HTTP_PROXY: buildProxy } : {}) as Record<string, string>,
+        before: dev ? ["egress-host"] : [],
       }
     : undefined;
   const toolsEnvNames = spec.app
@@ -554,10 +694,10 @@ export function dockerEnv(sb: Pick<Sandbox, "dir">): NodeJS.ProcessEnv {
 
 /**
  * The profiles of the services that run one command at a time: tools (package 0.5), engine
- * (package 2.1) and acceptance (package 3.1). They are named on every command but `up`, so that such a
+ * (package 2.1), acceptance (package 3.1) and check (package 0.6c). They are named on every command but `up`, so that such a
  * container is seen, and removed with the rest, while `up` never starts one.
  */
-const ONE_OFF_PROFILES = ["--profile", "tools", "--profile", "engine", "--profile", "acceptance"];
+const ONE_OFF_PROFILES = ["--profile", "tools", "--profile", "engine", "--profile", "acceptance", "--profile", "check"];
 
 async function compose(sb: Sandbox, args: string[], timeoutMs = 180_000, withOneOff = true): Promise<string> {
   const profile = withOneOff ? ONE_OFF_PROFILES : [];
@@ -713,7 +853,8 @@ function runStreaming(sb: Sandbox, service: string, cmd: string[], opts: Streami
 export const sandbox = {
   /**
    * Build the app image (the Dockerfile's `run` stage) and the tools image (its `tools` stage) with
-   * plain `docker build`, on the host network in development. The second build reuses the first's steps.
+   * plain `docker build`, on the host network in development, after starting `egress-host`, whose loopback
+   * port is the build's proxy. The second build reuses the first's steps.
    * With `noCache`, the first build uses nothing from Docker's build cache, so every step, the guard
    * check and `next build` included, really runs (package 2.1: identical files would otherwise be
    * taken from the cache of an earlier run, and the evidence would show no build).
@@ -721,6 +862,7 @@ export const sandbox = {
   build: async (sb: Sandbox, opts: { noCache?: boolean } = {}): Promise<string> => {
     const b = sb.appBuild;
     if (!b) throw new Error("This sandbox has no app to build.");
+    if (b.before.length) await compose(sb, ["up", "-d", "--wait", ...b.before], 180_000, false);
     let out = "";
     for (const [target, tag] of [["run", b.image], ["tools", b.toolsImage]] as const) {
       const args = ["build", "--target", target, "--tag", tag, ...(b.hostNetwork ? ["--network", "host"] : [])];
@@ -743,7 +885,31 @@ export const sandbox = {
     if (services.includes("tools")) throw new Error("The tools service runs one command at a time, through runOnce; it is not started with up.");
     if (services.includes("engine")) throw new Error("The engine service runs one step at a time, through runStreaming; it is not started with up.");
     if (services.includes("acceptance")) throw new Error("The acceptance service runs one acceptance run at a time, through runStreaming; it is not started with up.");
+    if (services.includes("check")) throw new Error("The check service asks the app one question at a time, through askApp; it is not started with up.");
     return compose(sb, ["up", "-d", "--wait", ...services], 600_000, false);
+  },
+  /**
+   * Ask the app for a page from a short-lived container of the `check` service, on the project's `front`
+   * network (package 0.6c): the builder never connects to the app from the machine. `url` is the app's
+   * address as the runner uses it, such as http://app:3000/en/sign-in. Gives the HTTP status, or what failed
+   * (a name not found, a connection refused, a time limit of 10 s).
+   */
+  askApp: async (sb: Sandbox, url: string): Promise<{ status: number } | { error: string }> => {
+    if (!/^http:\/\/[a-z][a-z0-9-]{0,62}:\d{1,5}\/[A-Za-z0-9/_.-]*$/.test(url)) throw new Error(`askApp takes http://<service>:<port>/<path>, nothing else: ${url}`);
+    const script =
+      "fetch(process.argv[1],{redirect:'manual',signal:AbortSignal.timeout(10000)})" +
+      ".then(async(r)=>{await r.arrayBuffer().catch(()=>{});console.log(JSON.stringify({status:r.status}))})" +
+      ".catch((e)=>console.log(JSON.stringify({error:String((e.cause&&e.cause.code)||e.name||e.message)})))";
+    const out = await compose(sb, ["run", "--rm", "--no-deps", "-T", "check", "node", "-e", script, url], 120_000);
+    const last = out.trim().split("\n").pop() ?? "";
+    try {
+      const r = JSON.parse(last) as { status?: unknown; error?: unknown };
+      if (typeof r.status === "number") return { status: r.status };
+      if (typeof r.error === "string") return { error: r.error };
+    } catch {
+      /* not the script's line */
+    }
+    return { error: `the check printed something else: ${last.slice(0, 200)}` };
   },
   /** Run a one-off command in a fresh container of a service (for migrations and seeding). */
   runOnce: (sb: Sandbox, service: string, cmd: string[]) => compose(sb, ["run", "--rm", "--no-deps", "-T", service, ...cmd], 600_000),

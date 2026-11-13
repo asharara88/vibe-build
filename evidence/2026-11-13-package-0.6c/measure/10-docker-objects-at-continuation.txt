@@ -1,0 +1,43 @@
+# Docker objects when the measurements were continued after the container restart of 13 Nov 2026, 2026-11-13T10:44:25Z
+# (the m06c-a containers stopped with the restart; networks, the volume and the two m06c images remained)
+## containers
+m06c-a-mis2-plain-internal-1 Exited (255) 4 minutes ago
+m06c-a-mis1-app-with-ext-1 Exited (255) 4 minutes ago
+m06c-a-tools-net-1 Exited (255) 4 minutes ago
+m06c-a-runner-net-1 Exited (255) 4 minutes ago
+m06c-a-engine-net-1 Exited (255) 4 minutes ago
+m06c-a-app-1 Exited (255) 4 minutes ago
+m06c-a-db-1 Exited (255) 4 minutes ago
+m06c-a-egress-1 Exited (255) 4 minutes ago
+m06c-a-relay-1 Exited (255) 4 minutes ago
+m06c-a-gw-1 Exited (255) 4 minutes ago
+## networks
+bridge bridge
+host host
+m06c-a_data bridge
+m06c-a_data-plain bridge
+m06c-a_ext bridge
+m06c-a_front bridge
+m06c-a_out bridge
+none null
+## volumes
+40f47574967d269e4ea8727b73a4d9ddd745544d91304ce778775dd062af0baf
+78d56c5811a844b4ea7f5cc09064e2ac1f68b82e40760951c7c7c219fd3fd217
+6706b172a455c99953ac01bf2e52d1973ca44bf6d1decd52e56a1c78c1577afa
+1067820107a378f921c5efd119a336dcf0135c7de3b22a47b6299b2301e292b3
+m06c-a_dbdata
+## images
+m06c-a-app:latest 999fa1379579
+m06c-a-tools:latest 399a958417df
+builder-acceptance-runner:local 4bd536b05201
+node:22-bookworm-slim e9f565d32859
+ubuntu:24.04 2198e4c65076
+node:22-alpine 0e1754758c2d
+postgres:16-alpine aa6cb33cf4c1
+python:3.13-slim e48f59cdba69
+alpine:3.20 d9e853e87e55
+curlimages/curl:8.10.1 d9b4541e214b
+## disk
+/dev/vda        252G   36G  3.0G  93% /
+## the session proxy now listens at (host and port only)
+127.0.0.1:36339

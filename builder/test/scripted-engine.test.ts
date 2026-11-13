@@ -110,8 +110,16 @@ describe("scripted engine: the fixed change sets of example 1", () => {
     }
   });
 
-  it("every protected path is a plain file in the template", () => {
-    for (const p of PROTECTED) expect(lstatSync(join(templateDir, p)).isFile(), p).toBe(true);
+  it("every protected path is a plain file in the template, except vendor/, a folder of plain files and folders with no link in it (package 0.6c)", () => {
+    const noLinks = (dir: string): string[] =>
+      readdirSync(dir, { withFileTypes: true }).flatMap((e) => (e.isSymbolicLink() ? [join(dir, e.name)] : e.isDirectory() ? noLinks(join(dir, e.name)) : e.isFile() ? [] : [join(dir, e.name)]));
+    for (const p of PROTECTED) {
+      if (p === "vendor") {
+        expect(lstatSync(join(templateDir, p)).isDirectory(), p).toBe(true);
+        expect(noLinks(join(templateDir, p)), p).toEqual([]);
+      } else expect(lstatSync(join(templateDir, p)).isFile(), p).toBe(true);
+    }
+    expect(PROTECTED).toContain("vendor");
   });
 
   it('every code file written starts with "Written by the scripted engine (fixed change …). No AI model wrote this."', () => {
@@ -170,10 +178,9 @@ describe("scripted engine: the fixed change sets of example 1", () => {
 const base: Omit<SandboxSpec, "profile" | "dir"> = {
   projectId: "p_engine",
   allowHosts: ["registry.npmjs.org"],
-  gatewayUrl: "http://gateway:4010",
+  gatewayUrl: "http://127.0.0.1:4010",
   builderDir,
-  hostProxy: { url: process.env.HTTPS_PROXY ?? "http://127.0.0.1:1", caBundlePath: "/root/.ccr/ca-bundle.crt" },
-  devDbPort: 5561,
+  hostProxy: { url: process.env.HTTPS_PROXY ?? "http://127.0.0.1:1" },
 };
 
 describe("scripted engine: the engine service in the compose file", () => {
@@ -706,10 +713,12 @@ describe("scripted engine: live, in the engine container (development profile)",
     // The step a made-up misbehaving engine pretends to apply while it plants entries git cannot see.
     madeUpStep("test-unseen", "01-note", [{ path: "src/note-c.ts", op: "add", content: "// made-up note\n" }]);
     sb = createSandbox(
-      { ...base, projectId: "p_engine_live", profile: "development-cloud-session", dir, app: { buildContext: workspace, port: 3131 }, engine: { workspace, changeSets: sets } },
+      // buildProxyPort: the development profile asks for it with an app; nothing here builds an image (package 0.6c).
+      { ...base, projectId: "p_engine_live", profile: "development-cloud-session", dir, buildProxyPort: 13162, app: { buildContext: workspace, port: 3131 }, engine: { workspace, changeSets: sets } },
       "sample-only-password",
     );
-    expect(existsSync(join(workspace, "certs", "session-ca.crt"))).toBe(true);
+    // Package 0.6c: no certificate is copied into the workspace any more (known gap 2).
+    expect(existsSync(join(workspace, "certs", "session-ca.crt"))).toBe(false);
     // The engine runs as the image's user node (uid 1000), so the workspace must be that user's.
     if (process.getuid?.() === 0) for (const f of [workspace, ...walkFiles(workspace), ...walkDirs(workspace)]) chownSync(f, 1000, 1000);
     await initProjectRepo(repo, "Template copy");

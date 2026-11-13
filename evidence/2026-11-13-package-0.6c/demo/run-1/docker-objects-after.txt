@@ -1,0 +1,4 @@
+containers: builder_p_test-check-1
+networks: bridge, builder_p_test_front, host, none
+volumes: 1067820107a378f921c5efd119a336dcf0135c7de3b22a47b6299b2301e292b3, 40f47574967d269e4ea8727b73a4d9ddd745544d91304ce778775dd062af0baf, 6706b172a455c99953ac01bf2e52d1973ca44bf6d1decd52e56a1c78c1577afa, 78d56c5811a844b4ea7f5cc09064e2ac1f68b82e40760951c7c7c219fd3fd217
+images: alpine:3.20, builder-acceptance-runner:local, curlimages/curl:8.10.1, node:22-alpine, node:22-bookworm-slim, postgres:16-alpine, python:3.13-slim, ubuntu:24.04

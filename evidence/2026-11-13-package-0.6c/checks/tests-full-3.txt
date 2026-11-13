@@ -1,0 +1,45 @@
+Package 0.6c, 13 Nov 2026, third run, before the last code commit: the whole test suite, live tests included, on the working tree (HEAD 56f2a79 plus a stronger positive-control test, after control C25 was not caught, and the harness's image filter)
+Development machine (a cloud session), in builder/; test database builder_test_m06c; the live tests start containers on the machine's Docker.
+HEAD: 56f2a79. Files that differ from HEAD (git status --short):
+   M scripts/isolation-harness.ts
+   M test/isolation.test.ts
+   M ../docs/BUILD-PLAN.md
+   M ../docs/DECISIONS.md
+   M ../docs/KNOWN-GAPS.md
+   M ../docs/SOURCES.md
+   M ../docs/STATUS.md
+   M ../docs/design/stage-1.md
+  ?? ../evidence/2026-11-13-package-0.6c/checks/
+  ?? ../evidence/2026-11-13-package-0.6c/demo/
+SHA-256 of each of those files as tested:
+  ed8a039850c7878d82226873ef8d671dde0b297a6d33cc0efc5e52222c484aec  builder/scripts/isolation-harness.ts
+  2b81101e4cc3286a169ff8bc2c5184ae25e9ae392bf95c1f73479f1be998926d  builder/test/isolation.test.ts
+  879f16ecf40778330904077eeffb8e360dcdc97d5f369635a0eb239147353b30  docs/design/stage-1.md
+Run once, under a lock shared with other sessions on this machine (flock), so that no two runs of the live tests overlap.
+
+Docker containers before the run (every one), listed once the lock was held:
+  (end of list)
+Docker networks before:
+bridge
+host
+none
+Started: 2026-11-13T12:56:42Z
+
+
+ RUN  v5.1.0 /tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/wt-06c/builder
+
+
+ Test Files  16 passed (16)
+      Tests  431 passed (431)
+   Start at  12:56:42
+   Duration  547.66s (tests 100%)
+
+
+exit code: 0
+Finished: 2026-11-13T13:05:50Z
+Docker containers after the run:
+  (end of list)
+Docker networks after:
+bridge
+host
+none

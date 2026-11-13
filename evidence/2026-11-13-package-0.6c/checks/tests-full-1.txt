@@ -1,0 +1,239 @@
+Package 0.6c, 13 Nov 2026, before the code commits: the whole test suite, live tests included, on the working tree
+Development machine (a cloud session), in builder/; test database builder_test_m06c; the live tests start containers on the machine's Docker.
+HEAD: fba5214. Files that differ from HEAD (git status --short):
+   M scripts/demo-acceptance.ts
+   M scripts/demo-isolation.ts
+   M scripts/demo-sandbox.ts
+   M scripts/demo-scripted.ts
+   M scripts/demo-template.ts
+   M scripts/example-1-sandbox.ts
+   M scripts/guard-checks.ts
+   M scripts/isolation-probe.d.mts
+   M scripts/isolation-probe.mjs
+   M scripts/screenshot-scripted.ts
+   M scripts/screenshot.ts
+   M src/acceptance/runner.ts
+   M src/engine/scripted.ts
+   M src/sandbox/egress-proxy.ts
+   M src/sandbox/isolation.ts
+   M src/sandbox/manager.ts
+   M test/acceptance-live.test.ts
+   M test/acceptance.test.ts
+   M test/isolation.test.ts
+   M test/sandbox.test.ts
+   M test/scripted-engine.test.ts
+   M ../docs/design/stage-1.md
+   M ../templates/next/Dockerfile
+  ?? scripts/browser-in-project.ts
+  ?? scripts/isolation-harness.ts
+  ?? src/sandbox/door-main.ts
+  ?? src/sandbox/egress-machine-main.ts
+  ?? src/sandbox/forwarder.ts
+  ?? test/door.test.ts
+  ?? ../evidence/2026-11-13-package-0.6c/checks/
+SHA-256 of each of those files as tested:
+Run once, under a lock shared with other sessions on this machine (flock), so that no two runs of the live tests overlap.
+
+Docker containers before the run (every one), listed once the lock was held:
+  (end of list)
+Docker networks before:
+bridge
+host
+none
+Started: 2026-11-13T11:59:50Z
+
+
+ RUN  v5.1.0 /tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/wt-06c/builder
+
+ ❯ test/scripted-engine.test.ts (46 tests | 15 failed) 123413ms
+   ❯ scripted engine: live, in the engine container (development profile) (15)
+     × set-up: a fresh copy of the template, its history outside it, owned by the engine's user 14ms
+     × stop() part-way: the container is killed and removed, and the workspace is put back 120094ms
+     × stop() asked for while the step is being prepared: no engine container is started, and the workspace is unchanged 5ms
+     × a step that runs past its time limit: the container is killed and removed, and the step fails saying so 9ms
+     × an event handler that throws while the container runs: the builder goes on, the container is killed and removed, and the step fails saying so 3ms
+     × applies both fixed steps in the engine container; each is committed as [scripted] by the scripted engine, with zero usage 4ms
+     × a protected path: the applier refuses to write it (a 'blocked' event), and the read-only mount refuses a write in place (EROFS), which is all a mount over a file stops (next test) 3ms
+     × a protected file replaced through a renamed folder, or its folder moved aside and replaced by a link to the moved copy: the read-only mount over the file does not stop it; the check after the step does (the step fails, nothing is committed, one reset puts the folder back) 2ms
+     × a step that plants .git folders and a named pipe beside its own file: the walk sees them though git does not, the step fails, nothing is committed, the reset removes them 3ms
+     × the applier's refusals, in the engine container: a wrong fingerprint for a replace (nothing written, though the entry before it was sound), an add over an existing file, a path outside the workspace, a path through a link; and the applier does not start outside /engine or without a workspace 1ms
+     × the turn limit inside the applier: with a limit of 1 it writes one file and stops; the step fails 'turn limit reached'; nothing is committed; the reset puts it back 2ms
+     × runStreaming: a line handler that throws does not bring the builder down; the container is killed and removed, and the run ends carrying the error 0ms
+     × an event handler that fails asynchronously (its promise rejects) while the container runs: no rejection is left unhandled, the container is killed and removed, and the step fails saying so 3ms
+     × inside the engine container: user node, no settings of its own, no network but loopback, an empty certs folder, the change sets read-only 0ms
+     × removing the project also removes an engine container whose run was cut off 0ms
+
+⎯⎯⎯⎯⎯⎯ Failed Tests 15 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/scripted-engine.test.ts > scripted engine: live, in the engine container (development profile) > set-up: a fresh copy of the template, its history outside it, owned by the engine's user
+Error: The development profile needs buildProxyPort for a project with an app: the image build's npm reaches the egress proxy there.
+ ❯ createSandbox src/sandbox/manager.ts:597:54
+    595|   writeFileSync(join(spec.dir, "secrets", "app.env"), appEnv + "\n", {…
+    596|   const dev = spec.profile === "development-cloud-session";
+    597|   if (dev && spec.app && !spec.buildProxyPort) throw new Error("The de…
+       |                                                      ^
+    598|   const owner = socketOwner();
+    599|   if (dev) {
+ ❯ test/scripted-engine.test.ts:715:10
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/15]⎯
+
+ FAIL  test/scripted-engine.test.ts > scripted engine: live, in the engine container (development profile) > stop() part-way: the container is killed and removed, and the workspace is put back
+Error: Test timed out in 120000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ test/scripted-engine.test.ts:725:3
+    723|   });
+    724|
+    725|   it("stop() part-way: the container is killed and removed, and the wo…
+       |   ^
+    726|     const engine = new ScriptedEngine({ sandbox: sb, workspace, gitDir…
+    727|     const events: EngineEvent[] = [];
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/15]⎯
+
+ FAIL  test/scripted-engine.test.ts > scripted engine: live, in the engine container (development profile) > stop() asked for while the step is being prepared: no engine container is started, and the workspace is unchanged
+ FAIL  test/scripted-engine.test.ts > scripted engine: live, in the engine container (development profile) > a step that plants .git folders and a named pipe beside its own file: the walk sees them though git does not, the step fails, nothing is committed, the reset removes them
+ FAIL  test/scripted-engine.test.ts > scripted engine: live, in the engine container (development profile) > the turn limit inside the applier: with a limit of 1 it writes one file and stops; the step fails 'turn limit reached'; nothing is committed; the reset puts it back
+ FAIL  test/scripted-engine.test.ts > scripted engine: live, in the engine container (development profile) > an event handler that fails asynchronously (its promise rejects) while the container runs: no rejection is left unhandled, the container is killed and removed, and the step fails saying so
+Error: Command failed: git -c core.hooksPath=/dev/null -c core.fsmonitor=false -c core.excludesFile=/dev/null -c core.attributesFile=/dev/null -c core.quotePath=false -c user.name=Builder -c user.email=builder@example.invalid --git-dir /tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/m06c-build-tmp/builder-engine-live-EPDAri/workspace.git --work-tree /tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/m06c-build-tmp/builder-engine-live-EPDAri/workspace rev-parse HEAD
+fatal: not a git repository: '/tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/m06c-build-tmp/builder-engine-live-EPDAri/workspace.git'
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/15]⎯
+
+ FAIL  test/scripted-engine.test.ts > scripted engine: live, in the engine container (development profile) > a step that runs past its time limit: the container is killed and removed, and the step fails saying so
+AssertionError: expected { ok: false, changedFiles: [], …(3) } to match object { ok: false, …(2) }
+(8 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "failureReason": "the step ran longer than its time limit (2 seconds), so the engine container was stopped",
++   "failureReason": "the workspace could not be checked before the step (Command failed: git -c core.hooksPath=/dev/null -c core.fsmonitor=false -c core.excludesFile=/dev/null -c core.attributesFile=/dev/null -c core.quotePath=false -c user.name=Builder -c user.email=build), so no container was started",
+    "ok": false,
+    "turns": 0,
+  }
+
+ ❯ test/scripted-engine.test.ts:766:17
+    764|     const t = Date.now();
+    765|     const res = await engine.runStep(stepOf("01-data"), () => undefine…
+    766|     expect(res).toMatchObject({ ok: false, failureReason: "the step ra…
+       |                 ^
+    767|     expect(Date.now() - t).toBeLessThan(30_000);
+    768|     expect(await projectContainers()).toBe("");
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/15]⎯
+
+ FAIL  test/scripted-engine.test.ts > scripted engine: live, in the engine container (development profile) > an event handler that throws while the container runs: the builder goes on, the container is killed and removed, and the step fails saying so
+ FAIL  test/scripted-engine.test.ts > scripted engine: live, in the engine container (development profile) > a protected file replaced through a renamed folder, or its folder moved aside and replaced by a link to the moved copy: the read-only mount over the file does not stop it; the check after the step does (the step fails, nothing is committed, one reset puts the folder back)
+Error: Command failed: git -c core.hooksPath=/dev/null -c core.fsmonitor=false -c core.excludesFile=/dev/null -c core.attributesFile=/dev/null -c core.quotePath=false -c user.name=Builder -c user.email=builder@example.invalid --git-dir /tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/m06c-build-tmp/builder-engine-live-EPDAri/workspace.git --work-tree /tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/m06c-build-tmp/builder-engine-live-EPDAri/workspace rev-parse HEAD
+fatal: not a git repository: '/tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/m06c-build-tmp/builder-engine-live-EPDAri/workspace.git'
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/15]⎯
+
+ FAIL  test/scripted-engine.test.ts > scripted engine: live, in the engine container (development profile) > applies both fixed steps in the engine container; each is committed as [scripted] by the scripted engine, with zero usage
+AssertionError: 01-data: expected 'the workspace could not be checked be…' to be undefined
+
+- Expected:
+undefined
+
++ Received:
+"the workspace could not be checked before the step (Command failed: git -c core.hooksPath=/dev/null -c core.fsmonitor=false -c core.excludesFile=/dev/null -c core.attributesFile=/dev/null -c core.quotePath=false -c user.name=Builder -c user.email=build), so no container was started"
+
+ ❯ test/scripted-engine.test.ts:791:41
+    789|       const events: EngineEvent[] = [];
+    790|       const res = await engine.runStep({ projectId: "p_engine_live", s…
+    791|       expect(res.failureReason, stepId).toBeUndefined();
+       |                                         ^
+    792|       expect(res).toMatchObject({ ok: true, turns: files });
+    793|       expect(res.usage.input_tokens + res.usage.output_tokens).toBe(0);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/15]⎯
+
+ FAIL  test/scripted-engine.test.ts > scripted engine: live, in the engine container (development profile) > a protected path: the applier refuses to write it (a 'blocked' event), and the read-only mount refuses a write in place (EROFS), which is all a mount over a file stops (next test)
+AssertionError: expected undefined to match object { Object (reason) }
+
+- Expected:
+{
+  "reason": "src/auth.ts: the path is protected: the engine must not change it",
+}
+
++ Received:
+undefined
+
+ ❯ test/scripted-engine.test.ts:808:54
+    806|     const events: EngineEvent[] = [];
+    807|     const res = await engine.runStep({ projectId: "p_engine_live", ste…
+    808|     expect(events.find((e) => e.type === "blocked")).toMatchObject({ r…
+       |                                                      ^
+    809|     expect(res).toMatchObject({ ok: false, changedFiles: [] });
+    810|     // Past the applier: a write straight to the file, in the same ser…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/15]⎯
+
+ FAIL  test/scripted-engine.test.ts > scripted engine: live, in the engine container (development profile) > the applier's refusals, in the engine container: a wrong fingerprint for a replace (nothing written, though the entry before it was sound), an add over an existing file, a path outside the workspace, a path through a link; and the applier does not start outside /engine or without a workspace
+TypeError: Cannot read properties of undefined (reading 'projectName')
+ ❯ inEngine test/scripted-engine.test.ts:647:74
+    645|   async function inEngine(cmd: string[], volumes: string[] = []): Prom…
+    646|     const lines: string[] = [];
+    647|     const r = sandbox.runStreaming(sb, "engine", cmd, { container: `${…
+       |                                                                          ^
+    648|     const { code } = await r.done;
+    649|     return { code, lines };
+ ❯ applier test/scripted-engine.test.ts:901:41
+ ❯ test/scripted-engine.test.ts:912:27
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/15]⎯
+
+ FAIL  test/scripted-engine.test.ts > scripted engine: live, in the engine container (development profile) > runStreaming: a line handler that throws does not bring the builder down; the container is killed and removed, and the run ends carrying the error
+TypeError: Cannot read properties of undefined (reading 'projectName')
+ ❯ test/scripted-engine.test.ts:959:24
+    957|     const lines: string[] = [];
+    958|     const r = sandbox.runStreaming(sb, "engine", ["node", "-e", "conso…
+    959|       container: `${sb.projectName}-handler-${Date.now()}`,
+       |                        ^
+    960|       onLine: (l) => {
+    961|         lines.push(l);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/15]⎯
+
+ FAIL  test/scripted-engine.test.ts > scripted engine: live, in the engine container (development profile) > inside the engine container: user node, no settings of its own, no network but loopback, an empty certs folder, the change sets read-only
+TypeError: Cannot read properties of undefined (reading 'projectName')
+ ❯ inEngine test/scripted-engine.test.ts:647:74
+    645|   async function inEngine(cmd: string[], volumes: string[] = []): Prom…
+    646|     const lines: string[] = [];
+    647|     const r = sandbox.runStreaming(sb, "engine", cmd, { container: `${…
+       |                                                                          ^
+    648|     const { code } = await r.done;
+    649|     return { code, lines };
+ ❯ test/scripted-engine.test.ts:1016:23
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[10/15]⎯
+
+ FAIL  test/scripted-engine.test.ts > scripted engine: live, in the engine container (development profile) > removing the project also removes an engine container whose run was cut off
+TypeError: Cannot read properties of undefined (reading 'composeFile')
+ ❯ test/scripted-engine.test.ts:1023:46
+    1021|   it("removing the project also removes an engine container whose run …
+    1022|     // An engine run left behind, as when the builder is stopped while…
+    1023|     await run("docker", ["compose", "-f", sb.composeFile, "--profile",…
+       |                                              ^
+    1024|     expect(await projectContainers()).not.toBe("");
+    1025|     await sandbox.destroy(sb);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[11/15]⎯
+
+
+ Test Files  1 failed | 15 passed (16)
+      Tests  15 failed | 416 passed (431)
+   Start at  11:59:50
+   Duration  716.81s (tests 100%)
+
+
+exit code: 1
+Finished: 2026-11-13T12:11:47Z
+Docker containers after the run:
+  (end of list)
+Docker networks after:
+bridge
+host
+none

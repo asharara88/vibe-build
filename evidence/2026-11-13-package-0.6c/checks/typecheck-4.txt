@@ -1,0 +1,6 @@
+Package 0.6c, 13 Nov 2026, after its review: npm run typecheck in builder/, on the working tree of tests-full-4.txt (HEAD 103badd plus the changes listed there), at 2026-11-13T14:00:42Z
+
+> builder@0.0.1 typecheck
+> tsc --noEmit
+
+exit code: 0

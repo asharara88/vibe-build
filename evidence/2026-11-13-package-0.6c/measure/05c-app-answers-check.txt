@@ -1,0 +1,13 @@
+# Item 5: the "right app answers" check, from a short-lived container on front, and from the machine itself. 2026-11-13T10:47:31Z
+# The app container's addresses: m06c-a_data=172.19.0.2 m06c-a_front=172.20.0.1 
+
+## 1. A short-lived container on the project's front network (hardened, read-only, user 1000): GET http://app:3000/en/sign-in
+HTTP 200 content-type: text/html; charset=utf-8 | has the sign-in form: true
+exit 0
+
+## 2. The same request from the builder's own process on the machine (as runner.ts appAnswers does today), to each of the app's addresses, 5 s limit
+http://172.19.0.2:3000/en/sign-in failed: ECONNREFUSED
+http://172.20.0.1:3000/en/sign-in failed: ECONNREFUSED
+
+## 3. Compose's own view from the machine (the first half of appAnswers, through the Docker socket) still works
+app running healthy

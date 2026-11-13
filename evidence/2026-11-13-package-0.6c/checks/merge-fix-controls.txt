@@ -1,0 +1,177 @@
+# Package 0.6c brought up to date with the integration branch: controls, 2026-11-13T14:55:33Z,
+# on a copy of tree d2c3a8bd7286d24759b1315cf0f3a55319c47874 (the merged code before its commit) made with git archive; builder/node_modules linked from the worktree; test database builder_test_mrg06c.
+# 0.6c's C1 to C41 as in checks/controls.py and checks/controls-3.py; 3.1b's C1, C3, C3b, C4, C5 as in evidence/2026-11-13-package-3.1b/run-controls.txt.
+# Each control changes one thing, runs the test that covers it (expected: FAIL), then restores the file and runs it again (expected: pass).
+
+## C9: an empty upstream refused (the proxy would go out directly)
+Changed in builder/src/sandbox/egress-proxy.ts; test test/door.test.ts -t "fails closed"
+With the change: exit 1: FAILED with the change, as it should
+    × parseUpstream: an empty, missing, malformed or portless value is refused; 'direct' only where allowed; a user name or password is dropped 7ms
+    × createEgressProxy refuses an empty or 'direct' upstream given as text: no direct path by accident 1ms
+    × the machine side refuses to start without a valid upstream, saying why, exit code 2; the server profile's entry point refuses an empty one and accepts 'direct' 143ms
+    Test Files  1 failed (1)
+    Tests  3 failed | 4 passed | 4 skipped (11)
+    FAIL  test/door.test.ts > the egress proxy's way out fails closed (package 0.6c) > parseUpstream: an empty, missing, malformed or portless value is refused; 'direct' only where allowed; a user name or password is dropped
+    AssertionError: undefined: expected [Function] to throw an error
+    - Expected:
+    + Received:
+    FAIL  test/door.test.ts > the egress proxy's way out fails closed (package 0.6c) > createEgressProxy refuses an empty or 'direct' upstream given as text: no direct path by accident
+    AssertionError: expected [Function] to throw an error
+    - Expected:
+    + Received:
+    FAIL  test/door.test.ts > the egress proxy's way out fails closed (package 0.6c) > the machine side refuses to start without a valid upstream, saying why, exit code 2; the server profile's entry point refuses an empty one and accepts 'direct'
+Restored: exit 0: Test Files  1 passed (1) / Tests  7 passed | 4 skipped (11)
+Left by the test runs and removed: nothing
+
+## C10: 502 when the upstream closes before it answers
+Changed in builder/src/sandbox/egress-proxy.ts; test test/door.test.ts -t "a tunnel request gets an answer"
+With the change: exit 1: FAILED with the change, as it should
+    × a tunnel request gets an answer of the proxy's own whatever the upstream does: 502 when it is closed, refuses, closes first or fails; 504 when it says nothing 3026ms
+    Test Files  1 failed (1)
+    Tests  1 failed | 10 skipped (11)
+    FAIL  test/door.test.ts > the egress proxy's way out fails closed (package 0.6c) > a tunnel request gets an answer of the proxy's own whatever the upstream does: 502 when it is closed, refuses, closes first or fails; 504 when it says nothing
+    AssertionError: expected { …(4) } to deeply equal { …(4) }
+    - Expected
+    + Received
+Restored: exit 0: Test Files  1 passed (1) / Tests  1 passed | 10 skipped (11)
+Left by the test runs and removed: nothing
+
+## C11: 504 when the upstream says nothing within the limit
+Changed in builder/src/sandbox/egress-proxy.ts; test test/door.test.ts -t "a tunnel request gets an answer"
+With the change: exit 1: FAILED with the change, as it should
+    × a tunnel request gets an answer of the proxy's own whatever the upstream does: 502 when it is closed, refuses, closes first or fails; 504 when it says nothing 5030ms
+    Test Files  1 failed (1)
+    Tests  1 failed | 10 skipped (11)
+    FAIL  test/door.test.ts > the egress proxy's way out fails closed (package 0.6c) > a tunnel request gets an answer of the proxy's own whatever the upstream does: 502 when it is closed, refuses, closes first or fails; 504 when it says nothing
+    AssertionError: expected { …(4) } to deeply equal { …(4) }
+    - Expected
+    + Received
+Restored: exit 0: Test Files  1 passed (1) / Tests  1 passed | 10 skipped (11)
+Left by the test runs and removed: nothing
+
+## C12 NOT RUN: the text to change was found 0 times in builder/src/sandbox/egress-machine-main.ts
+
+## C12b: the machine side refuses "direct" (C12's change, where the code is since dcfebcf)
+Changed in builder/src/sandbox/egress-machine.ts; test test/door.test.ts -t "machine side refuses to start"
+With the change: exit 1: FAILED with the change, as it should
+    × the machine side refuses to start without a valid upstream, saying why, exit code 2; the server profile's entry point refuses an empty one and accepts 'direct' 526ms
+    Test Files  1 failed (1)
+    Tests  1 failed | 10 skipped (11)
+    FAIL  test/door.test.ts > the egress proxy's way out fails closed (package 0.6c) > the machine side refuses to start without a valid upstream, saying why, exit code 2; the server profile's entry point refuses an empty one and accepts 'direct'
+    AssertionError: direct: expected { status: 2, said: false } to deeply equal { status: 2, said: true }
+    - Expected
+    + Received
+Restored: exit 0: Test Files  1 passed (1) / Tests  1 passed | 10 skipped (11)
+Left by the test runs and removed: nothing
+
+## C13: the gateway forwarder only to a loopback address
+Changed in builder/src/sandbox/forwarder.ts; test test/door.test.ts -t "routes and the gateway's target"
+With the change: exit 1: FAILED with the change, as it should
+    × the door's routes and the gateway's target are checked before anything listens 9ms
+    Test Files  1 failed (1)
+    Tests  1 failed | 10 skipped (11)
+    FAIL  test/door.test.ts > the door's forwarders (package 0.6c) > the door's routes and the gateway's target are checked before anything listens
+    AssertionError: 10.0.0.5:4010: expected [Function] to throw an error
+    - Expected:
+    + Received:
+Restored: exit 0: Test Files  1 passed (1) / Tests  1 passed | 10 skipped (11)
+Left by the test runs and removed: nothing
+
+## C14: each socket mode 600
+Changed in builder/src/sandbox/forwarder.ts; test test/door.test.ts -t "mode 600"
+With the change: exit 1: FAILED with the change, as it should
+    × a socket is made readable and writable by its owner only (mode 600), replacing a file left at its path; a path too long for a socket is refused 12ms
+    Test Files  1 failed (1)
+    Tests  1 failed | 10 skipped (11)
+    FAIL  test/door.test.ts > the door's forwarders (package 0.6c) > a socket is made readable and writable by its owner only (mode 600), replacing a file left at its path; a path too long for a socket is refused
+    AssertionError: expected '755' to be '600' // Object.is equality
+Restored: exit 0: Test Files  1 passed (1) / Tests  1 passed | 10 skipped (11)
+Left by the test runs and removed: nothing
+
+## C15: a socket path too long refused
+Changed in builder/src/sandbox/forwarder.ts; test test/door.test.ts -t "mode 600"
+With the change: exit 1: FAILED with the change, as it should
+    × a socket is made readable and writable by its owner only (mode 600), replacing a file left at its path; a path too long for a socket is refused 20009ms
+    Test Files  1 failed (1)
+    Tests  1 failed | 10 skipped (11)
+    FAIL  test/door.test.ts > the door's forwarders (package 0.6c) > a socket is made readable and writable by its owner only (mode 600), replacing a file left at its path; a path too long for a socket is refused
+    Error: Test timed out in 20000ms.
+    Error: ENOENT: no such file or directory, chmod '/tmp/m06c-door-FCViPQ/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
+Restored: exit 0: Test Files  1 passed (1) / Tests  1 passed | 10 skipped (11)
+Left by the test runs and removed: nothing
+
+## C16: the door's routes only to sockets under /sock/
+Changed in builder/src/sandbox/forwarder.ts; test test/door.test.ts -t "routes and the gateway's target"
+With the change: exit 1: FAILED with the change, as it should
+    × the door's routes and the gateway's target are checked before anything listens 8ms
+    Test Files  1 failed (1)
+    Tests  1 failed | 10 skipped (11)
+    FAIL  test/door.test.ts > the door's forwarders (package 0.6c) > the door's routes and the gateway's target are checked before anything listens
+    AssertionError: 3128=/tmp/x.sock: expected [Function] to throw an error
+    - Expected:
+    + Received:
+Restored: exit 0: Test Files  1 passed (1) / Tests  1 passed | 10 skipped (11)
+Left by the test runs and removed: nothing
+
+## C34: a tunnel only to port 443
+Changed in builder/src/sandbox/egress-proxy.ts; test test/door.test.ts -t "a tunnel to port 443 only"
+With the change: exit 1: FAILED with the change, as it should
+    × an allowed host gets a tunnel to port 443 only, and plain HTTP to an http:// address on port 80 only (after the review) 28ms
+    Test Files  1 failed (1)
+    Tests  1 failed | 10 skipped (11)
+    FAIL  test/door.test.ts > the egress proxy's way out fails closed (package 0.6c) > an allowed host gets a tunnel to port 443 only, and plain HTTP to an http:// address on port 80 only (after the review)
+    AssertionError: expected { …(4) } to deeply equal { …(4) }
+    - Expected
+    + Received
+Restored: exit 0: Test Files  1 passed (1) / Tests  1 passed | 10 skipped (11)
+Left by the test runs and removed: nothing
+
+## C35: plain HTTP only to an http:// address on port 80
+Changed in builder/src/sandbox/egress-proxy.ts; test test/door.test.ts -t "a tunnel to port 443 only"
+With the change: exit 1: FAILED with the change, as it should
+    × an allowed host gets a tunnel to port 443 only, and plain HTTP to an http:// address on port 80 only (after the review) 54ms
+    Test Files  1 failed (1)
+    Tests  1 failed | 10 skipped (11)
+    FAIL  test/door.test.ts > the egress proxy's way out fails closed (package 0.6c) > an allowed host gets a tunnel to port 443 only, and plain HTTP to an http:// address on port 80 only (after the review)
+    AssertionError: expected { port80: 200, port8080: 200, …(2) } to deeply equal { port80: 200, port8080: 403, …(2) }
+    - Expected
+    + Received
+Restored: exit 0: Test Files  1 passed (1) / Tests  1 passed | 10 skipped (11)
+Left by the test runs and removed: nothing
+
+## C36: the machine side's project proxy given its upstream (without it, it would go out directly)
+Changed in builder/src/sandbox/egress-machine.ts; test test/door.test.ts -t "two proxies go out through its upstream"
+With the change: exit 1: FAILED with the change, as it should
+    × the machine side's two proxies go out through its upstream, never directly: a made-up upstream gets the tunnel from the project's socket and from the image build's port (after the review) 23ms
+    Test Files  1 failed (1)
+    Tests  1 failed | 10 skipped (11)
+    FAIL  test/door.test.ts > the egress proxy's way out fails closed (package 0.6c) > the machine side's two proxies go out through its upstream, never directly: a made-up upstream gets the tunnel from the project's socket and from the image build's port (after the review)
+    AssertionError: expected 'HTTP/1.1 502 Bad Gateway' to be 'HTTP/1.1 200 Connection Established' // Object.is equality
+Restored: exit 0: Test Files  1 passed (1) / Tests  1 passed | 10 skipped (11)
+Left by the test runs and removed: nothing
+
+## C37: the machine side's image-build proxy given its upstream
+Changed in builder/src/sandbox/egress-machine.ts; test test/door.test.ts -t "two proxies go out through its upstream"
+With the change: exit 1: FAILED with the change, as it should
+    × the machine side's two proxies go out through its upstream, never directly: a made-up upstream gets the tunnel from the project's socket and from the image build's port (after the review) 32ms
+    Test Files  1 failed (1)
+    Tests  1 failed | 10 skipped (11)
+    FAIL  test/door.test.ts > the egress proxy's way out fails closed (package 0.6c) > the machine side's two proxies go out through its upstream, never directly: a made-up upstream gets the tunnel from the project's socket and from the image build's port (after the review)
+    AssertionError: expected 'HTTP/1.1 502 Bad Gateway' to be 'HTTP/1.1 200 Connection Established' // Object.is equality
+Restored: exit 0: Test Files  1 passed (1) / Tests  1 passed | 10 skipped (11)
+Left by the test runs and removed: nothing
+
+## C38: the machine side's sockets only in its socket folder
+Changed in builder/src/sandbox/egress-machine.ts; test test/door.test.ts -t "two proxies go out through its upstream"
+With the change: exit 1: FAILED with the change, as it should
+    × the machine side's two proxies go out through its upstream, never directly: a made-up upstream gets the tunnel from the project's socket and from the image build's port (after the review) 26ms
+    Test Files  1 failed (1)
+    Tests  1 failed | 10 skipped (11)
+    FAIL  test/door.test.ts > the egress proxy's way out fails closed (package 0.6c) > the machine side's two proxies go out through its upstream, never directly: a made-up upstream gets the tunnel from the project's socket and from the image build's port (after the review)
+    AssertionError: expected [Function] to throw error matching /must both be paths under/ but got 'the build\'s listener on 127.0.0.1:38…'
+    - Expected:
+    + Received:
+Restored: exit 0: Test Files  1 passed (1) / Tests  1 passed | 10 skipped (11)
+Left by the test runs and removed: /tmp/m06c-elsewhere.sock
+
+# Summary: 14 controls; 13 failed with their change, as they should; 0 passed with it; 1 not run.

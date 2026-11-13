@@ -1,0 +1,25 @@
+Package 0.6c brought up to date with the integration branch, 13 Nov 2026: the live acceptance test file alone, with the approved zip, on the merged working tree before its commit.
+Tree of builder/ as run: a5e262ab8524564b9c459c663e7fc64a383983b4; of templates/: 10ae56053bb25cd663997a1888315683663d9403; unstaged changes there: 0.
+The zip in the cache folder, checked before the run: a9da028861a0cf789ff25c2fed45f5f1aaf969ed9247835b6a7821a4f7af9d1d
+$ BUILDER_BROWSER_CACHE=<scratch>/p31-cache npx vitest run test/acceptance-live.test.ts --reporter=verbose   (in builder/; test database builder_test_mrg06c)
+Waiting for the lock from 14:44:18 UTC.
+Lock held; started 2026-11-13T14:48:10Z.
+
+ RUN  v5.1.0 <scratch>/wt-06c/builder
+
+ ✓ test/acceptance-live.test.ts > acceptance runner: live, development profile, stand-in test > its prerequisites are here: Docker answers, and the folder BUILDER_BROWSER_CACHE names holds the approved browser zip 1ms
+ ✓ test/acceptance-live.test.ts > acceptance runner: live, development profile, stand-in test > the runner image builds from the cached zip; it holds the base image's packages and exactly the 109 approved ones at their versions 4412ms
+ ✓ test/acceptance-live.test.ts > acceptance runner: live, development profile, stand-in test > the stand-in version is written before step 01; steps 01 and 02 run; run A: item 1 passes, with its screenshot and its events 29864ms
+ ✓ test/acceptance-live.test.ts > acceptance runner: live, development profile, stand-in test > run B, stopped by a half-second time limit: every item 'did not run', never passed 1800ms
+ ✓ test/acceptance-live.test.ts > acceptance runner: live, development profile, stand-in test > from inside the engine container: every path to the store fails, no readable file holds the marker, a phrase of the test or the run's reason; its mounts hold nothing of the store; the history holds no acceptance file 877ms
+ ✓ test/acceptance-live.test.ts > acceptance runner: live, development profile, stand-in test > run C, with the app stopped: refused before its start, no container, every item 'did not run' 510ms
+ ✓ test/acceptance-live.test.ts > acceptance runner: live, development profile, stand-in test > run D, the deliberately broken copy in a fresh sandbox under the same project id, with the same version: item 1 failed, at step 'sees status waiting' 55476ms
+
+ Test Files  1 passed (1)
+      Tests  7 passed (7)
+   Start at  14:48:11
+   Duration  107.50s (tests 100%)
+
+exit code: 0
+Finished: 2026-11-13T14:49:58Z
+Docker containers after: (end of list)

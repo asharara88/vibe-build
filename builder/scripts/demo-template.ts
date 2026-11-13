@@ -9,17 +9,19 @@
  * a stand-in seed step run in the same way reports the names in its environment and a fingerprint of
  * each value, and the run fails unless they are exactly the settings given, with the values given, and
  * none of the builder's own settings (scripts/tools-env-check.ts).
+ * Since package 0.6c the screenshots and the role guard's checks run in the project's acceptance runner
+ * container, on the project's `front` network (scripts/browser-in-project.ts), never on this machine; the
+ * runner image is built first from Docker's cache (it needs the approved browser zip, BUILDER_BROWSER_CACHE).
  */
-import { execFile } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { cpSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { promisify } from "node:util";
+import { buildRunnerImage, RUNNER_IMAGE } from "../src/acceptance/runner-image.js";
 import { createSandbox, sandbox } from "../src/sandbox/manager.js";
+import { runBrowserScript } from "./browser-in-project.js";
 import { checkToolsEnv } from "./tools-env-check.js";
 
-const run = promisify(execFile);
 const [templateDirArg, outDirArg] = process.argv.slice(2);
 if (!templateDirArg || !outDirArg) {
   console.error("usage: demo-template.ts <templateDir> <outDir> [--guard]");
@@ -39,8 +41,10 @@ const dbPassword = randomBytes(18).toString("base64url");
 const authSecret = randomBytes(32).toString("base64url");
 const samplePassword = "Sample-" + randomBytes(9).toString("base64url");
 const appPort = 3100;
-const dbPort = 5546;
-const appUrl = `http://127.0.0.1:${appPort}`;
+// The port on the machine's loopback address where the image build's npm finds the egress proxy (package 0.6c).
+const buildProxyPort = 13146;
+// The app's address on the project's `front` network, the only place it is reached from (package 0.6c).
+const appUrl = `http://app:${appPort}`;
 
 const sb = createSandbox(
   {
@@ -50,8 +54,8 @@ const sb = createSandbox(
     allowHosts: ["registry.npmjs.org"],
     gatewayUrl: "http://127.0.0.1:4010",
     builderDir: resolve(import.meta.dirname, ".."),
-    hostProxy: { url: process.env.HTTPS_PROXY ?? "", caBundlePath: "/root/.ccr/ca-bundle.crt" },
-    devDbPort: dbPort,
+    hostProxy: { url: process.env.HTTPS_PROXY ?? "" },
+    buildProxyPort,
     app: {
       buildContext: workspace,
       port: appPort,
@@ -59,22 +63,25 @@ const sb = createSandbox(
       writablePaths: ["/app/.next/cache"],
       toolsEnv: { APP_URL: appUrl },
     },
+    acceptance: { image: RUNNER_IMAGE, baseUrl: appUrl },
   },
   dbPassword,
   { AUTH_SECRET: authSecret, APP_SAMPLE_PASSWORD: samplePassword },
 );
-log(`Compose project ${sb.projectName}: db, egress, app, and tools for one-off set-up commands. Secrets written to the sandbox's secrets folder only.`);
+log(`Compose project ${sb.projectName}: db, egress (the door) and egress-host, app, tools for one-off set-up commands, and the runner's container for the browser. Secrets written to the sandbox's secrets folder only.`);
 
 const t0 = Date.now();
 try {
-  log("Building the app image and the tools image inside Docker (development profile: build steps use the session proxy)...");
+  log("The acceptance runner's image, for the browser, built from Docker's cache (scripts/browser-in-project.ts)...");
+  await buildRunnerImage({ hostProxy: { url: process.env.HTTPS_PROXY ?? "", caBundlePath: "/root/.ccr/ca-bundle.crt" } });
+  log("Building the app image and the tools image inside Docker (development profile: npm through the project's egress proxy, every other step with no network)...");
   await sandbox.build(sb);
   log(`Image built in ${Math.round((Date.now() - t0) / 1000)} s.`);
   await sandbox.up(sb, ["db"]);
   log("");
   log("The tools container's environment, printed by a stand-in seed step run as the seed is run (scripts/tools-env-check.ts):");
   const envCheck = await checkToolsEnv(sb, {
-    DATABASE_URL: `postgres://app:${dbPassword}@127.0.0.1:${dbPort}/app`,
+    DATABASE_URL: `postgres://app:${dbPassword}@db:5432/app`,
     APP_URL: appUrl,
     AUTH_SECRET: authSecret,
     APP_SAMPLE_PASSWORD: samplePassword,
@@ -92,19 +99,17 @@ try {
   const ps = JSON.parse(`[${(await sandbox.ps(sb)).trim().split("\n").join(",")}]`) as Array<{ Service: string; State: string; Health?: string }>;
   for (const p of ps) log(`  Container ${p.Service}: ${p.State}${p.Health ? ` (${p.Health})` : ""}`);
   log("");
-  log("Screenshots, taken by a browser as a person would see the pages:");
-  const shots = await run("node", ["--import", "tsx", "scripts/screenshot.ts", appUrl, outDir, samplePassword], { cwd: resolve(import.meta.dirname, ".."), timeout: 300_000 });
-  log(shots.stdout.trim().split("\n").map((l) => "  " + l).join("\n"));
+  log("Screenshots, taken by a browser in the runner's container on the project's front network, as a person would see the pages:");
+  const scripts = resolve(import.meta.dirname);
+  const shots = await runBrowserScript(sb, join(scripts, "screenshot.ts"), appUrl, outDir, samplePassword);
+  log(shots.lines.map((l) => "  " + l).join("\n"));
+  if (shots.code !== 0) throw new Error(`the screenshots did not finish (exit ${shots.code}): ${shots.stderrTail.slice(-1500)}`);
   if (process.argv.includes("--guard")) {
     log("");
-    log("The role guard, tried by each kind of visitor (scripts/guard-checks.ts):");
-    try {
-      const g = await run("node", ["--import", "tsx", "scripts/guard-checks.ts", appUrl, join(outDir, "guard"), samplePassword], { cwd: resolve(import.meta.dirname, ".."), timeout: 300_000 });
-      log(g.stdout.trim().split("\n").map((l) => "  " + l).join("\n"));
-    } catch (err) {
-      log(((err as { stdout?: string }).stdout ?? "").trim().split("\n").map((l) => "  " + l).join("\n"));
-      throw new Error("the role guard checks did not all pass");
-    }
+    log("The role guard, tried by each kind of visitor (scripts/guard-checks.ts), in the same way:");
+    const g = await runBrowserScript(sb, join(scripts, "guard-checks.ts"), appUrl, join(outDir, "guard"), samplePassword);
+    log(g.lines.map((l) => "  " + l).join("\n"));
+    if (g.code !== 0) throw new Error(`the role guard checks did not all pass (exit ${g.code}): ${g.stderrTail.slice(-1500)}`);
   }
   log("");
   log(`Whole run: ${Math.round((Date.now() - t0) / 1000)} s.`);

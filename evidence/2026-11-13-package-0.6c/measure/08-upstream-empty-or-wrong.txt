@@ -1,0 +1,58 @@
+# Item 8: the egress proxy (builder/src/sandbox/egress-proxy.ts, unchanged) and the relay prototype with an empty or wrong upstream. Probes from the engine stand-in's network (out only). 2026-11-13T10:50:00Z
+
+## egress upstream: ""
+egress container: running exit=0
+  log: {"at":"2026-11-13T10:50:12.504Z","listening":"0.0.0.0:4010","to":"10.231.60.1:14010"}
+  log: {"at":"2026-11-13T10:50:12.646Z","listening":3128,"allow":["registry.npmjs.org","gateway.internal"]}
+  E2 (through the egress proxy: tunnel to the registry, then HTTPS GET with the container's own trust store): tunnel open; inside it: certificate not trusted — proxy said: HTTP/1.1 200 Connection Established
+  E4 (through the egress proxy: plain HTTP, allowed host): HTTP 301 — server: cloudflare
+  E3 (through the egress proxy: a refused host): proxy answered: HTTP/1.1 403 Forbidden — says: "egress refused: example.com is not an allowed host"
+  egress decisions:
+    {"at":"2026-11-13T10:50:15.744Z","method":"CONNECT","host":"registry.npmjs.org","port":443,"decision":"allowed"}
+    {"at":"2026-11-13T10:50:15.747Z","method":"GET","host":"registry.npmjs.org","port":80,"decision":"allowed"}
+    {"at":"2026-11-13T10:50:15.751Z","method":"CONNECT","host":"example.com","port":443,"decision":"refused"}
+  relay connections:
+
+## egress upstream: "http://10.231.60.1:1"
+egress container: running exit=0
+  log: {"at":"2026-11-13T10:50:26.687Z","listening":"0.0.0.0:4010","to":"10.231.60.1:14010"}
+  log: {"at":"2026-11-13T10:50:26.920Z","listening":3128,"allow":["registry.npmjs.org","gateway.internal"]}
+  E2 (through the egress proxy: tunnel to the registry, then HTTPS GET with the container's own trust store): connected, then closed by the other end — nothing came back
+  E4 (through the egress proxy: plain HTTP, allowed host): HTTP 502 — says: "egress error"
+  E3 (through the egress proxy: a refused host): proxy answered: HTTP/1.1 403 Forbidden — says: "egress refused: example.com is not an allowed host"
+  egress decisions:
+    {"at":"2026-11-13T10:50:29.966Z","method":"CONNECT","host":"registry.npmjs.org","port":443,"decision":"allowed"}
+    {"at":"2026-11-13T10:50:29.968Z","method":"GET","host":"registry.npmjs.org","port":80,"decision":"allowed"}
+    {"at":"2026-11-13T10:50:29.972Z","method":"CONNECT","host":"registry.npmjs.org","port":443,"decision":"error","detail":"connect ECONNREFUSED 10.231.60.1:1"}
+    {"at":"2026-11-13T10:50:29.973Z","method":"CONNECT","host":"example.com","port":443,"decision":"refused"}
+    {"at":"2026-11-13T10:50:29.973Z","method":"GET","host":"registry.npmjs.org","port":80,"decision":"error","detail":"connect ECONNREFUSED 10.231.60.1:1"}
+  relay connections:
+
+## egress upstream: "not a proxy address"
+egress container: exited exit=1
+  log: TypeError: Invalid URL
+  log:   code: 'ERR_INVALID_URL',
+
+## relay's HTTPS_PROXY: ""
+relay container: exited exit=2
+  log: {"at":"2026-11-13T10:51:12.292Z","refusedToStart":"HTTPS_PROXY is missing or is not a proxy address with a host and a port"}
+
+## relay's HTTPS_PROXY: "http://127.0.0.1:1"
+relay container: running exit=0
+  log: {"at":"2026-11-13T10:51:15.789Z","listening":"10.231.60.1:13128","to":"session proxy","sourceCheck":["10.231.60.2"]}
+  log: {"at":"2026-11-13T10:51:15.790Z","listening":"10.231.60.1:14010","to":"127.0.0.1:14610","sourceCheck":["10.231.60.2"]}
+  E2 (through the egress proxy: tunnel to the registry, then HTTPS GET with the container's own trust store): connected, then no answer within the limit — CONNECT sent
+  E4 (through the egress proxy: plain HTTP, allowed host): HTTP 502 — says: "egress error"
+  E3 (through the egress proxy: a refused host): proxy answered: HTTP/1.1 403 Forbidden — says: "egress refused: example.com is not an allowed host"
+  egress decisions:
+    {"at":"2026-11-13T10:51:19.064Z","method":"CONNECT","host":"registry.npmjs.org","port":443,"decision":"allowed"}
+    {"at":"2026-11-13T10:51:19.066Z","method":"GET","host":"registry.npmjs.org","port":80,"decision":"allowed"}
+    {"at":"2026-11-13T10:51:19.070Z","method":"CONNECT","host":"example.com","port":443,"decision":"refused"}
+    {"at":"2026-11-13T10:51:19.071Z","method":"GET","host":"registry.npmjs.org","port":80,"decision":"error","detail":"socket hang up"}
+  relay connections:
+    {"at":"2026-11-13T10:51:19.066Z","port":13128,"source":"10.231.60.2","decision":"accepted, forwarded to session proxy"}
+    {"at":"2026-11-13T10:51:19.069Z","port":13128,"source":"10.231.60.2","decision":"accepted, forwarded to session proxy"}
+
+## restored: relay with the session proxy (host and port only) and the source check
+  log: {"at":"2026-11-13T10:51:37.715Z","listening":"10.231.60.1:13128","to":"session proxy","sourceCheck":["10.231.60.2"]}
+  log: {"at":"2026-11-13T10:51:37.716Z","listening":"10.231.60.1:14010","to":"127.0.0.1:14610","sourceCheck":["10.231.60.2"]}

@@ -1,0 +1,76 @@
+Package 0.6c, 13 Nov 2026, after its review (fourth run, the review's fixes): the whole test suite, live tests included, on the working tree
+Development machine (a cloud session), in builder/; test database builder_test_f06c; the live tests start containers on the machine's Docker.
+HEAD: 103badd. Files that differ from HEAD (git status --short):
+   M src/sandbox/egress-machine-main.ts
+   M src/sandbox/egress-proxy.ts
+   M src/sandbox/isolation.ts
+   M test/door.test.ts
+   M test/sandbox.test.ts
+  ?? src/sandbox/egress-machine.ts
+  ?? ../evidence/2026-11-13-package-0.6c/checks/licences-4.txt
+  ?? ../evidence/2026-11-13-package-0.6c/checks/tests-full-4.txt
+  ?? ../evidence/2026-11-13-package-0.6c/checks/typecheck-4.txt
+SHA-256 of each changed or new code and test file as tested:
+  c71416dda5c3bf4fe7cef6460cd0e12f54a479c0d5b8d9f2dc66fc7e80968d98  builder/src/sandbox/egress-machine-main.ts
+  9ce9fd4929d9f8d2aecf4e2b540dcd3670dbcab8f76d59c818e556ebfc24cf7c  builder/src/sandbox/egress-proxy.ts
+  631ee6818d993b56c49200f590374f9675d0b2be67feff6a4e1d56f08619872f  builder/src/sandbox/isolation.ts
+  81f7f18116f322b5fa919d96d61b67554398d6cb3920158c08df3ff06286c4e5  builder/test/door.test.ts
+  75a9c78da271e21afd691a1f8108e8bc8a8d4d3a6d82f9e5879642b6f14b8d47  builder/test/sandbox.test.ts
+  afae4394f1e9a0c33679cead5323ebaffa4c4872010edb83efb07c8c18c169c2  builder/src/sandbox/egress-machine.ts
+Run once, under a lock shared with other sessions on this machine (flock), so that no two runs of the live tests overlap.
+
+Docker containers before the run (every one), listed once the lock was held:
+  (end of list)
+Docker networks before:
+bridge
+host
+none
+Started: 2026-11-13T14:00:51Z
+
+
+ RUN  v5.1.0 /tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/wt-06c/builder
+
+{"at":"2026-11-13T14:11:15.470Z","method":"CONNECT","host":"registry.example.test","port":443,"decision":"allowed"}
+ ❯ test/approved-images.test.ts (11 tests | 1 failed) 14ms
+   ❯ the scan of the code, scripts, tests and templates (2)
+     × finds no image reference that is not tag@digest of an approved entry 6ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/approved-images.test.ts > the scan of the code, scripts, tests and templates > finds no image reference that is not tag@digest of an approved entry
+AssertionError: expected [ …(2) ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   "builder/test/sandbox.test.ts:227 FROM x (not pinned by digest: write the approved tag@digest)",
++   "builder/test/sandbox.test.ts:228 FROM x (not pinned by digest: write the approved tag@digest)",
++ ]
+
+ ❯ test/approved-images.test.ts:72:24
+     70|   it("finds no image reference that is not tag@digest of an approved e…
+     71|     const violations = references.filter((r) => r.verdict === "violati…
+     72|     expect(violations).toEqual([]);
+       |                        ^
+     73|   });
+     74|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed | 15 passed (16)
+      Tests  1 failed | 433 passed (434)
+   Start at  14:00:51
+   Duration  644.55s (tests 100%)
+
+
+exit code: 1
+Finished: 2026-11-13T14:11:36Z
+Docker containers after the run:
+  (end of list)
+Docker networks after:
+bridge
+host
+none

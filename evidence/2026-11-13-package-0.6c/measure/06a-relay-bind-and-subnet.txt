@@ -1,0 +1,31 @@
+# Item 6, part 1: when can a host-network container bind ext's address? 2026-11-13T10:15:15Z
+## Subnets in use before (docker networks) and the machine's routes
+bridge: 172.17.0.0/16 
+host: 
+none: 
+default via 192.0.2.1 dev eth0 
+172.17.0.0/16 dev docker0 scope link  src 172.17.0.1 
+192.0.2.0/24 dev eth0 scope link  src 192.0.2.2 
+## 1. Before the network exists
+bind 10.231.60.1:13999 -> EADDRNOTAVAIL
+## 2. Network created (docker network create --subnet 10.231.60.0/28 m06c-bindtest), no container attached
+created
+14: br-5d96083bdc4b: <NO-CARRIER,BROADCAST,MULTICAST,UP> mtu 1500 qdisc noqueue state DOWN 
+    inet 10.231.60.1/28 brd 10.231.60.15 scope global br-5d96083bdc4b
+bind 10.231.60.1:13999 -> listening
+## 3. A second network with an overlapping subnet (deliberate clash: risk 4)
+Error response from daemon: invalid pool request: Pool overlaps with other one on this address space
+exit 1
+Error response from daemon: invalid pool request: Pool overlaps with other one on this address space
+exit 1 (overlaps Docker's default network 172.17.0.0/16)
+b91f91a10b73ffa2f8ec8c7205a71bbb37d6ae383cde0e983b5bda82a38e771f
+exit 0 (overlaps the machine's own eth0 subnet 192.0.2.0/24)
+(m06c-clash3 was created and is now removed)
+## 4. Network removed while nothing listens
+removed
+bind 10.231.60.1:13999 -> EADDRNOTAVAIL
+## 5. The machine's routes after step 3's clash network was removed (should match the routes read before)
+default via 192.0.2.1 dev eth0 
+172.17.0.0/16 dev docker0 scope link  src 172.17.0.1 
+192.0.2.0/24 dev eth0 scope link  src 192.0.2.2 
+(no m06c network left)

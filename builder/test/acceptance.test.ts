@@ -461,10 +461,9 @@ describe("acceptance results: passed only when it ran and passed", () => {
 const base: Omit<SandboxSpec, "profile" | "dir"> = {
   projectId: "p_acc",
   allowHosts: ["registry.npmjs.org"],
-  gatewayUrl: "http://gateway:4010",
+  gatewayUrl: "http://127.0.0.1:4010",
   builderDir,
-  hostProxy: { url: "http://127.0.0.1:1", caBundlePath: "/root/.ccr/ca-bundle.crt" },
-  devDbPort: 5563,
+  hostProxy: { url: "http://127.0.0.1:1" },
 };
 
 describe("acceptance runner: the service in the Compose file", () => {
@@ -475,7 +474,7 @@ describe("acceptance runner: the service in the Compose file", () => {
         profile,
         dir: "/tmp/sb",
         app: { buildContext: "/tmp/sb/workspace", port: 3131 },
-        acceptance: { image: RUNNER_IMAGE, baseUrl: "http://127.0.0.1:3131" },
+        acceptance: { image: RUNNER_IMAGE, baseUrl: "http://app:3131" },
       }) as { services: Record<string, Record<string, unknown>> };
       expect(doc.services.acceptance).toEqual({
         image: RUNNER_IMAGE,
@@ -490,8 +489,9 @@ describe("acceptance runner: the service in the Compose file", () => {
         user: "runner",
         entrypoint: [],
         working_dir: "/runner",
-        environment: { BASE_URL: "http://127.0.0.1:3131" },
-        ...(profile === "server" ? { networks: ["internal"] } : { network_mode: "host" }),
+        environment: { BASE_URL: "http://app:3131" },
+        // Package 0.6c: on the project's front network only, with the app, in both profiles.
+        networks: ["front"],
       });
     });
   }

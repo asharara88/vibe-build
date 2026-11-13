@@ -1,0 +1,47 @@
+# Item 5: the acceptance runner's image (builder-acceptance-runner:local, sha256:94407e8508f286ef110e7ab6b9553ca473f385a923a49ae0d14ad894c5d33b39, as built on this machine by package 3.1's code) on the project's front network only, BASE_URL=http://app:3000; the app's APP_URL=http://app:3000. 2026-11-13T10:46:35Z
+# The specs: files/m06c-runner-item-01.spec.ts and files/m06c-runner-item-02.spec.ts (measurements, not stand-in tests). Hardening as the acceptance service: every capability dropped, no-new-privileges, pids 256, memory 1g, read-only root, /tmp 512m, user runner. --pull never.
+# (A first try stopped before any test: Playwright refuses launchOptions inside a describe group; test 4 moved to its own file.)
+$ docker run --rm --pull never --name m06c-runner-signin --network m06c-a_front ... <image id> node /runner/node_modules/@playwright/test/cli.js test --config /runner/playwright.config.mjs
+
+Running 4 tests using 1 worker
+
+[1/4] ../acceptance/item-01.spec.ts:24:1 › 1. employee: sign-in, cookies, reload, a refused page, sign-out, at http://app:3000
+../acceptance/item-01.spec.ts:24:1 › 1. employee: sign-in, cookies, reload, a refused page, sign-out, at http://app:3000
+M06C baseURL: "http://app:3000"
+
+M06C sign-in page isSecureContext: false
+
+M06C sign-in page crypto.subtle: "undefined"
+
+M06C after sign-in: "http://app:3000/en/home"
+
+M06C cookies (no values): [{"name":"better-auth.session_token","domain":"app","secure":false,"httpOnly":true,"sameSite":"Lax"}]
+
+M06C after reload: "http://app:3000/en/home"
+
+M06C employee opens the HR-admin-only page, lands on: "http://app:3000/en/example/restricted"
+
+M06C after sign-out: "http://app:3000/en/sign-in"
+
+M06C home after sign-out, lands on: "http://app:3000/en/sign-in"
+
+[2/4] ../acceptance/item-01.spec.ts:47:1 › 2. manager: a form action (server action) at http://app:3000
+../acceptance/item-01.spec.ts:47:1 › 2. manager: a form action (server action) at http://app:3000
+M06C manager's form action: done message shown at: "http://app:3000/en/example/action?done=manager"
+
+[3/4] ../acceptance/item-01.spec.ts:57:1 › 3. control: the same sign-in at the app's own address (not the origin APP_URL names) is refused
+../acceptance/item-01.spec.ts:57:1 › 3. control: the same sign-in at the app's own address (not the origin APP_URL names) is refused
+M06C control origin: "http://172.20.0.1:3000"
+
+M06C control: sign-in answers (HTTP status): [403]
+
+M06C control: page after sign-in attempt: "http://172.20.0.1:3000/en/sign-in"
+
+[4/4] ../acceptance/item-02.spec.ts:7:5 › 4. with Chromium's flag for http://app:3000: isSecureContext and crypto.subtle
+../acceptance/item-02.spec.ts:7:5 › 4. with Chromium's flag for http://app:3000: isSecureContext and crypto.subtle
+M06C with the flag: isSecureContext: false
+
+M06C with the flag: crypto.subtle: "undefined"
+
+  4 passed (7.7s)
+exit 0 after 10 s

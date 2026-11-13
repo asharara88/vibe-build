@@ -1,0 +1,5 @@
+# Name lookups one at a time, in the network of the tools stand-in (data only), 2026-11-13T10:20:58Z
+db: 172.19.0.1 after 5 ms
+app: 172.19.0.2 after 9 ms
+registry.npmjs.org: EAI_AGAIN after 2010 ms
+example.com: EAI_AGAIN after 4011 ms
