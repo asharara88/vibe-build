@@ -1,0 +1,249 @@
+{
+  "about": "The intake for test example 1 (leave requests), package J1. Questions, options and recommendations are docs/spec/B2-question-bank.md (version 1), word for word: `bank_options` and `recommendation` are B2's two table cells as written. The Arabic is Claude Code's translation (docs/arabic-wording-list.md), not checked by an Arabic reader. The answer sheet (`sheet`) is B2's worked mapping for example 1, which B5 ('How it runs here') names as example 1's answer sheet; where the mapping is silent, the sheet follows the app spec src/spec/examples/example-1-leave-request.json, and its `note` says so.",
+  "example": "example-1",
+  "app_spec": "src/spec/examples/example-1-leave-request.json",
+  "sections": [
+    { "id": "purpose", "en": "Purpose", "ar": "الغرض" },
+    { "id": "users", "en": "Users and roles", "ar": "المستخدمون والأدوار" },
+    { "id": "data", "en": "Data", "ar": "البيانات" },
+    { "id": "screens", "en": "Screens", "ar": "الشاشات" },
+    { "id": "actions", "en": "Core actions", "ar": "الإجراءات الأساسية" },
+    { "id": "rules", "en": "Rules", "ar": "القواعد" },
+    { "id": "done", "en": "Done means", "ar": "متى يُعدّ مكتملاً" }
+  ],
+  "turns": [
+    ["q01", "q02"],
+    ["q03", "q04", "q05"],
+    ["q06", "q07", "q08"],
+    ["q09", "q10", "q11"],
+    ["q12", "q13", "q14"],
+    ["q15", "q16", "q17"],
+    ["q18"],
+    ["q19", "q20"]
+  ],
+  "questions": [
+    {
+      "id": "q01", "section": "purpose", "kind": "choice",
+      "question": "What does this replace?",
+      "question_ar": "ما الذي سيحلّ هذا التطبيق محلّه؟",
+      "bank_options": "Email or chat threads · A spreadsheet · A paper or PDF form · Nothing, it is new · Something else",
+      "options": ["Email or chat threads", "A spreadsheet", "A paper or PDF form", "Nothing, it is new"],
+      "options_ar": ["سلاسل البريد الإلكتروني أو المحادثات", "جدول بيانات", "نموذج ورقي أو بصيغة PDF", "لا شيء، إنه جديد"],
+      "recommendation": "None; their call",
+      "mark": { "kind": "their_call" },
+      "sheet": { "option": 0, "note": "B2's mapping: \"Replaces email\"." }
+    },
+    {
+      "id": "q02", "section": "purpose", "kind": "choice",
+      "question": "Who feels the pain today?",
+      "question_ar": "من يعاني من المشكلة اليوم؟",
+      "bank_options": "The people who submit · The people who approve · The person who reports on it · All three",
+      "options": ["The people who submit", "The people who approve", "The person who reports on it", "All three"],
+      "options_ar": ["من يقدّمون الطلبات", "من يوافقون عليها", "من يُعدّ التقارير عنها", "الثلاثة جميعاً"],
+      "recommendation": "None; their call",
+      "mark": { "kind": "their_call" },
+      "sheet": { "option": 3, "note": "B2's mapping is silent; the app spec names submitters, approvers and reporters." }
+    },
+    {
+      "id": "q03", "section": "users", "kind": "choice",
+      "question": "How many kinds of user?",
+      "question_ar": "كم نوعاً من المستخدمين؟",
+      "bank_options": "One (everyone does the same thing) · Two (someone submits, someone approves) · Three (plus an admin who sees everything) · More",
+      "options": ["One (everyone does the same thing)", "Two (someone submits, someone approves)", "Three (plus an admin who sees everything)", "More"],
+      "options_ar": ["نوع واحد (الجميع يفعلون الشيء نفسه)", "نوعان (شخص يقدّم وآخر يوافق)", "ثلاثة (إضافةً إلى مسؤول يرى كل شيء)", "أكثر"],
+      "recommendation": "R: Two or three. Reason: builds reliably (H); more roles rarely needed for version one",
+      "mark": { "kind": "R", "text": "Two or three", "text_ar": "نوعان أو ثلاثة", "reason": "builds reliably (H); more roles rarely needed for version one", "reason_ar": "يُبنى بشكل موثوق (لم يُقَس بعد)؛ نادراً ما تحتاج النسخة الأولى إلى أدوار أكثر", "options": [1, 2] },
+      "sheet": { "option": 2, "note": "B2's mapping: \"three roles (employee, manager, HR admin)\"." }
+    },
+    {
+      "id": "q04", "section": "users", "kind": "choice",
+      "question": "Who can see other people's records?",
+      "question_ar": "من يستطيع رؤية سجلات الآخرين؟",
+      "bank_options": "Only their own · Their team's · Everyone's, for admins only · Everyone's, for all",
+      "options": ["Only their own", "Their team's", "Everyone's, for admins only", "Everyone's, for all"],
+      "options_ar": ["سجلاته فقط", "سجلات فريقه", "سجلات الجميع، للمسؤولين فقط", "سجلات الجميع، للجميع"],
+      "recommendation": "R: Own, team for managers, all for admin. Reason: satisfies rule 5",
+      "mark": { "kind": "R", "text": "Own, team for managers, all for admin", "text_ar": "سجلاته، وسجلات الفريق للمديرين، وكل السجلات للمسؤول", "reason": "satisfies rule 5", "reason_ar": "يحقق القاعدة 5", "options": [] },
+      "sheet": { "something_else": "Own, team for managers, all for admin", "note": "B2's mapping is silent. The app spec gives the recommendation (employee own, manager team, HR admin all), which is not one of the four options, so the scripted customer gives it through \"something else\"; it is logged as a sign that an option is missing." }
+    },
+    {
+      "id": "q05", "section": "users", "kind": "choice",
+      "question": "How do users sign in?",
+      "question_ar": "كيف يسجّل المستخدمون الدخول؟",
+      "bank_options": "Company email (SSO) · Email and password · A shared link, no login",
+      "options": ["Company email (SSO)", "Email and password", "A shared link, no login"],
+      "options_ar": ["بريد الشركة (تسجيل دخول موحّد)", "البريد الإلكتروني وكلمة المرور", "رابط مشترك، دون تسجيل دخول"],
+      "recommendation": "R: Company email. Reason: satisfies rule 5; rule 7. See B7 for Stage 1",
+      "mark": { "kind": "R", "text": "Company email", "text_ar": "بريد الشركة", "reason": "satisfies rule 5; rule 7. See B7 for Stage 1", "reason_ar": "يحقق القاعدة 5؛ القاعدة 7. انظر B7 للمرحلة الأولى", "options": [0] },
+      "available_later": [0],
+      "sheet": { "option": 0, "note": "B2's mapping is silent. The app spec lists company email sign-in (single sign-on) on its Later list and builds with email and password, as B7 item 5 says for Stage 1." }
+    },
+    {
+      "id": "q06", "section": "data", "kind": "choice",
+      "question": "Where does the starting data come from?",
+      "question_ar": "من أين تأتي البيانات الأولية؟",
+      "bank_options": "Typed in by users · Uploaded once from a spreadsheet · Synced from a spreadsheet on a schedule · Connected to another system",
+      "options": ["Typed in by users", "Uploaded once from a spreadsheet", "Synced from a spreadsheet on a schedule", "Connected to another system"],
+      "options_ar": ["يُدخلها المستخدمون يدوياً", "تُرفع مرة واحدة من جدول بيانات", "تُزامَن من جدول بيانات وفق جدول زمني", "تُربط بنظام آخر"],
+      "recommendation": "R: Uploaded once, or synced if it changes weekly. Reason: builds reliably (H); live connections go to Later",
+      "mark": { "kind": "R", "text": "Uploaded once, or synced if it changes weekly", "text_ar": "تُرفع مرة واحدة، أو تُزامَن إن كانت تتغير أسبوعياً", "reason": "builds reliably (H); live connections go to Later", "reason_ar": "يُبنى بشكل موثوق (لم يُقَس بعد)؛ الاتصالات المباشرة تُنقل إلى قائمة «لاحقاً»", "options": [1, 2] },
+      "sheet": { "option": 1, "note": "B2's mapping: \"data typed in, employee list uploaded once\"; the starting data is the employee list." }
+    },
+    {
+      "id": "q07", "section": "data", "kind": "checklist",
+      "question": "For each record, which fields matter?",
+      "question_ar": "لكل سجل، ما الحقول المهمة؟",
+      "bank_options": "Shown as a checklist from the example's typical fields; customer ticks and adds",
+      "options": [],
+      "options_ar": [],
+      "options_ar_note": "تُعرض كقائمة اختيار من الحقول المعتادة للمثال؛ يختار العميل ويضيف",
+      "recommendation": "None; their call. The analyst proposes the typical list from the pattern",
+      "mark": { "kind": "their_call" },
+      "sheet": { "all_fields": true, "note": "B2's mapping is silent; the scripted customer ticks every field of the app spec." }
+    },
+    {
+      "id": "q08", "section": "data", "kind": "choice",
+      "question": "Does any field hold personal or sensitive data?",
+      "question_ar": "هل يحتوي أي حقل على بيانات شخصية أو حساسة؟",
+      "bank_options": "No · Yes, contact details · Yes, salary, ID or health",
+      "options": ["No", "Yes, contact details", "Yes, salary, ID or health"],
+      "options_ar": ["لا", "نعم، بيانات الاتصال", "نعم، الراتب أو الهوية أو الصحة"],
+      "recommendation": "If yes: adds rule 5 and 7 checks and flags hosting inside the country as required",
+      "mark": { "kind": "conditional", "text_ar": "إن كانت الإجابة نعم: تُضاف فحوص القاعدتين 5 و7، ويُعلَّم أن الاستضافة داخل الدولة مطلوبة" },
+      "sheet": { "option": 1, "note": "B2's mapping is silent; the app spec marks the full name and work email as contact details." }
+    },
+    {
+      "id": "q09", "section": "screens", "kind": "choice",
+      "question": "What does a submitter need to see?",
+      "question_ar": "ماذا يحتاج مقدّم الطلب أن يرى؟",
+      "bank_options": "My items and their status · Plus a form to add one · Plus history",
+      "options": ["My items and their status", "Plus a form to add one", "Plus history"],
+      "options_ar": ["عناصري وحالتها", "إضافةً إلى نموذج لإضافة عنصر", "إضافةً إلى السجل التاريخي"],
+      "recommendation": "R: My items plus form. Reason: builds reliably (H)",
+      "mark": { "kind": "R", "text": "My items plus form", "text_ar": "عناصري إضافةً إلى النموذج", "reason": "builds reliably (H)", "reason_ar": "يُبنى بشكل موثوق (لم يُقَس بعد)", "options": [1] },
+      "sheet": { "option": 1, "note": "B2's mapping: \"screens: my requests\"; the app spec adds the form." }
+    },
+    {
+      "id": "q10", "section": "screens", "kind": "choice",
+      "question": "What does an approver need to see?",
+      "question_ar": "ماذا يحتاج المعتمِد أن يرى؟",
+      "bank_options": "A queue of items waiting for me · Plus my team's history · Plus totals",
+      "options": ["A queue of items waiting for me", "Plus my team's history", "Plus totals"],
+      "options_ar": ["قائمة بالعناصر التي تنتظرني", "إضافةً إلى السجل التاريخي لفريقي", "إضافةً إلى المجاميع"],
+      "recommendation": "R: Queue plus history. Reason: builds reliably (H)",
+      "mark": { "kind": "R", "text": "Queue plus history", "text_ar": "القائمة إضافةً إلى السجل التاريخي", "reason": "builds reliably (H)", "reason_ar": "يُبنى بشكل موثوق (لم يُقَس بعد)", "options": [1] },
+      "sheet": { "option": 1, "note": "B2's mapping: \"team queue\"; the app spec's team queue shows the team's history too." }
+    },
+    {
+      "id": "q11", "section": "screens", "kind": "choice",
+      "question": "What does the admin or reporter need?",
+      "question_ar": "ماذا يحتاج المسؤول أو معدّ التقارير؟",
+      "bank_options": "Everything in a table with filters · Plus charts · Plus export",
+      "options": ["Everything in a table with filters", "Plus charts", "Plus export"],
+      "options_ar": ["كل شيء في جدول مع عوامل تصفية", "إضافةً إلى رسوم بيانية", "إضافةً إلى التصدير"],
+      "recommendation": "R: Table with filters and export. Reason: satisfies rule 9; charts to Later unless the purpose is a dashboard",
+      "mark": { "kind": "R", "text": "Table with filters and export", "text_ar": "جدول مع عوامل تصفية وتصدير", "reason": "satisfies rule 9; charts to Later unless the purpose is a dashboard", "reason_ar": "يحقق القاعدة 9؛ الرسوم البيانية إلى قائمة «لاحقاً» ما لم يكن الغرض لوحة معلومات", "options": [2] },
+      "sheet": { "option": 2, "note": "B2's mapping: \"HR table\"; the app spec's table has filters and an export." }
+    },
+    {
+      "id": "q12", "section": "actions", "kind": "choice",
+      "question": "When someone submits, who is told?",
+      "question_ar": "عندما يقدّم أحدهم طلباً، من يُبلَّغ؟",
+      "bank_options": "Nobody · The approver by email · The approver in the app only · Both",
+      "options": ["Nobody", "The approver by email", "The approver in the app only", "Both"],
+      "options_ar": ["لا أحد", "المعتمِد بالبريد الإلكتروني", "المعتمِد داخل التطبيق فقط", "كلاهما"],
+      "recommendation": "R: Approver by email and in app. Reason: builds reliably (H)",
+      "mark": { "kind": "R", "text": "Approver by email and in app", "text_ar": "المعتمِد بالبريد الإلكتروني وداخل التطبيق", "reason": "builds reliably (H)", "reason_ar": "يُبنى بشكل موثوق (لم يُقَس بعد)", "options": [3] },
+      "sheet": { "option": 3, "note": "B2's mapping: \"submit notifies manager\"; the app spec notifies by email and in the app." }
+    },
+    {
+      "id": "q13", "section": "actions", "kind": "choice",
+      "question": "When something is approved or rejected, what changes?",
+      "question_ar": "عند الموافقة على شيء أو رفضه، ما الذي يتغير؟",
+      "bank_options": "Only the status · Status plus a balance or count · Status plus a notification · All",
+      "options": ["Only the status", "Status plus a balance or count", "Status plus a notification", "All"],
+      "options_ar": ["الحالة فقط", "الحالة إضافةً إلى رصيد أو عدد", "الحالة إضافةً إلى إشعار", "كل ما سبق"],
+      "recommendation": "None; their call. The analyst lists what the example usually changes",
+      "mark": { "kind": "their_call" },
+      "sheet": { "option": 3, "note": "B2's mapping: \"approve updates balance and notifies employee\"." }
+    },
+    {
+      "id": "q14", "section": "actions", "kind": "choice",
+      "question": "Can a submitter edit or withdraw after submitting?",
+      "question_ar": "هل يستطيع مقدّم الطلب تعديله أو سحبه بعد تقديمه؟",
+      "bank_options": "No · Yes, until it is approved · Yes, any time",
+      "options": ["No", "Yes, until it is approved", "Yes, any time"],
+      "options_ar": ["لا", "نعم، إلى أن تتم الموافقة عليه", "نعم، في أي وقت"],
+      "recommendation": "R: Until approved. Reason: satisfies rule 6",
+      "mark": { "kind": "R", "text": "Until approved", "text_ar": "إلى أن تتم الموافقة", "reason": "satisfies rule 6", "reason_ar": "يحقق القاعدة 6", "options": [1] },
+      "sheet": { "option": 1, "note": "B2's mapping: \"withdraw until approved\"." }
+    },
+    {
+      "id": "q15", "section": "rules", "kind": "choice",
+      "question": "Who approves?",
+      "question_ar": "من يوافق؟",
+      "bank_options": "Direct manager · A named person · Manager then a second person · Nobody",
+      "options": ["Direct manager", "A named person", "Manager then a second person", "Nobody"],
+      "options_ar": ["المدير المباشر", "شخص محدد بالاسم", "المدير ثم شخص ثانٍ", "لا أحد"],
+      "recommendation": "None; their call",
+      "mark": { "kind": "their_call" },
+      "sheet": { "option": 0, "note": "B2's mapping: \"approver: direct manager (their call)\"." }
+    },
+    {
+      "id": "q16", "section": "rules", "kind": "choice",
+      "question": "Is there a limit or threshold?",
+      "question_ar": "هل يوجد حد أو سقف؟",
+      "bank_options": "No · Yes, a number per person · Yes, a number per period · Yes, an amount that changes the approver",
+      "options": ["No", "Yes, a number per person", "Yes, a number per period", "Yes, an amount that changes the approver"],
+      "options_ar": ["لا", "نعم، عدد لكل شخص", "نعم، عدد لكل فترة", "نعم، مبلغ يغيّر المعتمِد"],
+      "recommendation": "None; their call",
+      "mark": { "kind": "their_call" },
+      "sheet": { "option": 1, "note": "B2's mapping: \"threshold: annual balance (their call)\"; the app spec's rule is each employee's annual leave balance." }
+    },
+    {
+      "id": "q17", "section": "rules", "kind": "choice",
+      "question": "What happens if a rule is broken?",
+      "question_ar": "ماذا يحدث إذا خُرقت قاعدة؟",
+      "bank_options": "Block it and say why · Allow it and flag it · Send it to a second approver",
+      "options": ["Block it and say why", "Allow it and flag it", "Send it to a second approver"],
+      "options_ar": ["يُمنع مع بيان السبب", "يُسمح به مع وضع علامة عليه", "يُرسل إلى معتمِد ثانٍ"],
+      "recommendation": "R: Block and say why. Reason: satisfies rule 1",
+      "mark": { "kind": "R", "text": "Block and say why", "text_ar": "المنع مع بيان السبب", "reason": "satisfies rule 1", "reason_ar": "يحقق القاعدة 1", "options": [0] },
+      "sheet": { "option": 0, "note": "B2's mapping: \"over-balance blocks and says why\"." }
+    },
+    {
+      "id": "q18", "section": "rules", "kind": "open_text",
+      "question": "What must never happen?",
+      "question_ar": "ما الذي يجب ألا يحدث أبداً؟",
+      "bank_options": "Open text, one line",
+      "options": [],
+      "options_ar": [],
+      "options_ar_note": "نص مفتوح، سطر واحد",
+      "recommendation": "None; recorded verbatim",
+      "mark": { "kind": "recorded_verbatim" },
+      "sheet": { "open_text": "A balance goes negative, or a request is approved by someone other than the employee's manager.", "note": "B2's mapping is silent; the app spec's \"must never happen\", word for word." }
+    },
+    {
+      "id": "q19", "section": "done", "kind": "choice",
+      "question": "How will you know it works?",
+      "question_ar": "كيف ستعرف أنه يعمل؟",
+      "bank_options": "I will walk one real case through it end to end · The numbers match my spreadsheet · My team uses it for a week without asking me",
+      "options": ["I will walk one real case through it end to end", "The numbers match my spreadsheet", "My team uses it for a week without asking me"],
+      "options_ar": ["سأمرّر حالة حقيقية واحدة عبره من البداية إلى النهاية", "تتطابق الأرقام مع جدول بياناتي", "يستخدمه فريقي أسبوعاً دون أن يسألني"],
+      "recommendation": "R: One real case end to end, written as steps. Reason: it becomes the acceptance test directly",
+      "mark": { "kind": "R", "text": "One real case end to end, written as steps", "text_ar": "حالة حقيقية واحدة من البداية إلى النهاية، مكتوبة كخطوات", "reason": "it becomes the acceptance test directly", "reason_ar": "تصبح هي اختبار القبول مباشرةً", "options": [0] },
+      "sheet": { "option": 0, "note": "B2's mapping: \"done: one employee submits five days, manager approves, balance drops by five, HR sees it\" (made-up data only in Stage 1)." }
+    },
+    {
+      "id": "q20", "section": "done", "kind": "choice",
+      "question": "Who signs off?",
+      "question_ar": "من يعتمد التسليم؟",
+      "bank_options": "Me · Me and the approver · Me, the approver and one submitter",
+      "options": ["Me", "Me and the approver", "Me, the approver and one submitter"],
+      "options_ar": ["أنا", "أنا والمعتمِد", "أنا والمعتمِد ومقدّم طلب واحد"],
+      "recommendation": "R: Me, the approver and one submitter. Reason: each role tests their own screen",
+      "mark": { "kind": "R", "text": "Me, the approver and one submitter", "text_ar": "أنا والمعتمِد ومقدّم طلب واحد", "reason": "each role tests their own screen", "reason_ar": "كل دور يختبر شاشته", "options": [2] },
+      "sheet": { "option": 2, "note": "B2's mapping is silent; the app spec's sign-off is the HR admin, the manager and the employee." }
+    }
+  ]
+}

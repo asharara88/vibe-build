@@ -1,0 +1,16 @@
+The eight rows of docs/KNOWN-GAPS.md that package 0.6c changed, checked intact on J1's branch, 13 Nov 2026, 16:35:49 UTC.
+Which rows 0.6c changed: git diff c6f4056 6ddd0d6 -- docs/KNOWN-GAPS.md (c6f4056, where 0.6c's branch and J1's last met; 6ddd0d6, where pull request #36 merged 0.6c), rows whose first cell changed:
+1 2 14 50 60 69 70 75 118 119 120 121 122 123 124 125 126 127 128 
+(1, 2, 14, 50, 60, 69, 70 and 75 changed; 118 to 128 added.)
+
+Each changed row, byte for byte, at 0.6c's merge (6ddd0d6), at b228d94 and at 9c2da4d; and whether J1's side (df0ea43, before the merge) had changed it since the merge base:
+gap 1: rows numbered 1 at b228d94: 1; b228d94 the same as 6ddd0d6: yes; 9c2da4d the same as 6ddd0d6: yes; changed on J1's side before the merge: no; sha256 at 6ddd0d6 39bb8009089d1cc1, at b228d94 39bb8009089d1cc1
+gap 2: rows numbered 2 at b228d94: 1; b228d94 the same as 6ddd0d6: yes; 9c2da4d the same as 6ddd0d6: yes; changed on J1's side before the merge: no; sha256 at 6ddd0d6 117915b98725754e, at b228d94 117915b98725754e
+gap 14: rows numbered 14 at b228d94: 1; b228d94 the same as 6ddd0d6: yes; 9c2da4d the same as 6ddd0d6: yes; changed on J1's side before the merge: no; sha256 at 6ddd0d6 7f1c52d7e34e473e, at b228d94 7f1c52d7e34e473e
+gap 50: rows numbered 50 at b228d94: 1; b228d94 the same as 6ddd0d6: yes; 9c2da4d the same as 6ddd0d6: yes; changed on J1's side before the merge: no; sha256 at 6ddd0d6 6a3507ffd38c5e68, at b228d94 6a3507ffd38c5e68
+gap 60: rows numbered 60 at b228d94: 1; b228d94 the same as 6ddd0d6: yes; 9c2da4d the same as 6ddd0d6: yes; changed on J1's side before the merge: no; sha256 at 6ddd0d6 9b50a3f585675553, at b228d94 9b50a3f585675553
+gap 69: rows numbered 69 at b228d94: 1; b228d94 the same as 6ddd0d6: yes; 9c2da4d the same as 6ddd0d6: yes; changed on J1's side before the merge: no; sha256 at 6ddd0d6 b3d7e87137337d4b, at b228d94 b3d7e87137337d4b
+gap 70: rows numbered 70 at b228d94: 1; b228d94 the same as 6ddd0d6: yes; 9c2da4d the same as 6ddd0d6: yes; changed on J1's side before the merge: no; sha256 at 6ddd0d6 b6d4dd716b1de214, at b228d94 b6d4dd716b1de214
+gap 75: rows numbered 75 at b228d94: 1; b228d94 the same as 6ddd0d6: yes; 9c2da4d the same as 6ddd0d6: yes; changed on J1's side before the merge: no; sha256 at 6ddd0d6 02d5ddc157fbd5bd, at b228d94 02d5ddc157fbd5bd
+
+Result: all eight rows intact at b228d94 and 9c2da4d, as 0.6c left them.

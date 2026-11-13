@@ -1,0 +1,167 @@
+J1 after the review, 13 Nov 2026, 14:07 UTC: the 7 new tests run on the code as the review found it (builder/ src of tree 4259eb0, the commit 0a5121c, with only the new tests and the stand-in's new switch added), before any fix. Each fails, for the reason the review gave.
+Database builder_test_j1; no container.
+
+$ npx vitest run test/web.test.ts test/journey.test.ts -t "review of 13 Nov"
+
+ RUN  v5.1.0 /tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/wt-j1/builder
+
+ ❯ test/web.test.ts (27 tests | 3 failed | 24 skipped) 1377ms
+   ❯ J1 interface: the sign-in guard (8)
+     × the lock-out holds for attempts that arrive at the same moment: at most 5 passwords are checked, and the right one sent among them is refused once locked (review of 13 Nov, blocking item 1) 878ms
+     × a POST whose body is not a form is refused (415) before any route, signed in or not, with no Origin: csrf() judges form bodies only (review of 13 Nov, note 1) 164ms
+   ❯ J1 interface, part 2: the build, preview, checklist and export screens (stand-in sandbox, no container) (4)
+     × step ids such as 01-data are isolated left to right wherever a page shows them, so an Arabic page does not show them as data-01 (review of 13 Nov, note 7) 286ms
+ ❯ test/journey.test.ts (28 tests | 4 failed | 24 skipped) 1205ms
+   ❯ J1 journey, part 2: the build, preview, checklist and export jobs (stand-in sandbox, no container, no model) (15)
+     × sign-off is judged on the last checklist job: when a later run's job fails after the runner wrote its events, the earlier passed run is not signed off (review of 13 Nov, note 4) 243ms
+     × the export is refused when any commit of the history held a file that looks like a secret, even one removed by a later commit (review of 13 Nov, note 5) 306ms
+     × the exported copy holds only what the history reaches: an object no commit reaches (as a reset can leave) is not copied (review of 13 Nov, note 5) 336ms
+     × at start, the reservation of a step whose job was interrupted is closed, so the cost panel shows no money reserved for a step that is not running (review of 13 Nov, note 3) 225ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 7 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/journey.test.ts > J1 journey, part 2: the build, preview, checklist and export jobs (stand-in sandbox, no container, no model) > sign-off is judged on the last checklist job: when a later run's job fails after the runner wrote its events, the earlier passed run is not signed off (review of 13 Nov, note 4)
+AssertionError: promise resolved "undefined" instead of rejecting
+
+- Expected:
+Error {
+  "message": "rejected promise",
+}
+
++ Received:
+undefined
+
+ ❯ test/journey.test.ts:548:32
+    546|     expect(s.jobs.at(-1)).toMatchObject({ kind: "acceptance", state: "…
+    547|     expect((await listEvents(pool, id, "acceptance.run.finished")).at(…
+    548|     await expect(j.signOff(id)).rejects.toThrow("The last checklist ru…
+       |                                ^
+    549|     expect(await listEvents(pool, id, EV.signedOff)).toEqual([]);
+    550|     // A new run that passes can be signed off.
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/7]⎯
+
+ FAIL  test/journey.test.ts > J1 journey, part 2: the build, preview, checklist and export jobs (stand-in sandbox, no container, no model) > the export is refused when any commit of the history held a file that looks like a secret, even one removed by a later commit (review of 13 Nov, note 5)
+AssertionError: expected { jobId: 'job-d6d64fdf', …(5) } to match object { kind: 'export', state: 'failed' }
+(4 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+    "kind": "export",
+-   "state": "failed",
++   "state": "finished",
+  }
+
+ ❯ test/journey.test.ts:637:27
+    635|     await j.waitForJob();
+    636|     const s = await j.state(id);
+    637|     expect(s.jobs.at(-1)).toMatchObject({ kind: "export", state: "fail…
+       |                           ^
+    638|     expect(s.jobs.at(-1)!.reason).toMatch(/history holds files that lo…
+    639|     expect(await listEvents(pool, id, EV.exportWritten)).toEqual([]);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/7]⎯
+
+ FAIL  test/journey.test.ts > J1 journey, part 2: the build, preview, checklist and export jobs (stand-in sandbox, no container, no model) > the exported copy holds only what the history reaches: an object no commit reaches (as a reset can leave) is not copied (review of 13 Nov, note 5)
+AssertionError: expected true to be false // Object.is equality
+
+- Expected
++ Received
+
+- false
++ true
+
+ ❯ test/journey.test.ts:670:25
+    668|         }
+    669|       };
+    670|       expect(has(blob)).toBe(false);
+       |                         ^
+    671|       expect(has((await git(x.repo, ["rev-parse", "HEAD"])).trim())).t…
+    672|     } finally {
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/7]⎯
+
+ FAIL  test/journey.test.ts > J1 journey, part 2: the build, preview, checklist and export jobs (stand-in sandbox, no container, no model) > at start, the reservation of a step whose job was interrupted is closed, so the cost panel shows no money reserved for a step that is not running (review of 13 Nov, note 3)
+AssertionError: expected [ [ '01-data', 'open', null ] ] to deeply equal [ [ '01-data', 'closed', …(1) ] ]
+
+- Expected
++ Received
+
+  [
+    [
+      "01-data",
+-     "closed",
+-     "job_interrupted",
++     "open",
++     null,
+    ],
+  ]
+
+ ❯ test/journey.test.ts:716:95
+    714|     const fresh = new Journey({ pool, dataDir, cleanupProject: async (…
+    715|     expect(await fresh.recoverInterrupted()).toContain(id);
+    716|     expect((await listStepHolds(pool, id)).map((h) => [h.step_id, h.st…
+       |                                                                                               ^
+    717|     expect((await getBudget(pool, id)).stepRoom).toBe(0);
+    718|     const closed = (await listEvents(pool, id)).filter((e) => e.kind =…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/7]⎯
+
+ FAIL  test/web.test.ts > J1 interface: the sign-in guard > the lock-out holds for attempts that arrive at the same moment: at most 5 passwords are checked, and the right one sent among them is refused once locked (review of 13 Nov, blocking item 1)
+AssertionError: expected 11 to be 5 // Object.is equality
+
+- Expected
++ Received
+
+- 5
++ 11
+
+ ❯ test/web.test.ts:166:21
+    164|     const sent = [...Array.from({ length: 10 }, (_, i) => post(app, "/…
+    165|     const res = await Promise.all(sent);
+    166|     expect(checked).toBe(5);
+       |                     ^
+    167|     expect(res.at(-1)!.status).toBe(429);
+    168|     expect(res.map((r) => r.headers.get("set-cookie"))).toEqual(Array(…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/7]⎯
+
+ FAIL  test/web.test.ts > J1 interface: the sign-in guard > a POST whose body is not a form is refused (415) before any route, signed in or not, with no Origin: csrf() judges form bodies only (review of 13 Nov, note 1)
+AssertionError: application/json: expected 303 to be 415 // Object.is equality
+
+- Expected
++ Received
+
+- 415
++ 303
+
+ ❯ test/web.test.ts:212:30
+    210|     for (const type of ["application/json", "application/x-www-form-ur…
+    211|       const r = await send(`/projects/${id}/continue`, type, "{}");
+    212|       expect(r.status, type).toBe(415);
+       |                              ^
+    213|       const s = await send("/sign-in", type, JSON.stringify({ password…
+    214|       expect(s.status, type).toBe(415);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/7]⎯
+
+ FAIL  test/web.test.ts > J1 interface, part 2: the build, preview, checklist and export screens (stand-in sandbox, no container) > step ids such as 01-data are isolated left to right wherever a page shows them, so an Arabic page does not show them as data-01 (review of 13 Nov, note 7)
+AssertionError: ar: expected [ 'البناء', …(2) ] to include 'الخطوة 1 من 2: <bdi dir="ltr">01-data…'
+ ❯ test/web.test.ts:689:28
+    687|       const build = await page(app, `/projects/${id}/build?lang=${lang…
+    688|       const titles = [...build.matchAll(/<h2>([\s\S]*?)<span class="ba…
+    689|       expect(titles, lang).toContain(t(lang, "build.step_title", { n: …
+       |                            ^
+    690|       expect(titles, lang).toContain(t(lang, "build.step_title", { n: …
+    691|       expect(await page(app, `/projects/${id}/plan?lang=${lang}`, cook…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/7]⎯
+
+
+ Test Files  2 failed (2)
+      Tests  7 failed | 48 skipped (55)
+   Start at  14:07:20
+   Duration  3.23s (tests 85%, import 8%, transform 7%)
+

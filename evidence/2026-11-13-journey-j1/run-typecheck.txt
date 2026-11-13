@@ -1,0 +1,7 @@
+Package J1, part 2, 13 Nov 2026, builder/ tree 4259eb0d2e4a2570bd078455b6d1cb52bedf1c8e (git write-tree --prefix=builder/ of the index; part 2's code before its last commit).
+$ npm run typecheck
+
+> builder@0.0.1 typecheck
+> tsc --noEmit
+
+exit code: 0

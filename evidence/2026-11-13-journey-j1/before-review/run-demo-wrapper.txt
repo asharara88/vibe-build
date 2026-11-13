@@ -1,0 +1,89 @@
+waiting for the lock at 13:36:19 UTC
+lock held at 13:37:30 UTC
+J1's automated run, 2026-11-13T13:37:30.709Z (run 20261113_da580c).
+Builder tree: 4259eb0d2e4a2570bd078455b6d1cb52bedf1c8e (git write-tree --prefix=builder/ of the index at the start of the run).
+Free disk before: /dev/vda        252G   29G   11G  74% /
+docker system df before:
+TYPE            TOTAL     ACTIVE    SIZE      RECLAIMABLE
+Images          8         0         2.422GB   2.291GB (94%)
+Containers      0         0         0B        0B
+Local Volumes   4         0         0B        0B
+Build Cache     183       0         12.61GB   9.713GB
+Containers on the machine before (every one, running or not; others belong to other sessions):
+(none)
+J1's containers, images, volumes and networks before: none
+Ports 4020, 3161, 5591 on 127.0.0.1: free before the run (checked by a connection attempt, refused).
+The approved runner image builder-acceptance-runner:local is on the machine (id sha256:a8cbea16785d138d60ed30c939c7d4163bcff3d87f09de5c586f007ee8ded7f6); this run neither builds nor removes it.
+Fresh database builder_j1_20261113_da580c; fresh data folder <run folder>/data.
+A random interface password was made: given to the interface in its environment and to the builder camera as a read-only file (mode 0400). It is not printed or kept.
+The interface started: Interface listening on http://127.0.0.1:4020 (password from: env).
+The builder camera: docker run --rm --name j1-builder-camera-20261113_da580c --network host --read-only --tmpfs /tmp:rw,noexec,nosuid,size=512m --cap-drop ALL --security-opt no-new-privileges:true --pids-limit 256 --memory 1g --user runner --workdir /runner --entrypoint node --volume /tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/wt-j1/builder/camera/builder-shots.mjs:/camera/builder-shots.mjs:ro --volume <run folder>/camera-out:/shots --volume <run folder>/secret/ui-password:/run/secrets/ui-password:ro builder-acceptance-runner:local /camera/builder-shots.mjs
+  PASSED: a visitor not signed in who opens /projects gets the sign-in page
+  PASSED: a visitor not signed in who opens /projects/new gets the sign-in page
+  PASSED: a visitor not signed in who opens / gets the sign-in page
+  PASSED: the sign-in page has one password field
+  PASSED: the mode line says the real-model gate is closed
+  PASSED: a wrong password is refused
+  PASSED: signed in, at the projects page
+  PASSED: the project is made, at its brief
+  project j1-2d82dec13d74: Leave requests (made-up), cap $5.00
+  PASSED: the brief is shown as typed
+  PASSED: continued as example 1, at the questions
+  PASSED: every turn answered in the chat, 8 turns
+  PASSED: the proposed app shows its seven sections, the Later list and the assumed choice
+  PASSED: brief confirmed, at the build steps
+  PASSED: the plan has the two steps
+  PASSED: plan confirmed; tests fixed as v001, stand-in test, not independent acceptance
+  PASSED: step 1 built
+  PASSED: step 1: $1.5552 reserved while it ran, released, $0.00 spent
+  PASSED: step 1's live lines: one line per file written (4)
+  PASSED: step 1 approved; step 2 built
+  PASSED: step 2: $3.1104 reserved while it ran, released, $0.00 spent
+  PASSED: step 2 approved; the app is being built for the preview
+  PASSED: the preview's screenshots are there
+  PASSED: four screenshots of the running app, each loaded
+  PASSED: each is captioned 'Not live. Sample data.'
+  PASSED: the checklist ran
+  PASSED: item 1 passed
+  PASSED: items 2 to 6: did not run (no test written yet)
+  PASSED: labelled 'stand-in test, not independent acceptance'
+  PASSED: the summary as the runner's reading wrote it
+  PASSED: item 1's screenshot, taken by the runner, is shown
+  PASSED: signed off, labelled as a sign-off on a simulated build
+  PASSED: cost: $0.00 spent, with its sentence
+  PASSED: cost: no freeze
+  PASSED: cost: the unreconciled list is empty
+  PASSED: cost: the two step reservations, $1.5552 and $3.1104, closed
+  PASSED: the export is labelled internal only and not yet shown to start without the builder
+  PASSED: the export is written
+  PASSED: the downloaded export has the SHA-256 the page shows
+  PASSED: the record lists every event in id order
+  PASSED: the project is closed: its containers, images and folder removed
+  PASSED: the second project is made
+  project j1-7eee3fa9e666: Leave requests, $1.00 cap (made-up), cap $1.00
+  PASSED: a project capped at $1.00: step 1 refused with package 1.3's message and the sentence under it
+  PASSED: the second project is closed
+  PASSED: signed out
+  PASSED: nothing but 127.0.0.1:4020 was loaded
+The builder camera ended with exit code 0; checks: 45 passed, 0 failed.
+Screenshots copied into the evidence folder: 35 of 35.
+Events written to events.json: 115, in id order, for 2 projects.
+The export downloaded in the browser: j1-2d82dec13d74-export.tar.gz, 415862 bytes, SHA-256 8c38eb19683ed0349a6f3e728fd8f9bf48dbc81d9e44d3bcf73a6fed7994e26e; its event records 8c38eb19683ed0349a6f3e728fd8f9bf48dbc81d9e44d3bcf73a6fed7994e26e: the same.
+  the archive holds the tests and the note (all four checked paths there); files that look like secrets: none.
+Free space on the data folder's disk, sampled every 2 s (25 samples): 10.09 GB at the start, 9.04 GB at the lowest, 10.07 GB at the end, before the clean-up (GB of 1024^3 bytes).
+J1's containers, images, volumes and networks left when the interface stopped: none
+Sandbox folders the run's events record: 2; still there when the interface stopped: 0. Other sandbox folders made during the run and left: none.
+Run folder (data, camera output, password file) removed: yes. Database builder_j1_20261113_da580c dropped.
+Containers on the machine after (every one): (none)
+J1's containers, images, volumes and networks after: none
+Free disk after: /dev/vda        252G   29G   11G  74% /
+docker system df after:
+TYPE            TOTAL     ACTIVE    SIZE      RECLAIMABLE
+Images          8         0         2.422GB   2.291GB (94%)
+Containers      0         0         0B        0B
+Local Volumes   4         0         0B        0B
+Build Cache     186       0         12.61GB   9.715GB
+Projects the camera made: j1-2d82dec13d74, j1-7eee3fa9e666.
+Result: every check passed (exit code 0).
+exit code: 0
+lock released at 13:38:36 UTC

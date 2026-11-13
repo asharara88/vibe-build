@@ -1,0 +1,6 @@
+npm run typecheck on 0f9563d, working tree: 0 changed files, 2026-11-13 17:10:47 UTC.
+
+> builder@0.0.1 typecheck
+> tsc --noEmit
+
+exit code: 0

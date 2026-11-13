@@ -1,0 +1,8 @@
+Package J1 brought up to date with the integration branch at c6f4056 (1.4b, 1.4c and 3.1b merged), 13 Nov 2026, in builder/ of the worktree of branch claude/j1-journey at commit fbefb0b; builder/ tree 9d02325161059f71c31251f20602dcc85fb5494c.
+
+$ npm run typecheck
+
+> builder@0.0.1 typecheck
+> tsc --noEmit
+
+exit code: 0

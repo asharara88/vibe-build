@@ -28,6 +28,25 @@ export async function getProject(pool: pg.Pool, id: string): Promise<Project | n
   return r.rows[0] ?? null;
 }
 
+export interface ProjectListed extends Project {
+  /** What the event log records as spent (its `model.call` events). */
+  spent_usd: string;
+}
+
+/**
+ * Every project, oldest first, with what it has spent (package J1: the builder's project list). It only reads.
+ * `idPrefix`, when given, keeps only the projects whose id starts with it.
+ */
+export async function listProjects(pool: pg.Pool, o: { idPrefix?: string } = {}): Promise<ProjectListed[]> {
+  const r = await pool.query<ProjectListed>(
+    `select p.*, s.spent_usd from projects p join project_spend s on s.project_id = p.id
+      where $1::text is null or starts_with(p.id, $1::text)
+      order by p.created_at, p.id`,
+    [o.idPrefix ?? null],
+  );
+  return r.rows;
+}
+
 export function hashToken(token: string): string {
   return createHash("sha256").update(token).digest("hex");
 }

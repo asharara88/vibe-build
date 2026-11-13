@@ -13,6 +13,7 @@
     "test": "vitest run",
     "check:licences": "bash scripts/check-licences.sh",
     "gateway": "tsx src/gateway/main.ts",
+    "web": "tsx src/web/main.ts",
     "db:migrate": "tsx src/store/migrate.ts"
   },
   "dependencies": {

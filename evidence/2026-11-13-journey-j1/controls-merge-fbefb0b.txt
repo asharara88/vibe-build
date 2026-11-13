@@ -1,0 +1,86 @@
+J1's controls on a copy of the code at fbefb0b (before the cost test was strengthened at da6803a), 13 Nov 2026: every safeguard removed in turn (exact replacements), the test that guards it run, the file restored. Database builder_test_j1mergectl; no container. Scripts: the session's scratchpad, j1merge/controls1.py to controls4.py (controls1 to 3 are J1's earlier ones, pointed at the copy; J1-C36 and J1-C52 name their lines as the merge rewrote them).
+J1-C68 PASSED here: the test did not catch it. Its test was strengthened at da6803a (controls-merge.txt).
+
+Baseline, before any control: J1's three test files on the copy, unchanged (15:15:05 UTC).
+ Test Files  3 passed (3)
+      Tests  74 passed (74)
+
+New after the merge (controls4.py), 15:15:23 UTC:
+J1-C57 | sign-off judged on the summary's text again, as before the merge (3.1b: the outcome word) | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 32 skipped (33) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+J1-C58 | the journey's state reads no outcome word from the run's record (left null) | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 32 skipped (33) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+J1-C59 | any value taken as the outcome word (not only the three words) | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 32 skipped (33) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+J1-C60 | a run with two endings read by its first | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 32 skipped (33) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+J1-C61 | the checklist screen's outcome worked out from the summary's text | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 29 skipped (30) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+J1-C62 | the preview builds the app without checking the camera's image first | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 32 skipped (33) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+J1-C63 | the camera started without checking its image again after the build | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 32 skipped (33) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+J1-C64 | the adapter's camera check does not ask runnerImageProblem (any image passes) | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 32 skipped (33) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+J1-C65 | the automated run's image check removed (the builder camera) | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 32 skipped (33) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+J1-C66 | the cost panel shows only the oldest freeze not cleared, as before the merge | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 29 skipped (30) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+J1-C67 | a set-aside freeze written before 1.4c's migration shown under its stored kind | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 29 skipped (30) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+J1-C68 | a bill above its hold left out of the unreconciled list's emptiness check, as before the merge | PASSED: the test did not catch it | Test Files  1 passed (1) | Tests  1 passed | 29 skipped (30)
+J1-C69 | a bill above its hold not listed in the unreconciled list | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 29 skipped (30) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+Part 1's 25 (controls1.py), 15:15:37 UTC:
+J1-C1 | the sign-in guard removed | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 29 skipped (30) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+J1-C2 | csrf() removed | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 29 skipped (30) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+J1-C3 | the content-security-policy removed | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 29 skipped (30) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+J1-C4 | the brief shown without escaping (hono's raw) | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 29 skipped (30) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+J1-C5 | the lock-out check before a sign-in removed | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 29 skipped (30) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+J1-C6 | files: the inside-the-folder check removed | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 29 skipped (30) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+J1-C7 | files: the SHA-256 check removed | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 29 skipped (30) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+J1-C8 | start check: the database setting not required | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 29 skipped (30) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+J1-C9 | the environment not scrubbed at start | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 29 skipped (30) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+J1-C10 | the instance lock not checked | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 29 skipped (30) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+J1-C11 | the first-run digest file written readable by others | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 29 skipped (30) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+J1-C12 | a GET that writes an event (the record page) | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 29 skipped (30) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+J1-C13 | a build allowed before both confirmations | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 32 skipped (33) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+J1-C14 | an export allowed before sign-off | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 32 skipped (33) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+J1-C15 | the engine wrapper does not wait for the event queue | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 32 skipped (33) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+J1-C16 | recovery looks at every project, not only j1- ones | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 32 skipped (33) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+J1-C17 | one job at a time not enforced | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  2 failed | 31 skipped (33) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+J1-C25 | the job slot taken only after the started event is written (the race found on re-reading) | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 32 skipped (33) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+J1-C18 | the journey imports the gateway's journal | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 32 skipped (33) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+J1-C19 | another engine named in the journey | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 32 skipped (33) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+J1-C20 | an intake option changed from B2's words | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 10 skipped (11) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+J1-C21 | four questions in one turn | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 10 skipped (11) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+J1-C22 | an R reason not B2's | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 10 skipped (11) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+J1-C23 | a message missing from Arabic | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 29 skipped (30) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+J1-C24 | the journey-id check on project routes removed | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 29 skipped (30) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+Part 2's 23 (controls2.py; J1-C36's line as the merge rewrote it), 15:16:02 UTC:
+J1-C26 | the build job's engine not behind the ordering wrapper (events written without waiting) | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 32 skipped (33) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+J1-C27 | the build job calls the engine directly, not through the step hold (package 1.3) | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 32 skipped (33) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+J1-C28 | no reset after a failed step | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 32 skipped (33) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+J1-C29 | the disk check removed from the build job | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 32 skipped (33) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+J1-C30 | a step allowed before the one before it is approved | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 32 skipped (33) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+J1-C31 | a step approved before it is built | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 32 skipped (33) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+J1-C32 | a camera file recorded without the PNG check | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 32 skipped (33) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+J1-C33 | two projects' apps at a time | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 32 skipped (33) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+J1-C34 | the app started with its port in use | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 32 skipped (33) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+J1-C35 | the camera's folder (and its password file) left after the run | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 32 skipped (33) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+J1-C36 | sign-off allowed on a checklist run that did not pass | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 32 skipped (33) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+J1-C37 | the export's tests written into the workspace instead of the exported copy | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 32 skipped (33) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+J1-C38 | the export's check for files that look like secrets removed | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  2 failed | 31 skipped (33) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+J1-C39 | recovery at start ignores a sandbox left by an interface that stopped | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 32 skipped (33) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+J1-C40 | the adapter removes a recorded folder whose compose file names another project | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 32 skipped (33) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+J1-C41 | the adapter accepts a project id that is not a journey project's | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 32 skipped (33) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+J1-C42 | the refused step's sentence not shown on the build screen | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 29 skipped (30) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+J1-C43 | an item with no test shown as passed | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 29 skipped (30) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+J1-C44 | the stand-in label removed from the checklist screen | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 29 skipped (30) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯ | + <table data-run="run-standin-mwf4djp4"><tr><th>Run</th><td lang="en" dir="ltr">run-standin-mwf4djp4</td></tr><tr><th>Tests version</th><td>v001</td></tr><tr><th>Runner&#39;s exit code</th><td>0</td></tr><tr><th>Outcome, as the run&#39;s record gives it</th><td><strong class="ok" data-outcome="passed">Passed</strong></td></tr><tr><th>Summary, as the runner&#39;s reading wrote it</th><td lang="en" dir="ltr" data-summary>version passed; checklist incomplete (5 of the app spec&#39;s 6 checklist items have no test)</td></tr></table>
+J1-C45 | the export screen offers the export before sign-off | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 29 skipped (30) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+J1-C46 | a GET of the build screen that writes an event | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 29 skipped (30) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+J1-C47 | the jobs' gate: part 2's module names another engine | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 32 skipped (33) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+J1-C48 | part 2's jobs import the gateway's journal | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 32 skipped (33) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+After the review's 8 (controls3.py; J1-C52's line as the merge rewrote it), 15:16:33 UTC:
+J1-C49 | the lock-out read before the request's body, as before the review (blocking item 1) | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 29 skipped (30) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+J1-C50 | bodies that are not forms let through to csrf() and the routes (note 1) | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 29 skipped (30) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+J1-C51 | step ids not isolated left to right (note 7) | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 29 skipped (30) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+J1-C52 | sign-off judged on the last checklist job that finished, ignoring a later one that failed (note 4) | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 32 skipped (33) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+J1-C53 | the export's checks read the last commit only, as before the review (note 5) | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 32 skipped (33) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+J1-C54 | the export cloned locally, copying objects no commit reaches (note 5) | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 32 skipped (33) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+J1-C55 | an interrupted step's reservation left open at start (note 3) | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 32 skipped (33) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+J1-C56 | a failed checklist job not shown on the checklist screen (note 4) | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 29 skipped (30) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯ | + <table data-run="run-standin-mwf4dwfy"><tr><th>Run</th><td lang="en" dir="ltr">run-standin-mwf4dwfy</td></tr><tr><th>Tests version</th><td>v001</td></tr><tr><th>Runner&#39;s exit code</th><td>no container was started</td></tr><tr><th>Outcome, as the run&#39;s record gives it</th><td><strong class="warn" data-outcome="not passed">Not passed</strong></td></tr><tr><th>Summary, as the runner&#39;s reading wrote it</th><td lang="en" dir="ltr" data-summary>did not run: the stand-in said so</td></tr></table>
+
+After every control, the copy compared with a fresh copy of fbefb0b (diff -rq, node_modules left out): no difference
+Finished 15:16:44 UTC.

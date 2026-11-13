@@ -1,0 +1,111 @@
+J1 on 0.6c's private networks, 13 Nov 2026, at commit f5618c9 (builder/ tree 1343da7e06cbf325efcc27b4b6c561a234e2b75d; uncommitted changes under builder/: 0): the wrapper's own output around the automated run (the lock lines and the run's own output, as printed).
+$ J1_DEMO_UI_PORT=4021 flock <scratchpad>/live-tests.lock npx tsx scripts/demo-journey.ts <evidence folder>   (port 4020 is taken by the owner's own interface, which this run does not touch)
+waiting for the lock at 16:02:21 UTC
+lock held at 16:02:21 UTC
+J1's automated run, 2026-11-13T16:02:22.243Z (run 20261113_c75b51).
+The approved runner image builder-acceptance-runner:local is on the machine, labelled builder.browser-zip-sha256 with the approved browser zip's fingerprint (checked with runnerImageProblem, package 3.1b; id sha256:38bec8fffc7303783954b4c5425e4daa2f81f30cb7a759fa660b3887911d9e3f); this run neither builds nor removes it.
+Builder tree: 1343da7e06cbf325efcc27b4b6c561a234e2b75d (git write-tree --prefix=builder/ of the index at the start of the run).
+Free disk before: /dev/vda        252G   27G   13G  68% /
+docker system df before:
+TYPE            TOTAL     ACTIVE    SIZE      RECLAIMABLE
+Images          8         0         2.422GB   2.291GB (94%)
+Containers      0         0         0B        0B
+Local Volumes   4         0         0B        0B
+Build Cache     185       0         10.15GB   5.316GB
+Containers on the machine before (every one, running or not; others belong to other sessions):
+(none)
+J1's containers, images, volumes and networks before: none
+Ports 4021 and 13161 on 127.0.0.1 (the interface's, and the image build's port of J1's sandboxes; the app and its database have none on the machine since package 0.6c): free before the run (checked by a connection attempt, refused).
+Fresh database builder_j1_20261113_c75b51; fresh data folder <run folder>/data.
+A random interface password was made: given to the interface in its environment and to the builder camera as a read-only file (mode 0400). It is not printed or kept.
+The interface started: Interface listening on http://127.0.0.1:4021 (password from: env).
+The builder camera: docker run --rm --name j1-builder-camera-20261113_c75b51 --network host --read-only --tmpfs /tmp:rw,noexec,nosuid,size=512m --cap-drop ALL --security-opt no-new-privileges:true --pids-limit 256 --memory 1g --user runner --workdir /runner --entrypoint node --env BUILDER_CAMERA_BASE=http://127.0.0.1:4021 --volume /tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/wt-j1/builder/camera/builder-shots.mjs:/camera/builder-shots.mjs:ro --volume <run folder>/camera-out:/shots --volume <run folder>/secret/ui-password:/run/secrets/ui-password:ro builder-acceptance-runner:local /camera/builder-shots.mjs
+  PASSED: a visitor not signed in who opens /projects gets the sign-in page
+  PASSED: a visitor not signed in who opens /projects/new gets the sign-in page
+  PASSED: a visitor not signed in who opens / gets the sign-in page
+  PASSED: the sign-in page has one password field
+  PASSED: the mode line says the real-model gate is closed
+  PASSED: a wrong password is refused
+  PASSED: signed in, at the projects page
+  PASSED: the project is made, at its brief
+  project j1-9e0e9df3aec0: Leave requests (made-up), cap $5.00
+  PASSED: the brief is shown as typed
+  PASSED: continued as example 1, at the questions
+  PASSED: every turn answered in the chat, 8 turns
+  PASSED: the proposed app shows its seven sections, the Later list and the assumed choice
+  PASSED: brief confirmed, at the build steps
+  PASSED: the plan has the two steps
+  PASSED: plan confirmed; tests fixed as v001, stand-in test, not independent acceptance
+  PASSED: step 1 built
+  PASSED: step 1: $1.5552 reserved while it ran, released, $0.00 spent
+  PASSED: step 1's live lines: one line per file written (4)
+  PASSED: step 1 approved; step 2 built
+  PASSED: step 2: $3.1104 reserved while it ran, released, $0.00 spent
+  PASSED: step 2 approved; the app is being built for the preview
+  PASSED: the preview's screenshots are there
+  PASSED: four screenshots of the running app, each loaded
+  PASSED: each is captioned 'Not live. Sample data.'
+  PASSED: the preview: before the app started, nothing answered at http://app:3161, asked from a container on the project's front network
+  PASSED: the app camera signed in at http://app:3161, the app's address on the project's front network
+  PASSED: the checklist ran
+  PASSED: item 1 passed
+  PASSED: items 2 to 6: did not run (no test written yet)
+  PASSED: labelled 'stand-in test, not independent acceptance'
+  PASSED: the summary as the runner's reading wrote it
+  PASSED: the outcome word, as the run's record gives it: Passed
+  PASSED: item 1's screenshot, taken by the runner, is shown
+  PASSED: signed off, labelled as a sign-off on a simulated build
+  PASSED: cost: $0.00 spent, with its sentence
+  PASSED: cost: no freeze
+  PASSED: cost: the unreconciled list is empty
+  PASSED: cost: the two step reservations, $1.5552 and $3.1104, closed
+  PASSED: the export is labelled internal only and not yet shown to start without the builder
+  PASSED: the export is written
+  PASSED: the downloaded export has the SHA-256 the page shows
+  PASSED: the record lists every event in id order
+  PASSED: the project is closed: its containers, images and folder removed
+  PASSED: the second project is made
+  project j1-24ac0c6cf323: Leave requests, $1.00 cap (made-up), cap $1.00
+  PASSED: a project capped at $1.00: step 1 refused with package 1.3's message and the sentence under it
+  PASSED: the second project is closed
+  PASSED: signed out
+  PASSED: nothing but 127.0.0.1:4021 was loaded
+The builder camera ended with exit code 0; its checks: 48 passed, 0 failed.
+J1's containers Docker listed while the camera ran (sampled every second; name [networks], published ports if any): 9
+  builder_j1-9e0e9df3aec0-egress-host-1 [host]
+  builder_j1-9e0e9df3aec0-db-1 [builder_j1-9e0e9df3aec0_data] ports: 5432/tcp
+  builder_j1-9e0e9df3aec0-tools-run-27b39689cfcb [builder_j1-9e0e9df3aec0_data]
+  builder_j1-9e0e9df3aec0-tools-run-e99b8c559eb6 [builder_j1-9e0e9df3aec0_data]
+  builder_j1-9e0e9df3aec0-check-run-99ea134a253a [builder_j1-9e0e9df3aec0_front]
+  builder_j1-9e0e9df3aec0-app-1 [builder_j1-9e0e9df3aec0_data,builder_j1-9e0e9df3aec0_front] ports: 3000/tcp
+  builder_j1-9e0e9df3aec0-app-camera-164012 [builder_j1-9e0e9df3aec0_front]
+  builder_j1-9e0e9df3aec0-check-run-e566640bd306 [builder_j1-9e0e9df3aec0_front]
+  builder_j1-9e0e9df3aec0-acceptance-run-20261113t160304-7cbfeb3d [builder_j1-9e0e9df3aec0_front]
+  PASSED: no J1 container published a port on the machine (Docker's list, every second)
+  PASSED: only the door's machine side (egress-host) was on the machine's network
+  PASSED: the app camera ran on the project's front network alone
+  PASSED: the acceptance runner ran on the project's front network alone
+  PASSED: the app was on the project's data and front networks alone
+  PASSED: every check container seen (it asks the app before a start or a run) was on the front network alone
+Screenshots copied into the evidence folder: 35 of 35.
+Events written to events.json: 115, in id order, for 2 projects.
+The export downloaded in the browser: j1-9e0e9df3aec0-export.tar.gz, 380818 bytes, SHA-256 287d663249521689132c80458aa2be1af9f127099e384c0a5065231751ad93f2; its event records 287d663249521689132c80458aa2be1af9f127099e384c0a5065231751ad93f2: the same.
+  the archive holds the tests and the note (all four checked paths there); files that look like secrets: none.
+Free space on the data folder's disk, sampled every 2 s (34 samples): 12.39 GB at the start, 11.33 GB at the lowest, 12.37 GB at the end, before the clean-up (GB of 1024^3 bytes).
+J1's containers, images, volumes and networks left when the interface stopped: none
+Sandbox folders the run's events record: 2; still there when the interface stopped: 0. Other sandbox folders made during the run and left: none.
+Run folder (data, camera output, password file) removed: yes. Database builder_j1_20261113_c75b51 dropped.
+Containers on the machine after (every one): (none)
+J1's containers, images, volumes and networks after: none
+Free disk after: /dev/vda        252G   27G   13G  68% /
+docker system df after:
+TYPE            TOTAL     ACTIVE    SIZE      RECLAIMABLE
+Images          8         0         2.422GB   2.291GB (94%)
+Containers      0         0         0B        0B
+Local Volumes   4         0         0B        0B
+Build Cache     188       0         10.15GB   5.317GB
+Projects the camera made: j1-9e0e9df3aec0, j1-24ac0c6cf323.
+Checks in all (the builder camera's, the export's and Docker's list of J1's containers): 54 passed, 0 failed.
+Result: every check passed (exit code 0).
+exit code: 0
+lock released at 16:03:47 UTC

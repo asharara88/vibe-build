@@ -1,0 +1,8 @@
+Package J1 on 0.6c's private networks (the integration branch at 6ddd0d6 merged), 13 Nov 2026, in builder/ of the worktree of branch claude/j1-journey at commit f5618c9; builder/ tree 1343da7e06cbf325efcc27b4b6c561a234e2b75d; uncommitted changes under builder/ and templates/: 0.
+
+$ npm run typecheck
+
+> builder@0.0.1 typecheck
+> tsc --noEmit
+
+exit code: 0

@@ -71,3 +71,12 @@ Claude Code's readings and work, recorded as such, not as your decisions. Detail
 - Package 3.1: where the approved browser zip is not on the machine, the live acceptance tests are skipped (reported as skipped), not failed (gap 73).
 - Package 3.1: the runner's trace is kept without its screencast, so no frames of the screen are recorded; read as what "no video recorded" asks (`docs/DECISIONS.md`, 13 Nov, after the review).
 - Package 3.1: a line for `CLAUDE.md`'s Commands: "in `builder/runner/`, run `npm ci --ignore-scripts` once before `npm run check:licences`" (gap 77). Say yes and Claude Code adds it.
+- Package J1: on a first run, the first visitor to reach the interface chooses its password (12 characters or more; only its digest is kept, mode 0600); only this machine and the session's preview can reach it, and a project container can too until 0.6c (gap 131).
+- Package J1: the builder's own sign-in is written by hand with Node's scrypt, for one user, until an engineer reads it (gap 130).
+- Package J1: the question bank shown word for word, its three inconsistencies as written (gap 133); where B2's mapping for example 1 is silent, the answer sheet follows the app spec.
+- Package J1: the builder's own screens in English and Arabic, wording Claude Code's (`docs/arabic-wording-list.md`; gap 134).
+- Package J1: the two cameras as built under your answer A (a): the builder camera in a container of its own on this machine's network, the app camera in the project's runner container; no video, no trace (gap 138).
+- Package J1, after its review: every request to the interface but a GET or HEAD must be a form; sign-off judged on the last checklist job; an interrupted step's reservation closed at start (`docs/DECISIONS.md`, 13 Nov).
+- Package J1: sign-off offered only after a checklist run that passed, and labelled as a sign-off on a simulated build checked by a stand-in test of item 1 only.
+- Package J1: the export holds the project's history and, in the exported copy only, the stand-in tests and a note; labelled internal only.
+- Package J1: a build refused below 4 GB of free disk, a floor assumed, not measured (gap 137).

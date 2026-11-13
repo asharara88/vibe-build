@@ -1,0 +1,41 @@
+J1 after the review bot on defb9c4, 13 Nov 2026: each part of the two fixes removed in turn (exact replacements) on a copy of the code at 0f9563d (git archive of the commit, the evidence left out; node_modules linked), the tests that guard it run, the file restored; then the copy compared with a fresh one. Database builder_test_botj1; TMPDIR <scratchpad>/botj1-tmp; stand-in sandboxes and a made-up docker program, no container, no model. Scripts: controls-bot-scripts/. Controls J1-C92 to J1-C105.
+Started 17:07:46 UTC.
+Baseline (the copy unchanged): IN passed, CHECK passed, STOP passed, REAL passed, RETRY passed, ENGINE passed, CAMERA passed; vitest exit code 0
+J1-C92 (the lock's connection: its error and end no longer tracked (as at defb9c4)): as expected, every guarding test failed; vitest exit code 1
+    IN: FAILED (AssertionError: expected { 'GET /projects': 200, …(9) } to deeply equal { 'GET /projects': 503, …(9) })
+    REAL: FAILED (AssertionError: expected { …(5) } to deeply equal { …(5) })
+J1-C93 (no 503 once the lock is lost (the interface's guard removed)): as expected, every guarding test failed; vitest exit code 1
+    IN: FAILED (AssertionError: expected { 'GET /projects': 200, …(9) } to deeply equal { 'GET /projects': 503, …(9) })
+J1-C94 (the halt does not tell the running job to stop (its signal never aborted)): as expected, every guarding test failed; vitest exit code 1
+    IN: FAILED (AssertionError: expected { 'GET /projects': 503, …(9) } to deeply equal { 'GET /projects': 503, …(9) })
+    STOP: FAILED (AssertionError: expected [ 'server closed', 'exit 1' ] to deeply equal [ Array(3) ])
+    ENGINE: FAILED (Error: Test timed out in 20000ms.)
+J1-C95 (no check of the lock before a job starts): as expected, every guarding test failed; vitest exit code 1
+    CHECK: FAILED (AssertionError: promise resolved "{ jobId: 'job-004dfe26' }" instead of rejecting)
+J1-C96 (a halted step's engine container not killed): as expected, every guarding test failed; vitest exit code 1
+    ENGINE: FAILED (Error: Test timed out in 20000ms.)
+J1-C97 (the app camera's container not killed when its signal is aborted (the adapter)): as expected, every guarding test failed; vitest exit code 1
+    CAMERA: FAILED (AssertionError: expected 'not ended' not to be 'not ended' // Object.is equality)
+J1-C98 (a halted preview stops its app all the same (changes the sandbox after the loss)): as expected, every guarding test failed; vitest exit code 1
+    IN: FAILED (AssertionError: expected { 'GET /projects': 503, …(9) } to deeply equal { 'GET /projects': 503, …(9) })
+J1-C99 (a halted step puts its workspace back all the same (changes the sandbox after the loss)): as expected, every guarding test failed; vitest exit code 1
+    ENGINE: FAILED (AssertionError: expected [ 'journey.job.started', …(7) ] to not include 'journey.workspace.reset')
+J1-C100 (a halted job recorded failed, not interrupted): as expected, every guarding test failed; vitest exit code 1
+    ENGINE: FAILED (AssertionError: expected { jobId: 'job-9e4af7ac', …(5) } to match object { state: 'interrupted' })
+    STOP: FAILED (AssertionError: expected { jobId: 'job-2117df4e', …(5) } to match object { jobId: 'job-2117df4e', …(1) })
+J1-C101 (actions not refused once halted (the guard on each project's actions removed)): as expected, every guarding test failed; vitest exit code 1
+    ENGINE: FAILED (AssertionError: expected [Function] to throw error including 'Made-up reason for the test: the inte…' but got 'A job of this project was interrupted…')
+J1-C102 (a lock released on purpose reported as lost): as expected, every guarding test failed; vitest exit code 1
+    CHECK: FAILED (AssertionError: expected [ Array(1) ] to deeply equal [])
+J1-C103 (the real interface does not stop once serving (its handler for the loss does nothing)): as expected, every guarding test failed; vitest exit code 1
+    REAL: FAILED (AssertionError: expected { …(5) } to deeply equal { …(5) })
+J1-C104 (the screenshots copied into the project's shared shots folder again (no folder per attempt; as at defb9c4)): as expected, every guarding test failed; vitest exit code 1
+    RETRY: FAILED (AssertionError: the faults reported: A preview job failed. {"project":"j1-e9bafb293a56","job":"job-25c8a74e","error":"The camera's app-home-ar.png is not a PNG image."} | A preview job failed. {"project":"j1-e9bafb293a56","job":"job-5a773bc9","error":"EEXIST: file already exists, open '<scratchpad (the line cut at 300 characters here)>)
+J1-C105 (the preview screen shows every attempt's screenshots, not the latest job's): as expected, every guarding test failed; vitest exit code 1
+    RETRY: FAILED (AssertionError: expected '<!doctype html>\n<html lang="en" dir=…' to contain 'data-shots="4"')
+All controls as expected.
+
+After every control, the copy compared with a fresh copy of 0f9563d (diff -rq, node_modules left out): no difference
+Databases named builder_test_botj1* left: builder_test_botj1; interface processes left (pgrep -f src/web/main.ts): 0; made-up docker sleeps left (pgrep -fc 'sleep 30'): 2
+Finished 17:09:55 UTC.
+Correction, 17:10:19 UTC: the `sleep 30` processes counted on the line above were this session's own monitoring loop's (each one's parent is that loop, which sleeps 30 s between its checks), not the made-up docker program's. Counted again, leaving out any whose parent is that loop: 0.
