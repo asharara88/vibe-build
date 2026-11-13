@@ -5,7 +5,7 @@
 ## State
 
 1. **Tested:** 0.1 to 0.5, 0.6a (development profile only), 1.1, 1.2 (against a stand-in provider only), 2.1 and W4. R1 is merged, not tested. Progress: build plan section 10.
-2. **Built, not tested: 3.1**, the acceptance store and runner, on its own pull request. Its four "Done means" items were each run on the development profile, against example 1's app built by the scripted engine, with a **stand-in test** (written in advance by Claude Code, your answer to question 12): a pass with its screenshot; the deliberately broken copy rejected at item 1, step "sees status waiting"; three runs that did not execute reported "did not run"; and every attempt from the engine's container to reach the tests failed. Evidence: `evidence/2026-11-13-package-3.1/acceptance.md`. It now goes to an adversarial review (acceptance separation).
+2. **Built, not tested: 3.1**, the acceptance store and runner, on its own pull request, with a **stand-in test** (written in advance by Claude Code, your answer to question 12). Its four "Done means" items were run on the development profile: a pass with its screenshot, the broken copy rejected at item 1, runs that did not execute reported "did not run", every attempt from the engine's container to reach the tests failed. One adversarial review found one blocking item (two build logs cited but not in the branch), now fixed; the trace no longer records frames of the screen. All four items were run again after the fixes and held. Evidence: `evidence/2026-11-13-package-3.1/acceptance.md`.
 3. **Budget cap:** limits admission, not the bill; nothing yet stops a project (1.4).
 4. **Isolation:** on the development profile, project containers, the new runner among them, can reach the machine's services (known gaps 60 and 66). Fixed by package 0.6c. No code a model wrote runs before it.
 5. **Licences:** the sandbox images, the runner's two base images, the 119 Ubuntu packages and the browser are approved for internal development and testing only (questions 11 and 15). Google's browser terms are still unread.
@@ -13,9 +13,8 @@
 
 ## Next
 
-1. 3.1's review, at most two rounds, then its merge.
-2. 1.2b's merge, and the pull request that pins the approved images (it adds the runner's three artefacts to its list once 3.1 is merged).
-3. 1.3, 1.4, 1.5; 0.6c's design alongside.
+1. 3.1: bring its branch up to date with `claude/stage-1`, which has moved on; known-gap numbers 66 to 69 are taken there, so this branch's gaps 66 to 76 are renumbered. Then its merge.
+2. 1.3, 1.4, 1.5; 0.6c's design alongside.
 
 ## What blocks it
 
