@@ -150,3 +150,47 @@ The first whole-suite run after the fix failed one test, B10 (9) (`run-tests-ful
 - **Not tested** in the plan's sense: the review bot reads it next.
 - **No test races two real processes** on one folder; the order is fixed by wrapping the file system in one process. The review's own race of real processes (six rounds) is the review's run, not repeated here.
 - Two rewrites at the same moment (gap 105); a running gateway never reads its journal again (gap 142); more than one gateway (gap 143).
+
+## After the review bot on 88e984b (13 Nov 2026)
+
+The review bot read the branch at `88e984b` and reported two findings. Each was checked against the code, reproduced by a test that fails at `88e984b`, then fixed. Line numbers in this section are at `e1c3d46`. A **leftover** is the old journal file kept under a second name by a rewrite cut short.
+
+### Finding 1 (P1): a call's ending lost when a rewrite stops between its rename and its carry-over
+
+**Found, and confirmed in the code.** A rewrite of the journal file (the gateway's move to the done file, the script's removal of a set-aside line) read the file, renamed a new file over it, and only then copied over what had been appended to the old file meanwhile. A gateway that has lost its lock still appends; an append to the old file after the read and before the rename returned once forced to disk. If the rewrite stopped after the rename and before that copy (a kill, a crash, an I/O error), the line was only in the old file, which no name reached any more: lost.
+
+**Reproduced** (`run-bot-before.txt`: the code at `88e984b` with the two new test files). Test (k1): the script's set-aside stopped right after its rename, then the gateway started (`main.ts` as a process): "journal lines replayed at start-up: 0", the project not frozen, its next call forwarded (HTTP 200; 2 requests reached the stand-in). Test (k2), both rewrites: stopped after the rename (its steps 5 and 6) the line was nowhere on disk and the project not frozen; the steps the fix adds (1, 2, 7, 8) did not exist then.
+
+**Done** (`builder/src/gateway/journal.ts`). The shape the task suggested. An append-only journal was not chosen: the existing tests (b), (c), (d), (e), (e2) and (g) expect the journal file to lose a moved line, and they are not to be changed to make a fix pass.
+- A rewrite first gives the old file a second name in the folder (a hard link, `unrecorded-endings.jsonl.prev-<id>`), checks it names the file it read, and forces the folder to disk; writes the new file and forces it; renames it into place and forces the folder; carries over what was appended to the old file and forces it; only then removes the second name (`rewriteWithout`, `:512`: the link `:533`, the rename `:551`, the carry-over `:561`, the removal `:563`). An error before the rename removes the second name again (the journal file still names the old file); one after it leaves it.
+- What a leftover alone holds (`onlyInLeftovers`, `:124`): a record whose journal id the journal file does not hold; an unreadable line whose fingerprint it does not hold, unless `journal_set_asides` records that fingerprint for the folder (the line was set aside; the leftover is the file as it was before the removal). When the set-asides cannot be read, every unreadable line of a leftover counts: it fails closed.
+- The gateway at start-up, when a leftover exists, reads the set-asides, moves into the journal file what the leftover alone holds (forced to disk) and removes it (`replay`, `:727`; `absorbLeftovers`, `:376`). It reads leftovers in any case (`pending`, `:360`, `:464`), so a leftover it could not move in still counts. `--list` shows such lines, marked, at the line they will be in the journal file (`journal-recovery.ts:250`); `--set-aside` moves leftovers in first (`journal-recovery.ts:412`).
+
+**Shown** (`builder/test/journal-crash.test.ts`; the file system's functions wrapped so each step is reached in the same order every time; a stop is a file operation that never returns, so nothing after it runs).
+- **(k1)** the bot's case, with `main.ts` as a process: 1 line replayed, the project frozen naming that record, its next call refused 402 `project_frozen` with nothing reaching the stand-in, no leftover left. **Controls X26** (no second name, as at `88e984b`) and **X28** (start-up reads the journal file only).
+- **(k2)** both rewrites, stopped at each of their 8 steps, and once not stopped: at every step the ending is on disk, `--list` shows it waiting, and the gateway started afterwards freezes its project and leaves no leftover. A set-aside line comes back only while its removal had not reached the rename; it is then still in the journal file, the gateway stays closed, and the same set-aside run again finishes it. **Controls X27** (the second name removed before the carry-over), **X29** (a leftover read but not moved in), **X30** (the set-asides not read: the set-aside line comes back after the rename).
+- **(k3)** fails closed: while the set-asides cannot be read, a leftover's unreadable line counts and the leftover is kept; a leftover's unreadable line never set aside closes the gateway, is moved into the journal file, and is set aside as any other.
+- **(k4)** `--list`, and the script's printed list, number a leftover's lines as they will be in the journal file and leave out one set aside already; the script moves the leftover in first, so a line set aside at its listed number is the right one; a record only the leftover held is replayed. **Controls X31, X32.**
+
+### Finding 2 (P2): the recovery went on writing after its lock connection was lost
+
+**Found, and confirmed in the code.** The script took the folder's lock on a connection of its own and ignored that connection's errors (`lock.on("error", () => undefined)` at `88e984b`). If that connection ended, PostgreSQL released the lock, yet the run went on recording the set-aside and changing the folder's files through other connections, while a gateway or another run could take the lock.
+
+**Reproduced** (`run-bot-before.txt`). (l1) the lock connection ended right after the lock was taken, and another process then took the lock: the run completed and wrote its row, freeze, events and files. (l2) the script as a process, its connection ended while its transaction waited for the project's lock: exit code 0, everything written.
+
+**Done** (`builder/src/gateway/journal-recovery.ts`). The connection's 'error' and 'end' are tracked (`:380`, `:381`). Right before each write, the run checks it still holds the lock, by that flag and then by a query on that same connection (`:386` to `:396`), and inside the set-aside's transaction again right before its commit (`:635`); the journal's own rewrites in the run check the same flag (`:408`). Once the lock is lost the run writes nothing more and throws `RecoveryStopped` (`:80`); the script prints "Stopped (folder_lock_lost): ..." and exits with code 4 (`builder/scripts/journal-recover.ts:198`).
+
+**Shown** (`builder/test/journal-recovery-lock.test.ts`). **(l1)** the bot's case: nothing written, every file in the folder byte for byte as before, `RecoveryStopped`. **(l2)** the script as a process: exit code 4, the plain message, its transaction rolled back, nothing written. **(l3)** the lock lost right before each of the 10 writes a set-aside can make: from there on nothing is written, and the same set-aside run again finishes it. **Controls X33** (the check never stops the run), **X34** (no check before the commit), **X35** (neither the connection's events nor the query, as at `88e984b`).
+
+### Runs
+
+- **Before the fix** (`run-bot-before.txt`): the code at `88e984b` with the two new test files: 8 of 8 tests failed, each on its own check.
+- **Controls** (`run-bot-controls.txt`, run by `controls-after-bot.py` on a copy of `e1c3d46` made with git archive): 10 of 10 failed as they should, X26 to X35.
+- **Checks** on `e1c3d46`: type check passed (`run-bot-typecheck.txt`); whole suite under the shared lock, 19 files and 425 tests passed, none skipped (`run-bot-tests-full.txt`; its lines "Closing file descriptor ... on garbage collection" are the stopped rewrites' handles, which a stopped operation never closes); licence check passed (`run-bot-licences.txt`). No dependency added.
+
+### What this still does not show
+
+- **No real crash.** A stop here is an operation that never returns, in one process: no process is killed part-way through a rewrite, and no power is cut. That a line forced to disk, and the folder's entries, survive a power cut rests on fsync doing what the operating system documents (the folder's is best effort).
+- **Two rewrites at the same moment** (gap 105): narrowed (a rewrite whose file was replaced after it opened it now stops before its rename), not closed.
+- **The recovery's check and its write are two steps** (gap 106): the lock can be lost between them, as for the gateway's own guard. A connection that stops answering without closing makes the run wait, not write.
+- Leftovers are moved in only at a gateway's start and by the script, not by a running gateway; a temporary file left by a stop before the rename is not removed (it holds nothing the journal file does not).
