@@ -1,0 +1,274 @@
+$ npx tsx scripts/demo-acceptance.ts ../evidence/2026-11-13-package-3.1   (in builder/, at commit ebed727, under the lock shared with other sessions; settings named: BUILDER_DATA_DIR, BUILDER_BROWSER_CACHE, HTTPS_PROXY; BUILDER_DATABASE_URL not set, so the local development database)
+
+Package 3.1 demonstration, 2026-11-13T07:18:46.442Z. Development profile, cloud session. No model is called.
+Before: 8.3 GB free on the folder for temporary files.
+
+== 1. The runner image (builder/runner/), built on this machine and kept here: never pushed ==
+  Bases: ubuntu:24.04@sha256:2198e4c65076e9cb0b3d695219df667c0e3b0072da64ca3c2648aca17dcecaf5; node:22-bookworm-slim@sha256:e9f565d32859f0cbfb52125eafe8be39390f24dac302dc3cdf566e8ba3ab21ee.
+  Browser zip from the cache: 119809080 bytes, SHA-256 a9da028861a0cf789ff25c2fed45f5f1aaf969ed9247835b6a7821a4f7af9d1d (the approved one; checked before the build and again inside it).
+  Image builder-acceptance-runner:local = sha256:8117c4f005d2ed5cb2a786e4666f4341b43f9d6be8cdccbb52e9fc8f8941ee97.
+  Packages in the image, read from a container of it after the build: 201 = 92 of the base image + 109 added.
+  Added, compared with the approved list of 109 (docs/licences/raw/ubuntu-runner-packages.tsv): exactly the approved packages at the approved versions; no package of the base image changed.
+  node --version: v22.23.5
+  npm --version: 10.9.9
+  Node's licence notice (/usr/local/LICENSE), SHA-256: c738ae413cf561f174e34f6961f8ca458aae2369a73640dda6234c629b98bcc4
+  Playwright Test: 1.63.0
+  browser files, SHA-256: ded93a9c9a53a1ae040f08124badcca95c938e9d5015ff340c3b5538c41bf39e  chrome-headless-shell; 34d078ce3003087a8374e7c6156fda374769b8047d6ddaf419d66414aa48edfb  ABOUT; b92247f7a44c14627ef5cbbe0aa6dcca4e4422b7c05e6f2c660054061a5e3da7  LICENSE.headless_shell
+  browser folder, number of files: 287
+  user: 1001 runner
+  proxy or certificate settings left in the image: 0 0
+  video tool (ffmpeg) installed: 0
+
+== 2. A sandbox for example 1; the stand-in tests written into the store before step 01 ==
+  Sandbox builder_demo_acc_mwenb8a2 in a temporary folder; the store at $BUILDER_DATA_DIR/acceptance (mode 700), outside the repository and the sandbox.
+  engine mount source $TMPDIR/builder-acceptance-VddX1m/workspace: mount rule allows it (not the data folder, not inside it, not above it)
+  engine mount source $TMPDIR/builder-acceptance-VddX1m/engine-empty: mount rule allows it (not the data folder, not inside it, not above it)
+  engine mount source $TMPDIR/builder-acceptance-VddX1m/engine-change-sets: mount rule allows it (not the data folder, not inside it, not above it)
+  Version v001 written: manifest SHA-256 d6a9cee7e15ef231a5458c0c752a73635d50a1b0e11deeef40f0f9d6d4878225; written_by "stand-in"; items: 1 (item-01.spec.ts, 5b5b3fd4b6d5…).
+  The marker is in the manifest and in each test file's label line; it is not printed here, and the event does not hold it.
+  The app spec's checklist has 6 items; the version has a test for 1.
+
+== 3. Steps 01 and 02, each in a fresh engine container, inspected while it runs ==
+  step 01-data: 4 files changed, committed as [scripted] example-1 01-data
+    docker inspect answered while the container ran: yes; network: none; user: node
+    mount /engine  <-  $TMPDIR/builder-acceptance-VddX1m/engine-change-sets  (read-only)
+    mount /workspace  <-  $TMPDIR/builder-acceptance-VddX1m/workspace  (read-write)
+    mount /workspace/.dockerignore  <-  $TMPDIR/builder-acceptance-VddX1m/workspace/.dockerignore  (read-only)
+    mount /workspace/Dockerfile  <-  $TMPDIR/builder-acceptance-VddX1m/workspace/Dockerfile  (read-only)
+    mount /workspace/certs  <-  $TMPDIR/builder-acceptance-VddX1m/engine-empty  (read-only)
+    mount /workspace/next.config.ts  <-  $TMPDIR/builder-acceptance-VddX1m/workspace/next.config.ts  (read-only)
+    mount /workspace/package-lock.json  <-  $TMPDIR/builder-acceptance-VddX1m/workspace/package-lock.json  (read-only)
+    mount /workspace/package.json  <-  $TMPDIR/builder-acceptance-VddX1m/workspace/package.json  (read-only)
+    mount /workspace/tsconfig.json  <-  $TMPDIR/builder-acceptance-VddX1m/workspace/tsconfig.json  (read-only)
+    mount /workspace/scripts/check-guards.ts  <-  $TMPDIR/builder-acceptance-VddX1m/workspace/scripts/check-guards.ts  (read-only)
+    mount /workspace/src/app-config.ts  <-  $TMPDIR/builder-acceptance-VddX1m/workspace/src/app-config.ts  (read-only)
+    mount /workspace/src/auth.ts  <-  $TMPDIR/builder-acceptance-VddX1m/workspace/src/auth.ts  (read-only)
+    mount /workspace/src/db/schema.ts  <-  $TMPDIR/builder-acceptance-VddX1m/workspace/src/db/schema.ts  (read-only)
+    mount /workspace/src/lib/access.ts  <-  $TMPDIR/builder-acceptance-VddX1m/workspace/src/lib/access.ts  (read-only)
+    mount /workspace/src/lib/roles.tsx  <-  $TMPDIR/builder-acceptance-VddX1m/workspace/src/lib/roles.tsx  (read-only)
+  step 02-submitter-screen: 8 files changed, committed as [scripted] example-1 02-submitter-screen
+    docker inspect answered while the container ran: yes; network: none; user: node
+    mount /engine  <-  $TMPDIR/builder-acceptance-VddX1m/engine-change-sets  (read-only)
+    mount /workspace  <-  $TMPDIR/builder-acceptance-VddX1m/workspace  (read-write)
+    mount /workspace/.dockerignore  <-  $TMPDIR/builder-acceptance-VddX1m/workspace/.dockerignore  (read-only)
+    mount /workspace/Dockerfile  <-  $TMPDIR/builder-acceptance-VddX1m/workspace/Dockerfile  (read-only)
+    mount /workspace/certs  <-  $TMPDIR/builder-acceptance-VddX1m/engine-empty  (read-only)
+    mount /workspace/next.config.ts  <-  $TMPDIR/builder-acceptance-VddX1m/workspace/next.config.ts  (read-only)
+    mount /workspace/package-lock.json  <-  $TMPDIR/builder-acceptance-VddX1m/workspace/package-lock.json  (read-only)
+    mount /workspace/package.json  <-  $TMPDIR/builder-acceptance-VddX1m/workspace/package.json  (read-only)
+    mount /workspace/tsconfig.json  <-  $TMPDIR/builder-acceptance-VddX1m/workspace/tsconfig.json  (read-only)
+    mount /workspace/scripts/check-guards.ts  <-  $TMPDIR/builder-acceptance-VddX1m/workspace/scripts/check-guards.ts  (read-only)
+    mount /workspace/src/app-config.ts  <-  $TMPDIR/builder-acceptance-VddX1m/workspace/src/app-config.ts  (read-only)
+    mount /workspace/src/auth.ts  <-  $TMPDIR/builder-acceptance-VddX1m/workspace/src/auth.ts  (read-only)
+    mount /workspace/src/db/schema.ts  <-  $TMPDIR/builder-acceptance-VddX1m/workspace/src/db/schema.ts  (read-only)
+    mount /workspace/src/lib/access.ts  <-  $TMPDIR/builder-acceptance-VddX1m/workspace/src/lib/access.ts  (read-only)
+    mount /workspace/src/lib/roles.tsx  <-  $TMPDIR/builder-acceptance-VddX1m/workspace/src/lib/roles.tsx  (read-only)
+
+== 4. The app built and started; run A: the stand-in test against it ==
+  App and tools images built (the template's guard check and next build ran in the build).
+  Tables created and sample users added in the tools container (3 lines from the seed).
+  Before the app was started, nothing listened on 127.0.0.1:3141 (checked by a connection attempt, refused).
+  App container started and healthy.
+  run run-20261113t071923-37003caa, version v001 (manifest d6a9cee7e15e…), written by: stand-in (label "stand-in test")
+  refused before the start: no; container exit: code 0
+  item 1 (item-01.spec.ts): PASSED: ran once and passed, with its screenshot
+  result: version passed; checklist incomplete (5 of the app spec's 6 checklist items have no test)
+  The runner's container, inspected while it ran (yes): network host, user runner
+    mount /acceptance  <-  $TMPDIR/data-evidence/acceptance/demo_acc_mwenb8a2/v001  (read-only)
+    mount /results  <-  $TMPDIR/data-evidence/acceptance-runs/demo_acc_mwenb8a2/run-20261113t071923-37003caa/results  (read-write)
+    mount /run/secrets/sample-password  <-  $TMPDIR/data-evidence/acceptance-runs/demo_acc_mwenb8a2/run-20261113t071923-37003caa/secret/sample-password  (read-only)
+  The command: docker compose -f $TMPDIR/builder-acceptance-VddX1m/compose.yaml --profile tools --profile engine --profile acceptance run --rm --no-deps -T --name builder_demo_acc_mwenb8a2-acceptance-run-20261113t071923-37003caa --volume $TMPDIR/data-evidence/acceptance/demo_acc_mwenb8a2/v001:/acceptance:ro --volume $TMPDIR/data-evidence/acceptance-runs/demo_acc_mwenb8a2/run-20261113t071923-37003caa/results:/results --volume $TMPDIR/data-evidence/acceptance-runs/demo_acc_mwenb8a2/run-20261113t071923-37003caa/secret/sample-password:/run/secrets/sample-password:ro --env RUN_ID=run-20261113t071923-37003caa acceptance node /runner/node_modules/@playwright/test/cli.js test --config /runner/playwright.config.mjs
+  Screenshot kept: screens/01-item-1-passed-stand-in-test.png (SHA-256 92c9d52b80f5f0f2126de753b83dbbfbaea06d01f98e193ff65efbaf1effb656).
+  The runner service's /proc/self/mountinfo, from inside (same service, the version and a fresh results folder): 33 lines, kept in mounts.json.
+
+== 5. Runs B1 and B2: a run stopped by a time limit, and a run killed while its test runs ==
+  (A first trial gave run B a 3-second limit; the app was warm by then and the test passed within it, so it was reported passed, correctly. The limit is now half a second, shorter than the container takes to start.)
+  run run-20261113t071927-b08efd06, version v001 (manifest d6a9cee7e15e…), written by: stand-in (label "stand-in test")
+  refused before the start: no; container exit: code 137, stopped at its time limit
+  item 1 (item-01.spec.ts): DID NOT RUN: the run went past its time limit and its container was stopped
+  result: did not run: the run went past its time limit and its container was stopped
+  B2: killed with docker kill as soon as the runner printed "Running 1 test using 1 worker".
+  run run-20261113t071928-74fa17da, version v001 (manifest d6a9cee7e15e…), written by: stand-in (label "stand-in test")
+  refused before the start: no; container exit: code 137
+  item 1 (item-01.spec.ts): DID NOT RUN: the runner's container ended with exit code 137
+  result: did not run: the runner's container ended with exit code 137
+
+== 6. From inside the engine container: attempts to reach the store; its mounts; checks on the machine ==
+  The file probe ran in the engine service with step 02's own mounts (the protected paths) and itself at /probe; user {"kind":"who","uid":1000,"gid":1000}.
+  by file path: the store's data folder: $TMPDIR/data-evidence -> not found (ENOENT)
+  by file path: the store ($BUILDER_DATA_DIR/acceptance): $TMPDIR/data-evidence/acceptance -> not found (ENOENT)
+  by file path: the project's folder in the store: $TMPDIR/data-evidence/acceptance/demo_acc_mwenb8a2 -> not found (ENOENT)
+  by file path: the version: $TMPDIR/data-evidence/acceptance/demo_acc_mwenb8a2/v001 -> not found (ENOENT)
+  by file path: a test file of the version: $TMPDIR/data-evidence/acceptance/demo_acc_mwenb8a2/v001/item-01.spec.ts -> not found (ENOENT)
+  by file path: the version's manifest: $TMPDIR/data-evidence/acceptance/demo_acc_mwenb8a2/v001/manifest.json -> not found (ENOENT)
+  by file path: run A's folder: $TMPDIR/data-evidence/acceptance-runs/demo_acc_mwenb8a2/run-20261113t071923-37003caa -> not found (ENOENT)
+  by file path: the repository's stand-in-acceptance/: <repository>/stand-in-acceptance -> not found (ENOENT)
+  by file path: the repository's evidence/: <repository>/evidence -> not found (ENOENT)
+  by file path: /acceptance (where the runner sees the version): /acceptance -> not found (ENOENT)
+  by file path: /results (where the runner writes): /results -> not found (ENOENT)
+  by file path: /workspace/.git (a history inside the workspace): /workspace/.git -> not found (ENOENT)
+  by file path: the project's history folder, by its path on the machine: $TMPDIR/builder-acceptance-VddX1m/workspace.git -> not found (ENOENT)
+  search of every file it could read: 2663 files, 39068827 bytes; 5 not readable; 1 larger than 64 MB skipped.
+    the version's marker: found in 0 files
+    a phrase of the test's source: found in 0 files
+    the run's reason (run A): found in 0 files
+  /proc/self/mountinfo inside, unfiltered: 46 lines (mounts.json); lines naming /acceptance, /results or the store: 0.
+  network probe (0.6a's isolation-probe.mjs, unchanged): 39 attempts; answered: 0. scripted engine container, no network at all (gap 50); says nothing about 2.2.
+  project database dump (4342 bytes): {"the version's marker":0,"a phrase of the test's source":0,"the run's reason (run A)":1}
+  the builder's events for the project (10 rows): {"the version's marker":0,"a phrase of the test's source":0,"the run's reason (run A)":0}
+  the project's history: 3 revisions, 62 file names; acceptance files: none; {"the version's marker":0,"a phrase of the test's source":0,"the run's reason (run A)":0}
+  the source folders of the engine's mounts (15), from the machine: 90 files; {"the version's marker":0,"a phrase of the test's source":0,"the run's reason (run A)":0}
+
+== 7. Run C: the app stopped first ==
+  run run-20261113t071951-400b73f0, version v001 (manifest d6a9cee7e15e…), written by: stand-in (label "stand-in test")
+  refused before the start: the app did not answer before the start: the project's app container is not running; container exit: no container started
+  item 1 (item-01.spec.ts): DID NOT RUN: the run was refused before its start: the app did not answer before the start: the project's app container is not running
+  result: did not run: the run was refused before its start: the app did not answer before the start: the project's app container is not running
+
+== 8. The passing sandbox removed; a fresh one, same project id, with the deliberately broken step 03 ==
+  containers of the project left: none; temporary folder removed
+  step 01-data: 4 files changed, committed as [scripted] example-1 01-data
+    docker inspect answered while the container ran: yes; network: none; user: node
+    mount /engine  <-  $TMPDIR/builder-acceptance-0DWtPV/engine-change-sets  (read-only)
+    mount /workspace  <-  $TMPDIR/builder-acceptance-0DWtPV/workspace  (read-write)
+    mount /workspace/.dockerignore  <-  $TMPDIR/builder-acceptance-0DWtPV/workspace/.dockerignore  (read-only)
+    mount /workspace/Dockerfile  <-  $TMPDIR/builder-acceptance-0DWtPV/workspace/Dockerfile  (read-only)
+    mount /workspace/certs  <-  $TMPDIR/builder-acceptance-0DWtPV/engine-empty  (read-only)
+    mount /workspace/next.config.ts  <-  $TMPDIR/builder-acceptance-0DWtPV/workspace/next.config.ts  (read-only)
+    mount /workspace/package-lock.json  <-  $TMPDIR/builder-acceptance-0DWtPV/workspace/package-lock.json  (read-only)
+    mount /workspace/package.json  <-  $TMPDIR/builder-acceptance-0DWtPV/workspace/package.json  (read-only)
+    mount /workspace/tsconfig.json  <-  $TMPDIR/builder-acceptance-0DWtPV/workspace/tsconfig.json  (read-only)
+    mount /workspace/scripts/check-guards.ts  <-  $TMPDIR/builder-acceptance-0DWtPV/workspace/scripts/check-guards.ts  (read-only)
+    mount /workspace/src/app-config.ts  <-  $TMPDIR/builder-acceptance-0DWtPV/workspace/src/app-config.ts  (read-only)
+    mount /workspace/src/auth.ts  <-  $TMPDIR/builder-acceptance-0DWtPV/workspace/src/auth.ts  (read-only)
+    mount /workspace/src/db/schema.ts  <-  $TMPDIR/builder-acceptance-0DWtPV/workspace/src/db/schema.ts  (read-only)
+    mount /workspace/src/lib/access.ts  <-  $TMPDIR/builder-acceptance-0DWtPV/workspace/src/lib/access.ts  (read-only)
+    mount /workspace/src/lib/roles.tsx  <-  $TMPDIR/builder-acceptance-0DWtPV/workspace/src/lib/roles.tsx  (read-only)
+  step 02-submitter-screen: 8 files changed, committed as [scripted] example-1 02-submitter-screen
+    docker inspect answered while the container ran: yes; network: none; user: node
+    mount /engine  <-  $TMPDIR/builder-acceptance-0DWtPV/engine-change-sets  (read-only)
+    mount /workspace  <-  $TMPDIR/builder-acceptance-0DWtPV/workspace  (read-write)
+    mount /workspace/.dockerignore  <-  $TMPDIR/builder-acceptance-0DWtPV/workspace/.dockerignore  (read-only)
+    mount /workspace/Dockerfile  <-  $TMPDIR/builder-acceptance-0DWtPV/workspace/Dockerfile  (read-only)
+    mount /workspace/certs  <-  $TMPDIR/builder-acceptance-0DWtPV/engine-empty  (read-only)
+    mount /workspace/next.config.ts  <-  $TMPDIR/builder-acceptance-0DWtPV/workspace/next.config.ts  (read-only)
+    mount /workspace/package-lock.json  <-  $TMPDIR/builder-acceptance-0DWtPV/workspace/package-lock.json  (read-only)
+    mount /workspace/package.json  <-  $TMPDIR/builder-acceptance-0DWtPV/workspace/package.json  (read-only)
+    mount /workspace/tsconfig.json  <-  $TMPDIR/builder-acceptance-0DWtPV/workspace/tsconfig.json  (read-only)
+    mount /workspace/scripts/check-guards.ts  <-  $TMPDIR/builder-acceptance-0DWtPV/workspace/scripts/check-guards.ts  (read-only)
+    mount /workspace/src/app-config.ts  <-  $TMPDIR/builder-acceptance-0DWtPV/workspace/src/app-config.ts  (read-only)
+    mount /workspace/src/auth.ts  <-  $TMPDIR/builder-acceptance-0DWtPV/workspace/src/auth.ts  (read-only)
+    mount /workspace/src/db/schema.ts  <-  $TMPDIR/builder-acceptance-0DWtPV/workspace/src/db/schema.ts  (read-only)
+    mount /workspace/src/lib/access.ts  <-  $TMPDIR/builder-acceptance-0DWtPV/workspace/src/lib/access.ts  (read-only)
+    mount /workspace/src/lib/roles.tsx  <-  $TMPDIR/builder-acceptance-0DWtPV/workspace/src/lib/roles.tsx  (read-only)
+  The deliberately broken change set 03-wrong-status copied into the sandbox's change sets now, just before its step (from builder/scripted-broken).
+  step 03-wrong-status: 3 files changed, committed as [scripted] example-1 03-wrong-status
+    docker inspect answered while the container ran: yes; network: none; user: node
+    mount /engine  <-  $TMPDIR/builder-acceptance-0DWtPV/engine-change-sets  (read-only)
+    mount /workspace  <-  $TMPDIR/builder-acceptance-0DWtPV/workspace  (read-write)
+    mount /workspace/.dockerignore  <-  $TMPDIR/builder-acceptance-0DWtPV/workspace/.dockerignore  (read-only)
+    mount /workspace/Dockerfile  <-  $TMPDIR/builder-acceptance-0DWtPV/workspace/Dockerfile  (read-only)
+    mount /workspace/certs  <-  $TMPDIR/builder-acceptance-0DWtPV/engine-empty  (read-only)
+    mount /workspace/next.config.ts  <-  $TMPDIR/builder-acceptance-0DWtPV/workspace/next.config.ts  (read-only)
+    mount /workspace/package-lock.json  <-  $TMPDIR/builder-acceptance-0DWtPV/workspace/package-lock.json  (read-only)
+    mount /workspace/package.json  <-  $TMPDIR/builder-acceptance-0DWtPV/workspace/package.json  (read-only)
+    mount /workspace/tsconfig.json  <-  $TMPDIR/builder-acceptance-0DWtPV/workspace/tsconfig.json  (read-only)
+    mount /workspace/scripts/check-guards.ts  <-  $TMPDIR/builder-acceptance-0DWtPV/workspace/scripts/check-guards.ts  (read-only)
+    mount /workspace/src/app-config.ts  <-  $TMPDIR/builder-acceptance-0DWtPV/workspace/src/app-config.ts  (read-only)
+    mount /workspace/src/auth.ts  <-  $TMPDIR/builder-acceptance-0DWtPV/workspace/src/auth.ts  (read-only)
+    mount /workspace/src/db/schema.ts  <-  $TMPDIR/builder-acceptance-0DWtPV/workspace/src/db/schema.ts  (read-only)
+    mount /workspace/src/lib/access.ts  <-  $TMPDIR/builder-acceptance-0DWtPV/workspace/src/lib/access.ts  (read-only)
+    mount /workspace/src/lib/roles.tsx  <-  $TMPDIR/builder-acceptance-0DWtPV/workspace/src/lib/roles.tsx  (read-only)
+  step 02's tree in the passing history: dc07b8566885f3235c952f49bb50c3d959564de7; in the broken history (HEAD~1): dc07b8566885f3235c952f49bb50c3d959564de7; the same: yes
+  App and tools images built (the template's guard check and next build ran in the build).
+  Tables created and sample users added in the tools container (3 lines from the seed).
+  Before the app was started, nothing listened on 127.0.0.1:3141 (checked by a connection attempt, refused).
+  App container started and healthy.
+  run run-20261113t072050-7798a283, version v001 (manifest d6a9cee7e15e…), written by: stand-in (label "stand-in test")
+  refused before the start: no; container exit: code 1
+  item 1 (item-01.spec.ts): FAILED: it ran and failed; step: "sees status waiting"
+  result: version failed: item 1 failed at step "sees status waiting"
+  the same version as run A: yes (manifest d6a9cee7e15ef231a5458c0c752a73635d50a1b0e11deeef40f0f9d6d4878225)
+  Playwright's error for item 1 (kept in the run's builder folder; the event holds its path and fingerprint):
+  Error: expect(locator).toContainText(expected) failed
+  
+  Locator: getByTestId('leave-request').filter({ hasText: 'Made-up family visit, stand-in test run run-20261113t072050-7798a283.' })
+  Expected pattern: /waiting/i
+  Received string:  "May 3, 2027 to May 7, 2027ApprovedWorking days requested: 5Reason: Made-up family visit, stand-in test run run-20261113t072050-7798a283.Sent on November 13, 2026 at 07:20 UTC"
+  Timeout: 10000ms
+  Screenshot kept: screens/02-item-1-failed-broken-copy-stand-in-test.png (SHA-256 1d6747e7a7c8c4e83aab13182976bd5ec6210659a27c3edf720205f64e395331).
+
+== The attempts, one row each ==
+  [failed, as it should] By file path: the store's data folder ($TMPDIR/data-evidence) -> not found (ENOENT)
+  [failed, as it should] By file path: the store ($BUILDER_DATA_DIR/acceptance) ($TMPDIR/data-evidence/acceptance) -> not found (ENOENT)
+  [failed, as it should] By file path: the project's folder in the store ($TMPDIR/data-evidence/acceptance/demo_acc_mwenb8a2) -> not found (ENOENT)
+  [failed, as it should] By file path: the version ($TMPDIR/data-evidence/acceptance/demo_acc_mwenb8a2/v001) -> not found (ENOENT)
+  [failed, as it should] By file path: a test file of the version ($TMPDIR/data-evidence/acceptance/demo_acc_mwenb8a2/v001/item-01.spec.ts) -> not found (ENOENT)
+  [failed, as it should] By file path: the version's manifest ($TMPDIR/data-evidence/acceptance/demo_acc_mwenb8a2/v001/manifest.json) -> not found (ENOENT)
+  [failed, as it should] By file path: run A's folder ($TMPDIR/data-evidence/acceptance-runs/demo_acc_mwenb8a2/run-20261113t071923-37003caa) -> not found (ENOENT)
+  [failed, as it should] By file path: the repository's stand-in-acceptance/ (<repository>/stand-in-acceptance) -> not found (ENOENT)
+  [failed, as it should] By file path: the repository's evidence/ (<repository>/evidence) -> not found (ENOENT)
+  [failed, as it should] By file path: /acceptance (where the runner sees the version) (/acceptance) -> not found (ENOENT)
+  [failed, as it should] By file path: /results (where the runner writes) (/results) -> not found (ENOENT)
+  [failed, as it should] By file path: /workspace/.git (a history inside the workspace) (/workspace/.git) -> not found (ENOENT)
+  [failed, as it should] By file path: the project's history folder, by its path on the machine ($TMPDIR/builder-acceptance-VddX1m/workspace.git) -> not found (ENOENT)
+  [failed, as it should] By file path: search every readable file for the version's marker -> found in 0 of 2663 files
+  [failed, as it should] By file path: search every readable file for a phrase of the test's source -> found in 0 of 2663 files
+  [failed, as it should] By file path: search every readable file for the run's reason (run A) -> found in 0 of 2663 files
+  [failed, as it should] Mounts: /proc/self/mountinfo inside the engine container: a mount at /acceptance or /results, or from the store -> 0 of 46 lines
+  [failed, as it should] Mounts: docker inspect of steps 01 and 02 and of the probe, while each ran: a mount from the store, or at /acceptance or /results -> 0 of 46 mounts
+  [failed, as it should] Over the network: A1 a host the egress list allows, HTTPS: registry.npmjs.org:443 [HTTPS GET /-/ping, sent directly, no proxy] -> no name server answered; scripted engine container, no network at all (gap 50); says nothing about 2.2
+  [failed, as it should] Over the network: A2 a host the egress list allows, plain HTTP: registry.npmjs.org:80 [HTTP GET /-/ping, sent directly, no proxy] -> no name server answered; scripted engine container, no network at all (gap 50); says nothing about 2.2
+  [failed, as it should] Over the network: A3 a host the egress list refuses, HTTPS: example.com:443 [HTTPS GET /, sent directly, no proxy] -> no name server answered; scripted engine container, no network at all (gap 50); says nothing about 2.2
+  [failed, as it should] Over the network: A4 a host the egress list refuses, plain HTTP: example.com:80 [HTTP GET /, sent directly, no proxy] -> no name server answered; scripted engine container, no network at all (gap 50); says nothing about 2.2
+  [failed, as it should] Over the network: A5 another host the egress list refuses, plain HTTP: github.com:80 [HTTP GET /, sent directly, no proxy] -> no name server answered; scripted engine container, no network at all (gap 50); says nothing about 2.2
+  [failed, as it should] Over the network: B1 a public address, HTTPS port: 1.1.1.1:443 [TCP connection, opened and closed] -> network unreachable; scripted engine container, no network at all (gap 50); says nothing about 2.2
+  [failed, as it should] Over the network: B2 the address given for example.com (not checked), HTTP port: 93.184.215.14:80 [TCP connection, opened and closed] -> network unreachable; scripted engine container, no network at all (gap 50); says nothing about 2.2
+  [failed, as it should] Over the network: B3 the address given for example.com (not checked), plain HTTP: 93.184.215.14:80 [HTTP GET / with the name example.com, no proxy] -> network unreachable; scripted engine container, no network at all (gap 50); says nothing about 2.2
+  [failed, as it should] Over the network: B4 the cloud's machine-information address (link-local): 169.254.169.254:80 [HTTP GET /, no extra headers, no proxy] -> network unreachable; scripted engine container, no network at all (gap 50); says nothing about 2.2
+  [failed, as it should] Over the network: C1 an outside address, port 22 (remote login): 1.1.1.1:22 [TCP connection, opened and closed] -> network unreachable; scripted engine container, no network at all (gap 50); says nothing about 2.2
+  [failed, as it should] Over the network: C2 an outside address, port 25 (mail): 1.1.1.1:25 [TCP connection, opened and closed] -> network unreachable; scripted engine container, no network at all (gap 50); says nothing about 2.2
+  [failed, as it should] Over the network: C3 an outside address, port 53 (name service over TCP): 1.1.1.1:53 [TCP connection, opened and closed] -> network unreachable; scripted engine container, no network at all (gap 50); says nothing about 2.2
+  [failed, as it should] Over the network: C4 an outside address, port 8080: 1.1.1.1:8080 [TCP connection, opened and closed] -> network unreachable; scripted engine container, no network at all (gap 50); says nothing about 2.2
+  [failed, as it should] Through the database: C5 the builder's own database (PostgreSQL): 127.0.0.1:5432 [TCP connection, opened and closed] (127.0.0.1 here is the container's own loopback, not the machine's) -> refused; scripted engine container, no network at all (gap 50); says nothing about 2.2
+  [failed, as it should] Over the network: C6 the model gateway's port: 127.0.0.1:4010 [TCP connection, opened and closed] (127.0.0.1 here is the container's own loopback, not the machine's) -> refused; scripted engine container, no network at all (gap 50); says nothing about 2.2
+  [failed, as it should] Through the database: C7 the project's database: 127.0.0.1:5571 [TCP connection, opened and closed] (127.0.0.1 here is the container's own loopback, not the machine's) -> refused; scripted engine container, no network at all (gap 50); says nothing about 2.2
+  [failed, as it should] Over the network: C8 the project's egress proxy: 127.0.0.1:3128 [TCP connection, opened and closed] (127.0.0.1 here is the container's own loopback, not the machine's) -> refused; scripted engine container, no network at all (gap 50); says nothing about 2.2
+  [failed, as it should] Over the network: C9 the cloud session's proxy: 127.0.0.1:46619 [TCP connection, opened and closed] (127.0.0.1 here is the container's own loopback, not the machine's) -> refused; scripted engine container, no network at all (gap 50); says nothing about 2.2
+  [failed, as it should] Over the network: G2024 port 2024, listening on the machine at 0.0.0.0 (every address), as read on the machine: 172.17.0.1:2024 [TCP connection, opened and closed; nothing sent] -> network unreachable; scripted engine container, no network at all (gap 50); says nothing about 2.2
+  [failed, as it should] Over the network: G3141 port 3141, listening on the machine at 0.0.0.0 (every address), as read on the machine: 172.17.0.1:3141 [TCP connection, opened and closed; nothing sent] -> network unreachable; scripted engine container, no network at all (gap 50); says nothing about 2.2
+  [failed, as it should] Over the network: G5432 port 5432, listening on the machine at 127.0.0.1 (loopback only), as read on the machine: 172.17.0.1:5432 [TCP connection, opened and closed; nothing sent] -> network unreachable; scripted engine container, no network at all (gap 50); says nothing about 2.2
+  [failed, as it should] Over the network: G5571 port 5571, listening on the machine at 0.0.0.0 (every address), as read on the machine: 172.17.0.1:5571 [TCP connection, opened and closed; nothing sent] -> network unreachable; scripted engine container, no network at all (gap 50); says nothing about 2.2
+  [failed, as it should] Over the network: G45589 port 45589, listening on the machine at 127.0.0.1 (loopback only), as read on the machine: 172.17.0.1:45589 [TCP connection, opened and closed; nothing sent] -> network unreachable; scripted engine container, no network at all (gap 50); says nothing about 2.2
+  [failed, as it should] Over the network: G46619 port 46619, listening on the machine at 127.0.0.1 (loopback only), as read on the machine: 172.17.0.1:46619 [TCP connection, opened and closed; nothing sent] -> network unreachable; scripted engine container, no network at all (gap 50); says nothing about 2.2
+  [failed, as it should] Over the network: D1 an outside name the egress list allows: registry.npmjs.org [lookup with the container's own resolver] -> no name server answered; scripted engine container, no network at all (gap 50); says nothing about 2.2
+  [failed, as it should] Over the network: D2 an outside name the egress list refuses: example.com [lookup with the container's own resolver] -> no name server answered; scripted engine container, no network at all (gap 50); says nothing about 2.2
+  [failed, as it should] Over the network: D3 an internal-looking name: the database's name on the server profile: db [lookup with the container's own resolver] -> no name server answered; scripted engine container, no network at all (gap 50); says nothing about 2.2
+  [failed, as it should] Over the network: D4 an internal-looking name: the cloud's machine-information service: metadata.google.internal [lookup with the container's own resolver] -> no name server answered; scripted engine container, no network at all (gap 50); says nothing about 2.2
+  [failed, as it should] Over the network: D5 an allowed name, asking an outside name server directly: registry.npmjs.org @1.1.1.1 [question sent to 1.1.1.1 port 53 (UDP)] -> no name server answered; scripted engine container, no network at all (gap 50); says nothing about 2.2
+  [failed, as it should] Over the network: D6 a refused name, asking an outside name server directly: example.com @1.1.1.1 [question sent to 1.1.1.1 port 53 (UDP)] -> no name server answered; scripted engine container, no network at all (gap 50); says nothing about 2.2
+  [failed, as it should] Over the network: E1 an allowed host, tunnel: registry.npmjs.org:443 [CONNECT through 127.0.0.1:3128] -> refused; scripted engine container, no network at all (gap 50); says nothing about 2.2
+  [failed, as it should] Over the network: E2 an allowed host, HTTPS inside the tunnel: registry.npmjs.org:443 [CONNECT through 127.0.0.1:3128, then HTTPS GET /-/ping] -> refused; scripted engine container, no network at all (gap 50); says nothing about 2.2
+  [failed, as it should] Over the network: E3 a refused host, tunnel: example.com:443 [CONNECT through 127.0.0.1:3128] -> refused; scripted engine container, no network at all (gap 50); says nothing about 2.2
+  [failed, as it should] Over the network: E4 an allowed host, plain HTTP: registry.npmjs.org:80 [HTTP GET http://registry.npmjs.org/-/ping through 127.0.0.1:3128] -> refused; scripted engine container, no network at all (gap 50); says nothing about 2.2
+  [failed, as it should] Over the network: E5 a refused host, plain HTTP: example.com:80 [HTTP GET http://example.com/ through 127.0.0.1:3128] -> refused; scripted engine container, no network at all (gap 50); says nothing about 2.2
+  [failed, as it should] Over the network: F1 a host the egress list allows: registry.npmjs.org:443 [CONNECT through the cloud session's proxy (127.0.0.1:46619)] -> refused; scripted engine container, no network at all (gap 50); says nothing about 2.2
+  [failed, as it should] Over the network: F2 a host the egress list refuses: github.com:443 [CONNECT through the cloud session's proxy (127.0.0.1:46619)] -> refused; scripted engine container, no network at all (gap 50); says nothing about 2.2
+  [failed, as it should] Over the network: F3 another host the egress list refuses: example.com:443 [CONNECT through the cloud session's proxy (127.0.0.1:46619)] -> refused; scripted engine container, no network at all (gap 50); says nothing about 2.2
+  [failed, as it should] Over the network: F4 a host the egress list refuses, HTTPS inside the tunnel: github.com:443 [CONNECT through the cloud session's proxy (127.0.0.1:46619), then HTTPS GET /robots.txt] -> refused; scripted engine container, no network at all (gap 50); says nothing about 2.2
+  [failed, as it should] Through the database: a dump of the project's database (pg_dump, data only), searched for the marker and the phrase -> marker 0, phrase 0; the run's reason 1 (the request run A typed is there by design)
+  [failed, as it should] Through the database: the builder's events for the project, searched for the marker and the phrase -> marker 0, phrase 0, reason 0
+  [failed, as it should] Through the history: git log --all --name-only: an acceptance file (item-NN.spec.ts, manifest.json, acceptance/) -> 0 of 62 file names
+  [failed, as it should] Through the history: git grep in every revision (3) for the version's marker -> 0 files
+  [failed, as it should] Through the history: git grep in every revision (3) for a phrase of the test's source -> 0 files
+  [failed, as it should] Through the history: git grep in every revision (3) for the run's reason (run A) -> 0 files
+  [failed, as it should] By file path: the source folders of every engine mount (15), searched from the machine for the version's marker -> found in 0 of 90 files
+  [failed, as it should] By file path: the source folders of every engine mount (15), searched from the machine for a phrase of the test's source -> found in 0 of 90 files
+  [failed, as it should] By file path: the source folders of every engine mount (15), searched from the machine for the run's reason (run A) -> found in 0 of 90 files
+  66 attempts; 0 did not fail.
+  Event rows for the project: 16 (events.json): acceptance.version.written, acceptance.run.started, acceptance.item, acceptance.run.finished.
+
+Whole run: 137 s.
+Clean-up: containers of the project left: none; temporary folder removed.
+After: 7.1 GB free on the folder for temporary files.
+exit code: 0

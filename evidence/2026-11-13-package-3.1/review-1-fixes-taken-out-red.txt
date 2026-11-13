@@ -1,0 +1,130 @@
+Each fix of review round 1, taken out again, makes its tests fail (13 Nov 2026, in builder/, by Claude Code). Parts 1 and 2: at commit 19d9037 with the blocking item's fix in the working tree (committed afterwards as 1053593). Parts 3 and 4: at 1053593 with the fixes of notes 3 and 6 in the working tree, taken out for these runs (committed afterwards as 6c4baef and 6892de8). Every fix was put back after; the green runs are run-tests-all-after-review.txt and rerun-after-review/run-demo.txt.
+== Without the fix, part 1: the two build logs present but not committed (named .txt, not yet added), at 19d9037 with the working tree's changes
+$ npx vitest run test/acceptance.test.ts -t "evidence is in the repository"
+     × every file the evidence summary lists under 'Files here' is tracked by git 48ms
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  test/acceptance.test.ts > package 3.1's evidence is in the repository, not left out by .gitignore > every file the evidence summary lists under 'Files here' is tracked by git
+- Expected
++ Received
+- []
++ [
++   "runner-image-build.txt",
++   "runner-image-first-build.txt",
++ ]
+      Tests  1 failed | 1 passed | 52 skipped (54)
+
+== Without the fix, part 2: the demonstration writing runner-image-build.log again (the fix's line put back as it was)
+$ npx vitest run test/acceptance.test.ts -t "evidence is in the repository"
+     × no file the demonstration writes into its evidence folder has a name git ignores 45ms
+     × every file the evidence summary lists under 'Files here' is tracked by git 34ms
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  test/acceptance.test.ts > package 3.1's evidence is in the repository, not left out by .gitignore > no file the demonstration writes into its evidence folder has a name git ignores
+- Expected
++ Received
+- []
++ [
++   "runner-image-build.log",
++ ]
+ FAIL  test/acceptance.test.ts > package 3.1's evidence is in the repository, not left out by .gitignore > every file the evidence summary lists under 'Files here' is tracked by git
+- Expected
++ Received
+- []
++ [
++   "runner-image-build.txt",
++   "runner-image-first-build.txt",
++ ]
+      Tests  2 failed | 52 skipped (54)
+
+== Without the fix of note 3 (the trace's screencast), the runner's configuration line put back as it was: trace: "on"
+$ npx vitest run test/acceptance.test.ts -t "the runner's configuration"
+     × the runner's configuration: no retries, one worker, forbidOnly, the trace on without its screencast (no frames of the screen), the screenshot on, no video, the JSON report with this run's id and the manifest's fingerprint 9ms
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  test/acceptance.test.ts > the runner image's own files > the runner's configuration: no retries, one worker, forbidOnly, the trace on without its screencast (no frames of the screen), the screenshot on, no video, the JSON report with this run's id and the manifest's fingerprint
+- Expected
++ Received
+-   "    trace: { mode: \"on\", screenshots: false },",
++   "    trace: \"on\",",
+      Tests  1 failed | 54 skipped (55)
+
+== Without the fixes of notes 3 and 6, live (under the shared lock): the runner's configuration with trace: "on" as before, and the live tests' line that sets BUILDER_DATA_DIR taken out; the image rebuilt from that configuration by the first test; test database builder_test_p31
+approved zip in the cache: a9da028861a0cf789ff25c2fed45f5f1aaf969ed9247835b6a7821a4f7af9d1d
+Containers before (lock held): 0
+$ npx vitest run test/acceptance-live.test.ts --reporter=verbose -t "runner image builds|run A|from inside the engine container"
+
+ RUN  v5.1.0 <repository>/builder
+
+ ✓ test/acceptance-live.test.ts > acceptance runner: live, development profile, stand-in test > the runner image builds from the cached zip; it holds the base image's packages and exactly the 109 approved ones at their versions 4375ms
+ × test/acceptance-live.test.ts > acceptance runner: live, development profile, stand-in test > the stand-in version is written before step 01; steps 01 and 02 run; run A: item 1 passes, with its screenshot and its events 23298ms
+   → expected [ …(22) ] to deeply equal []
+ ↓ test/acceptance-live.test.ts > acceptance runner: live, development profile, stand-in test > run B, stopped by a half-second time limit: every item 'did not run', never passed
+ × test/acceptance-live.test.ts > acceptance runner: live, development profile, stand-in test > from inside the engine container: every path to the store fails, no readable file holds the marker, a phrase of the test or the run's reason; its mounts hold nothing of the store; the history holds no acceptance file 1ms
+   → expected undefined to be '$TMPDIR/…' (shortened by vitest) // Object.is equality
+ ↓ test/acceptance-live.test.ts > acceptance runner: live, development profile, stand-in test > run C, with the app stopped: refused before its start, no container, every item 'did not run'
+ ↓ test/acceptance-live.test.ts > acceptance runner: live, development profile, stand-in test > run D, the deliberately broken copy in a fresh sandbox under the same project id, with the same version: item 1 failed, at step 'sees status waiting'
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/acceptance-live.test.ts > acceptance runner: live, development profile, stand-in test > the stand-in version is written before step 01; steps 01 and 02 run; run A: item 1 passes, with its screenshot and its events
+AssertionError: expected [ …(22) ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   "screencast/page@2c17fcb59e2114366f3ca7453551edb6-1794556960007.jpeg",
++   "screencast/page@2c17fcb59e2114366f3ca7453551edb6-1794556960107.jpeg",
++   "screencast/page@2c17fcb59e2114366f3ca7453551edb6-1794556960171.jpeg",
++   "screencast/page@2c17fcb59e2114366f3ca7453551edb6-1794556960184.jpeg",
++   "screencast/page@2c17fcb59e2114366f3ca7453551edb6-1794556960205.jpeg",
++   "screencast/page@2c17fcb59e2114366f3ca7453551edb6-1794556960215.jpeg",
++   "screencast/page@2c17fcb59e2114366f3ca7453551edb6-1794556960270.jpeg",
++   "screencast/page@2c17fcb59e2114366f3ca7453551edb6-1794556960554.jpeg",
++   "screencast/page@2c17fcb59e2114366f3ca7453551edb6-1794556960743.jpeg",
++   "screencast/page@2c17fcb59e2114366f3ca7453551edb6-1794556960835.jpeg",
++   "screencast/page@2c17fcb59e2114366f3ca7453551edb6-1794556960893.jpeg",
++   "screencast/page@2c17fcb59e2114366f3ca7453551edb6-1794556960914.jpeg",
++   "screencast/page@2c17fcb59e2114366f3ca7453551edb6-1794556960919.jpeg",
++   "screencast/page@2c17fcb59e2114366f3ca7453551edb6-1794556960943.jpeg",
++   "screencast/page@2c17fcb59e2114366f3ca7453551edb6-1794556960949.jpeg",
++   "screencast/page@2c17fcb59e2114366f3ca7453551edb6-1794556960971.jpeg",
++   "screencast/page@2c17fcb59e2114366f3ca7453551edb6-1794556960988.jpeg",
++   "screencast/page@2c17fcb59e2114366f3ca7453551edb6-1794556961035.jpeg",
++   "screencast/page@2c17fcb59e2114366f3ca7453551edb6-1794556961070.jpeg",
++   "screencast/page@2c17fcb59e2114366f3ca7453551edb6-1794556961151.jpeg",
++   "screencast/page@2c17fcb59e2114366f3ca7453551edb6-1794556961211.jpeg",
++   "screencast/page@2c17fcb59e2114366f3ca7453551edb6-1794556961263.jpeg",
++ ]
+
+ ❯ test/acceptance-live.test.ts:113:40
+    111|     expect(traces).toHaveLength(1);
+    112|     const entries = zipEntryNames(readFileSync(traces[0]!));
+    113|     expect(traceScreenFrames(entries)).toEqual([]);
+       |                                        ^
+    114|     expect(entries.filter((e) => e.endsWith(".trace")).length).toBeGre…
+    115|   }, 1_200_000);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  test/acceptance-live.test.ts > acceptance runner: live, development profile, stand-in test > from inside the engine container: every path to the store fails, no readable file holds the marker, a phrase of the test or the run's reason; its mounts hold nothing of the store; the history holds no acceptance file
+AssertionError: expected undefined to be '$TMPDIR/…' (shortened by vitest) // Object.is equality
+
+- Expected:
+"$TMPDIR/builder-acceptance-data-mCQIGy"
+
++ Received:
+undefined
+
+ ❯ test/acceptance-live.test.ts:132:43
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 1 passed | 3 skipped (6)
+   Start at  08:02:13
+   Duration  32.66s (tests 99%, import 1%)
+
+exit code: 1
+Containers after: 0

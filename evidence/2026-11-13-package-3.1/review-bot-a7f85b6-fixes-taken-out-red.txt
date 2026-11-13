@@ -1,0 +1,33 @@
+The review bot's two findings on a7f85b6 (both P2): each fix taken out again makes its new tests fail (13 Nov 2026, in builder/, by Claude Code).
+New tests: builder/test/acceptance.test.ts (27). Fix: builder/src/acceptance/store.ts and builder/src/acceptance/results.ts. A fresh test database, dropped after.
+After each control the two files were put back and their SHA-256 checked equal to the fixed files ("OK" for both). With the fix: the file's 82 tests passed, 82 of 82.
+
+== Control A: the whole fix taken out (store.ts and results.ts as at a7f85b6), the new tests in place
+$ npx vitest run test/acceptance.test.ts --reporter=verbose -t "malformed|wrong shape|not in the reader's shape|not in the store's shape"
+      Tests  27 failed | 55 skipped (82)
+21 threw where the test says nothing may throw:
+ × store: the check before a run, 13 manifests of the wrong shape       TypeError at null: Cannot read properties of null
+ × runAcceptance, manifest: null                                        TypeError: Cannot read properties of null (reading 'version')
+ × runAcceptance, manifest: {}                                          TypeError: Cannot read properties of undefined (reading 'map')
+ × runAcceptance, manifest: items not a list                            TypeError: f.manifest.items.map is not a function
+ × runAcceptance, manifest: an item that is not an object               TypeError: Cannot read properties of null (reading 'file')
+   (the test database after: these four projects hold 0 events each; the same four tests with the fix, 2 each: run started, run finished)
+ × reader: suites is not a list / a suite is not an object / a suite's specs are not a list / a spec's tests are not a list /
+   a test is not an object / a result is not an object / a test's annotations are not a list / attachments are not a list /
+   an attachment is not an object / a failed result's steps are not a list / a failed result's step is not an object /
+   a step's steps are not a list / errors outside any test are not a list                    TypeError (13 tests)
+ × reader: suites nested 200000 deep / steps nested 200000 deep                              RangeError: Maximum call stack size exceeded
+ × reader: a manifest not in the store's shape is never read                                 TypeError at null
+6 did not throw but read the wrong outcome:
+ × reader: a test's annotation is not an object ([null])           "passed"
+ × reader: a result's annotations are not a list ("skip")          "passed" (the text was read letter by letter)
+ × reader: an annotation's type is not text (5)                    "passed"
+ × reader: a suite's suites are not a list / a test's results are not a list / an attachment's name is not text
+                                                                    "did not run", for another reason than the file's shape
+
+== Control B: only the reader's shape check taken out (results.ts, the line "if (shape) return allDidNotRun(...)"), its backstop (the catch in readRun) kept
+$ npx vitest run test/acceptance.test.ts --reporter=verbose -t "not in the reader's shape"
+      Tests  21 failed | 61 skipped (82)
+None threw: the backstop alone keeps the 15 that threw in control A at "did not run" ("the results file could not be read: <the error>").
+3 read "passed": a test's annotation is not an object; a result's annotations are not a list; an annotation's type is not text.
+3 read "did not run" for another reason. So the shape check is what makes these "did not run", with the place named.

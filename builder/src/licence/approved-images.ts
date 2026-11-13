@@ -1,5 +1,5 @@
 /**
- * Approved container images (owner, 13 Nov 2026, question 11 (a)): the list in builder/approved-images.json,
+ * Approved container images (owner, 13 Nov 2026, questions 11 (a) and 15 (a)): the list in builder/approved-images.json,
  * and a scan of source text for image references that are not tag@digest of an entry on that list.
  *
  * What counts as an image reference (text matching, not a parser of any one language):

@@ -52,6 +52,31 @@ describe("one rule, kept the same in every component", () => {
   });
 });
 
+describe("the acceptance runner's own packages (package 3.1): a second component of builder/, checked with its own copy of the rule", () => {
+  const runnerDir = path.join(builderDir, "runner");
+  it("its rule permits exactly the builder's licences and names no exception", () => {
+    const runnerRule = JSON.parse(readFileSync(path.join(runnerDir, "licence-rule.json"), "utf8")) as LicenceRule;
+    expect(runnerRule.permitted).toEqual(rule.permitted);
+    expect(runnerRule.exceptions).toEqual([]);
+  });
+  it("npm run check:licences checks it after the builder, with its rule, and fails if either fails", () => {
+    const script = readFileSync(path.join(builderDir, "scripts", "check-licences.sh"), "utf8");
+    expect(script).toContain('npx tsx src/licence/check.ts "$@" || status=1');
+    expect(script).toContain("npx tsx src/licence/check.ts --dir runner --rule runner/licence-rule.json || status=1");
+    expect(script).toContain("exit $status");
+  });
+  it("its lock file holds Playwright Test 1.63.0 and its two dependencies, all from the registry, all Apache-2.0", () => {
+    const lock = JSON.parse(readFileSync(path.join(runnerDir, "package-lock.json"), "utf8")) as { packages: Record<string, { version?: string; license?: string; resolved?: string }> };
+    const entries = Object.entries(lock.packages).filter(([k]) => k !== "");
+    expect(entries.map(([k, v]) => `${k}@${v.version} ${v.license}`).sort()).toEqual([
+      "node_modules/@playwright/test@1.63.0 Apache-2.0",
+      "node_modules/playwright-core@1.63.0 Apache-2.0",
+      "node_modules/playwright@1.63.0 Apache-2.0",
+    ]);
+    for (const [, v] of entries) expect(v.resolved).toMatch(/^https:\/\/registry\.npmjs\.org\//);
+  });
+});
+
 describe("the rule", () => {
   const clean: Installed = { "a@1.0.0": { licenses: "MIT" }, "b@2.0.0": { licenses: "ISC" } };
 

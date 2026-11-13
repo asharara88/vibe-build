@@ -23,11 +23,15 @@
  *   network. On this profile the app and tools containers are not isolated from the machine
  *   (evidence/2026-11-12-package-0.6a/isolation-checks.md). Development only (known gaps 1, 2 and 60).
  * In both, the engine container of package 2.1 (the scripted engine) has no network at all.
+ *
+ * Package 3.1 adds the acceptance runner's container (`acceptance`), started one run at a time, and a
+ * rule: no engine container is given a mount of the acceptance store's data folder, of a folder inside
+ * it, or of a folder that holds it (`runStreaming`, `createSandbox`).
  */
 import { execFile, spawn } from "node:child_process";
-import { copyFileSync, existsSync, lstatSync, mkdirSync, readFileSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, lstatSync, mkdirSync, readFileSync, realpathSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { dirname, isAbsolute, join, resolve, sep } from "node:path";
 import { createInterface } from "node:readline";
 import { promisify } from "node:util";
 
@@ -80,6 +84,21 @@ export interface SandboxSpec {
     workspace: string;
     /** The scripted engine's change sets on the host (builder/scripted), mounted read-only at /engine. */
     changeSets: string;
+  };
+  /**
+   * The acceptance runner's container (package 3.1). It exists only while a run goes on, started through
+   * `runStreaming` with the run's own mounts: the version of the tests at /acceptance (read-only), a fresh
+   * run folder at /results, and the sample password at /run/secrets/sample-password. It has the hardening
+   * every project container gets, a 512 MB /tmp, the runner image's unprivileged user, no settings file,
+   * and one setting of its own here, BASE_URL (RUN_ID is given per run). On the development profile it
+   * shares the host's network, as the app does (known gap 60); on the server profile it is on the
+   * project's internal network (designed, not shown).
+   */
+  acceptance?: {
+    /** The runner image, built on this machine by builder/src/acceptance/runner-image.ts and never pushed. */
+    image: string;
+    /** The app's address as the runner reaches it. Development profile: the app's own APP_URL. */
+    baseUrl: string;
   };
 }
 
@@ -181,6 +200,26 @@ function engineService(spec: SandboxSpec, common: Record<string, unknown>, image
   };
 }
 
+/**
+ * The acceptance runner's service (package 3.1). The same in both profiles but for its network, added
+ * below. Under the "acceptance" profile, so it starts only when a run is started on purpose; `up` refuses it.
+ */
+function acceptanceService(spec: SandboxSpec, common: Record<string, unknown>) {
+  if (!spec.acceptance) return null;
+  return {
+    image: spec.acceptance.image,
+    pull_policy: "never",
+    profiles: ["acceptance"],
+    ...common,
+    read_only: true,
+    tmpfs: ["/tmp:rw,noexec,nosuid,size=512m"],
+    user: "runner",
+    entrypoint: [],
+    working_dir: "/runner",
+    environment: { BASE_URL: spec.acceptance.baseUrl },
+  };
+}
+
 /** The app service shared by both profiles, before networking is added. */
 function appService(spec: SandboxSpec, common: Record<string, unknown>, databaseUrl: string) {
   if (!spec.app) return null;
@@ -224,6 +263,7 @@ export function composeDocument(spec: SandboxSpec): Record<string, unknown> {
     const app = appService(spec, common, "postgres://app:${DB_PASSWORD}@db:5432/app");
     const tools = toolsService(spec, common, "postgres://app:${DB_PASSWORD}@db:5432/app");
     const engine = engineService(spec, common, images.node);
+    const acceptance = acceptanceService(spec, common);
     return {
       name: composeProjectName(spec.projectId),
       networks: { internal: { internal: true }, egress: {} },
@@ -233,6 +273,7 @@ export function composeDocument(spec: SandboxSpec): Record<string, unknown> {
         ...(app ? { app: { ...app, networks: ["internal"] } } : {}),
         ...(tools ? { tools: { ...tools, networks: ["internal"] } } : {}),
         ...(engine ? { engine } : {}),
+        ...(acceptance ? { acceptance: { ...acceptance, networks: ["internal"] } } : {}),
         db: {
           image: images.postgres,
           ...common,
@@ -272,6 +313,8 @@ export function composeDocument(spec: SandboxSpec): Record<string, unknown> {
   const tools = toolsService(spec, common, `postgres://app:\${DB_PASSWORD}@127.0.0.1:${devPort}/app`);
   // The engine is the one project container without the host's network on this profile: it needs none.
   const engine = engineService(spec, common, images.node);
+  // The runner shares the host's network on this profile, as the app does: it reaches the app at its APP_URL.
+  const acceptance = acceptanceService(spec, common);
   return {
     name: composeProjectName(spec.projectId),
     secrets: { db_password: { file: "./secrets/db_password" } },
@@ -280,6 +323,7 @@ export function composeDocument(spec: SandboxSpec): Record<string, unknown> {
       ...(app ? { app: { ...app, network_mode: "host" } } : {}),
       ...(tools ? { tools: { ...tools, network_mode: "host" } } : {}),
       ...(engine ? { engine } : {}),
+      ...(acceptance ? { acceptance: { ...acceptance, network_mode: "host" } } : {}),
       db: {
         image: images.postgres,
         ...common,
@@ -344,6 +388,41 @@ export interface Sandbox {
   appBuild?: { context: string; image: string; toolsImage: string; hostNetwork: boolean; args: Record<string, string> };
   /** The names, and only the names, of the settings the tools container is given. */
   toolsEnvNames?: string[];
+  /** The host folders the engine service mounts in every run (package 3.1's mount rule checks them too). */
+  engineMountSources?: string[];
+}
+
+/** The setting that names the acceptance store's data folder (package 3.1; builder/src/acceptance/store.ts). */
+export const DATA_DIR_SETTING = "BUILDER_DATA_DIR";
+
+/** A path with its links resolved as far as it exists; the rest is added as written. */
+function realpathAsFar(p: string): string {
+  let head = resolve(p);
+  const tail: string[] = [];
+  while (!existsSync(head)) {
+    const parent = dirname(head);
+    if (parent === head) break;
+    tail.unshift(head.slice(parent.length + (parent.endsWith(sep) ? 0 : 1)));
+    head = parent;
+  }
+  return join(realpathSync(head), ...tail);
+}
+
+/**
+ * Package 3.1's mount rule for the engine service: a mount source that is the acceptance store's data
+ * folder, inside it, or a folder that holds it is refused. Both sides are compared with their links
+ * resolved. With no data folder set there is no store to keep out, and nothing is refused.
+ * Returns the reason for a refusal, or null.
+ */
+export function engineMountRefusal(source: string, dataDir: string | undefined = process.env[DATA_DIR_SETTING]): string | null {
+  if (!dataDir) return null;
+  if (!isAbsolute(dataDir)) return `${DATA_DIR_SETTING} is not an absolute path, so no engine mount can be checked against it`;
+  const d = realpathAsFar(dataDir);
+  const s = realpathAsFar(source);
+  const within = (a: string, b: string) => a === b || a.startsWith(b.endsWith(sep) ? b : b + sep);
+  if (within(s, d)) return `the mount source ${source} is the acceptance store's data folder or inside it`;
+  if (within(d, s)) return `the mount source ${source} holds the acceptance store's data folder`;
+  return null;
 }
 
 /**
@@ -388,6 +467,12 @@ export function createSandbox(spec: SandboxSpec, dbPassword: string, appSecrets:
   }
   // The engine sees this empty folder in place of the workspace's certs folder (package 2.1).
   if (spec.engine) mkdirSync(engineEmptyDir(spec.dir), { recursive: true, mode: 0o755 });
+  const engineMountSources = spec.engine ? [spec.engine.workspace, engineEmptyDir(spec.dir), spec.engine.changeSets] : undefined;
+  // Package 3.1: no engine mount may reach the acceptance store's data folder.
+  for (const source of engineMountSources ?? []) {
+    const refusal = engineMountRefusal(source);
+    if (refusal) throw new Error(`The engine service is refused: ${refusal}.`);
+  }
   const composeFile = join(spec.dir, "compose.yaml");
   writeFileSync(composeFile, toYaml(composeDocument(spec)));
   const appBuild = spec.app
@@ -404,7 +489,7 @@ export function createSandbox(spec: SandboxSpec, dbPassword: string, appSecrets:
   const toolsEnvNames = spec.app
     ? [...new Set(["DATABASE_URL", ...Object.keys(spec.app.toolsEnv ?? {}), ...Object.keys(appSecrets)])].sort()
     : undefined;
-  return { dir: spec.dir, composeFile, projectName: composeProjectName(spec.projectId), appBuild, toolsEnvNames };
+  return { dir: spec.dir, composeFile, projectName: composeProjectName(spec.projectId), appBuild, toolsEnvNames, engineMountSources };
 }
 
 /** Settings that only say which Docker daemon to talk to. Passed on, so every command reaches the same daemon. */
@@ -466,11 +551,11 @@ export function dockerEnv(sb: Pick<Sandbox, "dir">): NodeJS.ProcessEnv {
 }
 
 /**
- * The profiles of the services that run one command at a time: tools (package 0.5) and engine
- * (package 2.1). They are named on every command but `up`, so that such a container is seen, and
- * removed with the rest, while `up` never starts one.
+ * The profiles of the services that run one command at a time: tools (package 0.5), engine
+ * (package 2.1) and acceptance (package 3.1). They are named on every command but `up`, so that such a
+ * container is seen, and removed with the rest, while `up` never starts one.
  */
-const ONE_OFF_PROFILES = ["--profile", "tools", "--profile", "engine"];
+const ONE_OFF_PROFILES = ["--profile", "tools", "--profile", "engine", "--profile", "acceptance"];
 
 async function compose(sb: Sandbox, args: string[], timeoutMs = 180_000, withOneOff = true): Promise<string> {
   const profile = withOneOff ? ONE_OFF_PROFILES : [];
@@ -502,6 +587,8 @@ export interface StreamingRun {
   done: Promise<StreamingEnd>;
   /** Kill the container, wait for the command to end, and remove the container if anything is left. */
   kill: () => Promise<void>;
+  /** The exact arguments given to `docker` (package 3.1: the evidence lists them). Set by `runStreaming`. */
+  args?: string[];
 }
 
 export interface StreamingOptions {
@@ -516,6 +603,8 @@ export interface StreamingOptions {
   volumes?: string[];
   /** The container is killed after this long, and `done` says so (`timedOut`). Default ten minutes. */
   timeoutMs?: number;
+  /** Settings for this run only (package 3.1: the acceptance run's RUN_ID). Names in capitals, digits and _. */
+  env?: Record<string, string>;
 }
 
 const CONTAINER_NAME = /^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$/;
@@ -542,9 +631,19 @@ function runStreaming(sb: Sandbox, service: string, cmd: string[], opts: Streami
     // The short form of a mount would create a missing source as an empty folder owned by root.
     if (!source.startsWith("/") || !existsSync(source)) throw new Error(`The mount source "${source}" does not exist; nothing is created for it.`);
   }
+  // Package 3.1: an engine container is never given a mount of the acceptance store's data folder, of a
+  // folder inside it, or of one that holds it; this run's mounts and the service's own are checked.
+  if (service === "engine") {
+    for (const source of [...(opts.volumes ?? []).map((v) => v.split(":")[0] ?? ""), ...(sb.engineMountSources ?? [])]) {
+      const refusal = engineMountRefusal(source);
+      if (refusal) throw new Error(`The engine run is refused: ${refusal}.`);
+    }
+  }
+  for (const k of Object.keys(opts.env ?? {})) if (!/^[A-Z][A-Z0-9_]{0,63}$/.test(k)) throw new Error(`"${k}" is not a setting name this runner passes on.`);
   const env = dockerEnv(sb);
   const args = ["compose", "-f", sb.composeFile, ...ONE_OFF_PROFILES, "run", "--rm", "--no-deps", "-T", "--name", opts.container];
   for (const v of opts.volumes ?? []) args.push("--volume", v);
+  for (const [k, v] of Object.entries(opts.env ?? {})) args.push("--env", `${k}=${v}`);
   args.push(service, ...cmd);
   const child = spawn("docker", args, { env, stdio: ["ignore", "pipe", "pipe"] });
   const lines = createInterface({ input: child.stdout });
@@ -606,7 +705,7 @@ function runStreaming(sb: Sandbox, service: string, cmd: string[], opts: Streami
     void kill();
   }, opts.timeoutMs ?? 600_000);
   void done.then(() => clearTimeout(timer));
-  return { container: opts.container, done, kill };
+  return { container: opts.container, done, kill, args: ["docker", ...args] };
 }
 
 export const sandbox = {
@@ -636,22 +735,25 @@ export const sandbox = {
     if (!sb.appBuild) return;
     for (const image of [sb.appBuild.image, sb.appBuild.toolsImage]) await run("docker", ["image", "rm", "-f", image], { env: dockerEnv(sb) }).catch(() => undefined);
   },
-  /** Start services and wait for their health checks. The tools and engine services are never started this way: they are refused by name. */
+  /** Start services and wait for their health checks. The tools, engine and acceptance services are never started this way: they are refused by name. */
   up: async (sb: Sandbox, services: string[] = []): Promise<string> => {
     // An async function, so that these refusals are rejected promises like any other failure of up.
     if (services.includes("tools")) throw new Error("The tools service runs one command at a time, through runOnce; it is not started with up.");
     if (services.includes("engine")) throw new Error("The engine service runs one step at a time, through runStreaming; it is not started with up.");
+    if (services.includes("acceptance")) throw new Error("The acceptance service runs one acceptance run at a time, through runStreaming; it is not started with up.");
     return compose(sb, ["up", "-d", "--wait", ...services], 600_000, false);
   },
   /** Run a one-off command in a fresh container of a service (for migrations and seeding). */
   runOnce: (sb: Sandbox, service: string, cmd: string[]) => compose(sb, ["run", "--rm", "--no-deps", "-T", service, ...cmd], 600_000),
   /** Run a one-off command in a fresh, named container of a service, reading its output line by line, with a handle to kill it (the engine's steps). */
   runStreaming,
-  /** Stop and remove the project's containers, one-off tools and engine containers left by an interrupted run included, and its networks and volumes. */
+  /** Stop and remove the project's containers, one-off tools, engine and acceptance containers left by an interrupted run included, and its networks and volumes. */
   destroy: (sb: Sandbox) => compose(sb, ["down", "-v", "--remove-orphans"]),
   /** Run a command inside a running service. */
   exec: (sb: Sandbox, service: string, cmd: string[]) => compose(sb, ["exec", "-T", service, ...cmd]),
   /** Running services, as Compose reports them. */
   ps: (sb: Sandbox) => compose(sb, ["ps", "--format", "json"]),
+  /** Stop services without removing them (package 3.1: the app stopped, to show a run refused before its start). */
+  stop: (sb: Sandbox, services: string[]) => compose(sb, ["stop", ...services]),
   logs: (sb: Sandbox, service: string) => compose(sb, ["logs", "--no-color", service]),
 };

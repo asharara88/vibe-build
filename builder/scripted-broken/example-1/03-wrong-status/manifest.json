@@ -1,0 +1,25 @@
+{
+  "example": "example-1",
+  "step": "03-wrong-status",
+  "label": "Deliberately broken copy (package 3.1): a new leave request is saved as approved instead of waiting, and the banner says so; for the acceptance check to reject",
+  "files": [
+    {
+      "path": "src/app/[locale]/my-requests/new/actions.ts",
+      "op": "replace",
+      "sha256": "4ac8df283c7d1415e415a80f8fa7a12601b7a7ab2767e9eb04f30b5e715d562f",
+      "expectSha256": "a661302f9789a15a30dcb70777b26b4598cb10f9ae3f2c3cad20a620f0494908"
+    },
+    {
+      "path": "messages/en.json",
+      "op": "replace",
+      "sha256": "e89128d561aad750be5a0afe11d2300ec49ea48868a632bdded6f8e99ec6c126",
+      "expectSha256": "6e858e817cfec7fe03877753c4d7f0d30fdeb1f724aec54d0c37426963815b7d"
+    },
+    {
+      "path": "messages/ar.json",
+      "op": "replace",
+      "sha256": "c338b4f10e1399b6b3591b37e421e9541b5856b685c2b0fd32557c3c282bb5ac",
+      "expectSha256": "101ec54e2a632490fc1ecb2237ba24de4931a3c9d2815ffdfb7cd00a01566475"
+    }
+  ]
+}
