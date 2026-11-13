@@ -5,7 +5,7 @@
 | Package | J1 (build plan section 7.7, shared work; the owner's message of 13 Nov 2026, `docs/DECISIONS.md`) |
 | Design | `docs/design/journey-j1.md` (final design after one independent critique; not approved by the owner) |
 | Branch | `claude/j1-journey`, from `claude/stage-1` at `b52e041` |
-| This file | Part 1 (its sections first, as written then), part 2 (from "Part 2" on) and what changed after J1's review ("After the review", at the end), 13 Nov 2026 |
+| This file | Part 1 (its sections first, as written then), part 2 (from "Part 2" on), what changed after J1's review ("After the review") and after its merge with the integration branch ("Brought up to date with the integration branch", at the end), 13 Nov 2026 |
 | Machine | The development machine (a cloud session); test database `builder_test_j1`; no container started by J1's own tests; the automated run under the shared lock, with its own database and data folder |
 
 ## Part 1: what the owner can now do
@@ -270,3 +270,59 @@ J1's own tests: `test/web.test.ts` 28 (4 new), `test/journey.test.ts` 28 (4 new)
 ### Not reviewed yet
 
 No reviewer has read these fixes. Whether they need the review's second round (build plan section 3, step 7) is for the session that runs the work loop.
+
+## Brought up to date with the integration branch
+
+*13 Nov 2026.* `origin/claude/stage-1` at `c6f4056` was merged into this branch with `--no-ff`: merge commit `ff7148a` (parents `6b2fada`, J1 after its review, and `c6f4056`). Since J1's base (`b52e041`) the integration branch had gained package 1.4c (pull request #35: migrations 010 and 011, the kinds of freeze), 3.1b (#34: live acceptance tests fail, never skip; the scan that fails `npm test` if a test can be left out; `runnerImageProblem` before a run; the outcome word on `acceptance.run.finished`; the browser fetch) and 1.4b (#33: migration 012, the recovery of an unreadable journal line). J1's changes for them are commit `fbefb0b`, and `da6803a` (one test made stronger after its control; below). This section's outputs are all in this folder.
+
+### What the owner can now do
+
+The same journey as before, with two differences he can see. The checklist screen shows the run's **outcome** ("Passed", "Failed", "Not passed") as the run's own record gives it, and sign-off is offered only on "Passed" (`screens/16-checklist-en.png`, `-ar`, `-phone`). The cost panel lists **every freeze** that is not cleared, each with what froze it and the gateway's own message, and a bill above its hold appears in the unreconciled list; the automated run makes no freeze, so this is shown by tests, not by a screenshot.
+
+### The conflicts, and how each was resolved
+
+Only records conflicted; no code file did. Each kept both sides.
+
+| File | Resolution |
+| --- | --- |
+| `docs/DECISIONS.md` | The integration branch's 13 Nov rows (1.4c, its review, 3.1b, 1.4b, its review, 1.4b with 1.4c), then J1's 13 Nov rows (the owner's message, questions A and B, parts 1 and 2, after the review): all of one date. One row added after them for this merge |
+| `docs/KNOWN-GAPS.md` | In number order: 105 (the integration branch's newer text; J1 had not changed it), 106 to 117, J1's 130 to 139, then 140 to 147. No number collides (130 to 139 were reserved for J1, as gap 140 says), so none was renumbered |
+| `docs/BUILD-PLAN.md` | J1's 3.1 progress row (its fact: pull request #29 merged), then the integration branch's new 3.1b row |
+| `docs/STATUS.md` | Rewritten, 400 words or fewer: what the owner can do in the product, 1.4b, 1.4c and 3.1b merged, 0.6c next |
+
+### The code changes, and their tests
+
+| Change | Where | Shown by |
+| --- | --- | --- |
+| **Sign-off reads the outcome word** of the run's own `acceptance.run.finished` event (`runOutcome`: one such event for the run, and one of the three words), never the summary's text; the sign-off event records the word | `src/orchestrator/journey.ts` | New: "sign-off reads the outcome word …" (five runs whose summary says "version passed" but whose word is "not passed", "failed", absent, "Passed" or "passed " are not signed off; then "passed" is) and "a run's outcome word is read only from one …"; extended: the sign-off event's payload. Controls J1-C57 to J1-C60 |
+| **The checklist screen shows the word**, in the run table and the results, in both languages; a record with no word reads "None recorded: not read as passed" | `src/web/pages.ts`, messages | New: "the checklist screen shows the run's outcome word …" (four runs that are not "passed", then one that is, in both languages); extended: the whole journey through the screens. Control J1-C61. The automated run's new check 46, "the outcome word, as the run's record gives it: Passed" |
+| **The app camera checks its image first** with 3.1b's `runnerImageProblem`, through the sandbox's own Docker settings, as an acceptance run does: before the app is built, and again just before the camera starts | `src/orchestrator/journey-jobs.ts`, `example-1-adapter.ts` (`cameraImageProblem`) | New: "the preview checks the camera's runner image first …" (stand-in sandboxes: nothing built; or the app stopped, the camera not run, no screenshot; then the preview made, the image checked twice) and "the app camera: the adapter asks runnerImageProblem …" (a made-up `docker` program answering with the right label, none, another fingerprint, no such image). Controls J1-C62 to J1-C64 |
+| **The builder camera's run checks the image before anything else**, with `runnerImageProblem`, and is refused with its reason, starting and writing nothing | `scripts/demo-journey.ts` | New: "the builder camera: the automated run checks the runner image …" (the script run with a made-up `docker` program: exit 2, the reason, one Docker call, nothing written). Control J1-C65. The run's own line: "The approved runner image … is on the machine, labelled builder.browser-zip-sha256 with the approved browser zip's fingerprint (checked with runnerImageProblem …)" (`run-demo.txt`) |
+| **The cost panel shows every freeze not cleared** (before: only the oldest), each with its kind and `frozenMessage(f, "step")`; the set-aside freeze written by 1.4b before 1.4c's migration 010 (kind `unrecorded_ending`, the set-aside's reason) is shown as a set-aside, as `frozenMessage` reads it; a bill above its hold is listed in the unreconciled list, which is no longer shown empty while one is open | `src/web/app.ts`, `src/web/pages.ts` (`shownFreezeKind`), messages | New: "the cost panel shows every freeze not cleared …": freezes written through the store's own paths (`settleHold` above its hold, a late answer above it, `keepHold` with figures above it, `recordFreeze`) and two made-up set-aside rows in migration 012's shape; each row's kind and message checked in both languages; and, since `da6803a`, a project with only a bill above its hold. Controls J1-C66 to J1-C69 |
+| Messages | `src/web/messages/*.json`, `docs/arabic-wording-list.md` | 15 added in both languages, `cost.frozen` removed (replaced by `cost.frozen_intro`); the Arabic list regenerated from the files (262 messages each). The key-parity test passed |
+
+**3.1b's gate scan and J1's test files.** The scan (`test/gate-scan.ts`) was run on the merge before any change: nothing found in any file, J1's three test files and `test/journey-stand-ins.ts` among them. In the full suite its test on the real suite passed. The scan reads words; as gap 112 says, early returns and conditional checks are read by hand. In J1's three test files every `return` is inside a helper, a stand-in or a callback, none in a test's own body (the one that ends a function early is the import-graph walker's, for a file already read); every `if` branches on the data a test walks (the routes, the questions, the projects), none on the machine (Docker, a setting, a file), so none can leave a test or its checks out. No J1 test file needed a change for the scan.
+
+**Freezes on the cost panel, checked against `freezes.ts`.** `frozenMessage` gives each kind its own words (1.4c's three with the bill, the hold and the difference to the millionth; 1.4's and 1.4b's with the hold rounded up to the cent). Before this change the panel read `activeFreeze`, the oldest freeze only, and its unreconciled list ignored `overrunFreezes`, 1.4c's list of bills above their hold, so a project frozen by such a bill alone showed "The unreconciled list is empty." Both are changed above. Not changed: `FreezeWithNoOpenHold` rows show the hold's state only, as before (the list has no kind for them).
+
+**J1-C68 at first did not fail.** On `fbefb0b`, the control that leaves a bill above its hold out of the list's emptiness check passed its test: that test's project also had kept holds, so its list was never empty. The test now also makes a project with only a bill above its hold (`da6803a`), and the control fails (`controls-merge-fbefb0b.txt`, then `controls-merge.txt`).
+
+### What was run, and the results
+
+| Check | Result | Output |
+| --- | --- | --- |
+| `npm run typecheck` | Passed, exit code 0, on `fbefb0b` and on `da6803a`; `scripts/demo-journey.ts`, which `tsconfig.json` does not include, also typechecked with the rest, exit code 0 (a one-off settings file naming it, removed after; on `da6803a`, whose script is `fbefb0b`'s) | `run-typecheck-merge.txt` (`-fbefb0b`) |
+| `npm run check:licences` | Passed, exit code 0, on both; no dependency added | `run-licences-merge.txt` (`-fbefb0b`) |
+| The whole suite, live tests included, under the shared lock, a fresh database of its own each time | Passed both times: **556 of 556** in 25 files, none skipped, exit code 0: on `fbefb0b` (lock held 15:07:31 to 15:11:48 UTC, 257 s) and on `da6803a` (lock held 15:17:49 to 15:22:05 UTC, 256 s); no container before or after either. J1's own: `test/journey.test.ts` 33 (5 new), `test/web.test.ts` 30 (2 new), `test/intake.test.ts` 11. 3.1b's gate test on the real suite among them, passed | `run-tests-full-merge.txt` (`-fbefb0b`) |
+| The automated run, under the shared lock, interface on port 4021 (4020 is the owner's own interface, not touched) | **46 of 46 checks passed** on `fbefb0b` (builder tree `9d02325`; `da6803a` changes one test file only); lock held 15:12:05 to 15:13:11 UTC; the runner image checked first and found labelled; 35 of 35 screenshots, replacing those of 14:38 (26 byte for byte the same; 9 differ: `16-checklist` in its three forms, which show the outcome, and `04`, `14`, `17`, `20`, `21`, `22`, whose project ids, times and run ids differ); 115 events for the 2 projects, in id order; the export 378,647 bytes, its SHA-256 the same in the browser and in its event, holding the tests and the note, no file that looks like a secret; the camera loaded nothing but 127.0.0.1:4021; nothing of J1 on the machine before or after; database dropped, folders removed | `run-demo.txt`, `run-demo-wrapper.txt`, `screens/`, `events.json`, `camera-lines.jsonl`, `export-contents.txt`, `interface-log.txt` |
+| J1's controls, on a copy of the code (no container) | All **69** failed with their safeguard removed, on `da6803a`: the 13 new ones (J1-C57 to J1-C69) and the 56 earlier ones (J1-C36 and J1-C52 name their lines as the merge rewrote them; the safeguards are the same); the copy compared with a fresh one afterwards: no difference. On `fbefb0b`, 68 of 69: J1-C68 passed (above). A first attempt, on a copy that left out the folder `stand-in-acceptance/`, was stopped when its baseline failed (28 of 74 tests, the copy's fault, not the code's); the stop left one control's change in that copy, which was put back from the commit, and the copy was made again before the runs recorded here | `controls-merge.txt` (`controls-merge-fbefb0b.txt`) |
+
+### Checked and assumed
+
+- **Checked:** each change by a test that would fail without it (its control); the gate scan on J1's tests, by running it and by reading them; the outcome on screen in English and Arabic, by the automated run and by looking at `16-checklist-en` and `-ar`; that no code file conflicted (`git merge` named four records only).
+- **Not shown by a run:** the cost panel with a freeze, on screen (tests read the page's HTML; the automated run makes no freeze); the builder camera refused for a wrongly labelled image with real Docker (a made-up `docker` program stands in; the image here is labelled, as `run-demo.txt` shows).
+- **Assumed, not checked:** that the owner's own interface on port 4020, started from its own copy of the builder before this merge, is unaffected; it was not stopped, read or touched. A project in it whose checklist ran before this merge would, under this code, need its checklist run again before sign-off (gap 139).
+
+### Not reviewed yet
+
+No reviewer has read this merge or its changes.
