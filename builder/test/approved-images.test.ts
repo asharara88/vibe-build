@@ -1,4 +1,4 @@
-// Approved container images (owner, 13 Nov 2026, question 11 (a)). Not live: it reads files only.
+// Approved container images (owner, 13 Nov 2026, questions 11 (a) and 15 (a)). Not live: it reads files only.
 // The made-up references below are put together at run time, so that this file itself holds no
 // reference for the scan to find (the scan reads this folder too).
 import { readFileSync } from "node:fs";
@@ -6,32 +6,42 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { listProblems, referenceOf, scanFolders, scanText, type ApprovedImageList } from "../src/licence/approved-images.js";
 import { DEFAULT_IMAGES } from "../src/sandbox/manager.js";
+import { RUNNER_BASE_IMAGES } from "../src/acceptance/runner-image.js";
 
 const builderDir = resolve(import.meta.dirname, "..");
 const repo = resolve(builderDir, "..");
 const list = JSON.parse(readFileSync(resolve(builderDir, "approved-images.json"), "utf8")) as ApprovedImageList;
 const keys = Object.keys(DEFAULT_IMAGES);
-/** The folders scanned. builder/scripted (the scripted engine's change sets) is added to the four named in the task. */
-const ROOTS = ["builder/src", "builder/scripts", "builder/test", "builder/scripted", "templates"];
+/**
+ * The folders scanned. builder/scripted (the scripted engine's change sets) is added to the four named in the task;
+ * package 3.1 adds its own three: builder/runner (the runner image's Dockerfile and files), builder/scripted-broken
+ * (the deliberately broken copy) and stand-in-acceptance (the stand-in tests).
+ */
+const ROOTS = ["builder/src", "builder/scripts", "builder/test", "builder/scripted", "templates", "builder/runner", "builder/scripted-broken", "stand-in-acceptance"];
 
 const join = (...parts: string[]) => parts.join("");
-const NODE = list.images.find((e) => e.image.startsWith("node"))!;
-const PG = list.images.find((e) => e.image.startsWith("postgres"))!;
+const NODE = list.images.find((e) => e.image === join("node", ":22-alpine"))!;
+const PG = list.images.find((e) => e.image === join("postgres", ":16-alpine"))!;
+const UBUNTU = list.images.find((e) => e.image === join("ubuntu", ":24.04"))!;
+const NODE_SLIM = list.images.find((e) => e.image === join("node", ":22-bookworm-slim"))!;
 const unpinnedNode = join(NODE.image.split(":")[0]!, ":", NODE.image.split(":")[1]!);
 
 describe("the approved list", () => {
-  it("holds exactly the two images of question 11 (a), each well formed, for internal development and testing only", () => {
+  it("holds exactly the two images of question 11 (a) and the runner's two base images of question 15 (a), each well formed, for internal development and testing only", () => {
     expect(listProblems(list)).toEqual([]);
     expect(list.images.map(referenceOf)).toEqual([
       join("node", ":22-alpine@sha256:0e1754758c2df4cfa3e68d59e2e1b7374bb7fd9ea6328eaaacf15cc934af8202"),
       join("postgres", ":16-alpine@sha256:aa6cb33cf4c19c765cefcf48d96176258800870a9a1e930ad126200f9d825139"),
+      join("ubuntu", ":24.04@sha256:2198e4c65076e9cb0b3d695219df667c0e3b0072da64ca3c2648aca17dcecaf5"),
+      join("node", ":22-bookworm-slim@sha256:e9f565d32859f0cbfb52125eafe8be39390f24dac302dc3cdf566e8ba3ab21ee"),
     ]);
     for (const e of list.images) {
       expect(e.approved).toBe("2026-11-13");
       expect(e.approvedBy).toBe("Owner");
       expect(e.scope).toBe("internal development and testing only");
-      expect(e.decision).toContain("Question 11, option (a), approved");
     }
+    expect(list.images.map((e) => e.decision.includes("Question 11, option (a), approved"))).toEqual([true, true, false, false]);
+    expect(list.images.map((e) => e.decision.includes("Question 15 approved by the owner"))).toEqual([false, false, true, true]);
   });
 
   it("refuses a list entry with no tag, a short digest, no date or no decision", () => {
@@ -48,6 +58,10 @@ describe("the approved list", () => {
   it("the sandbox manager's image table is exactly the approved references", () => {
     expect(DEFAULT_IMAGES).toEqual({ postgres: referenceOf(PG), node: referenceOf(NODE) });
   });
+
+  it("the acceptance runner's base image table is exactly the approved references of question 15 (a)", () => {
+    expect(RUNNER_BASE_IMAGES).toEqual({ ubuntu: referenceOf(UBUNTU), node: referenceOf(NODE_SLIM) });
+  });
 });
 
 describe("the scan of the code, scripts, tests and templates", () => {
@@ -58,7 +72,7 @@ describe("the scan of the code, scripts, tests and templates", () => {
     expect(violations).toEqual([]);
   });
 
-  it("is not empty: it reads the image table, the template's two FROM lines and the test's inline FROM", () => {
+  it("is not empty: it reads the image tables, the template's two FROM lines, the runner's three and the test's inline FROM", () => {
     expect(files).toBeGreaterThan(100);
     const seen = references.map((r) => `${r.file} ${r.kind} ${r.verdict} ${r.text}`);
     expect(seen).toEqual(
@@ -68,9 +82,16 @@ describe("the scan of the code, scripts, tests and templates", () => {
         `templates/next/Dockerfile FROM approved ${referenceOf(NODE)}`,
         "templates/next/Dockerfile FROM stage build",
         "builder/test/sandbox.test.ts FROM image table ${DEFAULT_IMAGES.node}",
+        `builder/src/acceptance/runner-image.ts name:tag approved ${referenceOf(UBUNTU)}`,
+        `builder/src/acceptance/runner-image.ts name:tag approved ${referenceOf(NODE_SLIM)}`,
       ]),
     );
     expect(references.filter((r) => r.file === "templates/next/Dockerfile" && r.kind === "FROM").map((r) => r.verdict)).toEqual(["approved", "stage", "approved"]);
+    expect(references.filter((r) => r.file === "builder/runner/Dockerfile" && r.kind === "FROM").map((r) => `${r.verdict} ${r.text}`)).toEqual([
+      `approved ${referenceOf(NODE_SLIM)}`,
+      `approved ${referenceOf(UBUNTU)}`,
+      `approved ${referenceOf(UBUNTU)}`,
+    ]);
   });
 });
 

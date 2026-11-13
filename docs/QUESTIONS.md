@@ -4,7 +4,7 @@ Rules: build plan section 8, rule 11. At most six lines each, with the options a
 
 ## Blocking work
 
-None open right now. Question 15 (the runner's two base images and the test browser) was approved on 13 Nov: `docs/DECISIONS.md`.
+None open right now. Question 15, the browser and the runner's two base images, was answered on 13 Nov 2026, "15 (a), approve both" (`docs/DECISIONS.md`); package 3.1 was then built.
 
 ## Not blocking yet
 
@@ -63,3 +63,7 @@ Claude Code's readings and work, recorded as such, not as your decisions. Detail
 - The approved-images check lets the builder's own images (`builder_<project>-app` and `-tools`, built from the template, never pulled) go without a digest (gap 68).
 - The counting rules for the runner's base images: "and/or" not split; both keyring packages counted as copyleft (`docs/licences/runner-base-images.md`, section 3).
 - `CLAUDE.md` line 63 (your file): Claude Code's sentence on Docker failing to start on 12 Nov, its fix and a pointer to a second failure, merged with pull request #8 at your request; keep, change or remove.
+- Package 3.1: the runner's Ubuntu packages are installed by exact version, and the build fails on any other, rather than by name through Playwright's installer (`docs/DECISIONS.md`, 13 Nov).
+- Package 3.1: where the approved browser zip is not on the machine, the live acceptance tests are skipped (reported as skipped), not failed (gap 73).
+- Package 3.1: the runner's trace is kept without its screencast, so no frames of the screen are recorded; read as what "no video recorded" asks (`docs/DECISIONS.md`, 13 Nov, after the review).
+- Package 3.1: a line for `CLAUDE.md`'s Commands: "in `builder/runner/`, run `npm ci --ignore-scripts` once before `npm run check:licences`" (gap 77). Say yes and Claude Code adds it.

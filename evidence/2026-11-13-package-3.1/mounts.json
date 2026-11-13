@@ -1,0 +1,1777 @@
+{
+  "engine-mounts-passing": [
+    {
+      "step": "01-data",
+      "inspect": {
+        "container": "builder_demo_acc_mwenb8a2-engine-01-data-968dba",
+        "whileRunning": true,
+        "mounts": [
+          {
+            "Type": "bind",
+            "Source": "$TMPDIR/builder-acceptance-VddX1m/engine-change-sets",
+            "Destination": "/engine",
+            "Mode": "",
+            "RW": false,
+            "Propagation": "rprivate"
+          },
+          {
+            "Type": "bind",
+            "Source": "$TMPDIR/builder-acceptance-VddX1m/workspace",
+            "Destination": "/workspace",
+            "Mode": "",
+            "RW": true,
+            "Propagation": "rprivate"
+          },
+          {
+            "Type": "bind",
+            "Source": "$TMPDIR/builder-acceptance-VddX1m/workspace/.dockerignore",
+            "Destination": "/workspace/.dockerignore",
+            "Mode": "ro",
+            "RW": false,
+            "Propagation": "rprivate"
+          },
+          {
+            "Type": "bind",
+            "Source": "$TMPDIR/builder-acceptance-VddX1m/workspace/Dockerfile",
+            "Destination": "/workspace/Dockerfile",
+            "Mode": "ro",
+            "RW": false,
+            "Propagation": "rprivate"
+          },
+          {
+            "Type": "bind",
+            "Source": "$TMPDIR/builder-acceptance-VddX1m/engine-empty",
+            "Destination": "/workspace/certs",
+            "Mode": "",
+            "RW": false,
+            "Propagation": "rprivate"
+          },
+          {
+            "Type": "bind",
+            "Source": "$TMPDIR/builder-acceptance-VddX1m/workspace/next.config.ts",
+            "Destination": "/workspace/next.config.ts",
+            "Mode": "ro",
+            "RW": false,
+            "Propagation": "rprivate"
+          },
+          {
+            "Type": "bind",
+            "Source": "$TMPDIR/builder-acceptance-VddX1m/workspace/package-lock.json",
+            "Destination": "/workspace/package-lock.json",
+            "Mode": "ro",
+            "RW": false,
+            "Propagation": "rprivate"
+          },
+          {
+            "Type": "bind",
+            "Source": "$TMPDIR/builder-acceptance-VddX1m/workspace/package.json",
+            "Destination": "/workspace/package.json",
+            "Mode": "ro",
+            "RW": false,
+            "Propagation": "rprivate"
+          },
+          {
+            "Type": "bind",
+            "Source": "$TMPDIR/builder-acceptance-VddX1m/workspace/tsconfig.json",
+            "Destination": "/workspace/tsconfig.json",
+            "Mode": "ro",
+            "RW": false,
+            "Propagation": "rprivate"
+          },
+          {
+            "Type": "bind",
+            "Source": "$TMPDIR/builder-acceptance-VddX1m/workspace/scripts/check-guards.ts",
+            "Destination": "/workspace/scripts/check-guards.ts",
+            "Mode": "ro",
+            "RW": false,
+            "Propagation": "rprivate"
+          },
+          {
+            "Type": "bind",
+            "Source": "$TMPDIR/builder-acceptance-VddX1m/workspace/src/app-config.ts",
+            "Destination": "/workspace/src/app-config.ts",
+            "Mode": "ro",
+            "RW": false,
+            "Propagation": "rprivate"
+          },
+          {
+            "Type": "bind",
+            "Source": "$TMPDIR/builder-acceptance-VddX1m/workspace/src/auth.ts",
+            "Destination": "/workspace/src/auth.ts",
+            "Mode": "ro",
+            "RW": false,
+            "Propagation": "rprivate"
+          },
+          {
+            "Type": "bind",
+            "Source": "$TMPDIR/builder-acceptance-VddX1m/workspace/src/db/schema.ts",
+            "Destination": "/workspace/src/db/schema.ts",
+            "Mode": "ro",
+            "RW": false,
+            "Propagation": "rprivate"
+          },
+          {
+            "Type": "bind",
+            "Source": "$TMPDIR/builder-acceptance-VddX1m/workspace/src/lib/access.ts",
+            "Destination": "/workspace/src/lib/access.ts",
+            "Mode": "ro",
+            "RW": false,
+            "Propagation": "rprivate"
+          },
+          {
+            "Type": "bind",
+            "Source": "$TMPDIR/builder-acceptance-VddX1m/workspace/src/lib/roles.tsx",
+            "Destination": "/workspace/src/lib/roles.tsx",
+            "Mode": "ro",
+            "RW": false,
+            "Propagation": "rprivate"
+          }
+        ],
+        "networkMode": "none",
+        "user": "node"
+      },
+      "args": [
+        "docker",
+        "compose",
+        "-f",
+        "$TMPDIR/builder-acceptance-VddX1m/compose.yaml",
+        "--profile",
+        "tools",
+        "--profile",
+        "engine",
+        "--profile",
+        "acceptance",
+        "run",
+        "--rm",
+        "--no-deps",
+        "-T",
+        "--name",
+        "builder_demo_acc_mwenb8a2-engine-01-data-968dba",
+        "--volume",
+        "$TMPDIR/builder-acceptance-VddX1m/workspace/src/auth.ts:/workspace/src/auth.ts:ro",
+        "--volume",
+        "$TMPDIR/builder-acceptance-VddX1m/workspace/src/lib/roles.tsx:/workspace/src/lib/roles.tsx:ro",
+        "--volume",
+        "$TMPDIR/builder-acceptance-VddX1m/workspace/src/lib/access.ts:/workspace/src/lib/access.ts:ro",
+        "--volume",
+        "$TMPDIR/builder-acceptance-VddX1m/workspace/src/app-config.ts:/workspace/src/app-config.ts:ro",
+        "--volume",
+        "$TMPDIR/builder-acceptance-VddX1m/workspace/src/db/schema.ts:/workspace/src/db/schema.ts:ro",
+        "--volume",
+        "$TMPDIR/builder-acceptance-VddX1m/workspace/scripts/check-guards.ts:/workspace/scripts/check-guards.ts:ro",
+        "--volume",
+        "$TMPDIR/builder-acceptance-VddX1m/workspace/package.json:/workspace/package.json:ro",
+        "--volume",
+        "$TMPDIR/builder-acceptance-VddX1m/workspace/package-lock.json:/workspace/package-lock.json:ro",
+        "--volume",
+        "$TMPDIR/builder-acceptance-VddX1m/workspace/Dockerfile:/workspace/Dockerfile:ro",
+        "--volume",
+        "$TMPDIR/builder-acceptance-VddX1m/workspace/.dockerignore:/workspace/.dockerignore:ro",
+        "--volume",
+        "$TMPDIR/builder-acceptance-VddX1m/workspace/next.config.ts:/workspace/next.config.ts:ro",
+        "--volume",
+        "$TMPDIR/builder-acceptance-VddX1m/workspace/tsconfig.json:/workspace/tsconfig.json:ro",
+        "engine",
+        "node",
+        "/engine/apply.mjs",
+        "--example",
+        "example-1",
+        "--step",
+        "01-data",
+        "--protected",
+        "[\"src/auth.ts\",\"src/lib/roles.tsx\",\"src/lib/access.ts\",\"src/app-config.ts\",\"src/db/schema.ts\",\"scripts/check-guards.ts\",\"package.json\",\"package-lock.json\",\"Dockerfile\",\".dockerignore\",\"next.config.ts\",\"tsconfig.json\"]",
+        "--max-writes",
+        "20",
+        "--delay-ms",
+        "800"
+      ],
+      "volumes": [
+        "$TMPDIR/builder-acceptance-VddX1m/workspace/src/auth.ts:/workspace/src/auth.ts:ro",
+        "$TMPDIR/builder-acceptance-VddX1m/workspace/src/lib/roles.tsx:/workspace/src/lib/roles.tsx:ro",
+        "$TMPDIR/builder-acceptance-VddX1m/workspace/src/lib/access.ts:/workspace/src/lib/access.ts:ro",
+        "$TMPDIR/builder-acceptance-VddX1m/workspace/src/app-config.ts:/workspace/src/app-config.ts:ro",
+        "$TMPDIR/builder-acceptance-VddX1m/workspace/src/db/schema.ts:/workspace/src/db/schema.ts:ro",
+        "$TMPDIR/builder-acceptance-VddX1m/workspace/scripts/check-guards.ts:/workspace/scripts/check-guards.ts:ro",
+        "$TMPDIR/builder-acceptance-VddX1m/workspace/package.json:/workspace/package.json:ro",
+        "$TMPDIR/builder-acceptance-VddX1m/workspace/package-lock.json:/workspace/package-lock.json:ro",
+        "$TMPDIR/builder-acceptance-VddX1m/workspace/Dockerfile:/workspace/Dockerfile:ro",
+        "$TMPDIR/builder-acceptance-VddX1m/workspace/.dockerignore:/workspace/.dockerignore:ro",
+        "$TMPDIR/builder-acceptance-VddX1m/workspace/next.config.ts:/workspace/next.config.ts:ro",
+        "$TMPDIR/builder-acceptance-VddX1m/workspace/tsconfig.json:/workspace/tsconfig.json:ro"
+      ]
+    },
+    {
+      "step": "02-submitter-screen",
+      "inspect": {
+        "container": "builder_demo_acc_mwenb8a2-engine-02-submitter-screen-8dba28",
+        "whileRunning": true,
+        "mounts": [
+          {
+            "Type": "bind",
+            "Source": "$TMPDIR/builder-acceptance-VddX1m/engine-change-sets",
+            "Destination": "/engine",
+            "Mode": "",
+            "RW": false,
+            "Propagation": "rprivate"
+          },
+          {
+            "Type": "bind",
+            "Source": "$TMPDIR/builder-acceptance-VddX1m/workspace",
+            "Destination": "/workspace",
+            "Mode": "",
+            "RW": true,
+            "Propagation": "rprivate"
+          },
+          {
+            "Type": "bind",
+            "Source": "$TMPDIR/builder-acceptance-VddX1m/workspace/.dockerignore",
+            "Destination": "/workspace/.dockerignore",
+            "Mode": "ro",
+            "RW": false,
+            "Propagation": "rprivate"
+          },
+          {
+            "Type": "bind",
+            "Source": "$TMPDIR/builder-acceptance-VddX1m/workspace/Dockerfile",
+            "Destination": "/workspace/Dockerfile",
+            "Mode": "ro",
+            "RW": false,
+            "Propagation": "rprivate"
+          },
+          {
+            "Type": "bind",
+            "Source": "$TMPDIR/builder-acceptance-VddX1m/engine-empty",
+            "Destination": "/workspace/certs",
+            "Mode": "",
+            "RW": false,
+            "Propagation": "rprivate"
+          },
+          {
+            "Type": "bind",
+            "Source": "$TMPDIR/builder-acceptance-VddX1m/workspace/next.config.ts",
+            "Destination": "/workspace/next.config.ts",
+            "Mode": "ro",
+            "RW": false,
+            "Propagation": "rprivate"
+          },
+          {
+            "Type": "bind",
+            "Source": "$TMPDIR/builder-acceptance-VddX1m/workspace/package-lock.json",
+            "Destination": "/workspace/package-lock.json",
+            "Mode": "ro",
+            "RW": false,
+            "Propagation": "rprivate"
+          },
+          {
+            "Type": "bind",
+            "Source": "$TMPDIR/builder-acceptance-VddX1m/workspace/package.json",
+            "Destination": "/workspace/package.json",
+            "Mode": "ro",
+            "RW": false,
+            "Propagation": "rprivate"
+          },
+          {
+            "Type": "bind",
+            "Source": "$TMPDIR/builder-acceptance-VddX1m/workspace/tsconfig.json",
+            "Destination": "/workspace/tsconfig.json",
+            "Mode": "ro",
+            "RW": false,
+            "Propagation": "rprivate"
+          },
+          {
+            "Type": "bind",
+            "Source": "$TMPDIR/builder-acceptance-VddX1m/workspace/scripts/check-guards.ts",
+            "Destination": "/workspace/scripts/check-guards.ts",
+            "Mode": "ro",
+            "RW": false,
+            "Propagation": "rprivate"
+          },
+          {
+            "Type": "bind",
+            "Source": "$TMPDIR/builder-acceptance-VddX1m/workspace/src/app-config.ts",
+            "Destination": "/workspace/src/app-config.ts",
+            "Mode": "ro",
+            "RW": false,
+            "Propagation": "rprivate"
+          },
+          {
+            "Type": "bind",
+            "Source": "$TMPDIR/builder-acceptance-VddX1m/workspace/src/auth.ts",
+            "Destination": "/workspace/src/auth.ts",
+            "Mode": "ro",
+            "RW": false,
+            "Propagation": "rprivate"
+          },
+          {
+            "Type": "bind",
+            "Source": "$TMPDIR/builder-acceptance-VddX1m/workspace/src/db/schema.ts",
+            "Destination": "/workspace/src/db/schema.ts",
+            "Mode": "ro",
+            "RW": false,
+            "Propagation": "rprivate"
+          },
+          {
+            "Type": "bind",
+            "Source": "$TMPDIR/builder-acceptance-VddX1m/workspace/src/lib/access.ts",
+            "Destination": "/workspace/src/lib/access.ts",
+            "Mode": "ro",
+            "RW": false,
+            "Propagation": "rprivate"
+          },
+          {
+            "Type": "bind",
+            "Source": "$TMPDIR/builder-acceptance-VddX1m/workspace/src/lib/roles.tsx",
+            "Destination": "/workspace/src/lib/roles.tsx",
+            "Mode": "ro",
+            "RW": false,
+            "Propagation": "rprivate"
+          }
+        ],
+        "networkMode": "none",
+        "user": "node"
+      },
+      "args": [
+        "docker",
+        "compose",
+        "-f",
+        "$TMPDIR/builder-acceptance-VddX1m/compose.yaml",
+        "--profile",
+        "tools",
+        "--profile",
+        "engine",
+        "--profile",
+        "acceptance",
+        "run",
+        "--rm",
+        "--no-deps",
+        "-T",
+        "--name",
+        "builder_demo_acc_mwenb8a2-engine-02-submitter-screen-8dba28",
+        "--volume",
+        "$TMPDIR/builder-acceptance-VddX1m/workspace/src/auth.ts:/workspace/src/auth.ts:ro",
+        "--volume",
+        "$TMPDIR/builder-acceptance-VddX1m/workspace/src/lib/roles.tsx:/workspace/src/lib/roles.tsx:ro",
+        "--volume",
+        "$TMPDIR/builder-acceptance-VddX1m/workspace/src/lib/access.ts:/workspace/src/lib/access.ts:ro",
+        "--volume",
+        "$TMPDIR/builder-acceptance-VddX1m/workspace/src/app-config.ts:/workspace/src/app-config.ts:ro",
+        "--volume",
+        "$TMPDIR/builder-acceptance-VddX1m/workspace/src/db/schema.ts:/workspace/src/db/schema.ts:ro",
+        "--volume",
+        "$TMPDIR/builder-acceptance-VddX1m/workspace/scripts/check-guards.ts:/workspace/scripts/check-guards.ts:ro",
+        "--volume",
+        "$TMPDIR/builder-acceptance-VddX1m/workspace/package.json:/workspace/package.json:ro",
+        "--volume",
+        "$TMPDIR/builder-acceptance-VddX1m/workspace/package-lock.json:/workspace/package-lock.json:ro",
+        "--volume",
+        "$TMPDIR/builder-acceptance-VddX1m/workspace/Dockerfile:/workspace/Dockerfile:ro",
+        "--volume",
+        "$TMPDIR/builder-acceptance-VddX1m/workspace/.dockerignore:/workspace/.dockerignore:ro",
+        "--volume",
+        "$TMPDIR/builder-acceptance-VddX1m/workspace/next.config.ts:/workspace/next.config.ts:ro",
+        "--volume",
+        "$TMPDIR/builder-acceptance-VddX1m/workspace/tsconfig.json:/workspace/tsconfig.json:ro",
+        "engine",
+        "node",
+        "/engine/apply.mjs",
+        "--example",
+        "example-1",
+        "--step",
+        "02-submitter-screen",
+        "--protected",
+        "[\"src/auth.ts\",\"src/lib/roles.tsx\",\"src/lib/access.ts\",\"src/app-config.ts\",\"src/db/schema.ts\",\"scripts/check-guards.ts\",\"package.json\",\"package-lock.json\",\"Dockerfile\",\".dockerignore\",\"next.config.ts\",\"tsconfig.json\"]",
+        "--max-writes",
+        "20",
+        "--delay-ms",
+        "800"
+      ],
+      "volumes": [
+        "$TMPDIR/builder-acceptance-VddX1m/workspace/src/auth.ts:/workspace/src/auth.ts:ro",
+        "$TMPDIR/builder-acceptance-VddX1m/workspace/src/lib/roles.tsx:/workspace/src/lib/roles.tsx:ro",
+        "$TMPDIR/builder-acceptance-VddX1m/workspace/src/lib/access.ts:/workspace/src/lib/access.ts:ro",
+        "$TMPDIR/builder-acceptance-VddX1m/workspace/src/app-config.ts:/workspace/src/app-config.ts:ro",
+        "$TMPDIR/builder-acceptance-VddX1m/workspace/src/db/schema.ts:/workspace/src/db/schema.ts:ro",
+        "$TMPDIR/builder-acceptance-VddX1m/workspace/scripts/check-guards.ts:/workspace/scripts/check-guards.ts:ro",
+        "$TMPDIR/builder-acceptance-VddX1m/workspace/package.json:/workspace/package.json:ro",
+        "$TMPDIR/builder-acceptance-VddX1m/workspace/package-lock.json:/workspace/package-lock.json:ro",
+        "$TMPDIR/builder-acceptance-VddX1m/workspace/Dockerfile:/workspace/Dockerfile:ro",
+        "$TMPDIR/builder-acceptance-VddX1m/workspace/.dockerignore:/workspace/.dockerignore:ro",
+        "$TMPDIR/builder-acceptance-VddX1m/workspace/next.config.ts:/workspace/next.config.ts:ro",
+        "$TMPDIR/builder-acceptance-VddX1m/workspace/tsconfig.json:/workspace/tsconfig.json:ro"
+      ]
+    }
+  ],
+  "run-A-pass": {
+    "runId": "run-20261113t071923-37003caa",
+    "refused": null,
+    "appAnswered": true,
+    "exit": {
+      "code": 0,
+      "timedOut": false
+    },
+    "args": [
+      "docker",
+      "compose",
+      "-f",
+      "$TMPDIR/builder-acceptance-VddX1m/compose.yaml",
+      "--profile",
+      "tools",
+      "--profile",
+      "engine",
+      "--profile",
+      "acceptance",
+      "run",
+      "--rm",
+      "--no-deps",
+      "-T",
+      "--name",
+      "builder_demo_acc_mwenb8a2-acceptance-run-20261113t071923-37003caa",
+      "--volume",
+      "$TMPDIR/data-evidence/acceptance/demo_acc_mwenb8a2/v001:/acceptance:ro",
+      "--volume",
+      "$TMPDIR/data-evidence/acceptance-runs/demo_acc_mwenb8a2/run-20261113t071923-37003caa/results:/results",
+      "--volume",
+      "$TMPDIR/data-evidence/acceptance-runs/demo_acc_mwenb8a2/run-20261113t071923-37003caa/secret/sample-password:/run/secrets/sample-password:ro",
+      "--env",
+      "RUN_ID=run-20261113t071923-37003caa",
+      "acceptance",
+      "node",
+      "/runner/node_modules/@playwright/test/cli.js",
+      "test",
+      "--config",
+      "/runner/playwright.config.mjs"
+    ],
+    "items": [
+      {
+        "number": 1,
+        "file": "item-01.spec.ts",
+        "status": "passed",
+        "why": "ran once and passed, with its screenshot",
+        "title": "item 1 (stand-in test): an employee signs in, submits a five-day request, and sees it in their list with status waiting",
+        "trace": {
+          "path": "$TMPDIR/data-evidence/acceptance-runs/demo_acc_mwenb8a2/run-20261113t071923-37003caa/results/test-results/item-01-item-1-stand-in-te-1c2bf-ir-list-with-status-waiting/trace.zip",
+          "sha256": "653a2dc54a2fd71153b771f06526c7ea69276ba4188671e41b976f8b527096c4"
+        },
+        "screenshot": {
+          "path": "$TMPDIR/data-evidence/acceptance-runs/demo_acc_mwenb8a2/run-20261113t071923-37003caa/results/test-results/item-01-item-1-stand-in-te-1c2bf-ir-list-with-status-waiting/attachments/item-screenshot-0e8f8c2486ac91f4cdc3a6b50823c1ddc7d42a81.png",
+          "sha256": "92c9d52b80f5f0f2126de753b83dbbfbaea06d01f98e193ff65efbaf1effb656"
+        }
+      }
+    ],
+    "summary": "version passed; checklist incomplete (5 of the app spec's 6 checklist items have no test)",
+    "runProblems": [],
+    "events": [
+      {
+        "id": "33",
+        "kind": "acceptance.run.started",
+        "payload": {
+          "label": "stand-in test",
+          "run_id": "run-20261113t071923-37003caa",
+          "refused": null,
+          "version": "v001",
+          "base_url": "http://127.0.0.1:3141",
+          "written_by": "stand-in",
+          "app_answered": true,
+          "manifest_sha256": "d6a9cee7e15ef231a5458c0c752a73635d50a1b0e11deeef40f0f9d6d4878225",
+          "container_started": true
+        }
+      },
+      {
+        "id": "34",
+        "kind": "acceptance.item",
+        "payload": {
+          "why": "ran once and passed, with its screenshot",
+          "file": "item-01.spec.ts",
+          "item": 1,
+          "step": null,
+          "label": "stand-in test",
+          "run_id": "run-20261113t071923-37003caa",
+          "status": "passed",
+          "version": "v001",
+          "screenshot": {
+            "path": "$TMPDIR/data-evidence/acceptance-runs/demo_acc_mwenb8a2/run-20261113t071923-37003caa/results/test-results/item-01-item-1-stand-in-te-1c2bf-ir-list-with-status-waiting/attachments/item-screenshot-0e8f8c2486ac91f4cdc3a6b50823c1ddc7d42a81.png",
+            "sha256": "92c9d52b80f5f0f2126de753b83dbbfbaea06d01f98e193ff65efbaf1effb656"
+          },
+          "test_title": "item 1 (stand-in test): an employee signs in, submits a five-day request, and sees it in their list with status waiting",
+          "written_by": "stand-in",
+          "failure_file": null,
+          "manifest_sha256": "d6a9cee7e15ef231a5458c0c752a73635d50a1b0e11deeef40f0f9d6d4878225"
+        }
+      },
+      {
+        "id": "35",
+        "kind": "acceptance.run.finished",
+        "payload": {
+          "label": "stand-in test",
+          "run_id": "run-20261113t071923-37003caa",
+          "summary": "version passed; checklist incomplete (5 of the app spec's 6 checklist items have no test)",
+          "version": "v001",
+          "exit_code": 0,
+          "timed_out": false,
+          "written_by": "stand-in",
+          "run_problems": [],
+          "manifest_sha256": "d6a9cee7e15ef231a5458c0c752a73635d50a1b0e11deeef40f0f9d6d4878225"
+        }
+      }
+    ]
+  },
+  "runner-mounts": {
+    "container": "builder_demo_acc_mwenb8a2-acceptance-run-20261113t071923-37003caa",
+    "whileRunning": true,
+    "mounts": [
+      {
+        "Type": "bind",
+        "Source": "$TMPDIR/data-evidence/acceptance/demo_acc_mwenb8a2/v001",
+        "Destination": "/acceptance",
+        "Mode": "ro",
+        "RW": false,
+        "Propagation": "rprivate"
+      },
+      {
+        "Type": "bind",
+        "Source": "$TMPDIR/data-evidence/acceptance-runs/demo_acc_mwenb8a2/run-20261113t071923-37003caa/results",
+        "Destination": "/results",
+        "Mode": "rw",
+        "RW": true,
+        "Propagation": "rprivate"
+      },
+      {
+        "Type": "bind",
+        "Source": "$TMPDIR/data-evidence/acceptance-runs/demo_acc_mwenb8a2/run-20261113t071923-37003caa/secret/sample-password",
+        "Destination": "/run/secrets/sample-password",
+        "Mode": "ro",
+        "RW": false,
+        "Propagation": "rprivate"
+      }
+    ],
+    "networkMode": "host",
+    "user": "runner"
+  },
+  "runner-mountinfo": [
+    "193 123 0:65 / / ro,relatime - overlay overlay rw,lowerdir=/var/lib/docker/containerd/daemon/io.containerd.snapshotter.v1.overlayfs/snapshots/7026/fs:/var/lib/docker/containerd/daemon/io.containerd.snapshotter.v1.overlayfs/snapshots/6583/fs:/var/lib/docker/containerd/daemon/io.containerd.snapshotter.v1.overlayfs/snapshots/6582/fs:/var/lib/docker/containerd/daemon/io.containerd.snapshotter.v1.overlayfs/snapshots/6581/fs:/var/lib/docker/containerd/daemon/io.containerd.snapshotter.v1.overlayfs/snapshots/6580/fs:/var/lib/docker/containerd/daemon/io.containerd.snapshotter.v1.overlayfs/snapshots/6579/fs:/var/lib/docker/containerd/daemon/io.containerd.snapshotter.v1.overlayfs/snapshots/6578/fs:/var/lib/docker/containerd/daemon/io.containerd.snapshotter.v1.overlayfs/snapshots/6577/fs:/var/lib/docker/containerd/daemon/io.containerd.snapshotter.v1.overlayfs/snapshots/6576/fs:/var/lib/docker/containerd/daemon/io.containerd.snapshotter.v1.overlayfs/snapshots/6575/fs:/var/lib/docker/containerd/daemon/io.containerd.snapshotter.v1.overlayfs/snapshots/6574/fs:/var/lib/docker/containerd/daemon/io.containerd.snapshotter.v1.overlayfs/snapshots/6297/fs,upperdir=/var/lib/docker/containerd/daemon/io.containerd.snapshotter.v1.overlayfs/snapshots/7027/fs,workdir=/var/lib/docker/containerd/daemon/io.containerd.snapshotter.v1.overlayfs/snapshots/7027/work",
+    "195 193 0:68 / /proc rw,nosuid,nodev,noexec,relatime - proc proc rw",
+    "196 193 0:69 / /dev rw,nosuid - tmpfs tmpfs rw,size=65536k,mode=755",
+    "197 196 0:70 / /dev/pts rw,nosuid,noexec,relatime - devpts devpts rw,gid=5,mode=620,ptmxmode=666",
+    "198 193 0:22 / /sys ro,nosuid,nodev,noexec,relatime - sysfs sysfs rw",
+    "199 198 0:71 / /sys/fs/cgroup rw,nosuid,nodev,noexec,relatime - tmpfs tmpfs rw,mode=755",
+    "200 199 0:29 /docker/d6d0c3a7c51fbeffd18530e252e0164c8096e80c9d2e4140c2f6bbd19b3b4ac0 /sys/fs/cgroup/cpu ro,nosuid,nodev,noexec,relatime - cgroup cgroup rw,cpu",
+    "201 199 0:30 /docker/d6d0c3a7c51fbeffd18530e252e0164c8096e80c9d2e4140c2f6bbd19b3b4ac0 /sys/fs/cgroup/cpuacct ro,nosuid,nodev,noexec,relatime - cgroup cgroup rw,cpuacct",
+    "202 199 0:31 /docker/d6d0c3a7c51fbeffd18530e252e0164c8096e80c9d2e4140c2f6bbd19b3b4ac0 /sys/fs/cgroup/cpuset ro,nosuid,nodev,noexec,relatime - cgroup cgroup rw,cpuset",
+    "203 199 0:32 /docker/d6d0c3a7c51fbeffd18530e252e0164c8096e80c9d2e4140c2f6bbd19b3b4ac0 /sys/fs/cgroup/memory ro,nosuid,nodev,noexec,relatime - cgroup cgroup rw,memory",
+    "204 199 0:33 /docker/d6d0c3a7c51fbeffd18530e252e0164c8096e80c9d2e4140c2f6bbd19b3b4ac0 /sys/fs/cgroup/devices ro,nosuid,nodev,noexec,relatime - cgroup cgroup rw,devices",
+    "205 199 0:34 /docker/d6d0c3a7c51fbeffd18530e252e0164c8096e80c9d2e4140c2f6bbd19b3b4ac0 /sys/fs/cgroup/freezer ro,nosuid,nodev,noexec,relatime - cgroup cgroup rw,freezer",
+    "206 199 0:35 /docker/d6d0c3a7c51fbeffd18530e252e0164c8096e80c9d2e4140c2f6bbd19b3b4ac0 /sys/fs/cgroup/blkio ro,nosuid,nodev,noexec,relatime - cgroup cgroup rw,blkio",
+    "207 199 0:36 /docker/d6d0c3a7c51fbeffd18530e252e0164c8096e80c9d2e4140c2f6bbd19b3b4ac0 /sys/fs/cgroup/pids ro,nosuid,nodev,noexec,relatime - cgroup cgroup rw,pids",
+    "208 199 0:37 /docker/d6d0c3a7c51fbeffd18530e252e0164c8096e80c9d2e4140c2f6bbd19b3b4ac0 /sys/fs/cgroup/systemd ro,nosuid,nodev,noexec,relatime - cgroup cgroup rw,name=systemd",
+    "209 196 0:56 / /dev/mqueue rw,nosuid,nodev,noexec,relatime - mqueue mqueue rw",
+    "210 196 0:72 / /dev/shm rw,nosuid,nodev,noexec,relatime - tmpfs shm rw,size=65536k",
+    "211 193 254:0 $TMPDIR/data-evidence/acceptance/demo_acc_mwenb8a2/v001 /acceptance ro,relatime - ext4 /dev/vda rw,discard,no_prefetch_block_bitmaps,resv_strict,resuid=65534,resgid=65534",
+    "212 193 254:0 $TMPDIR/builder-runner-probe-UWYKCD /results rw,relatime - ext4 /dev/vda rw,discard,no_prefetch_block_bitmaps,resv_strict,resuid=65534,resgid=65534",
+    "213 193 0:73 / /tmp rw,nosuid,nodev,noexec,relatime - tmpfs tmpfs rw,size=524288k",
+    "214 193 254:0 /var/lib/docker/containers/d6d0c3a7c51fbeffd18530e252e0164c8096e80c9d2e4140c2f6bbd19b3b4ac0/hostname /etc/hostname ro,relatime - ext4 /dev/vda rw,discard,no_prefetch_block_bitmaps,resv_strict,resuid=65534,resgid=65534",
+    "215 193 254:0 /var/lib/docker/containers/d6d0c3a7c51fbeffd18530e252e0164c8096e80c9d2e4140c2f6bbd19b3b4ac0/hosts /etc/hosts ro,relatime - ext4 /dev/vda rw,discard,no_prefetch_block_bitmaps,resv_strict,resuid=65534,resgid=65534",
+    "216 193 254:0 /var/lib/docker/containers/d6d0c3a7c51fbeffd18530e252e0164c8096e80c9d2e4140c2f6bbd19b3b4ac0/resolv.conf /etc/resolv.conf ro,relatime - ext4 /dev/vda rw,discard,no_prefetch_block_bitmaps,resv_strict,resuid=65534,resgid=65534",
+    "138 195 0:68 /bus /proc/bus ro,nosuid,nodev,noexec,relatime - proc proc rw",
+    "139 195 0:68 /fs /proc/fs ro,nosuid,nodev,noexec,relatime - proc proc rw",
+    "140 195 0:68 /irq /proc/irq ro,nosuid,nodev,noexec,relatime - proc proc rw",
+    "141 195 0:68 /sys /proc/sys ro,nosuid,nodev,noexec,relatime - proc proc rw",
+    "142 195 0:74 / /proc/acpi ro,relatime - tmpfs tmpfs ro,size=4k,nr_inodes=1",
+    "143 195 0:69 /null /proc/interrupts rw,nosuid - tmpfs tmpfs rw,size=65536k,mode=755",
+    "146 195 0:69 /null /proc/keys rw,nosuid - tmpfs tmpfs rw,size=65536k,mode=755",
+    "168 195 0:69 /null /proc/timer_list rw,nosuid - tmpfs tmpfs rw,size=65536k,mode=755",
+    "169 198 0:74 / /sys/firmware ro,relatime - tmpfs tmpfs ro,size=4k,nr_inodes=1",
+    ""
+  ],
+  "run-B1-time-limit": {
+    "runId": "run-20261113t071927-b08efd06",
+    "refused": null,
+    "appAnswered": true,
+    "exit": {
+      "code": 137,
+      "timedOut": true
+    },
+    "args": [
+      "docker",
+      "compose",
+      "-f",
+      "$TMPDIR/builder-acceptance-VddX1m/compose.yaml",
+      "--profile",
+      "tools",
+      "--profile",
+      "engine",
+      "--profile",
+      "acceptance",
+      "run",
+      "--rm",
+      "--no-deps",
+      "-T",
+      "--name",
+      "builder_demo_acc_mwenb8a2-acceptance-run-20261113t071927-b08efd06",
+      "--volume",
+      "$TMPDIR/data-evidence/acceptance/demo_acc_mwenb8a2/v001:/acceptance:ro",
+      "--volume",
+      "$TMPDIR/data-evidence/acceptance-runs/demo_acc_mwenb8a2/run-20261113t071927-b08efd06/results:/results",
+      "--volume",
+      "$TMPDIR/data-evidence/acceptance-runs/demo_acc_mwenb8a2/run-20261113t071927-b08efd06/secret/sample-password:/run/secrets/sample-password:ro",
+      "--env",
+      "RUN_ID=run-20261113t071927-b08efd06",
+      "acceptance",
+      "node",
+      "/runner/node_modules/@playwright/test/cli.js",
+      "test",
+      "--config",
+      "/runner/playwright.config.mjs"
+    ],
+    "items": [
+      {
+        "number": 1,
+        "file": "item-01.spec.ts",
+        "status": "did not run",
+        "why": "the run went past its time limit and its container was stopped"
+      }
+    ],
+    "summary": "did not run: the run went past its time limit and its container was stopped",
+    "runProblems": [
+      "the run went past its time limit and its container was stopped"
+    ],
+    "events": [
+      {
+        "id": "36",
+        "kind": "acceptance.run.started",
+        "payload": {
+          "label": "stand-in test",
+          "run_id": "run-20261113t071927-b08efd06",
+          "refused": null,
+          "version": "v001",
+          "base_url": "http://127.0.0.1:3141",
+          "written_by": "stand-in",
+          "app_answered": true,
+          "manifest_sha256": "d6a9cee7e15ef231a5458c0c752a73635d50a1b0e11deeef40f0f9d6d4878225",
+          "container_started": true
+        }
+      },
+      {
+        "id": "37",
+        "kind": "acceptance.item",
+        "payload": {
+          "why": "the run went past its time limit and its container was stopped",
+          "file": "item-01.spec.ts",
+          "item": 1,
+          "step": null,
+          "label": "stand-in test",
+          "run_id": "run-20261113t071927-b08efd06",
+          "status": "did not run",
+          "version": "v001",
+          "screenshot": null,
+          "test_title": null,
+          "written_by": "stand-in",
+          "failure_file": null,
+          "manifest_sha256": "d6a9cee7e15ef231a5458c0c752a73635d50a1b0e11deeef40f0f9d6d4878225"
+        }
+      },
+      {
+        "id": "38",
+        "kind": "acceptance.run.finished",
+        "payload": {
+          "label": "stand-in test",
+          "run_id": "run-20261113t071927-b08efd06",
+          "summary": "did not run: the run went past its time limit and its container was stopped",
+          "version": "v001",
+          "exit_code": 137,
+          "timed_out": true,
+          "written_by": "stand-in",
+          "run_problems": [
+            "the run went past its time limit and its container was stopped"
+          ],
+          "manifest_sha256": "d6a9cee7e15ef231a5458c0c752a73635d50a1b0e11deeef40f0f9d6d4878225"
+        }
+      }
+    ]
+  },
+  "run-B2-killed": {
+    "runId": "run-20261113t071928-74fa17da",
+    "refused": null,
+    "appAnswered": true,
+    "exit": {
+      "code": 137,
+      "timedOut": false
+    },
+    "args": [
+      "docker",
+      "compose",
+      "-f",
+      "$TMPDIR/builder-acceptance-VddX1m/compose.yaml",
+      "--profile",
+      "tools",
+      "--profile",
+      "engine",
+      "--profile",
+      "acceptance",
+      "run",
+      "--rm",
+      "--no-deps",
+      "-T",
+      "--name",
+      "builder_demo_acc_mwenb8a2-acceptance-run-20261113t071928-74fa17da",
+      "--volume",
+      "$TMPDIR/data-evidence/acceptance/demo_acc_mwenb8a2/v001:/acceptance:ro",
+      "--volume",
+      "$TMPDIR/data-evidence/acceptance-runs/demo_acc_mwenb8a2/run-20261113t071928-74fa17da/results:/results",
+      "--volume",
+      "$TMPDIR/data-evidence/acceptance-runs/demo_acc_mwenb8a2/run-20261113t071928-74fa17da/secret/sample-password:/run/secrets/sample-password:ro",
+      "--env",
+      "RUN_ID=run-20261113t071928-74fa17da",
+      "acceptance",
+      "node",
+      "/runner/node_modules/@playwright/test/cli.js",
+      "test",
+      "--config",
+      "/runner/playwright.config.mjs"
+    ],
+    "items": [
+      {
+        "number": 1,
+        "file": "item-01.spec.ts",
+        "status": "did not run",
+        "why": "the runner's container ended with exit code 137"
+      }
+    ],
+    "summary": "did not run: the runner's container ended with exit code 137",
+    "runProblems": [
+      "the runner's container ended with exit code 137"
+    ],
+    "events": [
+      {
+        "id": "39",
+        "kind": "acceptance.run.started",
+        "payload": {
+          "label": "stand-in test",
+          "run_id": "run-20261113t071928-74fa17da",
+          "refused": null,
+          "version": "v001",
+          "base_url": "http://127.0.0.1:3141",
+          "written_by": "stand-in",
+          "app_answered": true,
+          "manifest_sha256": "d6a9cee7e15ef231a5458c0c752a73635d50a1b0e11deeef40f0f9d6d4878225",
+          "container_started": true
+        }
+      },
+      {
+        "id": "40",
+        "kind": "acceptance.item",
+        "payload": {
+          "why": "the runner's container ended with exit code 137",
+          "file": "item-01.spec.ts",
+          "item": 1,
+          "step": null,
+          "label": "stand-in test",
+          "run_id": "run-20261113t071928-74fa17da",
+          "status": "did not run",
+          "version": "v001",
+          "screenshot": null,
+          "test_title": null,
+          "written_by": "stand-in",
+          "failure_file": null,
+          "manifest_sha256": "d6a9cee7e15ef231a5458c0c752a73635d50a1b0e11deeef40f0f9d6d4878225"
+        }
+      },
+      {
+        "id": "41",
+        "kind": "acceptance.run.finished",
+        "payload": {
+          "label": "stand-in test",
+          "run_id": "run-20261113t071928-74fa17da",
+          "summary": "did not run: the runner's container ended with exit code 137",
+          "version": "v001",
+          "exit_code": 137,
+          "timed_out": false,
+          "written_by": "stand-in",
+          "run_problems": [
+            "the runner's container ended with exit code 137"
+          ],
+          "manifest_sha256": "d6a9cee7e15ef231a5458c0c752a73635d50a1b0e11deeef40f0f9d6d4878225"
+        }
+      }
+    ]
+  },
+  "engine-mountinfo": [
+    "186 130 0:44 / / ro,relatime - overlay overlay rw,lowerdir=/var/lib/docker/containerd/daemon/io.containerd.snapshotter.v1.overlayfs/snapshots/7032/fs:/var/lib/docker/containerd/daemon/io.containerd.snapshotter.v1.overlayfs/snapshots/7/fs:/var/lib/docker/containerd/daemon/io.containerd.snapshotter.v1.overlayfs/snapshots/6/fs:/var/lib/docker/containerd/daemon/io.containerd.snapshotter.v1.overlayfs/snapshots/5/fs:/var/lib/docker/containerd/daemon/io.containerd.snapshotter.v1.overlayfs/snapshots/4/fs,upperdir=/var/lib/docker/containerd/daemon/io.containerd.snapshotter.v1.overlayfs/snapshots/7033/fs,workdir=/var/lib/docker/containerd/daemon/io.containerd.snapshotter.v1.overlayfs/snapshots/7033/work",
+    "188 186 0:68 / /proc rw,nosuid,nodev,noexec,relatime - proc proc rw",
+    "189 186 0:69 / /dev rw,nosuid - tmpfs tmpfs rw,size=65536k,mode=755",
+    "190 189 0:70 / /dev/pts rw,nosuid,noexec,relatime - devpts devpts rw,gid=5,mode=620,ptmxmode=666",
+    "191 186 0:71 / /sys ro,nosuid,nodev,noexec,relatime - sysfs sysfs ro",
+    "192 191 0:72 / /sys/fs/cgroup rw,nosuid,nodev,noexec,relatime - tmpfs tmpfs rw,mode=755",
+    "193 192 0:29 /docker/1ca182e0af4f6e29c4e89e1e542207fda045af3c1340c72d1f69425dabead1d0 /sys/fs/cgroup/cpu ro,nosuid,nodev,noexec,relatime - cgroup cgroup rw,cpu",
+    "194 192 0:30 /docker/1ca182e0af4f6e29c4e89e1e542207fda045af3c1340c72d1f69425dabead1d0 /sys/fs/cgroup/cpuacct ro,nosuid,nodev,noexec,relatime - cgroup cgroup rw,cpuacct",
+    "195 192 0:31 /docker/1ca182e0af4f6e29c4e89e1e542207fda045af3c1340c72d1f69425dabead1d0 /sys/fs/cgroup/cpuset ro,nosuid,nodev,noexec,relatime - cgroup cgroup rw,cpuset",
+    "196 192 0:32 /docker/1ca182e0af4f6e29c4e89e1e542207fda045af3c1340c72d1f69425dabead1d0 /sys/fs/cgroup/memory ro,nosuid,nodev,noexec,relatime - cgroup cgroup rw,memory",
+    "197 192 0:33 /docker/1ca182e0af4f6e29c4e89e1e542207fda045af3c1340c72d1f69425dabead1d0 /sys/fs/cgroup/devices ro,nosuid,nodev,noexec,relatime - cgroup cgroup rw,devices",
+    "198 192 0:34 /docker/1ca182e0af4f6e29c4e89e1e542207fda045af3c1340c72d1f69425dabead1d0 /sys/fs/cgroup/freezer ro,nosuid,nodev,noexec,relatime - cgroup cgroup rw,freezer",
+    "199 192 0:35 /docker/1ca182e0af4f6e29c4e89e1e542207fda045af3c1340c72d1f69425dabead1d0 /sys/fs/cgroup/blkio ro,nosuid,nodev,noexec,relatime - cgroup cgroup rw,blkio",
+    "200 192 0:36 /docker/1ca182e0af4f6e29c4e89e1e542207fda045af3c1340c72d1f69425dabead1d0 /sys/fs/cgroup/pids ro,nosuid,nodev,noexec,relatime - cgroup cgroup rw,pids",
+    "201 192 0:37 /docker/1ca182e0af4f6e29c4e89e1e542207fda045af3c1340c72d1f69425dabead1d0 /sys/fs/cgroup/systemd ro,nosuid,nodev,noexec,relatime - cgroup cgroup rw,name=systemd",
+    "202 189 0:66 / /dev/mqueue rw,nosuid,nodev,noexec,relatime - mqueue mqueue rw",
+    "203 189 0:73 / /dev/shm rw,nosuid,nodev,noexec,relatime - tmpfs shm rw,size=65536k",
+    "204 186 254:0 $TMPDIR/builder-acceptance-VddX1m/engine-change-sets /engine ro,relatime - ext4 /dev/vda rw,discard,no_prefetch_block_bitmaps,resv_strict,resuid=65534,resgid=65534",
+    "205 186 254:0 $TMPDIR/builder-acceptance-probe-afuCHX /probe ro,relatime - ext4 /dev/vda rw,discard,no_prefetch_block_bitmaps,resv_strict,resuid=65534,resgid=65534",
+    "206 186 0:74 / /tmp rw,nosuid,nodev,noexec,relatime - tmpfs tmpfs rw,size=16384k",
+    "207 186 254:0 $TMPDIR/builder-acceptance-VddX1m/workspace /workspace rw,relatime - ext4 /dev/vda rw,discard,no_prefetch_block_bitmaps,resv_strict,resuid=65534,resgid=65534",
+    "208 186 254:0 /var/lib/docker/containers/1ca182e0af4f6e29c4e89e1e542207fda045af3c1340c72d1f69425dabead1d0/hostname /etc/hostname ro,relatime - ext4 /dev/vda rw,discard,no_prefetch_block_bitmaps,resv_strict,resuid=65534,resgid=65534",
+    "209 186 254:0 /var/lib/docker/containers/1ca182e0af4f6e29c4e89e1e542207fda045af3c1340c72d1f69425dabead1d0/hosts /etc/hosts ro,relatime - ext4 /dev/vda rw,discard,no_prefetch_block_bitmaps,resv_strict,resuid=65534,resgid=65534",
+    "210 186 254:0 /var/lib/docker/containers/1ca182e0af4f6e29c4e89e1e542207fda045af3c1340c72d1f69425dabead1d0/resolv.conf /etc/resolv.conf ro,relatime - ext4 /dev/vda rw,discard,no_prefetch_block_bitmaps,resv_strict,resuid=65534,resgid=65534",
+    "211 207 254:0 $TMPDIR/builder-acceptance-VddX1m/workspace/.dockerignore /workspace/.dockerignore ro,relatime - ext4 /dev/vda rw,discard,no_prefetch_block_bitmaps,resv_strict,resuid=65534,resgid=65534",
+    "212 207 254:0 $TMPDIR/builder-acceptance-VddX1m/workspace/Dockerfile /workspace/Dockerfile ro,relatime - ext4 /dev/vda rw,discard,no_prefetch_block_bitmaps,resv_strict,resuid=65534,resgid=65534",
+    "213 207 254:0 $TMPDIR/builder-acceptance-VddX1m/engine-empty /workspace/certs ro,relatime - ext4 /dev/vda rw,discard,no_prefetch_block_bitmaps,resv_strict,resuid=65534,resgid=65534",
+    "214 207 254:0 $TMPDIR/builder-acceptance-VddX1m/workspace/next.config.ts /workspace/next.config.ts ro,relatime - ext4 /dev/vda rw,discard,no_prefetch_block_bitmaps,resv_strict,resuid=65534,resgid=65534",
+    "215 207 254:0 $TMPDIR/builder-acceptance-VddX1m/workspace/package-lock.json /workspace/package-lock.json ro,relatime - ext4 /dev/vda rw,discard,no_prefetch_block_bitmaps,resv_strict,resuid=65534,resgid=65534",
+    "216 207 254:0 $TMPDIR/builder-acceptance-VddX1m/workspace/package.json /workspace/package.json ro,relatime - ext4 /dev/vda rw,discard,no_prefetch_block_bitmaps,resv_strict,resuid=65534,resgid=65534",
+    "217 207 254:0 $TMPDIR/builder-acceptance-VddX1m/workspace/tsconfig.json /workspace/tsconfig.json ro,relatime - ext4 /dev/vda rw,discard,no_prefetch_block_bitmaps,resv_strict,resuid=65534,resgid=65534",
+    "218 207 254:0 $TMPDIR/builder-acceptance-VddX1m/workspace/scripts/check-guards.ts /workspace/scripts/check-guards.ts ro,relatime - ext4 /dev/vda rw,discard,no_prefetch_block_bitmaps,resv_strict,resuid=65534,resgid=65534",
+    "219 207 254:0 $TMPDIR/builder-acceptance-VddX1m/workspace/src/app-config.ts /workspace/src/app-config.ts ro,relatime - ext4 /dev/vda rw,discard,no_prefetch_block_bitmaps,resv_strict,resuid=65534,resgid=65534",
+    "220 207 254:0 $TMPDIR/builder-acceptance-VddX1m/workspace/src/auth.ts /workspace/src/auth.ts ro,relatime - ext4 /dev/vda rw,discard,no_prefetch_block_bitmaps,resv_strict,resuid=65534,resgid=65534",
+    "221 207 254:0 $TMPDIR/builder-acceptance-VddX1m/workspace/src/db/schema.ts /workspace/src/db/schema.ts ro,relatime - ext4 /dev/vda rw,discard,no_prefetch_block_bitmaps,resv_strict,resuid=65534,resgid=65534",
+    "222 207 254:0 $TMPDIR/builder-acceptance-VddX1m/workspace/src/lib/access.ts /workspace/src/lib/access.ts ro,relatime - ext4 /dev/vda rw,discard,no_prefetch_block_bitmaps,resv_strict,resuid=65534,resgid=65534",
+    "223 207 254:0 $TMPDIR/builder-acceptance-VddX1m/workspace/src/lib/roles.tsx /workspace/src/lib/roles.tsx ro,relatime - ext4 /dev/vda rw,discard,no_prefetch_block_bitmaps,resv_strict,resuid=65534,resgid=65534",
+    "131 188 0:68 /bus /proc/bus ro,nosuid,nodev,noexec,relatime - proc proc rw",
+    "132 188 0:68 /fs /proc/fs ro,nosuid,nodev,noexec,relatime - proc proc rw",
+    "133 188 0:68 /irq /proc/irq ro,nosuid,nodev,noexec,relatime - proc proc rw",
+    "134 188 0:68 /sys /proc/sys ro,nosuid,nodev,noexec,relatime - proc proc rw",
+    "135 188 0:75 / /proc/acpi ro,relatime - tmpfs tmpfs ro,size=4k,nr_inodes=1",
+    "136 188 0:69 /null /proc/interrupts rw,nosuid - tmpfs tmpfs rw,size=65536k,mode=755",
+    "137 188 0:69 /null /proc/keys rw,nosuid - tmpfs tmpfs rw,size=65536k,mode=755",
+    "138 188 0:69 /null /proc/timer_list rw,nosuid - tmpfs tmpfs rw,size=65536k,mode=755",
+    "139 191 0:75 / /sys/firmware ro,relatime - tmpfs tmpfs ro,size=4k,nr_inodes=1"
+  ],
+  "engine-probe-inspect": {
+    "container": "builder_demo_acc_mwenb8a2-engine-acceptance-probe",
+    "whileRunning": true,
+    "mounts": [
+      {
+        "Type": "bind",
+        "Source": "$TMPDIR/builder-acceptance-VddX1m/engine-change-sets",
+        "Destination": "/engine",
+        "Mode": "",
+        "RW": false,
+        "Propagation": "rprivate"
+      },
+      {
+        "Type": "bind",
+        "Source": "$TMPDIR/builder-acceptance-probe-afuCHX",
+        "Destination": "/probe",
+        "Mode": "ro",
+        "RW": false,
+        "Propagation": "rprivate"
+      },
+      {
+        "Type": "bind",
+        "Source": "$TMPDIR/builder-acceptance-VddX1m/workspace",
+        "Destination": "/workspace",
+        "Mode": "",
+        "RW": true,
+        "Propagation": "rprivate"
+      },
+      {
+        "Type": "bind",
+        "Source": "$TMPDIR/builder-acceptance-VddX1m/workspace/.dockerignore",
+        "Destination": "/workspace/.dockerignore",
+        "Mode": "ro",
+        "RW": false,
+        "Propagation": "rprivate"
+      },
+      {
+        "Type": "bind",
+        "Source": "$TMPDIR/builder-acceptance-VddX1m/workspace/Dockerfile",
+        "Destination": "/workspace/Dockerfile",
+        "Mode": "ro",
+        "RW": false,
+        "Propagation": "rprivate"
+      },
+      {
+        "Type": "bind",
+        "Source": "$TMPDIR/builder-acceptance-VddX1m/engine-empty",
+        "Destination": "/workspace/certs",
+        "Mode": "",
+        "RW": false,
+        "Propagation": "rprivate"
+      },
+      {
+        "Type": "bind",
+        "Source": "$TMPDIR/builder-acceptance-VddX1m/workspace/next.config.ts",
+        "Destination": "/workspace/next.config.ts",
+        "Mode": "ro",
+        "RW": false,
+        "Propagation": "rprivate"
+      },
+      {
+        "Type": "bind",
+        "Source": "$TMPDIR/builder-acceptance-VddX1m/workspace/package-lock.json",
+        "Destination": "/workspace/package-lock.json",
+        "Mode": "ro",
+        "RW": false,
+        "Propagation": "rprivate"
+      },
+      {
+        "Type": "bind",
+        "Source": "$TMPDIR/builder-acceptance-VddX1m/workspace/package.json",
+        "Destination": "/workspace/package.json",
+        "Mode": "ro",
+        "RW": false,
+        "Propagation": "rprivate"
+      },
+      {
+        "Type": "bind",
+        "Source": "$TMPDIR/builder-acceptance-VddX1m/workspace/tsconfig.json",
+        "Destination": "/workspace/tsconfig.json",
+        "Mode": "ro",
+        "RW": false,
+        "Propagation": "rprivate"
+      },
+      {
+        "Type": "bind",
+        "Source": "$TMPDIR/builder-acceptance-VddX1m/workspace/scripts/check-guards.ts",
+        "Destination": "/workspace/scripts/check-guards.ts",
+        "Mode": "ro",
+        "RW": false,
+        "Propagation": "rprivate"
+      },
+      {
+        "Type": "bind",
+        "Source": "$TMPDIR/builder-acceptance-VddX1m/workspace/src/app-config.ts",
+        "Destination": "/workspace/src/app-config.ts",
+        "Mode": "ro",
+        "RW": false,
+        "Propagation": "rprivate"
+      },
+      {
+        "Type": "bind",
+        "Source": "$TMPDIR/builder-acceptance-VddX1m/workspace/src/auth.ts",
+        "Destination": "/workspace/src/auth.ts",
+        "Mode": "ro",
+        "RW": false,
+        "Propagation": "rprivate"
+      },
+      {
+        "Type": "bind",
+        "Source": "$TMPDIR/builder-acceptance-VddX1m/workspace/src/db/schema.ts",
+        "Destination": "/workspace/src/db/schema.ts",
+        "Mode": "ro",
+        "RW": false,
+        "Propagation": "rprivate"
+      },
+      {
+        "Type": "bind",
+        "Source": "$TMPDIR/builder-acceptance-VddX1m/workspace/src/lib/access.ts",
+        "Destination": "/workspace/src/lib/access.ts",
+        "Mode": "ro",
+        "RW": false,
+        "Propagation": "rprivate"
+      },
+      {
+        "Type": "bind",
+        "Source": "$TMPDIR/builder-acceptance-VddX1m/workspace/src/lib/roles.tsx",
+        "Destination": "/workspace/src/lib/roles.tsx",
+        "Mode": "ro",
+        "RW": false,
+        "Propagation": "rprivate"
+      }
+    ],
+    "networkMode": "none",
+    "user": "node"
+  },
+  "run-C-app-stopped": {
+    "runId": "run-20261113t071951-400b73f0",
+    "refused": "the app did not answer before the start: the project's app container is not running",
+    "appAnswered": "the project's app container is not running",
+    "exit": null,
+    "args": null,
+    "items": [
+      {
+        "number": 1,
+        "file": "item-01.spec.ts",
+        "status": "did not run",
+        "why": "the run was refused before its start: the app did not answer before the start: the project's app container is not running"
+      }
+    ],
+    "summary": "did not run: the run was refused before its start: the app did not answer before the start: the project's app container is not running",
+    "runProblems": [
+      "the run was refused before its start: the app did not answer before the start: the project's app container is not running"
+    ],
+    "events": [
+      {
+        "id": "42",
+        "kind": "acceptance.run.started",
+        "payload": {
+          "label": "stand-in test",
+          "run_id": "run-20261113t071951-400b73f0",
+          "refused": "the app did not answer before the start: the project's app container is not running",
+          "version": "v001",
+          "base_url": "http://127.0.0.1:3141",
+          "written_by": "stand-in",
+          "app_answered": "the project's app container is not running",
+          "manifest_sha256": "d6a9cee7e15ef231a5458c0c752a73635d50a1b0e11deeef40f0f9d6d4878225",
+          "container_started": false
+        }
+      },
+      {
+        "id": "43",
+        "kind": "acceptance.item",
+        "payload": {
+          "why": "the run was refused before its start: the app did not answer before the start: the project's app container is not running",
+          "file": "item-01.spec.ts",
+          "item": 1,
+          "step": null,
+          "label": "stand-in test",
+          "run_id": "run-20261113t071951-400b73f0",
+          "status": "did not run",
+          "version": "v001",
+          "screenshot": null,
+          "test_title": null,
+          "written_by": "stand-in",
+          "failure_file": null,
+          "manifest_sha256": "d6a9cee7e15ef231a5458c0c752a73635d50a1b0e11deeef40f0f9d6d4878225"
+        }
+      },
+      {
+        "id": "44",
+        "kind": "acceptance.run.finished",
+        "payload": {
+          "label": "stand-in test",
+          "run_id": "run-20261113t071951-400b73f0",
+          "summary": "did not run: the run was refused before its start: the app did not answer before the start: the project's app container is not running",
+          "version": "v001",
+          "exit_code": null,
+          "timed_out": false,
+          "written_by": "stand-in",
+          "run_problems": [
+            "the run was refused before its start: the app did not answer before the start: the project's app container is not running"
+          ],
+          "manifest_sha256": "d6a9cee7e15ef231a5458c0c752a73635d50a1b0e11deeef40f0f9d6d4878225"
+        }
+      }
+    ]
+  },
+  "engine-mounts-broken": [
+    {
+      "step": "01-data",
+      "inspect": {
+        "container": "builder_demo_acc_mwenb8a2-engine-01-data-9ca01c",
+        "whileRunning": true,
+        "mounts": [
+          {
+            "Type": "bind",
+            "Source": "$TMPDIR/builder-acceptance-0DWtPV/engine-change-sets",
+            "Destination": "/engine",
+            "Mode": "",
+            "RW": false,
+            "Propagation": "rprivate"
+          },
+          {
+            "Type": "bind",
+            "Source": "$TMPDIR/builder-acceptance-0DWtPV/workspace",
+            "Destination": "/workspace",
+            "Mode": "",
+            "RW": true,
+            "Propagation": "rprivate"
+          },
+          {
+            "Type": "bind",
+            "Source": "$TMPDIR/builder-acceptance-0DWtPV/workspace/.dockerignore",
+            "Destination": "/workspace/.dockerignore",
+            "Mode": "ro",
+            "RW": false,
+            "Propagation": "rprivate"
+          },
+          {
+            "Type": "bind",
+            "Source": "$TMPDIR/builder-acceptance-0DWtPV/workspace/Dockerfile",
+            "Destination": "/workspace/Dockerfile",
+            "Mode": "ro",
+            "RW": false,
+            "Propagation": "rprivate"
+          },
+          {
+            "Type": "bind",
+            "Source": "$TMPDIR/builder-acceptance-0DWtPV/engine-empty",
+            "Destination": "/workspace/certs",
+            "Mode": "",
+            "RW": false,
+            "Propagation": "rprivate"
+          },
+          {
+            "Type": "bind",
+            "Source": "$TMPDIR/builder-acceptance-0DWtPV/workspace/next.config.ts",
+            "Destination": "/workspace/next.config.ts",
+            "Mode": "ro",
+            "RW": false,
+            "Propagation": "rprivate"
+          },
+          {
+            "Type": "bind",
+            "Source": "$TMPDIR/builder-acceptance-0DWtPV/workspace/package-lock.json",
+            "Destination": "/workspace/package-lock.json",
+            "Mode": "ro",
+            "RW": false,
+            "Propagation": "rprivate"
+          },
+          {
+            "Type": "bind",
+            "Source": "$TMPDIR/builder-acceptance-0DWtPV/workspace/package.json",
+            "Destination": "/workspace/package.json",
+            "Mode": "ro",
+            "RW": false,
+            "Propagation": "rprivate"
+          },
+          {
+            "Type": "bind",
+            "Source": "$TMPDIR/builder-acceptance-0DWtPV/workspace/tsconfig.json",
+            "Destination": "/workspace/tsconfig.json",
+            "Mode": "ro",
+            "RW": false,
+            "Propagation": "rprivate"
+          },
+          {
+            "Type": "bind",
+            "Source": "$TMPDIR/builder-acceptance-0DWtPV/workspace/scripts/check-guards.ts",
+            "Destination": "/workspace/scripts/check-guards.ts",
+            "Mode": "ro",
+            "RW": false,
+            "Propagation": "rprivate"
+          },
+          {
+            "Type": "bind",
+            "Source": "$TMPDIR/builder-acceptance-0DWtPV/workspace/src/app-config.ts",
+            "Destination": "/workspace/src/app-config.ts",
+            "Mode": "ro",
+            "RW": false,
+            "Propagation": "rprivate"
+          },
+          {
+            "Type": "bind",
+            "Source": "$TMPDIR/builder-acceptance-0DWtPV/workspace/src/auth.ts",
+            "Destination": "/workspace/src/auth.ts",
+            "Mode": "ro",
+            "RW": false,
+            "Propagation": "rprivate"
+          },
+          {
+            "Type": "bind",
+            "Source": "$TMPDIR/builder-acceptance-0DWtPV/workspace/src/db/schema.ts",
+            "Destination": "/workspace/src/db/schema.ts",
+            "Mode": "ro",
+            "RW": false,
+            "Propagation": "rprivate"
+          },
+          {
+            "Type": "bind",
+            "Source": "$TMPDIR/builder-acceptance-0DWtPV/workspace/src/lib/access.ts",
+            "Destination": "/workspace/src/lib/access.ts",
+            "Mode": "ro",
+            "RW": false,
+            "Propagation": "rprivate"
+          },
+          {
+            "Type": "bind",
+            "Source": "$TMPDIR/builder-acceptance-0DWtPV/workspace/src/lib/roles.tsx",
+            "Destination": "/workspace/src/lib/roles.tsx",
+            "Mode": "ro",
+            "RW": false,
+            "Propagation": "rprivate"
+          }
+        ],
+        "networkMode": "none",
+        "user": "node"
+      },
+      "args": [
+        "docker",
+        "compose",
+        "-f",
+        "$TMPDIR/builder-acceptance-0DWtPV/compose.yaml",
+        "--profile",
+        "tools",
+        "--profile",
+        "engine",
+        "--profile",
+        "acceptance",
+        "run",
+        "--rm",
+        "--no-deps",
+        "-T",
+        "--name",
+        "builder_demo_acc_mwenb8a2-engine-01-data-9ca01c",
+        "--volume",
+        "$TMPDIR/builder-acceptance-0DWtPV/workspace/src/auth.ts:/workspace/src/auth.ts:ro",
+        "--volume",
+        "$TMPDIR/builder-acceptance-0DWtPV/workspace/src/lib/roles.tsx:/workspace/src/lib/roles.tsx:ro",
+        "--volume",
+        "$TMPDIR/builder-acceptance-0DWtPV/workspace/src/lib/access.ts:/workspace/src/lib/access.ts:ro",
+        "--volume",
+        "$TMPDIR/builder-acceptance-0DWtPV/workspace/src/app-config.ts:/workspace/src/app-config.ts:ro",
+        "--volume",
+        "$TMPDIR/builder-acceptance-0DWtPV/workspace/src/db/schema.ts:/workspace/src/db/schema.ts:ro",
+        "--volume",
+        "$TMPDIR/builder-acceptance-0DWtPV/workspace/scripts/check-guards.ts:/workspace/scripts/check-guards.ts:ro",
+        "--volume",
+        "$TMPDIR/builder-acceptance-0DWtPV/workspace/package.json:/workspace/package.json:ro",
+        "--volume",
+        "$TMPDIR/builder-acceptance-0DWtPV/workspace/package-lock.json:/workspace/package-lock.json:ro",
+        "--volume",
+        "$TMPDIR/builder-acceptance-0DWtPV/workspace/Dockerfile:/workspace/Dockerfile:ro",
+        "--volume",
+        "$TMPDIR/builder-acceptance-0DWtPV/workspace/.dockerignore:/workspace/.dockerignore:ro",
+        "--volume",
+        "$TMPDIR/builder-acceptance-0DWtPV/workspace/next.config.ts:/workspace/next.config.ts:ro",
+        "--volume",
+        "$TMPDIR/builder-acceptance-0DWtPV/workspace/tsconfig.json:/workspace/tsconfig.json:ro",
+        "engine",
+        "node",
+        "/engine/apply.mjs",
+        "--example",
+        "example-1",
+        "--step",
+        "01-data",
+        "--protected",
+        "[\"src/auth.ts\",\"src/lib/roles.tsx\",\"src/lib/access.ts\",\"src/app-config.ts\",\"src/db/schema.ts\",\"scripts/check-guards.ts\",\"package.json\",\"package-lock.json\",\"Dockerfile\",\".dockerignore\",\"next.config.ts\",\"tsconfig.json\"]",
+        "--max-writes",
+        "20",
+        "--delay-ms",
+        "800"
+      ],
+      "volumes": [
+        "$TMPDIR/builder-acceptance-0DWtPV/workspace/src/auth.ts:/workspace/src/auth.ts:ro",
+        "$TMPDIR/builder-acceptance-0DWtPV/workspace/src/lib/roles.tsx:/workspace/src/lib/roles.tsx:ro",
+        "$TMPDIR/builder-acceptance-0DWtPV/workspace/src/lib/access.ts:/workspace/src/lib/access.ts:ro",
+        "$TMPDIR/builder-acceptance-0DWtPV/workspace/src/app-config.ts:/workspace/src/app-config.ts:ro",
+        "$TMPDIR/builder-acceptance-0DWtPV/workspace/src/db/schema.ts:/workspace/src/db/schema.ts:ro",
+        "$TMPDIR/builder-acceptance-0DWtPV/workspace/scripts/check-guards.ts:/workspace/scripts/check-guards.ts:ro",
+        "$TMPDIR/builder-acceptance-0DWtPV/workspace/package.json:/workspace/package.json:ro",
+        "$TMPDIR/builder-acceptance-0DWtPV/workspace/package-lock.json:/workspace/package-lock.json:ro",
+        "$TMPDIR/builder-acceptance-0DWtPV/workspace/Dockerfile:/workspace/Dockerfile:ro",
+        "$TMPDIR/builder-acceptance-0DWtPV/workspace/.dockerignore:/workspace/.dockerignore:ro",
+        "$TMPDIR/builder-acceptance-0DWtPV/workspace/next.config.ts:/workspace/next.config.ts:ro",
+        "$TMPDIR/builder-acceptance-0DWtPV/workspace/tsconfig.json:/workspace/tsconfig.json:ro"
+      ]
+    },
+    {
+      "step": "02-submitter-screen",
+      "inspect": {
+        "container": "builder_demo_acc_mwenb8a2-engine-02-submitter-screen-4326dc",
+        "whileRunning": true,
+        "mounts": [
+          {
+            "Type": "bind",
+            "Source": "$TMPDIR/builder-acceptance-0DWtPV/engine-change-sets",
+            "Destination": "/engine",
+            "Mode": "",
+            "RW": false,
+            "Propagation": "rprivate"
+          },
+          {
+            "Type": "bind",
+            "Source": "$TMPDIR/builder-acceptance-0DWtPV/workspace",
+            "Destination": "/workspace",
+            "Mode": "",
+            "RW": true,
+            "Propagation": "rprivate"
+          },
+          {
+            "Type": "bind",
+            "Source": "$TMPDIR/builder-acceptance-0DWtPV/workspace/.dockerignore",
+            "Destination": "/workspace/.dockerignore",
+            "Mode": "ro",
+            "RW": false,
+            "Propagation": "rprivate"
+          },
+          {
+            "Type": "bind",
+            "Source": "$TMPDIR/builder-acceptance-0DWtPV/workspace/Dockerfile",
+            "Destination": "/workspace/Dockerfile",
+            "Mode": "ro",
+            "RW": false,
+            "Propagation": "rprivate"
+          },
+          {
+            "Type": "bind",
+            "Source": "$TMPDIR/builder-acceptance-0DWtPV/engine-empty",
+            "Destination": "/workspace/certs",
+            "Mode": "",
+            "RW": false,
+            "Propagation": "rprivate"
+          },
+          {
+            "Type": "bind",
+            "Source": "$TMPDIR/builder-acceptance-0DWtPV/workspace/next.config.ts",
+            "Destination": "/workspace/next.config.ts",
+            "Mode": "ro",
+            "RW": false,
+            "Propagation": "rprivate"
+          },
+          {
+            "Type": "bind",
+            "Source": "$TMPDIR/builder-acceptance-0DWtPV/workspace/package-lock.json",
+            "Destination": "/workspace/package-lock.json",
+            "Mode": "ro",
+            "RW": false,
+            "Propagation": "rprivate"
+          },
+          {
+            "Type": "bind",
+            "Source": "$TMPDIR/builder-acceptance-0DWtPV/workspace/package.json",
+            "Destination": "/workspace/package.json",
+            "Mode": "ro",
+            "RW": false,
+            "Propagation": "rprivate"
+          },
+          {
+            "Type": "bind",
+            "Source": "$TMPDIR/builder-acceptance-0DWtPV/workspace/tsconfig.json",
+            "Destination": "/workspace/tsconfig.json",
+            "Mode": "ro",
+            "RW": false,
+            "Propagation": "rprivate"
+          },
+          {
+            "Type": "bind",
+            "Source": "$TMPDIR/builder-acceptance-0DWtPV/workspace/scripts/check-guards.ts",
+            "Destination": "/workspace/scripts/check-guards.ts",
+            "Mode": "ro",
+            "RW": false,
+            "Propagation": "rprivate"
+          },
+          {
+            "Type": "bind",
+            "Source": "$TMPDIR/builder-acceptance-0DWtPV/workspace/src/app-config.ts",
+            "Destination": "/workspace/src/app-config.ts",
+            "Mode": "ro",
+            "RW": false,
+            "Propagation": "rprivate"
+          },
+          {
+            "Type": "bind",
+            "Source": "$TMPDIR/builder-acceptance-0DWtPV/workspace/src/auth.ts",
+            "Destination": "/workspace/src/auth.ts",
+            "Mode": "ro",
+            "RW": false,
+            "Propagation": "rprivate"
+          },
+          {
+            "Type": "bind",
+            "Source": "$TMPDIR/builder-acceptance-0DWtPV/workspace/src/db/schema.ts",
+            "Destination": "/workspace/src/db/schema.ts",
+            "Mode": "ro",
+            "RW": false,
+            "Propagation": "rprivate"
+          },
+          {
+            "Type": "bind",
+            "Source": "$TMPDIR/builder-acceptance-0DWtPV/workspace/src/lib/access.ts",
+            "Destination": "/workspace/src/lib/access.ts",
+            "Mode": "ro",
+            "RW": false,
+            "Propagation": "rprivate"
+          },
+          {
+            "Type": "bind",
+            "Source": "$TMPDIR/builder-acceptance-0DWtPV/workspace/src/lib/roles.tsx",
+            "Destination": "/workspace/src/lib/roles.tsx",
+            "Mode": "ro",
+            "RW": false,
+            "Propagation": "rprivate"
+          }
+        ],
+        "networkMode": "none",
+        "user": "node"
+      },
+      "args": [
+        "docker",
+        "compose",
+        "-f",
+        "$TMPDIR/builder-acceptance-0DWtPV/compose.yaml",
+        "--profile",
+        "tools",
+        "--profile",
+        "engine",
+        "--profile",
+        "acceptance",
+        "run",
+        "--rm",
+        "--no-deps",
+        "-T",
+        "--name",
+        "builder_demo_acc_mwenb8a2-engine-02-submitter-screen-4326dc",
+        "--volume",
+        "$TMPDIR/builder-acceptance-0DWtPV/workspace/src/auth.ts:/workspace/src/auth.ts:ro",
+        "--volume",
+        "$TMPDIR/builder-acceptance-0DWtPV/workspace/src/lib/roles.tsx:/workspace/src/lib/roles.tsx:ro",
+        "--volume",
+        "$TMPDIR/builder-acceptance-0DWtPV/workspace/src/lib/access.ts:/workspace/src/lib/access.ts:ro",
+        "--volume",
+        "$TMPDIR/builder-acceptance-0DWtPV/workspace/src/app-config.ts:/workspace/src/app-config.ts:ro",
+        "--volume",
+        "$TMPDIR/builder-acceptance-0DWtPV/workspace/src/db/schema.ts:/workspace/src/db/schema.ts:ro",
+        "--volume",
+        "$TMPDIR/builder-acceptance-0DWtPV/workspace/scripts/check-guards.ts:/workspace/scripts/check-guards.ts:ro",
+        "--volume",
+        "$TMPDIR/builder-acceptance-0DWtPV/workspace/package.json:/workspace/package.json:ro",
+        "--volume",
+        "$TMPDIR/builder-acceptance-0DWtPV/workspace/package-lock.json:/workspace/package-lock.json:ro",
+        "--volume",
+        "$TMPDIR/builder-acceptance-0DWtPV/workspace/Dockerfile:/workspace/Dockerfile:ro",
+        "--volume",
+        "$TMPDIR/builder-acceptance-0DWtPV/workspace/.dockerignore:/workspace/.dockerignore:ro",
+        "--volume",
+        "$TMPDIR/builder-acceptance-0DWtPV/workspace/next.config.ts:/workspace/next.config.ts:ro",
+        "--volume",
+        "$TMPDIR/builder-acceptance-0DWtPV/workspace/tsconfig.json:/workspace/tsconfig.json:ro",
+        "engine",
+        "node",
+        "/engine/apply.mjs",
+        "--example",
+        "example-1",
+        "--step",
+        "02-submitter-screen",
+        "--protected",
+        "[\"src/auth.ts\",\"src/lib/roles.tsx\",\"src/lib/access.ts\",\"src/app-config.ts\",\"src/db/schema.ts\",\"scripts/check-guards.ts\",\"package.json\",\"package-lock.json\",\"Dockerfile\",\".dockerignore\",\"next.config.ts\",\"tsconfig.json\"]",
+        "--max-writes",
+        "20",
+        "--delay-ms",
+        "800"
+      ],
+      "volumes": [
+        "$TMPDIR/builder-acceptance-0DWtPV/workspace/src/auth.ts:/workspace/src/auth.ts:ro",
+        "$TMPDIR/builder-acceptance-0DWtPV/workspace/src/lib/roles.tsx:/workspace/src/lib/roles.tsx:ro",
+        "$TMPDIR/builder-acceptance-0DWtPV/workspace/src/lib/access.ts:/workspace/src/lib/access.ts:ro",
+        "$TMPDIR/builder-acceptance-0DWtPV/workspace/src/app-config.ts:/workspace/src/app-config.ts:ro",
+        "$TMPDIR/builder-acceptance-0DWtPV/workspace/src/db/schema.ts:/workspace/src/db/schema.ts:ro",
+        "$TMPDIR/builder-acceptance-0DWtPV/workspace/scripts/check-guards.ts:/workspace/scripts/check-guards.ts:ro",
+        "$TMPDIR/builder-acceptance-0DWtPV/workspace/package.json:/workspace/package.json:ro",
+        "$TMPDIR/builder-acceptance-0DWtPV/workspace/package-lock.json:/workspace/package-lock.json:ro",
+        "$TMPDIR/builder-acceptance-0DWtPV/workspace/Dockerfile:/workspace/Dockerfile:ro",
+        "$TMPDIR/builder-acceptance-0DWtPV/workspace/.dockerignore:/workspace/.dockerignore:ro",
+        "$TMPDIR/builder-acceptance-0DWtPV/workspace/next.config.ts:/workspace/next.config.ts:ro",
+        "$TMPDIR/builder-acceptance-0DWtPV/workspace/tsconfig.json:/workspace/tsconfig.json:ro"
+      ]
+    },
+    {
+      "step": "03-wrong-status",
+      "inspect": {
+        "container": "builder_demo_acc_mwenb8a2-engine-03-wrong-status-665f1a",
+        "whileRunning": true,
+        "mounts": [
+          {
+            "Type": "bind",
+            "Source": "$TMPDIR/builder-acceptance-0DWtPV/engine-change-sets",
+            "Destination": "/engine",
+            "Mode": "",
+            "RW": false,
+            "Propagation": "rprivate"
+          },
+          {
+            "Type": "bind",
+            "Source": "$TMPDIR/builder-acceptance-0DWtPV/workspace",
+            "Destination": "/workspace",
+            "Mode": "",
+            "RW": true,
+            "Propagation": "rprivate"
+          },
+          {
+            "Type": "bind",
+            "Source": "$TMPDIR/builder-acceptance-0DWtPV/workspace/.dockerignore",
+            "Destination": "/workspace/.dockerignore",
+            "Mode": "ro",
+            "RW": false,
+            "Propagation": "rprivate"
+          },
+          {
+            "Type": "bind",
+            "Source": "$TMPDIR/builder-acceptance-0DWtPV/workspace/Dockerfile",
+            "Destination": "/workspace/Dockerfile",
+            "Mode": "ro",
+            "RW": false,
+            "Propagation": "rprivate"
+          },
+          {
+            "Type": "bind",
+            "Source": "$TMPDIR/builder-acceptance-0DWtPV/engine-empty",
+            "Destination": "/workspace/certs",
+            "Mode": "",
+            "RW": false,
+            "Propagation": "rprivate"
+          },
+          {
+            "Type": "bind",
+            "Source": "$TMPDIR/builder-acceptance-0DWtPV/workspace/next.config.ts",
+            "Destination": "/workspace/next.config.ts",
+            "Mode": "ro",
+            "RW": false,
+            "Propagation": "rprivate"
+          },
+          {
+            "Type": "bind",
+            "Source": "$TMPDIR/builder-acceptance-0DWtPV/workspace/package-lock.json",
+            "Destination": "/workspace/package-lock.json",
+            "Mode": "ro",
+            "RW": false,
+            "Propagation": "rprivate"
+          },
+          {
+            "Type": "bind",
+            "Source": "$TMPDIR/builder-acceptance-0DWtPV/workspace/package.json",
+            "Destination": "/workspace/package.json",
+            "Mode": "ro",
+            "RW": false,
+            "Propagation": "rprivate"
+          },
+          {
+            "Type": "bind",
+            "Source": "$TMPDIR/builder-acceptance-0DWtPV/workspace/tsconfig.json",
+            "Destination": "/workspace/tsconfig.json",
+            "Mode": "ro",
+            "RW": false,
+            "Propagation": "rprivate"
+          },
+          {
+            "Type": "bind",
+            "Source": "$TMPDIR/builder-acceptance-0DWtPV/workspace/scripts/check-guards.ts",
+            "Destination": "/workspace/scripts/check-guards.ts",
+            "Mode": "ro",
+            "RW": false,
+            "Propagation": "rprivate"
+          },
+          {
+            "Type": "bind",
+            "Source": "$TMPDIR/builder-acceptance-0DWtPV/workspace/src/app-config.ts",
+            "Destination": "/workspace/src/app-config.ts",
+            "Mode": "ro",
+            "RW": false,
+            "Propagation": "rprivate"
+          },
+          {
+            "Type": "bind",
+            "Source": "$TMPDIR/builder-acceptance-0DWtPV/workspace/src/auth.ts",
+            "Destination": "/workspace/src/auth.ts",
+            "Mode": "ro",
+            "RW": false,
+            "Propagation": "rprivate"
+          },
+          {
+            "Type": "bind",
+            "Source": "$TMPDIR/builder-acceptance-0DWtPV/workspace/src/db/schema.ts",
+            "Destination": "/workspace/src/db/schema.ts",
+            "Mode": "ro",
+            "RW": false,
+            "Propagation": "rprivate"
+          },
+          {
+            "Type": "bind",
+            "Source": "$TMPDIR/builder-acceptance-0DWtPV/workspace/src/lib/access.ts",
+            "Destination": "/workspace/src/lib/access.ts",
+            "Mode": "ro",
+            "RW": false,
+            "Propagation": "rprivate"
+          },
+          {
+            "Type": "bind",
+            "Source": "$TMPDIR/builder-acceptance-0DWtPV/workspace/src/lib/roles.tsx",
+            "Destination": "/workspace/src/lib/roles.tsx",
+            "Mode": "ro",
+            "RW": false,
+            "Propagation": "rprivate"
+          }
+        ],
+        "networkMode": "none",
+        "user": "node"
+      },
+      "args": [
+        "docker",
+        "compose",
+        "-f",
+        "$TMPDIR/builder-acceptance-0DWtPV/compose.yaml",
+        "--profile",
+        "tools",
+        "--profile",
+        "engine",
+        "--profile",
+        "acceptance",
+        "run",
+        "--rm",
+        "--no-deps",
+        "-T",
+        "--name",
+        "builder_demo_acc_mwenb8a2-engine-03-wrong-status-665f1a",
+        "--volume",
+        "$TMPDIR/builder-acceptance-0DWtPV/workspace/src/auth.ts:/workspace/src/auth.ts:ro",
+        "--volume",
+        "$TMPDIR/builder-acceptance-0DWtPV/workspace/src/lib/roles.tsx:/workspace/src/lib/roles.tsx:ro",
+        "--volume",
+        "$TMPDIR/builder-acceptance-0DWtPV/workspace/src/lib/access.ts:/workspace/src/lib/access.ts:ro",
+        "--volume",
+        "$TMPDIR/builder-acceptance-0DWtPV/workspace/src/app-config.ts:/workspace/src/app-config.ts:ro",
+        "--volume",
+        "$TMPDIR/builder-acceptance-0DWtPV/workspace/src/db/schema.ts:/workspace/src/db/schema.ts:ro",
+        "--volume",
+        "$TMPDIR/builder-acceptance-0DWtPV/workspace/scripts/check-guards.ts:/workspace/scripts/check-guards.ts:ro",
+        "--volume",
+        "$TMPDIR/builder-acceptance-0DWtPV/workspace/package.json:/workspace/package.json:ro",
+        "--volume",
+        "$TMPDIR/builder-acceptance-0DWtPV/workspace/package-lock.json:/workspace/package-lock.json:ro",
+        "--volume",
+        "$TMPDIR/builder-acceptance-0DWtPV/workspace/Dockerfile:/workspace/Dockerfile:ro",
+        "--volume",
+        "$TMPDIR/builder-acceptance-0DWtPV/workspace/.dockerignore:/workspace/.dockerignore:ro",
+        "--volume",
+        "$TMPDIR/builder-acceptance-0DWtPV/workspace/next.config.ts:/workspace/next.config.ts:ro",
+        "--volume",
+        "$TMPDIR/builder-acceptance-0DWtPV/workspace/tsconfig.json:/workspace/tsconfig.json:ro",
+        "engine",
+        "node",
+        "/engine/apply.mjs",
+        "--example",
+        "example-1",
+        "--step",
+        "03-wrong-status",
+        "--protected",
+        "[\"src/auth.ts\",\"src/lib/roles.tsx\",\"src/lib/access.ts\",\"src/app-config.ts\",\"src/db/schema.ts\",\"scripts/check-guards.ts\",\"package.json\",\"package-lock.json\",\"Dockerfile\",\".dockerignore\",\"next.config.ts\",\"tsconfig.json\"]",
+        "--max-writes",
+        "20",
+        "--delay-ms",
+        "800"
+      ],
+      "volumes": [
+        "$TMPDIR/builder-acceptance-0DWtPV/workspace/src/auth.ts:/workspace/src/auth.ts:ro",
+        "$TMPDIR/builder-acceptance-0DWtPV/workspace/src/lib/roles.tsx:/workspace/src/lib/roles.tsx:ro",
+        "$TMPDIR/builder-acceptance-0DWtPV/workspace/src/lib/access.ts:/workspace/src/lib/access.ts:ro",
+        "$TMPDIR/builder-acceptance-0DWtPV/workspace/src/app-config.ts:/workspace/src/app-config.ts:ro",
+        "$TMPDIR/builder-acceptance-0DWtPV/workspace/src/db/schema.ts:/workspace/src/db/schema.ts:ro",
+        "$TMPDIR/builder-acceptance-0DWtPV/workspace/scripts/check-guards.ts:/workspace/scripts/check-guards.ts:ro",
+        "$TMPDIR/builder-acceptance-0DWtPV/workspace/package.json:/workspace/package.json:ro",
+        "$TMPDIR/builder-acceptance-0DWtPV/workspace/package-lock.json:/workspace/package-lock.json:ro",
+        "$TMPDIR/builder-acceptance-0DWtPV/workspace/Dockerfile:/workspace/Dockerfile:ro",
+        "$TMPDIR/builder-acceptance-0DWtPV/workspace/.dockerignore:/workspace/.dockerignore:ro",
+        "$TMPDIR/builder-acceptance-0DWtPV/workspace/next.config.ts:/workspace/next.config.ts:ro",
+        "$TMPDIR/builder-acceptance-0DWtPV/workspace/tsconfig.json:/workspace/tsconfig.json:ro"
+      ]
+    }
+  ],
+  "run-D-broken-copy": {
+    "runId": "run-20261113t072050-7798a283",
+    "refused": null,
+    "appAnswered": true,
+    "exit": {
+      "code": 1,
+      "timedOut": false
+    },
+    "args": [
+      "docker",
+      "compose",
+      "-f",
+      "$TMPDIR/builder-acceptance-0DWtPV/compose.yaml",
+      "--profile",
+      "tools",
+      "--profile",
+      "engine",
+      "--profile",
+      "acceptance",
+      "run",
+      "--rm",
+      "--no-deps",
+      "-T",
+      "--name",
+      "builder_demo_acc_mwenb8a2-acceptance-run-20261113t072050-7798a283",
+      "--volume",
+      "$TMPDIR/data-evidence/acceptance/demo_acc_mwenb8a2/v001:/acceptance:ro",
+      "--volume",
+      "$TMPDIR/data-evidence/acceptance-runs/demo_acc_mwenb8a2/run-20261113t072050-7798a283/results:/results",
+      "--volume",
+      "$TMPDIR/data-evidence/acceptance-runs/demo_acc_mwenb8a2/run-20261113t072050-7798a283/secret/sample-password:/run/secrets/sample-password:ro",
+      "--env",
+      "RUN_ID=run-20261113t072050-7798a283",
+      "acceptance",
+      "node",
+      "/runner/node_modules/@playwright/test/cli.js",
+      "test",
+      "--config",
+      "/runner/playwright.config.mjs"
+    ],
+    "items": [
+      {
+        "number": 1,
+        "file": "item-01.spec.ts",
+        "status": "failed",
+        "why": "it ran and failed",
+        "title": "item 1 (stand-in test): an employee signs in, submits a five-day request, and sees it in their list with status waiting",
+        "trace": {
+          "path": "$TMPDIR/data-evidence/acceptance-runs/demo_acc_mwenb8a2/run-20261113t072050-7798a283/results/test-results/item-01-item-1-stand-in-te-1c2bf-ir-list-with-status-waiting/trace.zip",
+          "sha256": "84a108373e2c99dba0303b104a3c9b845dd18ba03f198c66a4b80ba2cd8bdd1f"
+        },
+        "step": "sees status waiting",
+        "screenshot": {
+          "path": "$TMPDIR/data-evidence/acceptance-runs/demo_acc_mwenb8a2/run-20261113t072050-7798a283/results/test-results/item-01-item-1-stand-in-te-1c2bf-ir-list-with-status-waiting/test-failed-1.png",
+          "sha256": "1d6747e7a7c8c4e83aab13182976bd5ec6210659a27c3edf720205f64e395331"
+        }
+      }
+    ],
+    "summary": "version failed: item 1 failed at step \"sees status waiting\"",
+    "runProblems": [],
+    "events": [
+      {
+        "id": "45",
+        "kind": "acceptance.run.started",
+        "payload": {
+          "label": "stand-in test",
+          "run_id": "run-20261113t072050-7798a283",
+          "refused": null,
+          "version": "v001",
+          "base_url": "http://127.0.0.1:3141",
+          "written_by": "stand-in",
+          "app_answered": true,
+          "manifest_sha256": "d6a9cee7e15ef231a5458c0c752a73635d50a1b0e11deeef40f0f9d6d4878225",
+          "container_started": true
+        }
+      },
+      {
+        "id": "46",
+        "kind": "acceptance.item",
+        "payload": {
+          "why": "it ran and failed",
+          "file": "item-01.spec.ts",
+          "item": 1,
+          "step": "sees status waiting",
+          "label": "stand-in test",
+          "run_id": "run-20261113t072050-7798a283",
+          "status": "failed",
+          "version": "v001",
+          "screenshot": {
+            "path": "$TMPDIR/data-evidence/acceptance-runs/demo_acc_mwenb8a2/run-20261113t072050-7798a283/results/test-results/item-01-item-1-stand-in-te-1c2bf-ir-list-with-status-waiting/test-failed-1.png",
+            "sha256": "1d6747e7a7c8c4e83aab13182976bd5ec6210659a27c3edf720205f64e395331"
+          },
+          "test_title": "item 1 (stand-in test): an employee signs in, submits a five-day request, and sees it in their list with status waiting",
+          "written_by": "stand-in",
+          "failure_file": {
+            "path": "$TMPDIR/data-evidence/acceptance-runs/demo_acc_mwenb8a2/run-20261113t072050-7798a283/builder/item-01-failure.txt",
+            "sha256": "d24b2c8adeaf798c7667738b67aaa8602b445853f92f0fcc56c8dc79dbf35dea"
+          },
+          "manifest_sha256": "d6a9cee7e15ef231a5458c0c752a73635d50a1b0e11deeef40f0f9d6d4878225"
+        }
+      },
+      {
+        "id": "47",
+        "kind": "acceptance.run.finished",
+        "payload": {
+          "label": "stand-in test",
+          "run_id": "run-20261113t072050-7798a283",
+          "summary": "version failed: item 1 failed at step \"sees status waiting\"",
+          "version": "v001",
+          "exit_code": 1,
+          "timed_out": false,
+          "written_by": "stand-in",
+          "run_problems": [],
+          "manifest_sha256": "d6a9cee7e15ef231a5458c0c752a73635d50a1b0e11deeef40f0f9d6d4878225"
+        }
+      }
+    ]
+  },
+  "tree": {
+    "passStep02Tree": "dc07b8566885f3235c952f49bb50c3d959564de7",
+    "brokenStep02Tree": "dc07b8566885f3235c952f49bb50c3d959564de7"
+  }
+}
