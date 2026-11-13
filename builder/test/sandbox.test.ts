@@ -9,6 +9,25 @@ import { composeDocument, createSandbox, DEFAULT_IMAGES, dockerEnv, sandbox, toY
 const run = promisify(execFile);
 const builderDir = resolve(import.meta.dirname, "..");
 
+/**
+ * Ask until the answer is the one wanted, every `everyMs`, for at most `forMs`; returns the last answer.
+ * A command that fails (pg_isready exits 1 or 2 while the server is not ready) counts as an answer: its output.
+ */
+async function askUntil(ask: () => Promise<string>, wanted: (answer: string) => boolean, { everyMs, forMs }: { everyMs: number; forMs: number }): Promise<string> {
+  const until = Date.now() + forMs;
+  for (;;) {
+    let answer: string;
+    try {
+      answer = await ask();
+    } catch (e) {
+      const err = e as { stdout?: string; stderr?: string; message?: string };
+      answer = `${err.stdout ?? ""}${err.stderr ?? ""}` || String(err.message);
+    }
+    if (wanted(answer) || Date.now() >= until) return answer;
+    await new Promise((r) => setTimeout(r, everyMs));
+  }
+}
+
 const base: Omit<SandboxSpec, "profile" | "dir"> = {
   projectId: "p_test",
   allowHosts: ["registry.npmjs.org", "gateway"],
@@ -242,7 +261,14 @@ describe("sandbox manager: live, development profile", () => {
 
   it("starts the project's database and egress proxy, and the proxy refuses hosts not on the list", async () => {
     await sandbox.up(sb, ["db", "egress"]);
-    const ready = await sandbox.exec(sb, "db", ["pg_isready", "-U", "app", "-d", "app", "-p", "5543"]);
+    // `up --wait` returns once the health check has passed. The database image's start script first runs a
+    // temporary server to set the database up, stops it, then starts the real one, and the health check can
+    // pass on the temporary one; so the database is asked again until it answers, every 500 ms for up to 30 s.
+    const ready = await askUntil(
+      () => sandbox.exec(sb, "db", ["pg_isready", "-U", "app", "-d", "app", "-p", "5543"]),
+      (answer) => /accepting connections/.test(answer),
+      { everyMs: 500, forMs: 30_000 },
+    );
     expect(ready).toMatch(/accepting connections/);
 
     // The egress proxy listens on the host network (development profile) on port 3128.

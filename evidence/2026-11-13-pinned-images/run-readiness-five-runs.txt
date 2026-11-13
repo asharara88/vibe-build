@@ -1,0 +1,142 @@
+13 Nov 2026. The readiness fix: builder/test/sandbox.test.ts run five times in a row, at commit eb2cd44 with the fix in the working tree (committed next, unchanged).
+Development machine (a cloud session), in builder/; the live tests start containers on the host's Docker (development profile).
+Run under a lock shared with other sessions on this machine (`flock /tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/live-tests.lock`), held from the first container listing to the last.
+$ git diff --stat
+ builder/test/sandbox.test.ts | 28 +++++++++++++++++++++++++++-
+ 1 file changed, 27 insertions(+), 1 deletion(-)
+
+Containers on the machine before the runs (every one, running or not):
+(count: 0)
+
+=== Run 1 of 5, started 06:57:45Z ===
+$ npx vitest run test/sandbox.test.ts --reporter=verbose
+
+ RUN  v5.1.0 /tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/wt-pin/builder
+
+ ✓ test/sandbox.test.ts > sandbox manager: compose documents > server profile: an internal network with no route out, and the egress proxy as the only bridge 2ms
+ ✓ test/sandbox.test.ts > sandbox manager: compose documents > development profile: host network, session proxy and certificate, database on a non-default port 0ms
+ ✓ test/sandbox.test.ts > sandbox manager: compose documents > package 0.5: a tools service under its own profile, given a named list of settings and nothing from the host 1ms
+ ✓ test/sandbox.test.ts > sandbox manager: compose documents > package 0.5: the sandbox records the names given to the tools container, and Docker runs with a narrow environment and its own client folder 2ms
+ ✓ test/sandbox.test.ts > sandbox manager: compose documents > package 0.5: only the user's extra plugin folders are carried into the project's Docker client folder; a chosen context is refused; up refuses the tools service 3ms
+ ✓ test/sandbox.test.ts > sandbox manager: compose documents > package 0.5: an empty DOCKER_CONFIG counts as not set, so the user's own folder under HOME is read 1ms
+ ✓ test/sandbox.test.ts > sandbox manager: compose documents > package 0.5: a context chosen in the configuration is accepted when DOCKER_HOST is set; DOCKER_CONTEXT=default is accepted, any other DOCKER_CONTEXT refused 6ms
+ ✓ test/sandbox.test.ts > sandbox manager: compose documents > package 0.5: a plugin link to a folder that has since gone is replaced, or removed, without error 6ms
+ ✓ test/sandbox.test.ts > sandbox manager: compose documents > writes YAML that Docker Compose accepts 92ms
+ ✓ test/sandbox.test.ts > sandbox manager: compose documents > round-trips a small document through the YAML writer 0ms
+ ✓ test/sandbox.test.ts > sandbox manager: live, development profile > starts the project's database and egress proxy, and the proxy refuses hosts not on the list 3298ms
+ ✓ test/sandbox.test.ts > sandbox manager: live, the tools container (package 0.5) > a Docker client configuration that adds proxy settings to containers does not reach the tools container 1014ms
+ ✓ test/sandbox.test.ts > sandbox manager: live, the tools container (package 0.5) > removing the project also removes a tools container whose run was cut off 10474ms
+
+ Test Files  1 passed (1)
+      Tests  13 passed (13)
+   Start at  06:57:45
+   Duration  25.59s (tests 100%)
+
+exit code: 0
+
+=== Run 2 of 5, started 06:58:11Z ===
+$ npx vitest run test/sandbox.test.ts --reporter=verbose
+
+ RUN  v5.1.0 /tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/wt-pin/builder
+
+ ✓ test/sandbox.test.ts > sandbox manager: compose documents > server profile: an internal network with no route out, and the egress proxy as the only bridge 2ms
+ ✓ test/sandbox.test.ts > sandbox manager: compose documents > development profile: host network, session proxy and certificate, database on a non-default port 0ms
+ ✓ test/sandbox.test.ts > sandbox manager: compose documents > package 0.5: a tools service under its own profile, given a named list of settings and nothing from the host 1ms
+ ✓ test/sandbox.test.ts > sandbox manager: compose documents > package 0.5: the sandbox records the names given to the tools container, and Docker runs with a narrow environment and its own client folder 2ms
+ ✓ test/sandbox.test.ts > sandbox manager: compose documents > package 0.5: only the user's extra plugin folders are carried into the project's Docker client folder; a chosen context is refused; up refuses the tools service 2ms
+ ✓ test/sandbox.test.ts > sandbox manager: compose documents > package 0.5: an empty DOCKER_CONFIG counts as not set, so the user's own folder under HOME is read 1ms
+ ✓ test/sandbox.test.ts > sandbox manager: compose documents > package 0.5: a context chosen in the configuration is accepted when DOCKER_HOST is set; DOCKER_CONTEXT=default is accepted, any other DOCKER_CONTEXT refused 4ms
+ ✓ test/sandbox.test.ts > sandbox manager: compose documents > package 0.5: a plugin link to a folder that has since gone is replaced, or removed, without error 4ms
+ ✓ test/sandbox.test.ts > sandbox manager: compose documents > writes YAML that Docker Compose accepts 71ms
+ ✓ test/sandbox.test.ts > sandbox manager: compose documents > round-trips a small document through the YAML writer 0ms
+ ✓ test/sandbox.test.ts > sandbox manager: live, development profile > starts the project's database and egress proxy, and the proxy refuses hosts not on the list 3182ms
+ ✓ test/sandbox.test.ts > sandbox manager: live, the tools container (package 0.5) > a Docker client configuration that adds proxy settings to containers does not reach the tools container 947ms
+ ✓ test/sandbox.test.ts > sandbox manager: live, the tools container (package 0.5) > removing the project also removes a tools container whose run was cut off 10447ms
+
+ Test Files  1 passed (1)
+      Tests  13 passed (13)
+   Start at  06:58:11
+   Duration  25.27s (tests 100%)
+
+exit code: 0
+
+=== Run 3 of 5, started 06:58:36Z ===
+$ npx vitest run test/sandbox.test.ts --reporter=verbose
+
+ RUN  v5.1.0 /tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/wt-pin/builder
+
+ ✓ test/sandbox.test.ts > sandbox manager: compose documents > server profile: an internal network with no route out, and the egress proxy as the only bridge 2ms
+ ✓ test/sandbox.test.ts > sandbox manager: compose documents > development profile: host network, session proxy and certificate, database on a non-default port 0ms
+ ✓ test/sandbox.test.ts > sandbox manager: compose documents > package 0.5: a tools service under its own profile, given a named list of settings and nothing from the host 1ms
+ ✓ test/sandbox.test.ts > sandbox manager: compose documents > package 0.5: the sandbox records the names given to the tools container, and Docker runs with a narrow environment and its own client folder 2ms
+ ✓ test/sandbox.test.ts > sandbox manager: compose documents > package 0.5: only the user's extra plugin folders are carried into the project's Docker client folder; a chosen context is refused; up refuses the tools service 3ms
+ ✓ test/sandbox.test.ts > sandbox manager: compose documents > package 0.5: an empty DOCKER_CONFIG counts as not set, so the user's own folder under HOME is read 1ms
+ ✓ test/sandbox.test.ts > sandbox manager: compose documents > package 0.5: a context chosen in the configuration is accepted when DOCKER_HOST is set; DOCKER_CONTEXT=default is accepted, any other DOCKER_CONTEXT refused 6ms
+ ✓ test/sandbox.test.ts > sandbox manager: compose documents > package 0.5: a plugin link to a folder that has since gone is replaced, or removed, without error 6ms
+ ✓ test/sandbox.test.ts > sandbox manager: compose documents > writes YAML that Docker Compose accepts 70ms
+ ✓ test/sandbox.test.ts > sandbox manager: compose documents > round-trips a small document through the YAML writer 0ms
+ ✓ test/sandbox.test.ts > sandbox manager: live, development profile > starts the project's database and egress proxy, and the proxy refuses hosts not on the list 3175ms
+ ✓ test/sandbox.test.ts > sandbox manager: live, the tools container (package 0.5) > a Docker client configuration that adds proxy settings to containers does not reach the tools container 832ms
+ ✓ test/sandbox.test.ts > sandbox manager: live, the tools container (package 0.5) > removing the project also removes a tools container whose run was cut off 10422ms
+
+ Test Files  1 passed (1)
+      Tests  13 passed (13)
+   Start at  06:58:37
+   Duration  25.13s (tests 100%)
+
+exit code: 0
+
+=== Run 4 of 5, started 06:59:02Z ===
+$ npx vitest run test/sandbox.test.ts --reporter=verbose
+
+ RUN  v5.1.0 /tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/wt-pin/builder
+
+ ✓ test/sandbox.test.ts > sandbox manager: compose documents > server profile: an internal network with no route out, and the egress proxy as the only bridge 2ms
+ ✓ test/sandbox.test.ts > sandbox manager: compose documents > development profile: host network, session proxy and certificate, database on a non-default port 0ms
+ ✓ test/sandbox.test.ts > sandbox manager: compose documents > package 0.5: a tools service under its own profile, given a named list of settings and nothing from the host 1ms
+ ✓ test/sandbox.test.ts > sandbox manager: compose documents > package 0.5: the sandbox records the names given to the tools container, and Docker runs with a narrow environment and its own client folder 2ms
+ ✓ test/sandbox.test.ts > sandbox manager: compose documents > package 0.5: only the user's extra plugin folders are carried into the project's Docker client folder; a chosen context is refused; up refuses the tools service 3ms
+ ✓ test/sandbox.test.ts > sandbox manager: compose documents > package 0.5: an empty DOCKER_CONFIG counts as not set, so the user's own folder under HOME is read 1ms
+ ✓ test/sandbox.test.ts > sandbox manager: compose documents > package 0.5: a context chosen in the configuration is accepted when DOCKER_HOST is set; DOCKER_CONTEXT=default is accepted, any other DOCKER_CONTEXT refused 5ms
+ ✓ test/sandbox.test.ts > sandbox manager: compose documents > package 0.5: a plugin link to a folder that has since gone is replaced, or removed, without error 5ms
+ ✓ test/sandbox.test.ts > sandbox manager: compose documents > writes YAML that Docker Compose accepts 71ms
+ ✓ test/sandbox.test.ts > sandbox manager: compose documents > round-trips a small document through the YAML writer 0ms
+ ✓ test/sandbox.test.ts > sandbox manager: live, development profile > starts the project's database and egress proxy, and the proxy refuses hosts not on the list 3549ms
+ ✓ test/sandbox.test.ts > sandbox manager: live, the tools container (package 0.5) > a Docker client configuration that adds proxy settings to containers does not reach the tools container 855ms
+ ✓ test/sandbox.test.ts > sandbox manager: live, the tools container (package 0.5) > removing the project also removes a tools container whose run was cut off 10411ms
+
+ Test Files  1 passed (1)
+      Tests  13 passed (13)
+   Start at  06:59:03
+   Duration  25.49s (tests 100%)
+
+exit code: 0
+
+=== Run 5 of 5, started 06:59:28Z ===
+$ npx vitest run test/sandbox.test.ts --reporter=verbose
+
+ RUN  v5.1.0 /tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/wt-pin/builder
+
+ ✓ test/sandbox.test.ts > sandbox manager: compose documents > server profile: an internal network with no route out, and the egress proxy as the only bridge 2ms
+ ✓ test/sandbox.test.ts > sandbox manager: compose documents > development profile: host network, session proxy and certificate, database on a non-default port 0ms
+ ✓ test/sandbox.test.ts > sandbox manager: compose documents > package 0.5: a tools service under its own profile, given a named list of settings and nothing from the host 1ms
+ ✓ test/sandbox.test.ts > sandbox manager: compose documents > package 0.5: the sandbox records the names given to the tools container, and Docker runs with a narrow environment and its own client folder 2ms
+ ✓ test/sandbox.test.ts > sandbox manager: compose documents > package 0.5: only the user's extra plugin folders are carried into the project's Docker client folder; a chosen context is refused; up refuses the tools service 3ms
+ ✓ test/sandbox.test.ts > sandbox manager: compose documents > package 0.5: an empty DOCKER_CONFIG counts as not set, so the user's own folder under HOME is read 1ms
+ ✓ test/sandbox.test.ts > sandbox manager: compose documents > package 0.5: a context chosen in the configuration is accepted when DOCKER_HOST is set; DOCKER_CONTEXT=default is accepted, any other DOCKER_CONTEXT refused 4ms
+ ✓ test/sandbox.test.ts > sandbox manager: compose documents > package 0.5: a plugin link to a folder that has since gone is replaced, or removed, without error 5ms
+ ✓ test/sandbox.test.ts > sandbox manager: compose documents > writes YAML that Docker Compose accepts 66ms
+ ✓ test/sandbox.test.ts > sandbox manager: compose documents > round-trips a small document through the YAML writer 0ms
+ ✓ test/sandbox.test.ts > sandbox manager: live, development profile > starts the project's database and egress proxy, and the proxy refuses hosts not on the list 3688ms
+ ✓ test/sandbox.test.ts > sandbox manager: live, the tools container (package 0.5) > a Docker client configuration that adds proxy settings to containers does not reach the tools container 870ms
+ ✓ test/sandbox.test.ts > sandbox manager: live, the tools container (package 0.5) > removing the project also removes a tools container whose run was cut off 10453ms
+
+ Test Files  1 passed (1)
+      Tests  13 passed (13)
+   Start at  06:59:29
+   Duration  25.73s (tests 100%)
+
+exit code: 0
+
+Containers on the machine after the runs (every one, running or not):
+(count: 0)

@@ -1,0 +1,65 @@
+13 Nov 2026. Why a single readiness question can fail: the database image's start script, read from the approved image without starting it.
+$ C=$(docker create --network none postgres:16-alpine@sha256:aa6cb33cf4c19c765cefcf48d96176258800870a9a1e930ad126200f9d825139 true)
+(container ac61ae61d924cdab01fa8c4e12bf503df21f8d320008960d040750f05a5486af created)
+$ docker inspect -f '{{.State.Status}} {{.State.StartedAt}}' $C
+created 0001-01-01T00:00:00Z
+$ docker cp $C:/usr/local/bin/docker-entrypoint.sh (scratch folder) && docker rm $C
+ac61ae61d924cdab01fa8c4e12bf503df21f8d320008960d040750f05a5486af
+$ sha256sum docker-entrypoint.sh
+9c440299ae04a0a79d55b8bf03307036d890a40979d2fb698073c9050d4b20a5  docker-entrypoint.sh
+
+Lines 288-312 (the temporary server: started socket-only to set the database up, then stopped):
+# start socket-only postgresql server for setting up or running scripts
+# all arguments will be passed along as arguments to `postgres` (via pg_ctl)
+docker_temp_server_start() {
+	if [ "$1" = 'postgres' ]; then
+		shift
+	fi
+
+	# internal start of server in order to allow setup using psql client
+	# does not listen on external TCP/IP and waits until start finishes
+	set -- "$@" -c listen_addresses='' -p "${PGPORT:-5432}"
+
+	# unset NOTIFY_SOCKET so the temporary server doesn't prematurely notify
+	# any process supervisor.
+	NOTIFY_SOCKET= \
+	PGUSER="${PGUSER:-$POSTGRES_USER}" \
+	pg_ctl -D "$PGDATA" \
+		-o "$(printf '%q ' "$@")" \
+		-w start
+}
+
+# stop postgresql server after done setting up user and running scripts
+docker_temp_server_stop() {
+	PGUSER="${PGUSER:-postgres}" \
+	pg_ctl -D "$PGDATA" -m fast -w stop
+}
+...
+Lines 345-366 and 384 (on an empty data folder: the temporary server is started, the database set up, the temporary server stopped; then the real server is started):
+
+		# only run initialization on an empty data directory
+		if [ -z "$DATABASE_ALREADY_EXISTS" ]; then
+			docker_verify_minimum_env
+			docker_error_old_databases
+
+			# check dir permissions to reduce likelihood of half-initialized database
+			ls /docker-entrypoint-initdb.d/ > /dev/null
+
+			docker_init_database_dir
+			pg_setup_hba_conf "$@"
+
+			# PGPASSWORD is required for psql when authentication is required for 'local' connections via pg_hba.conf and is otherwise harmless
+			# e.g. when '--auth=md5' or '--auth-local=md5' is used in POSTGRES_INITDB_ARGS
+			export PGPASSWORD="${PGPASSWORD:-$POSTGRES_PASSWORD}"
+			docker_temp_server_start "$@"
+
+			docker_setup_db
+			docker_process_init_files /docker-entrypoint-initdb.d/*
+
+			docker_temp_server_stop
+			unset PGPASSWORD
+...
+	exec "$@"
+
+The sandbox's health check for the database (builder/src/sandbox/manager.ts, development profile) is pg_isready over the same socket, so it can pass while the temporary server is up:
+292:        healthcheck: { test: ["CMD-SHELL", `pg_isready -U app -d app -p ${devPort}`], interval: "2s", retries: 30 },
