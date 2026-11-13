@@ -104,8 +104,8 @@ Each control: a fresh copy of the commit (`git archive` into the scratch folder)
 - **That a passing test opened the browser** (known gap 111): "passed" means every test the version names ran and passed.
 - **The scan is of words** (known gap 112), and a test with no check still passes.
 - **The fetch's limits** (known gap 113): a fetch killed mid-way leaves its `.part` file; proxies only as `http://` addresses.
-- **The label** shows which zip the builder's own build used; any build can set it (known gap 98). The image is checked by its name, and Compose then starts whatever image has that name (known gap 130).
-- **`CLAUDE.md`** still calls `npm test` a fast check and does not name the fetch; only the owner edits it (known gap 131).
+- **The label** shows which zip the builder's own build used; any build can set it (known gap 98). The image is checked by its name, and Compose then starts whatever image has that name (known gap 140).
+- **`CLAUDE.md`** still calls `npm test` a fast check and does not name the fetch; only the owner edits it (known gap 141).
 
 ## Files here
 
@@ -136,9 +136,9 @@ One fresh review, of `4128163`, in an exact copy: **"may be merged as it stands"
 | 4 | The real-address record: the line "through the proxy at …" names the route before the request is sent, and at 10:04 it was printed while the request went directly; two wordings in `docs/SOURCES.md`; keep the certificate's issuer as evidence | `docs/SOURCES.md`: both wordings corrected, and a row for a new check. At 11:27 UTC, one `HEAD` request through the fetch's own code answered 200 with the host's own certificate, **issued by Google Trust Services (WE2)**; the same request without the session's proxy got one **issued by Anthropic's egress gateway**. So the fetch's code uses the tunnel. The line itself is unchanged: since the fix it names the route the code takes (control C11) | `run-tunnel-issuer.txt` |
 | 5 | Two absolute scratch paths in `run-controls.txt` (C7, C8) | Shortened to `<scratch>…`; nothing else in that file changed | — |
 | 6 | Docker's message was cut at 200 characters inside a word ("…no such file o") | **Fixed in code:** cut at a word and marked " …" (`shortened`, `builder/src/acceptance/prerequisites.ts`). A new test with a stand-in `docker` program | Before the fix, the new test failed: "…abcdefghij abc" (`run-review-before.txt`); after, passed; control R7 |
-| 7 | The image is checked by its name, and could be swapped between the check and the run | Known gap 130 (with gap 98) | — |
+| 7 | The image is checked by its name, and could be swapped between the check and the run | Known gap 140 (with gap 98) | — |
 | 8 | `docs/design/package-3.1.md:100` still said "Live tests, skipped without Docker" | A dated note there points to 3.1b | — |
-| 9 | `CLAUDE.md`, Commands, still calls `npm test` a fast check and does not name the fetch | Known gap 131, for the owner, who alone edits `CLAUDE.md`; named in `docs/STATUS.md` | — |
+| 9 | `CLAUDE.md`, Commands, still calls `npm test` a fast check and does not name the fetch | Known gap 141, for the owner, who alone edits `CLAUDE.md`; named in `docs/STATUS.md` | — |
 | 10 | The reviewer's own files | Not copied; the certificate check was run again here | `run-tunnel-issuer.txt` |
 
 ### Before the fix (`run-review-before.txt`)
@@ -170,4 +170,4 @@ Each: a fresh copy of the commit (`git archive` into the scratch folder), one ne
 
 The three checks ran at `c3a7570` itself (`builder/` unchanged from the commit). The code after the review is in three commits: `a8338b5` (the scan), `9c525a3` (Docker's message) and `c3a7570` (a made-up `workspace` setting in the settings test, and the scan's comment).
 
-**Still not shown:** that a new session's network lets the zip's host through (gap 110); that a passing test opened the browser (gap 111); a skip given as a test's options, `{ skip: true }`, or a test that checks nothing (gap 112); that the image run is the image checked (gap 130).
+**Still not shown:** that a new session's network lets the zip's host through (gap 110); that a passing test opened the browser (gap 111); a skip given as a test's options, `{ skip: true }`, or a test that checks nothing (gap 112); that the image run is the image checked (gap 140).
