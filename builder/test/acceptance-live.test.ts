@@ -54,7 +54,7 @@ describe.skipIf(!dockerThere || !zipThere)(`acceptance runner: live, development
   const checklistItems = exampleChecklist("example-1").items.length;
   const go = (timeoutMs?: number) => runAcceptance({ pool, sandbox: x!.sb, store, projectId, version: version.version, appUrl: x!.appUrl, samplePassword: x!.samplePassword, checklistItems, timeoutMs });
 
-  // The engine mount rule reads BUILDER_DATA_DIR (known gap 72): set to this test's data folder, so that the rule
+  // The engine mount rule reads BUILDER_DATA_DIR (known gap 76): set to this test's data folder, so that the rule
   // is on for every engine run here, as it is in the demonstration (review of 13 Nov 2026).
   const savedDataDir = process.env[DATA_DIR_SETTING];
   beforeAll(async () => {

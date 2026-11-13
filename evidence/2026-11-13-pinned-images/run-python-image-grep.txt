@@ -1,0 +1,15 @@
+13 Nov 2026, at commit eb2cd44. The cloud environment's set-up script fetches python:3.13-slim by tag (docs/ENVIRONMENT-CHECK.md, the note added 13 Nov). Does anything in the repository use it?
+
+$ git grep -n -i 'python:' -- .   (every tracked file)
+docs/ENVIRONMENT-CHECK.md:31:| Pull `node:22-alpine`, `python:3.13-slim`, `curlimages/curl:8.10.1`, `postgres:16-alpine` | Works. One pull hit Docker Hub's rate limit (HTTP 429) and worked on retry |
+docs/ENVIRONMENT-CHECK.md:65:*Added 13 Nov 2026, in the record update after pull request #12.* The owner approved, through the session's own permission prompts, moving this session onto the network of
+docs/KNOWN-GAPS.md:77:| 61 | **Licences not recorded until the inventory of 13 Nov 2026: the browser used for screenshots since walking skeleton increment 3a, and the container images every sandbox ha
+evidence/2026-11-12-package-0.5/docker-after-run-5.txt:13:python:3.13-slim         e48f59cdba69        178MB         45.3MB        
+exit code: 0 (0: found; 1: nothing found)
+
+$ git grep -n -i -E 'python' -- builder templates ':!*package-lock.json'   (the code, scripts, tests and templates)
+builder/licence-rule.json:12:    "Python-2.0",
+builder/src/licence/approved-images.ts:105:  "node", "postgres", "python", "ubuntu", "debian", "alpine", "busybox", "redis", "valkey", "mysql", "mariadb",
+builder/test/approved-images.test.ts:88:    "@OTHER@": join("python", ":3.13-slim"),
+templates/next/licence-rule.json:12:    "Python-2.0",
+exit code: 0

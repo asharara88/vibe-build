@@ -1,0 +1,13 @@
+Package 1.2b, 13 Nov 2026: the type check, at commit 43e8eb4 (its code is that of 0972784)
+Development machine (a cloud session), in builder/, against the test database builder_test_pkg12b.
+
+$ npm run typecheck
+
+> builder@0.0.1 typecheck
+> tsc --noEmit
+
+exit code: 0
+
+The script scripts/change-cap.ts is outside tsconfig.json's "include" (src and test), so it was also checked on its own, with the same compiler options:
+$ npx tsc --ignoreConfig --noEmit --target ES2022 --module NodeNext --moduleResolution NodeNext --strict --noUncheckedIndexedAccess --esModuleInterop --skipLibCheck --types node scripts/change-cap.ts
+exit code: 0

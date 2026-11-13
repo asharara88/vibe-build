@@ -1,0 +1,8 @@
+RepoDigest=node@sha256:e9f565d32859f0cbfb52125eafe8be39390f24dac302dc3cdf566e8ba3ab21ee
+Id=sha256:e9f565d32859f0cbfb52125eafe8be39390f24dac302dc3cdf566e8ba3ab21ee
+Created=2026-11-11T18:43:57.116964803Z
+Os=linux Arch=amd64
+Size=326268054
+Env=["PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin","NODE_VERSION=22.23.5","YARN_VERSION=1.22.22"]
+Entrypoint=["docker-entrypoint.sh"] Cmd=["node"]
+Layers=5

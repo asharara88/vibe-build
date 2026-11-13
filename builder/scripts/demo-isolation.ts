@@ -34,7 +34,7 @@ import { join, resolve } from "node:path";
 import { createInterface } from "node:readline";
 import { promisify } from "node:util";
 import { ANSWER_WORDING, columnCell, gotAnswer, parseProbeOutput, readMachineSide, renderMarkdownTable, renderTable, sessionProxyHostPort, summarise, type Column, type ProbeReport } from "../src/sandbox/isolation.js";
-import { composeDocument, composeProjectName, createSandbox, dockerEnv, HARDENING, sandbox, type Sandbox, type SandboxSpec } from "../src/sandbox/manager.js";
+import { composeDocument, composeProjectName, createSandbox, DEFAULT_IMAGES, dockerEnv, HARDENING, sandbox, type Sandbox, type SandboxSpec } from "../src/sandbox/manager.js";
 
 const run = promisify(execFile);
 const builderDir = resolve(import.meta.dirname, "..");
@@ -106,7 +106,7 @@ async function probeBridge(sb: Sandbox): Promise<string[]> {
   const args = [
     "run", "--rm", "--name", COMPARISON, "--network", "bridge", "--user", "node",
     "--cap-drop", "ALL", "--security-opt", "no-new-privileges:true", "--pids-limit", String(HARDENING.pids_limit), "--memory", HARDENING.mem_limit, "--read-only",
-    "--entrypoint", "", "--volume", `${probeFile}:${PROBE_MOUNT}:ro`, "node:22-alpine", "node", PROBE_MOUNT, settings,
+    "--entrypoint", "", "--volume", `${probeFile}:${PROBE_MOUNT}:ro`, DEFAULT_IMAGES.node, "node", PROBE_MOUNT, settings,
   ];
   const child = spawn("docker", args, { env: dockerEnv(sb), stdio: ["ignore", "pipe", "pipe"] });
   const lines: string[] = [];

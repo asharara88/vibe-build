@@ -1,7 +1,9 @@
 # The acceptance runner's image (package 3.1; design: docs/design/package-3.1.md, section 3, "route B").
 #
 # Approved by the owner on 13 Nov 2026 for the builder's internal development and testing only
-# (question 15 (a) and question 11 (a), docs/DECISIONS.md): ubuntu:24.04 and node:22-bookworm-slim,
+# (question 15 (a) and question 11 (a), docs/DECISIONS.md; builder/approved-images.json):
+# ubuntu:24.04@sha256:2198e4c65076e9cb0b3d695219df667c0e3b0072da64ca3c2648aca17dcecaf5
+# and node:22-bookworm-slim@sha256:e9f565d32859f0cbfb52125eafe8be39390f24dac302dc3cdf566e8ba3ab21ee,
 # each pinned by digest; Node and npm copied from the second, with Node's licence notice; the Ubuntu
 # packages at the licence inventory's versions (docs/licences/runtime-inventory.md, section 2); and
 # Chrome for Testing's headless shell 153.0.8010.12, exactly the zip with the SHA-256 below, unchanged,

@@ -11,7 +11,7 @@ import { join, relative, resolve } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 import { traceScreenFrames, zipEntryNames } from "../src/acceptance/probes.js";
 import { readRun, plainFileInside, type RunFacts } from "../src/acceptance/results.js";
-import { approvedPackages, BROWSER_ZIP_SHA256, checkedBrowserZip, RUNNER_BASE_IMAGES, RUNNER_DIR } from "../src/acceptance/runner-image.js";
+import { approvedPackages, BROWSER_ZIP_SHA256, checkedBrowserZip, RUNNER_BASE_IMAGES, RUNNER_DIR, RUNNER_IMAGE } from "../src/acceptance/runner-image.js";
 import { exampleChecklist, standInSources, STAND_IN_DIR } from "../src/acceptance/stand-in.js";
 import {
   dataDirFromSetting,
@@ -314,10 +314,10 @@ describe("acceptance runner: the service in the Compose file", () => {
         profile,
         dir: "/tmp/sb",
         app: { buildContext: "/tmp/sb/workspace", port: 3131 },
-        acceptance: { image: "builder-acceptance-runner:local", baseUrl: "http://127.0.0.1:3131" },
+        acceptance: { image: RUNNER_IMAGE, baseUrl: "http://127.0.0.1:3131" },
       }) as { services: Record<string, Record<string, unknown>> };
       expect(doc.services.acceptance).toEqual({
-        image: "builder-acceptance-runner:local",
+        image: RUNNER_IMAGE,
         pull_policy: "never",
         profiles: ["acceptance"],
         cap_drop: ["ALL"],
@@ -342,7 +342,7 @@ describe("acceptance runner: the service in the Compose file", () => {
 
   it("up refuses the acceptance service", async () => {
     const dir = mkdtempSync(join(scratch, "sb-up-"));
-    const sb = createSandbox({ ...base, profile: "development-cloud-session", dir, acceptance: { image: "builder-acceptance-runner:local", baseUrl: "http://127.0.0.1:3131" } }, "made-up");
+    const sb = createSandbox({ ...base, profile: "development-cloud-session", dir, acceptance: { image: RUNNER_IMAGE, baseUrl: "http://127.0.0.1:3131" } }, "made-up");
     await expect(sandbox.up(sb, ["acceptance"])).rejects.toThrow(/acceptance service runs one acceptance run at a time/);
   });
 });
@@ -502,8 +502,16 @@ describe("the runner image's own files", () => {
 
   it("the Dockerfile names both bases by their approved digests, the zip by its SHA-256, the approved lists, Node's licence notice, and never a registry to push to", () => {
     const df = readFileSync(join(RUNNER_DIR, "Dockerfile"), "utf8");
-    expect(df).toContain(`FROM ${RUNNER_BASE_IMAGES.node} AS node`);
-    expect(df.match(new RegExp(`FROM ${RUNNER_BASE_IMAGES.ubuntu.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`, "g"))).toHaveLength(2);
+    // Written out, tag@digest, so that the approved-images check reads them (test/approved-images.test.ts).
+    expect(RUNNER_BASE_IMAGES).toEqual({
+      ubuntu: "ubuntu:24.04@sha256:2198e4c65076e9cb0b3d695219df667c0e3b0072da64ca3c2648aca17dcecaf5",
+      node: "node:22-bookworm-slim@sha256:e9f565d32859f0cbfb52125eafe8be39390f24dac302dc3cdf566e8ba3ab21ee",
+    });
+    expect(df.split("\n").filter((l) => l.startsWith("FROM "))).toEqual([
+      "FROM node:22-bookworm-slim@sha256:e9f565d32859f0cbfb52125eafe8be39390f24dac302dc3cdf566e8ba3ab21ee AS node",
+      "FROM ubuntu:24.04@sha256:2198e4c65076e9cb0b3d695219df667c0e3b0072da64ca3c2648aca17dcecaf5 AS unpack",
+      "FROM ubuntu:24.04@sha256:2198e4c65076e9cb0b3d695219df667c0e3b0072da64ca3c2648aca17dcecaf5",
+    ]);
     expect(df.match(/^FROM /gm)).toHaveLength(3);
     expect(df).toContain(`echo "${BROWSER_ZIP_SHA256}  /browser/chrome-headless-shell-linux64.zip" | sha256sum -c -`);
     expect(df).toContain("sh /build/install-exactly.sh /build/approved-runner-packages.txt");

@@ -1,4 +1,4 @@
-$ npm run check:licences   (in builder/, at commit cf5b11a; builder/runner/node_modules installed with npm ci --ignore-scripts, as known gap 73 says)
+$ npm run check:licences   (in builder/, at commit cf5b11a; builder/runner/node_modules installed with npm ci --ignore-scripts, as known gap 77 says; numbered 73 when this was run)
 
 > builder@0.0.1 check:licences
 > bash scripts/check-licences.sh

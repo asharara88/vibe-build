@@ -1,0 +1,96 @@
+Package 1.2b, 13 Nov 2026: scripts/change-cap.ts run against the test database, at commit 0972784
+Development machine (a cloud session), in builder/. For every run below except the last two, BUILDER_DATABASE_URL names the test
+database builder_test_pkg12b over the local socket, with no password (peer authentication): postgres:///builder_test_pkg12b?host=/var/run/postgresql
+Made-up data only; role names only. No provider is called and no key exists.
+
+== Set-up: one project with a cap of $5, $0.25 spent and one hold of $0.75 open (the set-up script is shown in cap-change.md) ==
+$ npx tsx ../../pkg12b-setup.mts
+project capdemo_1794551488860: cap $5.0000, spent $0.250000, open holds $0.750000 (1)
+ID=capdemo_1794551488860
+
+== 1. Misuse: --reason left out ==
+events of the project before: 4; cap before: 5.0000
+$ npx tsx scripts/change-cap.ts --project capdemo_1794551488860 --cap 20 --asked-by "the owner" --by "Claude Code"
+Refused: --reason is missing or empty. Nothing was sent to the database.
+Usage: npx tsx scripts/change-cap.ts --project <id> --cap <dollars, at most 4 decimals> --asked-by "<who asked>" --by "<who ran it>" --reason "<why>"
+exit code: 1
+events of the project after: 4; cap after: 5.0000
+
+== 2. Misuse: a figure with five decimals ==
+$ npx tsx scripts/change-cap.ts --project capdemo_1794551488860 --cap 20.12345 --asked-by "the owner" --by "Claude Code" --reason "evidence run of package 1.2b"
+Refused: --cap must be a number of dollars, digits only, with at most 4 decimals and below 100000000 (for example 20 or 20.5). Nothing was sent to the database.
+Usage: npx tsx scripts/change-cap.ts --project <id> --cap <dollars, at most 4 decimals> --asked-by "<who asked>" --by "<who ran it>" --reason "<why>"
+exit code: 1
+events of the project after: 4; cap after: 5.0000
+
+== 3. Misuse: --cap given twice ==
+$ npx tsx scripts/change-cap.ts --project capdemo_1794551488860 --cap 20 --cap 30 --asked-by "the owner" --by "Claude Code" --reason "evidence run of package 1.2b"
+Refused: --cap was given more than once. Nothing was sent to the database.
+Usage: npx tsx scripts/change-cap.ts --project <id> --cap <dollars, at most 4 decimals> --asked-by "<who asked>" --by "<who ran it>" --reason "<why>"
+exit code: 1
+events of the project after: 4; cap after: 5.0000
+
+== 4. A raise, from $5 to $20 ==
+$ npx tsx scripts/change-cap.ts --project capdemo_1794551488860 --cap 20 --asked-by "the owner" --by "Claude Code" --reason "evidence run of package 1.2b: a raise"
+Database: builder_test_pkg12b (its name only; the address is not printed)
+Cap changed for project capdemo_1794551488860
+  old cap:     $5.0000
+  new cap:     $20.0000
+  spent:       $0.250000
+  open holds:  $0.750000 (1 open hold(s))
+  asked by:    the owner
+  changed by:  Claude Code
+  reason:      evidence run of package 1.2b: a raise
+  event:       cap.changed, id 672
+  changed at:  2026-11-13T06:31:30.757Z (the database's clock, under the project's lock)
+exit code: 0
+events of the project after: 5; cap after: 20.0000
+
+== 5. A lowering below spent plus open holds ($0.25 + $0.75 = $1.00), to $0.50: refused ==
+$ npx tsx scripts/change-cap.ts --project capdemo_1794551488860 --cap 0.5 --asked-by "the owner" --by "Claude Code" --reason "evidence run of package 1.2b: a lowering below what is committed"
+Database: builder_test_pkg12b (its name only; the address is not printed)
+Refused by the store (below_spent_plus_open_holds): The new cap $0.5000 is below what this project has already spent plus its open holds ($0.250000 spent + $0.750000 held in 1 open hold(s) = $1.000000). The lowest cap allowed now is $1.0000. Nothing was changed and nothing was written.
+exit code: 2
+events of the project after: 5; cap after: 20.0000
+
+== 6. A lowering to the lowest figure allowed, $1.00: accepted ==
+$ npx tsx scripts/change-cap.ts --project capdemo_1794551488860 --cap 1 --asked-by "the owner" --by "Claude Code" --reason "evidence run of package 1.2b: lowered to spent plus open holds"
+Database: builder_test_pkg12b (its name only; the address is not printed)
+Cap changed for project capdemo_1794551488860
+  old cap:     $20.0000
+  new cap:     $1.0000
+  spent:       $0.250000
+  open holds:  $0.750000 (1 open hold(s))
+  asked by:    the owner
+  changed by:  Claude Code
+  reason:      evidence run of package 1.2b: lowered to spent plus open holds
+  event:       cap.changed, id 673
+  changed at:  2026-11-13T06:31:31.601Z (the database's clock, under the project's lock)
+exit code: 0
+events of the project after: 6; cap after: 1.0000
+
+== 7. The project's events, read back from the event log ==
+$ psql -d builder_test_pkg12b -c "select id, kind, payload from events where project_id = 'capdemo_1794551488860' order by id"
+ id  |     kind     |                                                                                                                                    payload                                                                                                                                    
+-----+--------------+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ 668 | hold.opened  | {"hold_id": 211, "amount_usd": 0.5, "arithmetic": {}, "deadline_at": "2026-11-13T07:31:28.870Z", "budget_before": {"cap_usd": 5, "spent_usd": 0, "open_holds_usd": 0}}
+ 669 | model.call   | {"note": "a made-up call for this demonstration", "hold_id": 211, "cost_usd": 0.25}
+ 670 | hold.settled | {"hold_id": 211, "actual_usd": 0.25, "amount_usd": 0.5, "returned_usd": 0.25}
+ 671 | hold.opened  | {"hold_id": 212, "amount_usd": 0.75, "arithmetic": {}, "deadline_at": "2026-11-13T07:31:28.881Z", "budget_before": {"cap_usd": 5, "spent_usd": 0.25, "open_holds_usd": 0}}
+ 672 | cap.changed  | {"reason": "evidence run of package 1.2b: a raise", "asked_by": "the owner", "spent_usd": 0.25, "changed_at": "2026-11-13T06:31:30.757Z", "changed_by": "Claude Code", "open_holds": 1, "new_cap_usd": 20, "old_cap_usd": 5, "open_holds_usd": 0.75}
+ 673 | cap.changed  | {"reason": "evidence run of package 1.2b: lowered to spent plus open holds", "asked_by": "the owner", "spent_usd": 0.25, "changed_at": "2026-11-13T06:31:31.601Z", "changed_by": "Claude Code", "open_holds": 1, "new_cap_usd": 1, "old_cap_usd": 20, "open_holds_usd": 0.75}
+(6 rows)
+
+
+== 8. A malformed database address holding a made-up password (MADE-UP-NOT-A-SECRET): only an error code is printed ==
+$ BUILDER_DATABASE_URL='postgres://someuser:MADE-UP-NOT-A-SECRET@[bad/builder' npx tsx scripts/change-cap.ts --project capdemo_1794551488860 --cap 30 --asked-by "the owner" --by "Claude Code" --reason "evidence run"
+The change could not be completed (error code ERR_INVALID_URL). If the connection broke after the change was sent, look in the event log for a cap.changed event of this project before trying again.
+exit code: 3
+times the made-up password appears in that output: 0
+
+== 9. A well-formed address, with a made-up password, where nothing listens (127.0.0.1, port 1): only an error code is printed ==
+$ BUILDER_DATABASE_URL='postgres://someuser:MADE-UP-NOT-A-SECRET@127.0.0.1:1/builder' npx tsx scripts/change-cap.ts --project capdemo_1794551488860 --cap 30 --asked-by "the owner" --by "Claude Code" --reason "evidence run"
+The change could not be completed (error code ECONNREFUSED). If the connection broke after the change was sent, look in the event log for a cap.changed event of this project before trying again.
+exit code: 3
+times the made-up password, or the address, appears in that output: 0
+events of the project after both: 6; cap after both: 1.0000

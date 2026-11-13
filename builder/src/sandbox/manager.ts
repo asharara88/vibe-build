@@ -48,7 +48,7 @@ export interface SandboxSpec {
   allowHosts: string[];
   /** Where the engine's model calls go: the gateway's address as seen from the containers. */
   gatewayUrl: string;
-  /** Pinned images. */
+  /** Images to use instead of DEFAULT_IMAGES. Nothing sets this today; a value given here at run time is not seen by the approved-images check. */
   images?: { postgres?: string; node?: string };
   /** Development profile only: the session proxy and its certificate on the host. */
   hostProxy?: { url: string; caBundlePath: string };
@@ -102,9 +102,15 @@ export interface SandboxSpec {
   };
 }
 
+/**
+ * The two images every sandbox runs, each pinned to the one digest the owner approved for the builder's
+ * internal development and testing only (13 Nov 2026, question 11 (a); builder/approved-images.json).
+ * Tests and scripts take them from here. test/approved-images.test.ts fails on any image reference in the
+ * code, scripts, tests or templates that is not one of these, written tag@digest.
+ */
 export const DEFAULT_IMAGES = {
-  postgres: "postgres:16-alpine",
-  node: "node:22-alpine",
+  postgres: "postgres:16-alpine@sha256:aa6cb33cf4c19c765cefcf48d96176258800870a9a1e930ad126200f9d825139",
+  node: "node:22-alpine@sha256:0e1754758c2df4cfa3e68d59e2e1b7374bb7fd9ea6328eaaacf15cc934af8202",
 };
 
 /** The hardening every project container gets. From Anthropic's secure-deployment guide, measured on 11 Nov 2026. */

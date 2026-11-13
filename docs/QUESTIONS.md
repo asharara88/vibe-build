@@ -8,6 +8,10 @@ None open right now. Question 15, the browser and the runner's two base images, 
 
 ## Not blocking yet
 
+**18. The "vibe-build" setup script fetches images by tag** (numbered 15 when pull request #8 added it). It downloads `node:22-alpine`, `postgres:16-alpine` and `python:3.13-slim` by name, so a rebuilt snapshot can hold versions other than those you approved (question 11), plus an image nothing uses; its downloads have no time limit (gap 67).
+(a) **Change the script to fetch only the two approved images, by digest, each with a time limit** (a change to your environment, approved on a card). Recommended: new sessions then start with the approved versions.
+(b) Leave it; the builder will pin its own images (status, Next, item 2).
+
 **4. Make the repository private?** It is public today, and two outside reviewers have noted it.
 (a) **Yes, now** (you change it in GitHub's settings; then Claude Code checks this session can still reach it). Recommended: nothing in it is meant for the public.
 (b) Leave it public.
@@ -50,7 +54,10 @@ Claude Code's readings and work, recorded as such, not as your decisions. Detail
 - Gap 60: the boundary is fixed (package 0.6c) before code from the builder's own model calls runs; "fixed" means 0.6a's probe shows each such container reaching only what design note 2.5 allows.
 - A caller who leaves before the call is forwarded has its hold released (package 1.2; design note 5.5, step 3).
 - A hold kept after an error answer is not marked unreconciled, unlike design note 5.5's table (gap 62).
+- The approved-images check lets the builder's own images (`builder_<project>-app` and `-tools`, built from the template, never pulled) go without a digest (gap 68).
+- The counting rules for the runner's base images: "and/or" not split; both keyring packages counted as copyleft (`docs/licences/runner-base-images.md`, section 3).
+- `CLAUDE.md` line 63 (your file): Claude Code's sentence on Docker failing to start on 12 Nov, its fix and a pointer to a second failure, merged with pull request #8 at your request; keep, change or remove.
 - Package 3.1: the runner's Ubuntu packages are installed by exact version, and the build fails on any other, rather than by name through Playwright's installer (`docs/DECISIONS.md`, 13 Nov).
-- Package 3.1: where the approved browser zip is not on the machine, the live acceptance tests are skipped (reported as skipped), not failed (gap 69).
+- Package 3.1: where the approved browser zip is not on the machine, the live acceptance tests are skipped (reported as skipped), not failed (gap 73).
 - Package 3.1: the runner's trace is kept without its screencast, so no frames of the screen are recorded; read as what "no video recorded" asks (`docs/DECISIONS.md`, 13 Nov, after the review).
-- Package 3.1: a line for `CLAUDE.md`'s Commands: "in `builder/runner/`, run `npm ci --ignore-scripts` once before `npm run check:licences`" (gap 73). Say yes and Claude Code adds it.
+- Package 3.1: a line for `CLAUDE.md`'s Commands: "in `builder/runner/`, run `npm ci --ignore-scripts` once before `npm run check:licences`" (gap 77). Say yes and Claude Code adds it.
