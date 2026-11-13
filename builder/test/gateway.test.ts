@@ -1,5 +1,7 @@
 import { serve, type ServerType } from "@hono/node-server";
 import { Hono } from "hono";
+import { createServer as createHttpServer } from "node:http";
+import type { AddressInfo } from "node:net";
 import type pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createGateway, normalisePath, startHoldKeeper } from "../src/gateway/app.js";
@@ -208,6 +210,15 @@ function standInProvider() {
   return app;
 }
 
+/** The address of a port on this machine where nothing listens: one is opened, read and closed again. (Port 9, used before, is on fetch's list of ports it refuses to use at all, so a call there never tries to connect.) */
+async function closedPortUrl(): Promise<string> {
+  const probe = createHttpServer();
+  await new Promise<void>((resolve) => probe.listen(0, "127.0.0.1", () => resolve()));
+  const port = (probe.address() as AddressInfo).port;
+  await new Promise<void>((resolve) => probe.close(() => resolve()));
+  return `http://127.0.0.1:${port}`;
+}
+
 function listen(app: Hono): Promise<{ server: ServerType; url: string }> {
   return new Promise((resolve) => {
     const server = serve({ fetch: app.fetch, port: 0, hostname: "127.0.0.1" }, (info) => resolve({ server, url: `http://127.0.0.1:${info.port}` }));
@@ -327,7 +338,7 @@ describe("model gateway: key and metering", () => {
   });
 
   it("answers 502, forwards nothing and opens no hold when the provider cannot be reached at all", async () => {
-    const dead = createGateway({ pool, modelApiKey: REAL_KEY, upstreamUrl: "http://127.0.0.1:9", profiles: PROFILES });
+    const dead = createGateway({ pool, modelApiKey: REAL_KEY, upstreamUrl: await closedPortUrl(), profiles: PROFILES });
     const { server, url } = await listen(dead);
     try {
       const { id, token } = await newProject(5);
@@ -392,18 +403,55 @@ describe("holds: a call that ends without readable usage keeps its hold open", (
     await expectKept(id, "without usage figures");
   });
 
-  it("the provider reachable for counting but not for the call itself", async () => {
-    const halfDead: typeof fetch = (input, init) => {
-      if (String(input).endsWith("/v1/messages")) return Promise.reject(Object.assign(new Error("connect failed"), { code: "ECONNREFUSED" }));
-      return fetch(input, init);
-    };
+  it("the provider reachable for counting but not for the call itself: nothing was sent, and the record says so", async () => {
+    // The call itself goes, through Node's own fetch, to a port where nothing listens: the connection is refused.
+    const nobody = await closedPortUrl();
+    const halfDead: typeof fetch = (input, init) => (String(input).endsWith("/v1/messages") ? fetch(nobody + "/v1/messages", init) : fetch(input, init));
     const { server, url } = await listen(createGateway({ pool, modelApiKey: REAL_KEY, upstreamUrl, profiles: PROFILES, fetchImpl: halfDead, onFault: (m) => faults.push(m) }));
     try {
       const { id, token } = await newProject(5);
-      expect((await callAt(url, token, plain())).status).toBe(502);
-      await expectKept(id, "could not be reached");
+      const res = await callAt(url, token, plain());
+      expect(res.status).toBe(502);
+      expect(((await res.json()) as { error: { message: string } }).error.message).toBe("The gateway could not reach the model provider.");
+      const { kept, budget } = await expectKept(id, "could not be reached");
+      expect((kept as unknown as { reason: string }).reason).toBe("the provider could not be reached");
+      expect((kept.seen as unknown as { error: { code: string } }).error.code).toBe("ECONNREFUSED");
+      near(budget.openHolds, PLAIN_HOLD); // kept at its full amount
     } finally {
       server.close();
+    }
+  });
+
+  it("a provider that reads the whole request and then drops the connection: the hold is kept, recorded as possibly billed, not as unreachable", async () => {
+    let received = 0;
+    // A stand-in for the call itself: it reads the whole request, then closes the connection without answering.
+    const dropper = createHttpServer((req) => {
+      req.resume();
+      req.on("end", () => {
+        received++;
+        setTimeout(() => req.socket.destroy(), 20);
+      });
+    });
+    await new Promise<void>((resolve) => dropper.listen(0, "127.0.0.1", () => resolve()));
+    const dropUrl = `http://127.0.0.1:${(dropper.address() as AddressInfo).port}`;
+    const toDropper: typeof fetch = (input, init) => (String(input).endsWith("/v1/messages") ? fetch(dropUrl + "/v1/messages", init) : fetch(input, init));
+    const { server, url } = await listen(createGateway({ pool, modelApiKey: REAL_KEY, upstreamUrl, profiles: PROFILES, fetchImpl: toDropper, onFault: (m) => faults.push(m) }));
+    try {
+      const { id, token } = await newProject(5);
+      const res = await callAt(url, token, plain());
+      expect(res.status).toBe(502);
+      const message = ((await res.json()) as { error: { message: string } }).error.message;
+      expect(message).toContain("failed after the request was sent, or may have been sent");
+      expect(message).not.toMatch(/could not reach|unreachable/);
+      expect(received).toBe(1); // the provider's stand-in did receive the whole call
+      const { kept, budget } = await expectKept(id, "after the request was sent");
+      expect((kept as unknown as { reason: string }).reason).toBe("the connection failed after the request was sent, or may have been sent; the provider may have billed it");
+      expect((kept.seen as unknown as { error: { code: string } }).error.code).toBe("UND_ERR_SOCKET");
+      near(budget.openHolds, PLAIN_HOLD); // kept at its full amount
+      expect(budget.spent).toBe(0);
+    } finally {
+      server.close();
+      dropper.close();
     }
   });
 });

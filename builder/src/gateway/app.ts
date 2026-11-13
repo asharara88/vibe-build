@@ -75,6 +75,22 @@ function rejectedBeforeWork(status: number, text: string): boolean {
   }
 }
 
+/**
+ * Error codes that mean the request was never sent, because no connection to the provider was
+ * made: the name lookup failed (ENOTFOUND), the connection was refused (ECONNREFUSED), or Node's
+ * fetch gave up while connecting (UND_ERR_CONNECT_TIMEOUT). A request's bytes can only be written
+ * on a connection that exists. Any other failure of the forward, including a socket closed or
+ * reset, a timeout waiting for the answer, an error with no code, or a code not on this list,
+ * counts as "the request may have been sent". Sources: Node's list of common system errors and
+ * undici's list of its own errors (docs/SOURCES.md, 13 Nov 2026); the first two measured in
+ * evidence/2026-11-12-package-1.2/run-2026-11-13-fetch-error-codes.txt.
+ */
+const NOTHING_SENT = new Set(["ENOTFOUND", "ECONNREFUSED", "UND_ERR_CONNECT_TIMEOUT"]);
+const failedBeforeSending = (err: unknown): boolean => {
+  const code = errorSummary(err).code;
+  return typeof code === "string" && NOTHING_SENT.has(code);
+};
+
 /** Deeper than any answer the provider documents; when a body has to be cleaned and written out again, a value nested further is cut off, not walked. */
 const MAX_DEPTH = 200;
 const LONE_SURROGATE = /[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[\udc00-\udfff]/g;
@@ -387,8 +403,21 @@ export function createGateway(opts: GatewayOptions) {
       res = await forward(limit.signal);
     } catch (err) {
       stopTimer();
-      await keep(limit.signal.aborted ? whyCut() : "the provider could not be reached", emptyUsage(), 0, "", { error: errorSummary(err) });
-      return c.json(errorBody("api_error", limit.signal.aborted ? (callerLeft ? "The caller went away before the answer arrived." : "The call reached the gateway's time limit and was cut off.") : "The gateway could not reach the model provider."), 502);
+      // The hold is kept in every case here. Only the reason differs: whether the request can be
+      // known never to have been sent, or may have reached the provider, which may bill it.
+      if (limit.signal.aborted) {
+        await keep(whyCut(), emptyUsage(), 0, "", { error: errorSummary(err) });
+        return c.json(errorBody("api_error", callerLeft ? "The caller went away before the answer arrived." : "The call reached the gateway's time limit and was cut off."), 502);
+      }
+      if (failedBeforeSending(err)) {
+        await keep("the provider could not be reached", emptyUsage(), 0, "", { error: errorSummary(err) });
+        return c.json(errorBody("api_error", "The gateway could not reach the model provider."), 502);
+      }
+      await keep("the connection failed after the request was sent, or may have been sent; the provider may have billed it", emptyUsage(), 0, "", { error: errorSummary(err) });
+      return c.json(
+        errorBody("api_error", "The connection to the model provider failed after the request was sent, or may have been sent. The provider may have done the work and billed it."),
+        502,
+      );
     }
     if (res.status >= 300 && res.status < 400) {
       stopTimer();
