@@ -1,0 +1,4 @@
+J3 controls, 2026-11-13, on HEAD a792e52 of builder/ (working tree as committed: `git diff HEAD -- .` empty before: yes). Each safeguard removed in turn by exact replacement, the test that guards it run alone (npx vitest run <file> -t <name>), its verdict, then the file restored with git checkout and the tree checked unchanged.
+Columns: control | what was removed | verdict | vitest's summary lines
+J3-C34 | a stale camera folder of the runner's user left behind (root) | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 29 skipped (30)
+After every control: `git diff HEAD -- .` empty: yes

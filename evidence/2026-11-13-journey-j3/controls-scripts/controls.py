@@ -58,6 +58,27 @@ CONTROLS = [
   [("    if (!c || !c.entered || Date.now() >= c.endsAt) {", "    if (!c || Date.now() >= c.endsAt) {")], "test/preview.test.ts", "the pump socket takes a stream only once the pass has been used"),
  ("J3-C26", "a browser that leaves before the app's answer does not stop the request to the app", "src/web/preview-front.ts",
   [("    if (!answered) up.destroy();", "    if (false) up.destroy();")], "test/preview.test.ts", "a browser that leaves before the app's answer comes"),
+ # After J3's review (added 13 Nov 2026).
+ ("J3-C27", "a GET or HEAD sent to the app with the Content-Length it stated (review: request desynchronisation)", "src/web/preview-rules.ts",
+  [('    if (bodiless && name === "content-length") continue;\n', "")], "test/preview.test.ts", "a GET or HEAD that says it has a body"),
+ ("J3-C28", "Speculation-Rules passed on to the browser", "src/web/preview-rules.ts",
+  [('  "speculation-rules",\n', "")], "test/preview-rules.test.ts", "headers that make the browser fetch or prepare other addresses"),
+ ("J3-C29", "Attribution-Reporting-* passed on to the browser", "src/web/preview-rules.ts",
+  [(' || n.startsWith("attribution-reporting-");', ";")], "test/preview-rules.test.ts", "headers that make the browser fetch or prepare other addresses"),
+ ("J3-C30", "a live session not bounded by the builder sign-in session's expiry", "src/web/preview.ts",
+  [('    const bound = typeof o.builderSessionEndsAt === "number" && o.builderSessionEndsAt < now + sessionMs;', "    const bound = false;")], "test/preview.test.ts", "the session ends when the builder sign-in session that opened it expires"),
+ ("J3-C31", "the interface does not give the live session its sign-in session's expiry", "src/web/app.ts",
+  [("    const r = await jobs().openLive(id, session, d.sessions.expiresAt(session));", "    const r = await jobs().openLive(id, session);")], "test/web.test.ts", "a live session ends no later than the builder sign-in session"),
+ ("J3-C32", "a new sign-in in the same browser does not end the live session of the sign-in it replaces", "src/web/app.ts",
+  [('      await d.preview?.signedOut(v, "signed_in_again");\n', "")], "test/web.test.ts", "a live session ends no later than the builder sign-in session"),
+ ("J3-C33", "the front started again with no limit", "src/web/preview.ts",
+  [("        if (!this.stopping && this.restarts >= MAX_FRONT_RESTARTS) {", "        if (false) {")], "test/preview.test.ts", "a front that stops is started again at most"),
+ ("J3-C34", "a stale camera folder of the runner's user left behind (root)", "src/web/preview.ts",
+  [('      const owned = st.uid === me || (me === 0 && m[1] === "bpc" && st.uid === RUNNER_UID);', "      const owned = st.uid === me;")], "test/preview.test.ts", "also removes a stale camera folder"),
+ ("J3-C35", "the live preview front started whether or not it is turned on", "src/web/main.ts",
+  [("  if (s.livePreview) {", "  if (true) {")], "test/web.test.ts", "starts no live preview front unless BUILDER_LIVE_PREVIEW=1"),
+ ("J3-C36", "the live preview's setting not read (always off)", "src/web/main.ts",
+  [('livePreview: live === "1" };', "livePreview: false };")], "test/web.test.ts", "start is refused without each setting"),
 ]
 
 def run(cmd):
