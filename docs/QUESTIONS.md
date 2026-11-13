@@ -12,10 +12,6 @@ None open right now. Question 15, the browser and the runner's two base images, 
 (a) **Change the script to fetch only the two approved images, by digest, each with a time limit** (a change to your environment, approved on a card). Recommended: new sessions then start with the approved versions.
 (b) Leave it; the builder will pin its own images (status, Next, item 2).
 
-**17. Should a bill above its hold also freeze the project?** Built to (b); the build does not wait on your answer.
-(a) **Yes.** Recommended: after such a bill, a project with budget left makes no further call until you record it. It does not stop the first such bill. It needs the freeze written in the same step as the settle, and package 1.5 able to clear it.
-(b) No: a fault message only, as now (known gaps 41 and 97).
-
 **16. What is package 1.3 checked against?** Built to (a); the build does not wait on your answer.
 (a) **Proof row B7 in full: a step refused before it starts, and a step that starts has its calls drawn from its reserved budget, the unused part released at its end.** Recommended: a running step cannot be starved by other spending or by a cap lowering.
 Its cost: while a step runs, its whole reservation stops the cap being lowered, there is no command to stop a running step, and a cap raise does not top up a running step.

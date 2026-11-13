@@ -12,17 +12,17 @@
 
 ## Next
 
-1. **1.5's pull request.** Review: nothing blocking; notes fixed or known gaps 99 to 104. Evidence: `evidence/2026-11-13-package-1.5/`.
-2. **The third outside review (13 Nov):** an unreadable journal line to keep the gateway closed until recovered (1.4b); the live acceptance test to fail, not skip, without the browser or Docker (3.1b); question 17 asked again.
-3. **0.6c's design**, then to you as one question.
+1. **1.5's pull request.** Review: nothing blocking; notes fixed or gaps 99 to 104. Evidence: `evidence/2026-11-13-package-1.5/`.
+2. **The third outside review (13 Nov):** an unreadable journal line to keep the gateway closed until recovered (1.4b); the live acceptance test to fail, not skip, without the browser or Docker (3.1b); question 17: you chose (a), freeze after an overrun (1.4c, next).
+3. **0.6c**: you chose private networks (a); its assumptions measured first.
 
 ## What blocks it
 
-- 0.6c: its design read by an engineer or by you (question 7).
+- 0.6c: no engineer has read its design (question 7).
 - 2.3, the first real-model run: 0.6c and the key.
 - Proof row B10 rests on a design no engineer has reviewed (known gap 35; question 7).
-- The live acceptance tests need the approved browser zip on the machine; without it they are skipped, never passed (known gap 73; 3.1b changes this).
-- Questions 16 and 17 block nothing; each is built to a stated option.
+- Without the approved browser zip, the live acceptance tests are skipped, never passed (gap 73; 3.1b changes this).
+- Question 16 blocks nothing; it is built to (a).
 
 ## Money
 
