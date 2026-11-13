@@ -503,3 +503,16 @@ Changed:
 | 14 | B19 | Every error answer settles its hold at nothing | After a server error the log shows the hold settled, where it should be kept |
 
 Every one of the 14 failed, each at the check named. This shows that each test sees its safeguard missing; it does not show that the tests catch every way the safeguard could be broken.
+
+### Run 7: the checks at the end
+
+Run at commit `c31f909` (the code is that of `94b800c`; `c31f909` changed records and evidence only), on the development machine, in `builder/`, with the test database `builder_test_pkg12`.
+
+| Check | Result | Output |
+| --- | --- | --- |
+| Type check (`npm run typecheck`) | Exit code 0 | `run-2026-11-13-typecheck.txt` |
+| The whole test suite, live tests included, run once (`flock <lock> npx vitest run --reporter=verbose`; the lock keeps it from overlapping another session's live tests on this machine) | 9 files, 228 tests, all passed, none skipped; exit code 0. The live tests started containers from `node:22-alpine` and `postgres:16-alpine`; the digests Docker gave for them after the run are at the end of the file. No container was left running | `run-2026-11-13-tests-full.txt` |
+| Licence check (`npm run check:licences`) | RESULT: PASSED, exit code 0; the notices file up to date; `builder/licences.csv` unchanged. No dependency was added or removed | `run-2026-11-13-licences.txt` |
+
+The outputs were searched for key-like text and none was found. The keys in the tests and the demonstration are made-up texts; no real key exists in this package's runs, no model was called and nothing was spent.
+
