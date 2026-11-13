@@ -4,7 +4,7 @@ Rules: build plan section 8, rule 11. At most six lines each, with the options a
 
 ## Blocking work
 
-None open right now. The approval request for the browser and the runner's two base images (it holds up 3.1) is being prepared and will be added here.
+None open right now. Question 15, the browser and the runner's two base images, was answered on 13 Nov 2026, "15 (a), approve both" (`docs/DECISIONS.md`); package 3.1 was then built.
 
 ## Not blocking yet
 
@@ -50,3 +50,5 @@ Claude Code's readings and work, recorded as such, not as your decisions. Detail
 - Gap 60: the boundary is fixed (package 0.6c) before code from the builder's own model calls runs; "fixed" means 0.6a's probe shows each such container reaching only what design note 2.5 allows.
 - A caller who leaves before the call is forwarded has its hold released (package 1.2; design note 5.5, step 3).
 - A hold kept after an error answer is not marked unreconciled, unlike design note 5.5's table (gap 62).
+- Package 3.1: the runner's Ubuntu packages are installed by exact version, and the build fails on any other, rather than by name through Playwright's installer (`docs/DECISIONS.md`, 13 Nov).
+- Package 3.1: where the approved browser zip is not on the machine, the live acceptance tests are skipped (reported as skipped), not failed (gap 69).

@@ -4,25 +4,25 @@
 
 ## State
 
-1. **Tested:** 0.1 to 0.5, 0.6a (development profile only), 1.1, **1.2** (the budget holds, against a stand-in provider only), 2.1 and W4. R1 is merged, not tested. Progress: build plan section 10.
-2. **Budget cap:** a call is let through only if spend plus money set aside plus this call's hold fits the cap. It limits admission, not the bill: a bill above its hold is charged in full, and nothing yet stops the project (package 1.4).
-3. **Isolation:** on the development profile, project containers can reach the machine's services, including the builder's own database (known gap 60). The fix is scheduled as package 0.6c. No code a model wrote runs before it.
-4. **Licences:** the two sandbox images and the 119 Ubuntu packages are approved for internal development and testing only (13 Nov). The browser and the runner's two base images: an approval request is being prepared.
-5. **Real models:** none called yet. The real-model gate stays closed until 1.4, 0.6c and the key.
+1. **Tested:** 0.1 to 0.5, 0.6a (development profile only), 1.1, 1.2 (against a stand-in provider only), 2.1 and W4. R1 is merged, not tested. Progress: build plan section 10.
+2. **Built, not tested: 3.1**, the acceptance store and runner, on its own pull request. Its four "Done means" items were each run on the development profile, against example 1's app built by the scripted engine, with a **stand-in test** (written in advance by Claude Code, your answer to question 12): a pass with its screenshot; the deliberately broken copy rejected at item 1, step "sees status waiting"; three runs that did not execute reported "did not run"; and every attempt from the engine's container to reach the tests failed. Evidence: `evidence/2026-11-13-package-3.1/acceptance.md`. It now goes to an adversarial review (acceptance separation).
+3. **Budget cap:** limits admission, not the bill; nothing yet stops a project (1.4).
+4. **Isolation:** on the development profile, project containers, the new runner among them, can reach the machine's services (known gaps 60 and 66). Fixed by package 0.6c. No code a model wrote runs before it.
+5. **Licences:** the sandbox images, the runner's two base images, the 119 Ubuntu packages and the browser are approved for internal development and testing only (questions 11 and 15). Google's browser terms are still unread.
+6. **Real models:** none called. The gate stays closed until 1.4, 0.6c and the key.
 
 ## Next
 
-1. **1.2b**, a recorded way to change a project's cap (your answers to questions 13 and 14). Being built; then an adversarial review.
-2. **Pin the approved images** by digest, with a check, and fix a sandbox test that asks the database once whether it is ready instead of waiting.
-3. **1.3, 1.4, 1.5**, the rest of the budget controls. 0.6c's design is drafted alongside.
-4. **3.1**, the acceptance runner (question 12 answered), once the browser and runner images are approved.
+1. 3.1's review, at most two rounds, then its merge.
+2. 1.2b's merge, and the pull request that pins the approved images (it adds the runner's three artefacts to its list once 3.1 is merged).
+3. 1.3, 1.4, 1.5; 0.6c's design alongside.
 
 ## What blocks it
 
-- 3.1: your approval of the browser and the runner's two base images (request coming).
 - 0.6c: its design read by an engineer or by you (question 7).
 - 2.3, the first real-model run: 1.4, 0.6c and the key.
+- The live acceptance tests need the approved browser zip on the machine; without it they are skipped, never passed (known gap 69).
 
 ## Money
 
-Model spend through the builder: **$0.00** (no real call made). The separate hosted prototype agent outside the repository is paused by you (13 Nov). No paid service is in use.
+Model spend through the builder: **$0.00** (no real call made). No paid service is in use.
