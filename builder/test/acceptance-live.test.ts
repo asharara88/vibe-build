@@ -2,23 +2,24 @@
  * Package 3.1, live: the acceptance runner against example 1's app built by the scripted engine, on the
  * development profile, with the stand-in test (written in advance by Claude Code; owner, question 12 (a)).
  *
- * These start containers. They are skipped, and reported as skipped, never as passed, when Docker is not
- * there, or when the approved browser zip is not in the folder named by BUILDER_BROWSER_CACHE (the
- * runner image cannot be built without it; this session's network does not reach its download address).
- * The reason is in the name of the describe block. scripts/demo-acceptance.ts shows the same with
- * evidence.
+ * These start containers and need the approved browser zip. They are never skipped (package 3.1b; the
+ * third outside review supplied by the owner, item 3): when Docker does not answer, BUILDER_BROWSER_CACHE
+ * is not set, or the folder it names does not hold the approved zip, the first test fails, naming what is
+ * missing and how to put it right, and every other test here fails with the same words before it starts
+ * anything. So `npm test` cannot pass while the browser was not exercised. scripts/demo-acceptance.ts
+ * shows the same runs with evidence; scripts/fetch-browser.ts fetches the zip.
  */
-import { execFileSync } from "node:child_process";
 import { chmodSync, existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { FILE_PROBE, halves, historyCheck, inspectWhileRunning, parseProbe, traceFiles, traceScreenFrames, zipEntryNames, type InspectSeen } from "../src/acceptance/probes.js";
-import { buildRunnerImage, BROWSER_ZIP, BROWSER_ZIP_SHA256, RUNNER_IMAGE } from "../src/acceptance/runner-image.js";
+import { liveAcceptanceProblems } from "../src/acceptance/prerequisites.js";
+import { buildRunnerImage, RUNNER_IMAGE, runnerImageProblem } from "../src/acceptance/runner-image.js";
 import { runAcceptance } from "../src/acceptance/runner.js";
 import { exampleChecklist, writeStandInVersion } from "../src/acceptance/stand-in.js";
-import { openStore, projectDir, sha256, type AcceptanceStore, type WrittenVersion } from "../src/acceptance/store.js";
+import { openStore, projectDir, type AcceptanceStore, type WrittenVersion } from "../src/acceptance/store.js";
 import { git } from "../src/engine/project-repo.js";
 import { DATA_DIR_SETTING, dockerEnv, sandbox, type StreamingRun } from "../src/sandbox/manager.js";
 import { listEvents } from "../src/store/events.js";
@@ -26,22 +27,14 @@ import { createProject } from "../src/store/projects.js";
 import { buildAndStart, destroyExample1, makeExample1, runStep, stageBrokenStep, type Example1 } from "../scripts/example-1-sandbox.js";
 import { testPool, uniqueId } from "./helpers.js";
 
-const dockerThere = (() => {
-  try {
-    execFileSync("docker", ["info", "--format", "{{.ServerVersion}}"], { stdio: "ignore" });
-    return true;
-  } catch {
-    return false;
-  }
-})();
-const zipThere = (() => {
-  const cache = process.env.BUILDER_BROWSER_CACHE;
-  if (!cache || !existsSync(join(cache, BROWSER_ZIP))) return false;
-  return sha256(readFileSync(join(cache, BROWSER_ZIP))) === BROWSER_ZIP_SHA256;
-})();
-const skipWhy = !dockerThere ? " (SKIPPED: Docker is not there)" : !zipThere ? " (SKIPPED: the approved browser zip is not in BUILDER_BROWSER_CACHE)" : "";
+// Read once, before any test: Docker answers, and the approved zip is in the folder BUILDER_BROWSER_CACHE names.
+const missing = await liveAcceptanceProblems();
+/** Every live test starts with this: with a prerequisite missing it fails, in plain words, before it starts anything. */
+const needsPrerequisites = () => {
+  if (missing.length) throw new Error(`This live acceptance test cannot exercise the browser, so it fails (it is never skipped). Missing: ${missing.join(" ")}`);
+};
 
-describe.skipIf(!dockerThere || !zipThere)(`acceptance runner: live, development profile, stand-in test${skipWhy}`, () => {
+describe("acceptance runner: live, development profile, stand-in test", () => {
   const APP_PORT = 3151;
   const DB_PORT = 5581;
   const projectId = uniqueId("p_acc_live");
@@ -77,15 +70,24 @@ describe.skipIf(!dockerThere || !zipThere)(`acceptance runner: live, development
     await pool?.end();
   });
 
+  it("its prerequisites are here: Docker answers, and the folder BUILDER_BROWSER_CACHE names holds the approved browser zip", () => {
+    needsPrerequisites();
+    expect(missing).toEqual([]);
+  });
+
   it("the runner image builds from the cached zip; it holds the base image's packages and exactly the 109 approved ones at their versions", async () => {
+    needsPrerequisites();
     const img = await buildRunnerImage({ hostProxy: { url: process.env.HTTPS_PROXY ?? "", caBundlePath: "/root/.ccr/ca-bundle.crt" } });
     expect(img.problems).toEqual([]);
     expect(img.added).toHaveLength(109);
     expect(img.facts["user"]).toBe("1001 runner");
     expect(img.facts["video tool (ffmpeg) installed"]).toBe("0");
+    // Package 3.1b: the image carries the approved zip's fingerprint, which a run checks before it starts.
+    expect(await runnerImageProblem(RUNNER_IMAGE, process.env)).toBeNull();
   }, 1_800_000);
 
   it("the stand-in version is written before step 01; steps 01 and 02 run; run A: item 1 passes, with its screenshot and its events", async () => {
+    needsPrerequisites();
     x = await makeExample1({ projectId, appPort: APP_PORT, dbPort: DB_PORT, runnerImage: RUNNER_IMAGE });
     store = openStore(dataDir, { refuse: [x.dir] });
     await createProject(pool, { id: projectId, name: "Package 3.1 live test (made-up)", capUsd: 0 });
@@ -104,6 +106,8 @@ describe.skipIf(!dockerThere || !zipThere)(`acceptance runner: live, development
     expect(r.reading.items[0]).toMatchObject({ number: 1, status: "passed", title: expect.stringContaining("(stand-in test)") });
     expect(r.reading.items[0]!.screenshot?.sha256).toMatch(/^[0-9a-f]{64}$/);
     expect(r.reading.summary).toBe("version passed; checklist incomplete (5 of the app spec's 6 checklist items have no test)");
+    expect(r.reading.outcome).toBe("passed");
+    expect(r.events.at(-1)!.payload.outcome).toBe("passed");
     expect(r.events.map((e) => e.kind)).toEqual(["acceptance.run.started", "acceptance.item", "acceptance.run.finished"]);
     for (const e of r.events) expect(e.payload).toMatchObject({ run_id: r.runId, version: "v001", manifest_sha256: version.manifestSha256, written_by: "stand-in" });
     expect(existsSync(r.runFolder.secretFile)).toBe(false);
@@ -116,14 +120,17 @@ describe.skipIf(!dockerThere || !zipThere)(`acceptance runner: live, development
   }, 1_200_000);
 
   it("run B, stopped by a half-second time limit: every item 'did not run', never passed", async () => {
+    needsPrerequisites();
     const r = await go(500);
     expect(r.exit?.timedOut).toBe(true);
     expect(r.reading.items.map((i) => i.status)).toEqual(["did not run"]);
     expect(r.reading.summary).toMatch(/^did not run: the run went past its time limit/);
+    expect(r.reading.outcome).toBe("not passed");
     expect(r.events.find((e) => e.kind === "acceptance.item")?.payload.status).toBe("did not run");
   }, 120_000);
 
   it("from inside the engine container: every path to the store fails, no readable file holds the marker, a phrase of the test or the run's reason; its mounts hold nothing of the store; the history holds no acceptance file", async () => {
+    needsPrerequisites();
     const vdir = join(projectDir(store, projectId), version.version);
     const needles = [
       { label: "marker", text: version.manifest.marker },
@@ -166,15 +173,18 @@ describe.skipIf(!dockerThere || !zipThere)(`acceptance runner: live, development
   }, 600_000);
 
   it("run C, with the app stopped: refused before its start, no container, every item 'did not run'", async () => {
+    needsPrerequisites();
     await sandbox.stop(x!.sb, ["app"]);
     const r = await go();
     expect(r.exit).toBeNull();
     expect(r.refused).toMatch(/the app did not answer before the start/);
+    expect(r.reading.outcome).toBe("not passed");
     expect(r.reading.items.map((i) => i.status)).toEqual(["did not run"]);
     expect(r.events.find((e) => e.kind === "acceptance.run.started")?.payload.container_started).toBe(false);
   }, 120_000);
 
   it("run D, the deliberately broken copy in a fresh sandbox under the same project id, with the same version: item 1 failed, at step 'sees status waiting'", async () => {
+    needsPrerequisites();
     await destroyExample1(x!);
     x = await makeExample1({ projectId, appPort: APP_PORT, dbPort: DB_PORT, runnerImage: RUNNER_IMAGE });
     for (const step of ["01-data", "02-submitter-screen"]) expect((await runStep(x, step)).ok, step).toBe(true);
@@ -188,6 +198,7 @@ describe.skipIf(!dockerThere || !zipThere)(`acceptance runner: live, development
     expect(r.reading.items[0]).toMatchObject({ number: 1, status: "failed", step: "sees status waiting" });
     expect(r.reading.items[0]!.errorText).toMatch(/Approved/);
     expect(r.reading.summary).toBe('version failed: item 1 failed at step "sees status waiting"');
+    expect(r.reading.outcome).toBe("failed");
     const item = r.events.find((e) => e.kind === "acceptance.item")!;
     expect(item.payload).toMatchObject({ status: "failed", step: "sees status waiting", written_by: "stand-in" });
     // The error text, which can quote the test's source, is not in the event: its file's path and fingerprint are.
