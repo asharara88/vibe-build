@@ -16,6 +16,7 @@
  */
 import { serve, type ServerType } from "@hono/node-server";
 import { spawn, type ChildProcess } from "node:child_process";
+import { appendFileSync } from "node:fs";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
@@ -33,7 +34,7 @@ import { activeFreeze, listFreezes, recordFreeze, type UnrecordedEnding } from "
 import { changeCap, listHolds, openHold, openStepHold, OWNER_GONE } from "../src/store/holds.js";
 import { gatewayLockKeySql, holdLivenessLock, type Liveness } from "../src/store/liveness.js";
 import { createProject, issueProjectToken } from "../src/store/projects.js";
-import { checkProject, checkTrace, micro, type Bill, type Sample, type TraceEvent } from "./invariants.js";
+import { checkProject, checkTrace, micro, traceTable, type Bill, type Sample, type TraceEvent } from "./invariants.js";
 import { TEST_DB_URL, testPool, uniqueId } from "./helpers.js";
 
 /** Made up for these tests; never a real key. */
@@ -303,7 +304,10 @@ async function committed(id: string): Promise<number> {
 /** The invariant checker on one project: no violation, and the number of states it checked. */
 async function invariantsHold(id: string): Promise<number> {
   const r = await checkProject(pool, id, stand.bills.get(id) ?? [], stand.samples.get(id) ?? []);
-  expect(r.violations).toEqual([]);
+  // For the evidence: the trace of every checked state, when asked for.
+  const out = process.env["PKG14_TRACE_OUT"];
+  if (out) appendFileSync(out, traceTable(`${expect.getState().currentTestName ?? "?"} | project ${id}`, r.rows, stand.samples.get(id) ?? []));
+  expect(r.violations.map((v) => `${v.rule}, ${v.at}: ${JSON.stringify(v.detail)}`)).toEqual([]);
   expect(r.states).toBeGreaterThan(1);
   return r.states;
 }
@@ -636,19 +640,22 @@ describe("package 1.4: failure tests, proof rows B8 to B13 (against a stand-in p
         expect((await errorOf(r)).type).toBe("gateway_unrecorded");
       }
       expect({ messages: stand.messages, counts: stand.counts }).toEqual(before);
-      const journal = await FaultJournal.open(journalDir);
-      expect((await journal.pending()).records.map((x) => x.project_id)).toEqual([p.id]);
       await kill9(k);
       await fault.off();
       expect(await kinds(p.id)).toEqual(["hold.opened"]); // nothing reached the log before the kill
       k2 = await startMain(journalDir);
-      expect(k2.out).toContain("journal lines replayed at start-up: 1; all recorded: true");
+      // The project's first call after the restart is refused as frozen: the journal was written before serving.
       const first = await callAt(k2.url, p.token, body(p.id));
       expect(first.status).toBe(402);
       expect((await errorOf(first)).type).toBe("project_frozen");
       expect((await callAt(k2.url, q.token, body(q.id))).status).toBe(200);
       expect({ messages: stand.messages, counts: stand.counts }).toEqual({ messages: before.messages + 1, counts: before.counts + 1 });
+      expect(k2.out).toContain("journal lines replayed at start-up: 1; all recorded: true");
+      // The line survived the kill: it is now in the done file, and none is left waiting.
+      const journal = await FaultJournal.open(journalDir);
       expect((await journal.pending()).records).toHaveLength(0);
+      const freeze = (await listFreezes(pool, p.id))[0]!;
+      expect(await readFile(journal.doneFile, "utf8")).toContain(freeze.journal_id);
       expect((await kinds(p.id)).slice(0, 4)).toEqual(["hold.opened", "hold.kept", "gateway.fault", "project.frozen"]);
       expect((await listHolds(pool, p.id))[0]).toMatchObject({ state: "open", unreconciled: true });
       await invariantsHold(p.id);
@@ -710,7 +717,7 @@ describe("package 1.4: failure tests, proof rows B8 to B13 (against a stand-in p
     const { freeze } = await recordFreeze(pool, unrecordedFor(id, opened.hold.id));
     const refused = async (sql: string) => {
       const err = await pool.query(sql, [freeze!.id]).then(() => null, (e: Error) => e.message);
-      expect(err).toMatch(/freeze/);
+      expect(err ?? "the database accepted it").toMatch(/freeze/);
     };
     await refused("delete from project_freezes where id = $1");
     await refused("update project_freezes set reason = 'edited' where id = $1");
@@ -739,7 +746,7 @@ describe("package 1.4: failure tests, proof rows B8 to B13 (against a stand-in p
       const r = await reader.read().catch(() => ({ done: true }));
       if (r.done) break;
     }
-    await until("the hold kept", async () => (await listEvents(pool, p.id, "hold.kept")).length === 1);
+    await until("the call's ending recorded", async () => (await listEvents(pool, p.id)).some((e) => e.kind === "hold.kept" || e.kind === "hold.settled"));
     await invariantsHold(p.id); // the bill was more than the usage seen, and the full hold still covers it
     const kept = (await listEvents(pool, p.id, "hold.kept"))[0]!.payload as { reason: string; unreconciled: boolean; seen: { usage: Record<string, number> } };
     expect(kept.reason).toBe("the provider's stream failed part-way");

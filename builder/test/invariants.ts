@@ -56,13 +56,19 @@ export interface Replayed {
   cap: number;
 }
 
+/** One state of the replay, for the trace shown to the owner: every figure in millionths. */
+export interface TraceRow extends Replayed {
+  at: string;
+  owed: number;
+}
+
 const num = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
 
 /**
  * Replay one project's events and check both invariants after each one. Pure: no database. Every figure is
  * worked in millionths of a dollar.
  */
-export function checkTrace(events: TraceEvent[], bills: Bill[], initialCapMicro: number): { violations: Violation[]; states: number; final: Replayed } {
+export function checkTrace(events: TraceEvent[], bills: Bill[], initialCapMicro: number): { violations: Violation[]; states: number; final: Replayed; rows: TraceRow[] } {
   const violations: Violation[] = [];
   const holds = new Map<string, { amount: number; open: boolean }>();
   const costOfOpenHold = new Map<string, number>();
@@ -71,6 +77,7 @@ export function checkTrace(events: TraceEvent[], bills: Bill[], initialCapMicro:
   let open = 0;
   let cap = initialCapMicro;
   let states = 0;
+  const rows: TraceRow[] = [];
   const roomSum = () => [...rooms.values()].reduce((a, b) => a + b, 0);
   const owedBy = (id: number) => bills.filter((b) => b.pinnedAt <= id).reduce((a, b) => a + b.billMicro, 0);
   const check = (at: string, id: number) => {
@@ -78,6 +85,7 @@ export function checkTrace(events: TraceEvent[], bills: Bill[], initialCapMicro:
     const room = roomSum();
     if (spent + open + room > cap) violations.push({ rule: "1: above the cap", at, detail: { spent, open, room, cap } });
     const owed = owedBy(id);
+    rows.push({ at, spent, open, room, cap, owed });
     if (spent + open < owed) violations.push({ rule: "2: below what was owed", at, detail: { spent, open, owed } });
   };
   const bad = (e: TraceEvent, why: string) => violations.push({ rule: "an event the replay cannot read", at: `event ${e.id} ${e.kind}`, detail: { why } });
@@ -143,7 +151,7 @@ export function checkTrace(events: TraceEvent[], bills: Bill[], initialCapMicro:
     }
     check(`after event ${e.id} ${e.kind}`, id);
   }
-  return { violations, states, final: { spent, open, room: roomSum(), cap } };
+  return { violations, states, final: { spent, open, room: roomSum(), cap }, rows };
 }
 
 /** The checks on what the stand-in saw when it billed: each sample must satisfy both invariants. */
@@ -170,7 +178,7 @@ export async function viewOf(q: Pick<pg.Pool, "query">, projectId: string): Prom
  * Check one project from the database: replay its events against the stand-in's bills and samples, and
  * compare the replay's end with the budget view.
  */
-export async function checkProject(pool: pg.Pool, projectId: string, bills: Bill[], samples: Sample[]): Promise<{ violations: Violation[]; states: number; final: Replayed }> {
+export async function checkProject(pool: pg.Pool, projectId: string, bills: Bill[], samples: Sample[]): Promise<{ violations: Violation[]; states: number; final: Replayed; rows: TraceRow[] }> {
   const events = (await pool.query<TraceEvent>("select id, kind, payload from events where project_id = $1 order by id", [projectId])).rows;
   const view = await viewOf(pool, projectId);
   const firstChange = events.find((e) => e.kind === "cap.changed");
@@ -181,5 +189,14 @@ export async function checkProject(pool: pg.Pool, projectId: string, bills: Bill
   if (f.spent !== view.spent || f.open !== view.open || f.room !== view.room || f.cap !== view.cap) {
     v.push({ rule: "replay differs from the budget view", at: "end", detail: { replay: f, view } });
   }
-  return { violations: v, states: out.states, final: f };
+  return { violations: v, states: out.states, final: f, rows: out.rows };
+}
+
+/** The trace as a table, in dollars, for the evidence file. */
+export function traceTable(title: string, rows: TraceRow[], samples: Sample[]): string {
+  const usd = (m: number) => (m / 1e6).toFixed(6);
+  const out = [`== ${title} ==`, "| state | spent | open holds | step room | cap | owed to the provider |", "| --- | --- | --- | --- | --- | --- |"];
+  for (const r of rows) out.push(`| ${r.at} | ${usd(r.spent)} | ${usd(r.open)} | ${usd(r.room)} | ${usd(r.cap)} | ${usd(r.owed)} |`);
+  samples.forEach((s, i) => out.push(`| billing point ${i + 1} (the budget view, read by the stand-in) | ${usd(s.spentMicro)} | ${usd(s.openMicro)} | ${usd(s.roomMicro)} | ${usd(s.capMicro)} | ${usd(s.owedMicro)} |`));
+  return out.join("\n") + "\n\n";
 }
