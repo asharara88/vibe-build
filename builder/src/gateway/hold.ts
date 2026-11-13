@@ -24,10 +24,17 @@ export interface ProfileLimits {
   maxTokensCeiling: number;
   /** Whether fast mode may be served. When true, every hold on a model with a fast-mode price is doubled. */
   allowFastMode: boolean;
+  /**
+   * The largest prompt, in tokens as the provider counts them, that one call of a step may send
+   * (package 1.3). A step's budget is worked out from it, and a step call whose hold is above one
+   * turn's share is refused. Only the orchestrator's side reads it; the gateway does not.
+   * NOT MEASURED: set small until package 2.2 shows what the engine sends (known gap 67).
+   */
+  stepPromptTokens?: number;
 }
 
 export const DEFAULT_PROFILES: Record<string, ProfileLimits> = {
-  standard: { maxTokensCeiling: 16_000, allowFastMode: false },
+  standard: { maxTokensCeiling: 16_000, allowFastMode: false, stepPromptTokens: 8_000 },
 };
 
 /**
@@ -257,4 +264,79 @@ export function betasNotAllowed(header: string | undefined | null, allowed: Read
     .split(",")
     .map((v) => v.trim())
     .filter((v) => v.length > 0 && !allowed.has(v));
+}
+
+/** The most turns a step may be given (package 1.3). A bound, so a step's budget cannot be made absurd. */
+export const MAX_STEP_TURNS = 1_000;
+
+/** A step budget that cannot be worked out: nothing is opened and nothing is written. */
+export class StepBudgetInvalid extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "StepBudgetInvalid";
+  }
+}
+
+export interface StepBudget {
+  model: string;
+  turns: number;
+  maxTokensCeiling: number;
+  promptTokens: number;
+  /** One turn's share: the hold of one call at the step's model, output ceiling and prompt limit. */
+  perTurnUsd: number;
+  /** turns x perTurnUsd, worked in whole millionths of a dollar. */
+  budgetUsd: number;
+  budgetMicro: number;
+  perTurnMicro: number;
+  /** How one turn's share was worked out, as for any call's hold. */
+  perTurn: HoldArithmetic;
+}
+
+/**
+ * A step's budget (design note 5.5, "The pre-step check"; package 1.3): the step's turn limit times
+ * the hold of one call at the profile's `max_tokens` ceiling and the largest prompt the step may send,
+ * on the step's model, worked out by the same equation as any call's hold (`computeHold`).
+ * Like every hold, it is a reservation from the provider's estimate plus an assumed margin, not a
+ * proven ceiling on the bill (known gap 41).
+ *
+ * Refused, by throwing `StepBudgetInvalid` before anything touches the database, when the turns are
+ * not a whole number from 1 to MAX_STEP_TURNS, the model has no price, the profile's limits are not
+ * whole numbers, or the result is not a finite amount above 0 and below $100,000,000 (review of the
+ * 1.3 design, item 1: a NaN or negative budget would switch off the project's cap). The budget is
+ * worked in whole millionths: turns x micro(one turn's share), so it is exact.
+ */
+export function stepBudget(p: { model: string; maxTurns: number; profile: ProfileLimits; priceTableDate: string }): StepBudget {
+  const turns: unknown = p.maxTurns;
+  if (typeof turns !== "number" || !Number.isInteger(turns) || turns < 1 || turns > MAX_STEP_TURNS) {
+    throw new StepBudgetInvalid(`The step's turn limit must be a whole number from 1 to ${MAX_STEP_TURNS} (got ${typeof turns === "number" ? String(turns) : typeof turns}). The step was not started.`);
+  }
+  const model: unknown = p.model;
+  if (typeof model !== "string" || !Object.hasOwn(PRICES, model)) {
+    throw new StepBudgetInvalid(`The step's model "${String(model)}" has no price in the gateway's table. The step was not started.`);
+  }
+  const ceiling: unknown = p.profile.maxTokensCeiling;
+  const promptTokens: unknown = p.profile.stepPromptTokens;
+  if (typeof ceiling !== "number" || !Number.isInteger(ceiling) || ceiling < 1 || ceiling > 10_000_000) {
+    throw new StepBudgetInvalid(`The profile's max_tokens ceiling must be a whole number above 0 (got ${String(ceiling)}). The step was not started.`);
+  }
+  if (typeof promptTokens !== "number" || !Number.isInteger(promptTokens) || promptTokens < 0 || promptTokens > 10_000_000) {
+    throw new StepBudgetInvalid(`The profile's step prompt limit must be a whole number of tokens, 0 or more (got ${String(promptTokens)}). The step was not started.`);
+  }
+  const perTurn = computeHold({ model, max_tokens: ceiling, messages: [] }, promptTokens, p.profile, p.priceTableDate);
+  const perTurnMicro = Math.round(perTurn.hold_usd * 1e6);
+  const budgetMicro = turns * perTurnMicro;
+  if (!Number.isSafeInteger(perTurnMicro) || perTurnMicro <= 0 || !Number.isSafeInteger(budgetMicro) || budgetMicro <= 0 || budgetMicro >= 1e14) {
+    throw new StepBudgetInvalid(`The step's budget could not be worked out as an amount above $0 and below $100,000,000 (one turn: ${String(perTurn.hold_usd)}). The step was not started.`);
+  }
+  return {
+    model,
+    turns,
+    maxTokensCeiling: ceiling,
+    promptTokens,
+    perTurnUsd: perTurnMicro / 1e6,
+    budgetUsd: budgetMicro / 1e6,
+    budgetMicro,
+    perTurnMicro,
+    perTurn,
+  };
 }
