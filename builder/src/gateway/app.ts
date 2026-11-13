@@ -23,8 +23,8 @@ import type pg from "pg";
 import { appendEvent } from "../store/events.js";
 import { expireHolds, keepHold, openHold, recoverHolds, settleHold } from "../store/holds.js";
 import { projectForToken, type Project } from "../store/projects.js";
-import { costUsd, emptyUsage, mergeUsage, statesSpeed, USAGE_COUNTS, usageIsReadable, type ProviderUsage, type Usage } from "./cost.js";
-import { betasNotAllowed, computeHold, countRequestBody, DEFAULT_PROFILES, guardRequest, type MeteredRequest, type ProfileLimits } from "./hold.js";
+import { costUsd, emptyUsage, itemisedCacheWrites, mergeUsage, statesSpeed, USAGE_COUNTS, usageAsPriced, usageIsReadable, type ProviderUsage, type Usage } from "./cost.js";
+import { betasNotAllowed, computeHold, countRequestBody, DEFAULT_PROFILES, guardRequest, mayAskForOneHourCache, type MeteredRequest, type ProfileLimits } from "./hold.js";
 import { spellsKey } from "./key-reader.js";
 import { PRICE_TABLE_DATE, PRICES } from "./prices.js";
 
@@ -311,6 +311,9 @@ export function createGateway(opts: GatewayOptions) {
     // A hold that allowed for fast mode is settled only on usage that states the speed that served
     // the call: without it, which rate is the bill is not known (review of 13 Nov 2026).
     const fastHeld = arithmetic.fast_mode_factor > 1;
+    // Cache writes an answer does not itemise are priced at the one-hour rate unless the request
+    // asks for no one-hour cache anywhere (review of 13 Nov 2026).
+    const oneHourPossible = mayAskForOneHourCache(body);
     const limitMs = stream ? timeLimit.stream : timeLimit.plain;
     // Counted from now, when the hold is about to open, so the margin is not eaten by the counting call.
     const deadline = new Date(Date.now() + limitMs + (stream ? deadlineMargin.stream : deadlineMargin.plain));
@@ -356,12 +359,26 @@ export function createGateway(opts: GatewayOptions) {
       );
       return { priced, fields };
     };
-    /** The call finished and its usage was read: settle the hold to the actual cost. */
-    const settle = async (usage: Usage, status: number, servedModel: string, extra: Record<string, unknown> = {}) => {
+    /**
+     * The call finished and its usage was read: settle the hold to the actual cost. `itemised` is
+     * how many of the cache writes the answer split into five-minute and one-hour (null: none).
+     */
+    const settle = async (usage: Usage, status: number, servedModel: string, extra: Record<string, unknown> = {}, itemised: number | null = null) => {
       if (ended) return;
       ended = true;
-      const { priced, fields } = callFields(usage, status, servedModel, extra);
-      const cost = costUsd(priced, usage);
+      const asPriced = usageAsPriced(usage, itemised, oneHourPossible);
+      const note =
+        asPriced.notItemised > 0
+          ? {
+              cache_writes_not_itemised: {
+                tokens: asPriced.notItemised,
+                priced_at: oneHourPossible ? "the one-hour rate" : "the five-minute rate",
+                because: oneHourPossible ? "the request may ask for a one-hour cache lifetime" : "no cache_control in the request asks for more than five minutes",
+              },
+            }
+          : {};
+      const { priced, fields } = callFields(usage, status, servedModel, { ...extra, ...note });
+      const cost = costUsd(priced, asPriced.usage);
       try {
         if (servedModel && servedModel !== requestedModel && !Object.hasOwn(PRICES, servedModel)) {
           // Answered by a model the price table does not know: its cost would be a guess.
@@ -453,6 +470,7 @@ export function createGateway(opts: GatewayOptions) {
       let sawStop = false; // the provider's own end-of-message marker
       let sawError = false; // an error event inside the stream
       let speedStated = false; // a usage block in the stream said which speed served the call
+      let itemised: number | null = null; // the cache writes the last breakdown in the stream itemised
       let buffer = "";
       const decoder = new TextDecoder();
       const consume = (text: string) => {
@@ -467,6 +485,7 @@ export function createGateway(opts: GatewayOptions) {
           if (USAGE_COUNTS.some((f) => r.usage[f] < usage[f]) || (usage.speed === "fast" && r.usage.speed !== "fast")) sawUnreadable = true;
           usage = r.usage;
           if (r.part && statesSpeed(r.part)) speedStated = true;
+          if (r.part && itemisedCacheWrites(r.part) !== null) itemised = itemisedCacheWrites(r.part);
           if (r.model) servedModel = r.model;
           if (r.kind === "message_start") {
             if (sawInput) sawUnreadable = true; // a second start: which one is the bill is not known
@@ -501,7 +520,7 @@ export function createGateway(opts: GatewayOptions) {
               else if (!sawStop) await keep("the stream ended without the provider's end-of-message marker, so its figures may be partial", usage, res.status, servedModel);
               else if (sawInput && sawOutput && !sawUnreadable && usage.input_tokens + usage.cache_creation_input_tokens + usage.cache_read_input_tokens > 0) {
                 if (fastHeld && !speedStated) await keep(`the stream ended without usage figures that could be read: ${SPEED_NOT_STATED}`, usage, res.status, servedModel);
-                else await settle(usage, res.status, servedModel);
+                else await settle(usage, res.status, servedModel, {}, itemised);
               } else await keep("the stream ended without usage figures that could be read", usage, res.status, servedModel);
               ctrl.close();
               return;
@@ -540,6 +559,7 @@ export function createGateway(opts: GatewayOptions) {
     let usage: Usage | null = null;
     let servedModel = "";
     let speedNotStated = false;
+    let itemised: number | null = null;
     try {
       const j = JSON.parse(text) as { usage?: unknown; model?: unknown };
       servedModel = typeof j.model === "string" ? j.model : "";
@@ -549,13 +569,16 @@ export function createGateway(opts: GatewayOptions) {
         // An answer that says no prompt tokens at all were used is not a bill that can be trusted.
         if (u.input_tokens + u.cache_creation_input_tokens + u.cache_read_input_tokens > 0) {
           if (fastHeld && !statesSpeed(j.usage)) speedNotStated = true;
-          else usage = u;
+          else {
+            usage = u;
+            itemised = itemisedCacheWrites(j.usage);
+          }
         }
       }
     } catch {
       /* not JSON: usage stays unread */
     }
-    if (usage) await settle(usage, res.status, servedModel);
+    if (usage) await settle(usage, res.status, servedModel, {}, itemised);
     else await keep(`the answer succeeded but its usage could not be read${speedNotStated ? `: ${SPEED_NOT_STATED}` : ""}`, emptyUsage(), res.status, servedModel);
     return new Response(safeBody(text), { status: res.status, headers: safeHeaders(res.headers) });
   });

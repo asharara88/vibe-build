@@ -50,6 +50,25 @@ export function costUsd(model: string, u: Usage): number | null {
   return Math.ceil(c * 1e6 - 1e-6) / 1e6;
 }
 
+/** Of the cache writes in a usage part, how many it itemises as five-minute or one-hour writes; null when it gives no breakdown. */
+export function itemisedCacheWrites(part: ProviderUsage): number | null {
+  const cc = part.cache_creation;
+  if (cc === undefined || cc === null) return null;
+  return (cc.ephemeral_5m_input_tokens ?? 0) + (cc.ephemeral_1h_input_tokens ?? 0);
+}
+
+/**
+ * The usage as the meter prices it. Cache writes the answer does not itemise as five-minute or
+ * one-hour writes are priced at the one-hour rate, the dearer, unless the request asked for no
+ * one-hour cache anywhere, so that spend is not under-recorded on their account (review of 13 Nov
+ * 2026). The usage itself is recorded as the provider gave it; this is only what is priced.
+ */
+export function usageAsPriced(u: Usage, itemised: number | null, oneHourPossible: boolean): { usage: Usage; notItemised: number } {
+  const notItemised = Math.max(0, u.cache_creation_input_tokens - (itemised ?? 0));
+  if (notItemised === 0 || !oneHourPossible) return { usage: u, notItemised };
+  return { usage: { ...u, cache_creation_1h_tokens: Math.min(u.cache_creation_input_tokens, u.cache_creation_1h_tokens + notItemised) }, notItemised };
+}
+
 /** Whether a usage part from the provider states the speed that served the call ("standard" or "fast"). */
 export const statesSpeed = (part: ProviderUsage): boolean => part.speed === "standard" || part.speed === "fast";
 

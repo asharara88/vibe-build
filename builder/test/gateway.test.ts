@@ -88,6 +88,8 @@ function standInProvider() {
     if (mode === "fail-429") return c.json({ type: "error", error: { type: "rate_limit_error", message: "stand-in rate limit" } }, 429);
     if (mode === "odd-speed") return ok({ ...PLAIN_USAGE, speed: "turbo" });
     if (mode === "speed-fast-stated") return ok({ ...PLAIN_USAGE, speed: "fast" });
+    if (mode === "cache-writes-not-itemised") return ok({ input_tokens: 30, cache_creation_input_tokens: 10_000, cache_read_input_tokens: 0, output_tokens: 300 });
+    if (mode === "cache-writes-itemised-5m") return ok({ input_tokens: 30, cache_creation_input_tokens: 10_000, cache_creation: { ephemeral_5m_input_tokens: 10_000, ephemeral_1h_input_tokens: 0 }, cache_read_input_tokens: 0, output_tokens: 300 });
     if (mode === "speed-standard-stated") return ok({ ...PLAIN_USAGE, speed: "standard" });
     if (mode === "cache-mismatch") return ok({ ...PLAIN_USAGE, cache_creation: { ephemeral_1h_input_tokens: 1_000_000 } });
     if (mode === "server-tool-usage") return ok({ ...PLAIN_USAGE, server_tool_use: { web_search_requests: 5 } });
@@ -1375,6 +1377,34 @@ describe("holds: found by the review of 13 Nov 2026, and kept fixed", () => {
     const plainProfile = await newProject(5);
     expect((await call(plainProfile.token, plain())).status).toBe(200);
     await settledAt(plainProfile.id, PLAIN_COST);
+  });
+
+  it("cache writes the answer does not split into five-minute and one-hour are priced at the one-hour rate, unless the request asks for no one-hour cache anywhere", async () => {
+    // The stand-in counts 10,000 prompt tokens and bills 10,000 cache writes with no breakdown, 30 input and 300 output tokens.
+    const block = (cache_control?: Record<string, unknown>) => [{ role: "user", content: [{ type: "text", text: "hello", ...(cache_control ? { cache_control } : {}) }] }];
+    const ask = (test: string, more: Record<string, unknown> = {}) => plain(test, { system: "count:10000", ...more });
+    const oneHour = up6((30 * 4 + 10_000 * 8 + 300 * 20) / 1e6);
+    const fiveMinutes = up6((30 * 4 + 10_000 * 5 + 300 * 20) / 1e6);
+    const cases: Array<[string, unknown, number, string | null]> = [
+      ['a block asking for "1h"', ask("cache-writes-not-itemised", { messages: block({ type: "ephemeral", ttl: "1h" }) }), oneHour, "the one-hour rate"],
+      ['a tool asking for "1h"', ask("cache-writes-not-itemised", { tools: [{ name: "read_file", input_schema: { type: "object" }, cache_control: { type: "ephemeral", ttl: "1h" } }] }), oneHour, "the one-hour rate"],
+      ["a lifetime the gateway does not know", ask("cache-writes-not-itemised", { messages: block({ type: "ephemeral", ttl: "2h" }) }), oneHour, "the one-hour rate"],
+      ['a block asking for "5m"', ask("cache-writes-not-itemised", { messages: block({ type: "ephemeral", ttl: "5m" }) }), fiveMinutes, "the five-minute rate"],
+      ["a block with no lifetime (the provider's default, five minutes)", ask("cache-writes-not-itemised", { messages: block({ type: "ephemeral" }) }), fiveMinutes, "the five-minute rate"],
+      ["no cache_control at all", ask("cache-writes-not-itemised"), fiveMinutes, "the five-minute rate"],
+      // An answer that does split them is priced as split, whatever the request asked.
+      ['split as five-minute writes, though a block asks for "1h"', ask("cache-writes-itemised-5m", { messages: block({ type: "ephemeral", ttl: "1h" }) }), fiveMinutes, null],
+    ];
+    for (const [label, body, cost, pricedAt] of cases) {
+      const { id, token } = await newProject(5);
+      expect((await call(token, body)).status, label).toBe(200);
+      const p = (await listEvents(pool, id, "model.call"))[0]!.payload as { cost_usd: number; usage: { cache_creation_1h_tokens: number }; cache_writes_not_itemised?: { tokens: number; priced_at: string } };
+      near(p.cost_usd, cost);
+      expect(p.usage.cache_creation_1h_tokens, label).toBe(0); // the usage is recorded as the provider gave it
+      if (pricedAt === null) expect(p.cache_writes_not_itemised, label).toBeUndefined();
+      else expect(p.cache_writes_not_itemised, label).toMatchObject({ tokens: 10_000, priced_at: pricedAt });
+      near((await getBudget(pool, id)).spent, cost);
+    }
   });
 
   it("fast mode: the same on a stream", async () => {

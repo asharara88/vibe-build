@@ -209,6 +209,34 @@ export function computeHold(body: MeteredRequest, countedPromptTokens: number, p
   };
 }
 
+/**
+ * Whether the request may ask for a one-hour cache lifetime anywhere: any `cache_control` in it,
+ * at any depth, whose `ttl` is given and is not "5m", or which is not an object at all. The
+ * provider's default lifetime is five minutes and "1h" is the longer one it documents
+ * (docs/SOURCES.md, 13 Nov 2026); any other value is taken as possibly one hour. Used to price
+ * cache writes that an answer does not itemise (cost.ts, usageAsPriced).
+ */
+export function mayAskForOneHourCache(body: MeteredRequest): boolean {
+  const stack: unknown[] = [body];
+  while (stack.length > 0) {
+    const v = stack.pop();
+    if (Array.isArray(v)) {
+      for (const x of v) stack.push(x);
+      continue;
+    }
+    if (v === null || typeof v !== "object") continue;
+    for (const [k, x] of Object.entries(v as Record<string, unknown>)) {
+      if (k === "cache_control" && x !== undefined && x !== null) {
+        if (typeof x !== "object" || Array.isArray(x)) return true;
+        const ttl = (x as Record<string, unknown>)["ttl"];
+        if (ttl !== undefined && ttl !== "5m") return true;
+      }
+      stack.push(x);
+    }
+  }
+  return false;
+}
+
 /** The fields the provider's token-counting call accepts, taken from the request as sent. */
 export function countRequestBody(body: MeteredRequest): Record<string, unknown> {
   const out: Record<string, unknown> = {};
