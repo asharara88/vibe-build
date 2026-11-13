@@ -1,0 +1,74 @@
+#0 building with "default" instance using docker driver
+
+#1 [internal] load build definition from Dockerfile
+#1 transferring dockerfile: 4.38kB done
+#1 DONE 0.0s
+
+#2 [internal] load metadata for docker.io/library/ubuntu:24.04@sha256:2198e4c65076e9cb0b3d695219df667c0e3b0072da64ca3c2648aca17dcecaf5
+#2 DONE 0.0s
+
+#3 [internal] load metadata for docker.io/library/node:22-bookworm-slim@sha256:e9f565d32859f0cbfb52125eafe8be39390f24dac302dc3cdf566e8ba3ab21ee
+#3 DONE 0.0s
+
+#4 [internal] load .dockerignore
+#4 transferring context: 2B done
+#4 DONE 0.0s
+
+#5 [unpack 1/3] FROM docker.io/library/ubuntu:24.04@sha256:2198e4c65076e9cb0b3d695219df667c0e3b0072da64ca3c2648aca17dcecaf5
+#5 resolve docker.io/library/ubuntu:24.04@sha256:2198e4c65076e9cb0b3d695219df667c0e3b0072da64ca3c2648aca17dcecaf5 0.0s done
+#5 DONE 0.0s
+
+#6 [node 1/1] FROM docker.io/library/node:22-bookworm-slim@sha256:e9f565d32859f0cbfb52125eafe8be39390f24dac302dc3cdf566e8ba3ab21ee
+#6 resolve docker.io/library/node:22-bookworm-slim@sha256:e9f565d32859f0cbfb52125eafe8be39390f24dac302dc3cdf566e8ba3ab21ee 0.0s done
+#6 DONE 0.0s
+
+#7 [internal] load build context
+#7 transferring context: 120.04MB 0.4s done
+#7 DONE 0.4s
+
+#8 [unpack 2/3] COPY apt-session.sh install-exactly.sh approved-unpack-packages.txt /build/
+#8 CACHED
+
+#9 [stage-2  8/11] RUN --mount=type=bind,source=certs,target=/certs     cp /build/package.json /build/package-lock.json /runner/ &&     if [ -f /certs/session-ca.crt ]; then CAFILE="--cafile /certs/session-ca.crt"; else CAFILE=""; fi &&     npm ci --omit=dev --ignore-scripts --no-fund --no-audit $CAFILE &&     sh /build/apt-session.sh on &&     sh /build/install-exactly.sh /build/approved-runner-packages.txt &&     ./node_modules/.bin/playwright install-deps --dry-run chromium-headless-shell &&     sh /build/apt-session.sh off &&     rm -rf /root/.npm /build
+#9 CACHED
+
+#10 [stage-2  4/11] COPY --from=node /usr/local/LICENSE /usr/local/LICENSE
+#10 CACHED
+
+#11 [stage-2  5/11] RUN ln -s ../lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm && ln -s ../lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx
+#11 CACHED
+
+#12 [stage-2  7/11] COPY package.json package-lock.json apt-session.sh install-exactly.sh approved-runner-packages.txt /build/
+#12 CACHED
+
+#13 [stage-2  6/11] WORKDIR /runner
+#13 CACHED
+
+#14 [stage-2  9/11] COPY --from=unpack /ms-playwright /ms-playwright
+#14 CACHED
+
+#15 [stage-2  2/11] COPY --from=node /usr/local/bin/node /usr/local/bin/node
+#15 CACHED
+
+#16 [unpack 3/3] RUN --mount=type=bind,source=certs,target=/certs     --mount=type=bind,source=browser,target=/browser     sh /build/apt-session.sh on &&     sh /build/install-exactly.sh /build/approved-unpack-packages.txt &&     sh /build/apt-session.sh off &&     echo "a9da028861a0cf789ff25c2fed45f5f1aaf969ed9247835b6a7821a4f7af9d1d  /browser/chrome-headless-shell-linux64.zip" | sha256sum -c - &&     mkdir -p /ms-playwright/chromium_headless_shell-1243 &&     unzip -q /browser/chrome-headless-shell-linux64.zip -d /ms-playwright/chromium_headless_shell-1243 &&     touch /ms-playwright/chromium_headless_shell-1243/INSTALLATION_COMPLETE &&     cd /ms-playwright/chromium_headless_shell-1243/chrome-headless-shell-linux64 &&     sha256sum chrome-headless-shell ABOUT LICENSE.headless_shell
+#16 CACHED
+
+#17 [stage-2  3/11] COPY --from=node /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/npm
+#17 CACHED
+
+#18 [stage-2 10/11] COPY playwright.config.mjs /runner/playwright.config.mjs
+#18 CACHED
+
+#19 [stage-2 11/11] RUN useradd -m -u 1001 runner
+#19 CACHED
+
+#20 exporting to image
+#20 exporting layers done
+#20 exporting manifest sha256:c6dbfd75696a560311b7e75b4863b1fb11204cd51b233c5573317479e9986e3e done
+#20 exporting config sha256:da28439a311ad78a515f310474ae9e0b7c0ceb4eacaf661fa4ba6068ac1e24b5 done
+#20 exporting attestation manifest sha256:a30c3eb0fbc04d2388c9194ace30c4d850898bfcde24bf50fe46756ad679860c
+#20 exporting attestation manifest sha256:a30c3eb0fbc04d2388c9194ace30c4d850898bfcde24bf50fe46756ad679860c done
+#20 exporting manifest list sha256:48ea1b9f1d76072614bf41b01f24412d05d17dc8221589eaaf67d39c1c1df458 done
+#20 naming to docker.io/library/builder-acceptance-runner:local done
+#20 unpacking to docker.io/library/builder-acceptance-runner:local done
+#20 DONE 0.1s
