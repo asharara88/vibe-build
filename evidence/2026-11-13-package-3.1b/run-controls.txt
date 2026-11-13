@@ -1,0 +1,222 @@
+Package 3.1b controls, 2026-11-13T10:48:13Z. Each: a fresh copy of commit a0b0ff1 (git archive into the scratch folder, builder/node_modules linked from the worktree), one safeguard removed as shown, the named tests run in the copy's builder/, the copy then removed. Test database builder_test_p31b. No container is started (Docker answering; the live acceptance test is run only where named, with an empty cache folder, so it starts nothing).
+
+=== C1. The skip put back on the live acceptance tests (describe.skipIf when a prerequisite is missing) ===
+--- a/builder/test/acceptance-live.test.ts
++++ b/builder/test/acceptance-live.test.ts
+@@ -37 +37 @@
+-describe("acceptance runner: live, development profile, stand-in test", () => {
++describe.skipIf(missing.length > 0)("acceptance runner: live, development profile, stand-in test", () => {
+$ npx vitest run test/acceptance-gate.test.ts   (in the copy's builder/)
+     × the live acceptance test file, run with the zip absent and Docker not answering, fails: all 7 of its tests, none skipped, each naming both and how to put them right 436ms
+     × no test file can skip a test, mark one to do, run one alone or run one only if something holds; npm test runs the whole suite 6ms
+ Test Files  1 failed (1)
+      Tests  2 failed | 3 passed (5)
+ FAIL  test/acceptance-gate.test.ts > the gate: npm test cannot pass while the browser was not exercised > the live acceptance test file, run with the zip absent and Docker not answering, fails: all 7 of its tests, none skipped, each naming both and how to put them right
+AssertionError: 
+ Test Files  1 skipped (1)
+      Tests  7 skipped (7)
+: expected +0 to be 1 // Object.is equality
+ FAIL  test/acceptance-gate.test.ts > the gate: npm test cannot pass while the browser was not exercised > no test file can skip a test, mark one to do, run one alone or run one only if something holds; npm test runs the whole suite
+AssertionError: expected [ Array(1) ] to deeply equal []
+exit code: 1
+$ BUILDER_BROWSER_CACHE=$TMPDIR/ctl-empty-cache npx vitest run test/acceptance-live.test.ts   (in the copy's builder/)
+ Test Files  1 skipped (1)
+      Tests  7 skipped (7)
+exit code: 0
+
+=== C2a. Size: the check of a stated length removed (fetch) ===
+--- a/builder/src/acceptance/browser-fetch.ts
++++ b/builder/src/acceptance/browser-fetch.ts
+@@ -218 +218 @@
+-    if (stated !== undefined && Number(stated) !== want.bytes) {
++    if (false) {
+$ npx vitest run test/browser-fetch.test.ts   (in the copy's builder/)
+     × size: a stated length other than the approved size is refused before anything is written 12ms
+ Test Files  1 failed (1)
+      Tests  1 failed | 16 passed (17)
+ FAIL  test/browser-fetch.test.ts > fetching the approved browser zip (stand-in server, made-up bytes) > size: a stated length other than the approved size is refused before anything is written
+AssertionError: expected [Function] to throw error matching /says the file is 299999 bytes, not th…/ but got 'The download is 299999 bytes, not the…'
+exit code: 1
+
+=== C2b. Size: the limit while bytes arrive removed (fetch) ===
+--- a/builder/src/acceptance/browser-fetch.ts
++++ b/builder/src/acceptance/browser-fetch.ts
+@@ -227 +227 @@
+-        if (received > want.bytes) return done(new FetchRefused(`More than the approved ${want.bytes} bytes arrived; the download was stopped. Nothing was put in place.`));
++        if (false) return done(new FetchRefused(`More than the approved ${want.bytes} bytes arrived; the download was stopped. Nothing was put in place.`));
+$ npx vitest run test/browser-fetch.test.ts   (in the copy's builder/)
+     × size: with no length stated, the download stops as soon as more than the approved size arrives 14ms
+ Test Files  1 failed (1)
+      Tests  1 failed | 16 passed (17)
+ FAIL  test/browser-fetch.test.ts > fetching the approved browser zip (stand-in server, made-up bytes) > size: with no length stated, the download stops as soon as more than the approved size arrives
+AssertionError: expected 'The download is 1245184 bytes, not th…' to match /More than the approved 300000 bytes a…/
+exit code: 1
+
+=== C2c. Size: the on-disk size check removed (fetch); expected: no test fails, since the SHA-256 check refuses the same files ===
+--- a/builder/src/acceptance/browser-fetch.ts
++++ b/builder/src/acceptance/browser-fetch.ts
+@@ -255 +255 @@
+-    if (size !== want.bytes) throw new FetchRefused(`The download is ${size} bytes, not the approved ${want.bytes}. Nothing was put in place.`);
++    if (false) throw new FetchRefused(`The download is ${size} bytes, not the approved ${want.bytes}. Nothing was put in place.`);
+$ npx vitest run test/browser-fetch.test.ts   (in the copy's builder/)
+ Test Files  1 passed (1)
+      Tests  17 passed (17)
+exit code: 0
+
+=== C3. The store's reader lets a run with no test pass (the no-test guard in readRun removed) ===
+--- a/builder/src/acceptance/results.ts
++++ b/builder/src/acceptance/results.ts
+@@ -281 +280,0 @@
+-  if (f.manifest.items.length === 0) return allDidNotRun("the version names no test, so no browser test ran");
+$ npx vitest run test/acceptance.test.ts -t 'no browser test ran'   (in the copy's builder/)
+ ❯ test/acceptance.test.ts (88 tests | 1 failed | 86 skipped) 26ms
+     × no browser test ran: a version that names no test is never read as passed, whatever the results file holds 16ms
+ Test Files  1 failed (1)
+      Tests  1 failed | 1 passed | 86 skipped (88)
+ FAIL  test/acceptance.test.ts > acceptance results: passed only when it ran and passed > no browser test ran: a version that names no test is never read as passed, whatever the results file holds
+AssertionError: a results file with no test: expected { outcome: 'passed', items: [], …(2) } to deeply equal { outcome: 'not passed', …(3) }
+exit code: 1
+
+=== C3b. The store's check before a run lets a version with no test through (verifyVersion's 'names no test' removed) ===
+--- a/builder/src/acceptance/store.ts
++++ b/builder/src/acceptance/store.ts
+@@ -316 +315,0 @@
+-  if (manifest.items.length === 0) problems.push("the manifest names no test");
+$ npx vitest run test/acceptance.test.ts -t 'names no test is refused'   (in the copy's builder/)
+ ❯ test/acceptance.test.ts (88 tests | 1 failed | 87 skipped) 73ms
+     × a version that names no test is refused before its start (the store's check); 'not passed', never passed 41ms
+ Test Files  1 failed (1)
+      Tests  1 failed | 87 skipped (88)
+ FAIL  test/acceptance.test.ts > a run whose runner cannot start is recorded 'not passed' (test database; no container started) > a version that names no test is refused before its start (the store's check); 'not passed', never passed
+AssertionError: expected 'the version does not match its manife…' to match /^the version does not match its manif…/
+exit code: 1
+
+=== C4. The runner image check before a run removed (runner.ts, step 2) ===
+--- a/builder/src/acceptance/runner.ts
++++ b/builder/src/acceptance/runner.ts
+@@ -129 +128,0 @@
+-    if (imageProblem) refused = `the runner cannot start: ${imageProblem}`;
+$ npx vitest run test/acceptance.test.ts -t 'runner cannot start'   (in the copy's builder/)
+ ❯ test/acceptance.test.ts (88 tests | 2 failed | 84 skipped) 395ms
+     × Docker does not answer: refused before its start, naming Docker; 'not passed' in the run's events and report 124ms
+     × the runner image is not on this machine (it is built from the approved zip): refused before its start, naming the image; 'not passed' 213ms
+ Test Files  1 failed (1)
+      Tests  2 failed | 2 passed | 84 skipped (88)
+ FAIL  test/acceptance.test.ts > a run whose runner cannot start is recorded 'not passed' (test database; no container started) > Docker does not answer: refused before its start, naming Docker; 'not passed' in the run's events and report
+AssertionError: expected 'the app did not answer before the sta…' to match /^the runner cannot start: Docker did…/\
+ FAIL  test/acceptance.test.ts > a run whose runner cannot start is recorded 'not passed' (test database; no container started) > the runner image is not on this machine (it is built from the approved zip): refused before its start, naming the image; 'not passed'
+AssertionError: expected 'the app did not answer before the sta…' to match /^the runner cannot start: the runner …/
+exit code: 1
+
+=== C5. The label check accepts any image (runnerImageLabelProblem always null) ===
+--- a/builder/src/acceptance/runner-image.ts
++++ b/builder/src/acceptance/runner-image.ts
+@@ -193 +193 @@
+-  if (found === BROWSER_ZIP_SHA256) return null;
++  return null;
+$ npx vitest run test/acceptance.test.ts -t 'runner cannot start'   (in the copy's builder/)
+ ❯ test/acceptance.test.ts (88 tests | 1 failed | 84 skipped) 149ms
+     × an image without the approved zip's label, or with another zip's, is refused; with the approved one it is accepted 6ms
+ Test Files  1 failed (1)
+      Tests  1 failed | 3 passed | 84 skipped (88)
+ FAIL  test/acceptance.test.ts > a run whose runner cannot start is recorded 'not passed' (test database; no container started) > an image without the approved zip's label, or with another zip's, is refused; with the approved one it is accepted
+TypeError: .toMatch() expects to receive a string, but got object
+exit code: 1
+
+=== C6. SHA-256: the check removed (fetch) ===
+--- a/builder/src/acceptance/browser-fetch.ts
++++ b/builder/src/acceptance/browser-fetch.ts
+@@ -257 +257 @@
+-    if (sha !== want.sha256) throw new FetchRefused(`The download has SHA-256 ${sha}, not the approved ${want.sha256}. Nothing was put in place.`);
++    if (false) throw new FetchRefused(`The download has SHA-256 ${sha}, not the approved ${want.sha256}. Nothing was put in place.`);
+$ npx vitest run test/browser-fetch.test.ts   (in the copy's builder/)
+     × SHA-256: a download of the approved size with other bytes is refused and deleted; nothing is put in place 10ms
+ Test Files  1 failed (1)
+      Tests  1 failed | 16 passed (17)
+ FAIL  test/browser-fetch.test.ts > fetching the approved browser zip (stand-in server, made-up bytes) > SHA-256: a download of the approved size with other bytes is refused and deleted; nothing is put in place
+AssertionError: promise resolved "{ …(5) }" instead of rejecting
+exit code: 1
+
+=== C7. A file already at the zip's place: the refusal to replace it removed (it is downloaded over) ===
+--- a/builder/src/acceptance/browser-fetch.ts
++++ b/builder/src/acceptance/browser-fetch.ts
+@@ -178 +178 @@
+-    throw new FetchRefused(`${finalPath} is another file (${there.size} bytes, SHA-256 ${sha}), not the approved zip (${want.bytes} bytes, SHA-256 ${want.sha256}); it is not replaced. Remove it yourself if it should go. Nothing was fetched.`);
++    if (false) throw new FetchRefused(`${finalPath} is another file (${there.size} bytes, SHA-256 ${sha}), not the approved zip (${want.bytes} bytes, SHA-256 ${want.sha256}); it is not replaced. Remove it yourself if it should go. Nothing was fetched.`);
+$ npx vitest run test/browser-fetch.test.ts   (in the copy's builder/)
+     × never replaces what is at the zip's place: another file, a link or a folder is refused, left as it was, and the server is not asked 262ms
+ Test Files  1 failed (1)
+      Tests  1 failed | 16 passed (17)
+ FAIL  test/browser-fetch.test.ts > fetching the approved browser zip (stand-in server, made-up bytes) > never replaces what is at the zip's place: another file, a link or a folder is refused, left as it was, and the server is not asked
+AssertionError: expected [Function] to throw error matching /is another file .* it is not replaced/ but got 'Something appeared at <scratch>…'
+exit code: 1
+
+=== C8. A cache folder reached through a link: both refusals removed ===
+--- a/builder/src/acceptance/browser-fetch.ts
++++ b/builder/src/acceptance/browser-fetch.ts
+@@ -163 +163 @@
+-  if (realpathAsFar(abs) !== abs) throw new FetchRefused(`The cache folder ${abs} is reached through a link, which is not followed. Nothing was fetched.`);
++  if (false) throw new FetchRefused(`The cache folder ${abs} is reached through a link, which is not followed. Nothing was fetched.`);
+--- a/builder/src/acceptance/browser-fetch.ts
++++ b/builder/src/acceptance/browser-fetch.ts
+@@ -165 +165 @@
+-  if (realpathSync(abs) !== abs || !lstatSync(abs).isDirectory()) throw new FetchRefused(`The cache folder ${abs} is not a plain folder (a link is not followed). Nothing was fetched.`);
++  if (!lstatSync(abs).isDirectory() && realpathSync(abs) !== abs) throw new FetchRefused(`The cache folder ${abs} is not a plain folder (a link is not followed). Nothing was fetched.`);
+$ npx vitest run test/browser-fetch.test.ts   (in the copy's builder/)
+     × the cache folder: a relative path, a folder inside the repository, and a folder reached through a link are refused 4ms
+ Test Files  1 failed (1)
+      Tests  1 failed | 16 passed (17)
+ FAIL  test/browser-fetch.test.ts > fetching the approved browser zip (stand-in server, made-up bytes) > the cache folder: a relative path, a folder inside the repository, and a folder reached through a link are refused
+AssertionError: expected [Function] to throw error matching /reached through a link, which is not …/ but got 'The cache folder <scratch>…'
+exit code: 1
+
+=== C9. An answer other than 200: the refusal removed ===
+--- a/builder/src/acceptance/browser-fetch.ts
++++ b/builder/src/acceptance/browser-fetch.ts
+@@ -212 +212 @@
+-    if (res.statusCode !== 200) {
++    if (false) {
+$ npx vitest run test/browser-fetch.test.ts   (in the copy's builder/)
+     × an answer other than 200 is refused; a move elsewhere (302) is not followed 8ms
+ Test Files  1 failed (1)
+      Tests  1 failed | 16 passed (17)
+ FAIL  test/browser-fetch.test.ts > fetching the approved browser zip (stand-in server, made-up bytes) > an answer other than 200 is refused; a move elsewhere (302) is not followed
+AssertionError: expected [Function] to throw error matching /answered 404/ but got 'The download is 0 bytes, not the appr…'
+exit code: 1
+
+=== C10. The two time limits removed (they no longer stop the download) ===
+--- a/builder/src/acceptance/browser-fetch.ts
++++ b/builder/src/acceptance/browser-fetch.ts
+@@ -193 +193 @@
+-  const whole = setTimeout(() => stop(`The download did not end within its time limit (${limit / 1000} s); it was stopped.`), limit);
++  const whole = setTimeout(() => void (`The download did not end within its time limit (${limit / 1000} s); it was stopped.`), limit);
+--- a/builder/src/acceptance/browser-fetch.ts
++++ b/builder/src/acceptance/browser-fetch.ts
+@@ -197 +197 @@
+-    quiet = setTimeout(() => stop(`Nothing arrived for ${silence / 1000} s; the download was stopped.`), silence);
++    quiet = setTimeout(() => void (`Nothing arrived for ${silence / 1000} s; the download was stopped.`), silence);
+$ npx vitest run test/browser-fetch.test.ts -t 'time limits'   (in the copy's builder/)
+ ❯ test/browser-fetch.test.ts (17 tests | 1 failed | 16 skipped) 20017ms
+     × time limits: a download that goes silent is stopped; one that goes on too long is stopped; no file is left 20009ms
+ Test Files  1 failed (1)
+      Tests  1 failed | 16 skipped (17)
+ FAIL  test/browser-fetch.test.ts > fetching the approved browser zip (stand-in server, made-up bytes) > time limits: a download that goes silent is stopped; one that goes on too long is stopped; no file is left
+Error: Test timed out in 20000ms.
+exit code: 1
+
+=== C11. The tunnel bypassed: the https request given `agent: false`, as first written (Node then ignores createConnection and connects directly) ===
+--- a/builder/src/acceptance/browser-fetch.ts
++++ b/builder/src/acceptance/browser-fetch.ts
+@@ -144 +144 @@
+-  const req = https.request(target, { method, headers, signal, createConnection: () => tls.connect({ socket, servername: target.hostname }) });
++  const req = https.request(target, { method, headers, agent: false, signal, createConnection: () => tls.connect({ socket, servername: target.hostname }) });
+$ npx vitest run test/browser-fetch.test.ts   (in the copy's builder/)
+     × an https address: the download goes through the proxy's tunnel, and TLS is checked: a certificate Node does not trust is refused; once trusted, the zip is fetched through the tunnel 11ms
+     × a tunnel the proxy lets through carries the TLS connection; reset, it fails the fetch: the program does not stop, and no file is left 3ms
+ Test Files  1 failed (1)
+      Tests  2 failed | 15 passed (17)
+ FAIL  test/browser-fetch.test.ts > fetching through the environment's proxy (stand-in proxy) > an https address: the download goes through the proxy's tunnel, and TLS is checked: a certificate Node does not trust is refused; once trusted, the zip is fetched through the tunnel
+AssertionError: expected 'ENOTFOUND' to match /SELF_SIGNED|UNABLE_TO_VERIFY|CERT/
+ FAIL  test/browser-fetch.test.ts > fetching through the environment's proxy (stand-in proxy) > a tunnel the proxy lets through carries the TLS connection; reset, it fails the fetch: the program does not stop, and no file is left
+AssertionError: expected 'ENOTFOUND' to match /ECONNRESET|socket hang up|disconnected/
+exit code: 1

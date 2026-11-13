@@ -1,0 +1,157 @@
+$ npx vitest run test/acceptance-gate.test.ts --reporter=verbose   (in a copy of 4128163 (git archive), builder/; the new tests added (the test file as committed after the review); test/gate-scan.ts holding the scan as it was at 4128163, moved unchanged out of the test into the functions the new tests call; src/acceptance/prerequisites.ts as at 4128163; started 11:31:58 UTC)
+
+ RUN  v5.1.0 <scratch>/f31b-work/before/builder
+
+ ✓ test/acceptance-gate.test.ts > the live acceptance tests' prerequisites, each named with how to put it right > Docker: not answering, or not installed 51ms
+ ✓ test/acceptance-gate.test.ts > the live acceptance tests' prerequisites, each named with how to put it right > the browser zip: the setting unset, a folder without the zip, another file, a link 3ms
+ × test/acceptance-gate.test.ts > the live acceptance tests' prerequisites, each named with how to put it right > Docker's own message, when long, is cut at a word and marked with '…' (after the review: it was cut mid-word) 8ms
+   → expected 'Cannot connect to the Docker daemon a…' to match /^Cannot connect to the Docker daemon…/\
+ ✓ test/acceptance-gate.test.ts > the live acceptance tests' prerequisites, each named with how to put it right > both missing: both are named 61ms
+ ✓ test/acceptance-gate.test.ts > the gate: npm test cannot pass while the browser was not exercised > the live acceptance test file, run with the zip absent and Docker not answering, fails: all 7 of its tests, none skipped, each naming both and how to put them right 571ms
+ ✓ test/acceptance-gate.test.ts > the gate: npm test cannot pass while the browser was not exercised > no test file can skip a test, mark one to do, run one alone, run one only if something holds, or expect it to fail; the test runner runs every test file in test/; npm test runs the whole suite 271ms
+ × test/acceptance-gate.test.ts > the gate's scan, on made-up folders: each rule finds what it is for (added after the package's review) > a failure turned into a pass: `fails` after it or test is found 3ms
+   → expected [] to deeply equal [ …(2) ]
+ × test/acceptance-gate.test.ts > the gate's scan, on made-up folders: each rule finds what it is for (added after the package's review) > a file in a subfolder of test/ is read 2ms
+   → expected [] to deeply equal [ …(2) ]
+ × test/acceptance-gate.test.ts > the gate's scan, on made-up folders: each rule finds what it is for (added after the package's review) > a file the test runner runs outside test/ is read 2ms
+   → expected [] to deeply equal [ Array(1) ]
+ × test/acceptance-gate.test.ts > the gate's scan, on made-up folders: each rule finds what it is for (added after the package's review) > a test file in test/ that the test runner would not run is named, whatever setting leaves it out (here one the settings file takes from another file, so no word in it shows) 283ms
+   → expected [] to deeply equal [ Array(1) ]
+ × test/acceptance-gate.test.ts > the gate's scan, on made-up folders: each rule finds what it is for (added after the package's review) > settings that name projects, dir, root or workspace, and another settings file or a workspace file, are named; so are the earlier ones 1ms
+   → projects: expected [] to deeply equal [ 'vitest.config.ts names projects' ]
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 6 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/acceptance-gate.test.ts > the live acceptance tests' prerequisites, each named with how to put it right > Docker's own message, when long, is cut at a word and marked with '…' (after the review: it was cut mid-word)
+AssertionError: expected 'Cannot connect to the Docker daemon a…' to match /^Cannot connect to the Docker daemon…/\
+
+- Expected:
+/^Cannot connect to the Docker daemon at unix:\/\/\/made-up\/docker\.sock\. Is the docker daemon running\? (?:abcdefghij )+…$/
+
++ Received:
+"Cannot connect to the Docker daemon at unix:///made-up/docker.sock. Is the docker daemon running? abcdefghij abcdefghij abcdefghij abcdefghij abcdefghij abcdefghij abcdefghij abcdefghij abcdefghij abc"
+
+ ❯ test/acceptance-gate.test.ts:57:20
+     55|     expect(quoted, found ?? "").toBeDefined();
+     56|     expect(quoted!.length).toBeLessThanOrEqual(202);
+     57|     expect(quoted).toMatch(/^Cannot connect to the Docker daemon at un…
+       |                    ^
+     58|     expect(said.startsWith(quoted!.slice(0, -2))).toBe(true);
+     59|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/6]⎯
+
+ FAIL  test/acceptance-gate.test.ts > the gate's scan, on made-up folders: each rule finds what it is for (added after the package's review) > a failure turned into a pass: `fails` after it or test is found
+AssertionError: expected [] to deeply equal [ …(2) ]
+
+- Expected
++ Received
+
+- [
+-   "test/a.test.ts:1: it.fails(\"made-up\", () => { throw new Error(\"x\"); });",
+-   "test/a.test.ts:2: test.concurrent.fails(\"made-up\", () => {});",
+- ]
++ []
+
+ ❯ test/acceptance-gate.test.ts:121:19
+    119|     const dir = madeUp({ "test/a.test.ts": `it.${failsW}("made-up", ()…
+    120|     const found = scanForLeftOutTests(dir, [join(dir, "test", "plain.t…
+    121|     expect(found).toEqual([`test/a.test.ts:1: it.${failsW}("made-up", …
+       |                   ^
+    122|   });
+    123|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/6]⎯
+
+ FAIL  test/acceptance-gate.test.ts > the gate's scan, on made-up folders: each rule finds what it is for (added after the package's review) > a file in a subfolder of test/ is read
+AssertionError: expected [] to deeply equal [ …(2) ]
+
+- Expected
++ Received
+
+- [
+-   "test/sub/deeper/b.test.ts:1: it.skip(\"made-up\", () => {});",
+-   "test/sub/helper.ts:1: export const later = () => describe.only(\"made-up\", () => {});",
+- ]
++ []
+
+ ❯ test/acceptance-gate.test.ts:127:19
+    125|     const dir = madeUp({ "test/sub/deeper/b.test.ts": `it.${skipW}("ma…
+    126|     const found = scanForLeftOutTests(dir, [join(dir, "test", "plain.t…
+    127|     expect(found).toEqual([`test/sub/deeper/b.test.ts:1: it.${skipW}("…
+       |                   ^
+    128|   });
+    129|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/6]⎯
+
+ FAIL  test/acceptance-gate.test.ts > the gate's scan, on made-up folders: each rule finds what it is for (added after the package's review) > a file the test runner runs outside test/ is read
+AssertionError: expected [] to deeply equal [ Array(1) ]
+
+- Expected
++ Received
+
+- [
+-   "src/c.test.ts:1: describe.only(\"made-up\", () => {});",
+- ]
++ []
+
+ ❯ test/acceptance-gate.test.ts:133:107
+    131|     const dir = madeUp({ "src/c.test.ts": `describe.${onlyW}("made-up"…
+    132|     expect(scanForLeftOutTests(dir, [join(dir, "test", "plain.test.ts"…
+    133|     expect(scanForLeftOutTests(dir, [join(dir, "test", "plain.test.ts"…
+       |                                                                                                           ^
+    134|   });
+    135|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/6]⎯
+
+ FAIL  test/acceptance-gate.test.ts > the gate's scan, on made-up folders: each rule finds what it is for (added after the package's review) > a test file in test/ that the test runner would not run is named, whatever setting leaves it out (here one the settings file takes from another file, so no word in it shows)
+AssertionError: expected [] to deeply equal [ Array(1) ]
+
+- Expected
++ Received
+
+- [
+-   "test/hidden/d.test.ts: a test file the test runner would not run",
+- ]
++ []
+
+ ❯ test/acceptance-gate.test.ts:145:46
+    143|     expect(listed).toEqual([realpathSync(join(dir, "test", "plain.test…
+    144|     expect(scanRunnerSettings(dir)).toEqual([]);
+    145|     expect(scanForLeftOutTests(dir, listed)).toEqual(["test/hidden/d.t…
+       |                                              ^
+    146|   }, 60_000);
+    147|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/6]⎯
+
+ FAIL  test/acceptance-gate.test.ts > the gate's scan, on made-up folders: each rule finds what it is for (added after the package's review) > settings that name projects, dir, root or workspace, and another settings file or a workspace file, are named; so are the earlier ones
+AssertionError: projects: expected [] to deeply equal [ 'vitest.config.ts names projects' ]
+
+- Expected
++ Received
+
+- [
+-   "vitest.config.ts names projects",
+- ]
++ []
+
+ ❯ test/acceptance-gate.test.ts:157:83
+    155|       ["exclude", 'export default { test: { exclude: ["test/x/**"] } }…
+    156|     ] as const) {
+    157|       expect(scanRunnerSettings(madeUp({ "vitest.config.ts": config })…
+       |                                                                                   ^
+    158|     }
+    159|     const others = madeUp({ "vite.config.ts": "export default {};\n", …
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/6]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  6 failed | 5 passed (11)
+   Start at  11:31:58
+   Duration  1.44s (tests 95%, transform 4%, import 1%)
+
+exit code: 1

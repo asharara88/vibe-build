@@ -1,0 +1,9 @@
+$ npm run typecheck   (in builder/, at commit a0b0ff1; 2026-11-13T10:52:22Z)
+
+> builder@0.0.1 typecheck
+> tsc --noEmit
+
+exit code: 0
+
+$ npx tsc -p tsconfig.scripts-check.json --noEmit   (at a0b0ff1; a settings file made for this run and removed after it: builder's tsconfig.json with scripts/fetch-browser.ts, scripts/demo-acceptance.ts and scripts/example-1-sandbox.ts added, since npm run typecheck covers src/ and test/ only)
+exit code: 0

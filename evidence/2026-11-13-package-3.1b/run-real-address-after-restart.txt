@@ -1,0 +1,3 @@
+$ npx tsx <scratch>/p31b-work/tunnel-check.mts https://storage.googleapis.com/chrome-for-testing-public/153.0.8010.12/linux64/chrome-headless-shell-linux64.zip   (in builder/; after the container restart of 13 Nov; the fetch's own request code, requestThroughEnv, one HEAD request at the recorded address, through the session's proxy; nothing downloaded)
+2026-11-13T10:45:39.141Z HEAD https://storage.googleapis.com/chrome-for-testing-public/153.0.8010.12/linux64/chrome-headless-shell-linux64.zip: answered 200 OK, through the proxy at 127.0.0.1:36339 (HTTPS_PROXY)
+exit code: 0

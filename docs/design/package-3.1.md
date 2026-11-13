@@ -97,7 +97,7 @@
 
 ## 11. How it is shown (when built)
 
-- Fast checks (no Docker): the store, the result reader against stand-in outputs for each did-not-run case, the Compose document, the mount rule in `runStreaming`, the label, the change sets. Live tests, skipped without Docker: a pass, the broken copy rejected, a killed run reported as did not run, every attempt failing.
+- Fast checks (no Docker): the store, the result reader against stand-in outputs for each did-not-run case, the Compose document, the mount rule in `runStreaming`, the label, the change sets. Live tests, skipped without Docker: a pass, the broken copy rejected, a killed run reported as did not run, every attempt failing. *Note of 13 Nov 2026: since package 3.1b the live tests are never skipped; without Docker or the approved browser zip they fail, saying what is missing and how to put it right (`evidence/2026-11-13-package-3.1b/browser-required.md`; known gap 73).*
 - `scripts/demo-acceptance.ts` writes to `evidence/<date>-package-3.1/`: item 1 passing with its screenshot; the broken copy failing with item and step named and a screenshot; a run killed by a short time limit and one refused before start because the app was stopped, both did not run; the attempts table, the mount lists, the git listing and the event rows; free disk before and after. No browser runs on the host (gap 55).
 
 ## 12. From the two critiques: not taken, and why
