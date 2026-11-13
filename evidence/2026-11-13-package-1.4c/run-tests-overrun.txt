@@ -1,0 +1,21 @@
+Commit: acb5d5b; test/overrun.test.ts on builder_test_p14c; 2026-11-13T11:08:32Z
+
+ RUN  v5.1.0 <scratchpad>/wt-14c/builder
+
+ ✓ test/overrun.test.ts > package 1.4c: a bill above its hold freezes the project until the owner records it (against a stand-in provider) > 1.4c (a1) not streamed: a bill above its hold is charged in full and, in the same transaction as its hold.exceeded, freezes the project naming that hold; the project's next calls are refused with nothing forwarded; another project's call is forwarded 155ms
+ ✓ test/overrun.test.ts > package 1.4c: a bill above its hold freezes the project until the owner records it (against a stand-in provider) > 1.4c (a2) streamed: the same, for a stream settled when its last event is read 79ms
+ ✓ test/overrun.test.ts > package 1.4c: a bill above its hold freezes the project until the owner records it (against a stand-in provider) > 1.4c (a3) one transaction: with the freeze's write refused, nothing of the settle is written (no cost, no hold.exceeded, no freeze of this kind); the ending goes to package 1.4's journal path and the project is still frozen; the owner's reconciliation above the hold does not freeze 62ms
+ ✓ test/overrun.test.ts > package 1.4c: a bill above its hold freezes the project until the owner records it (against a stand-in provider) > 1.4c (b) a step-held call above its hold: charged in full, the step's room takes the difference, the project is frozen naming that hold; the step's next call and a new step are refused; once the bill is recorded, the step's next call is forwarded and settled 54ms
+ ✓ test/overrun.test.ts > package 1.4c: a bill above its hold freezes the project until the owner records it (against a stand-in provider) > 1.4c (c1) the owner's record of the bill clears that freeze, and only that one, with who, why, the evidence, the bill and the hold; it moves no money; the project's next call is forwarded and settled 77ms
+ ✓ test/overrun.test.ts > package 1.4c: a bill above its hold freezes the project until the owner records it (against a stand-in provider) > 1.4c (c2) the record is refused, changing and writing nothing: a freeze of another kind, a hold with no freeze, one already recorded, missing or unstorable texts, a bad id, an unknown project, another project's hold 105ms
+ ✓ test/overrun.test.ts > package 1.4c: a bill above its hold freezes the project until the owner records it (against a stand-in provider) > 1.4c (c3) two calls billed above their holds: two freezes; each record clears only its own, and the project runs again only after both 24ms
+ ✓ test/overrun.test.ts > package 1.4c: a bill above its hold freezes the project until the owner records it (against a stand-in provider) > 1.4c (c4) the script: --list shows each project frozen after a bill above its hold with the bill, the hold and the difference; --overrun records it (exit 0) and is refused a second time (exit 2); misuse is refused before the database (exit 1); no address is printed 3137ms
+ ✓ test/overrun.test.ts > package 1.4c: a bill above its hold freezes the project until the owner records it (against a stand-in provider) > 1.4c (late) an answer that arrives after its hold expired, with a cost above the hold, freezes the project (kind 'late_answer_above_hold') in the same transaction as its hold.kept; one below its hold does not; the owner's reconciliation of that hold clears it, and the record of a bill refuses it 188ms
+ ✓ test/overrun.test.ts > package 1.4c: a bill above its hold freezes the project until the owner records it (against a stand-in provider) > 1.4c (d) the invariant checker: rule 3 (a settlement's hold.exceeded needs a 'bill_above_hold' freeze of that hold, written in the same transaction) and rule 4 (nothing opens while a freeze is not cleared), on made-up traces 1ms
+
+ Test Files  1 passed (1)
+      Tests  10 passed (10)
+   Start at  11:08:33
+   Duration  4.58s (tests 97%, import 2%, transform 1%)
+
+Exit code: 0

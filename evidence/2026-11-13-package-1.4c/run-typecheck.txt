@@ -1,0 +1,6 @@
+Commit: acb5d5b (the code); 2026-11-13T11:09:38Z
+
+> builder@0.0.1 typecheck
+> tsc --noEmit
+
+Exit code: 0

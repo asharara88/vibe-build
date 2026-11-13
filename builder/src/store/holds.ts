@@ -23,7 +23,7 @@ import { randomBytes } from "node:crypto";
 import type pg from "pg";
 import { stepBudget, type ProfileLimits, type StepBudget } from "../gateway/hold.js";
 import { PRICE_TABLE_DATE } from "../gateway/prices.js";
-import { activeFreezeIn, frozenMessage, type Freeze } from "./freezes.js";
+import { activeFreezeIn, freezeAfterOverrunIn, frozenMessage, type Freeze } from "./freezes.js";
 import { gatewayLockKeySql } from "./liveness.js";
 import { hashToken } from "./projects.js";
 import { event, inTransaction, type Queryable } from "./tx.js";
@@ -147,7 +147,7 @@ export async function openHold(
     const freeze = await activeFreezeIn(c, p.projectId);
     if (freeze) {
       const budget = await readBudget(c, p.projectId);
-      await event(c, p.projectId, "gateway.refused", { reason: "project_frozen", freeze_id: Number(freeze.id), journal_id: freeze.journal_id, this_hold_usd: p.amountUsd, path: p.path, ...(p.stepHoldId ? { step_hold_id: Number(p.stepHoldId) } : {}) }, p.step);
+      await event(c, p.projectId, "gateway.refused", { reason: "project_frozen", freeze_id: Number(freeze.id), freeze_kind: freeze.kind, journal_id: freeze.journal_id, this_hold_usd: p.amountUsd, path: p.path, ...(p.stepHoldId ? { step_hold_id: Number(p.stepHoldId) } : {}) }, p.step);
       return { ok: false as const, budget, reason: "project_frozen" as const, freeze };
     }
     const now = new Date();
@@ -222,11 +222,29 @@ export async function openHold(
  * the `model.call` event with the actual cost, the hold closed, and a `hold.settled` event.
  * If the actual cost is above the hold, that is recorded as a breach; the truth is still charged.
  * A hold past its deadline is not settled, even if the sweep has not marked it yet (see the top of this file).
+ *
+ * Since package 1.4c (the owner's answer to question 17, 13 Nov 2026: "(a) Yes, freeze"): a cost above the hold
+ * also freezes the project, naming this hold (`freezeAfterOverrunIn`, kind 'bill_above_hold'), in this same
+ * transaction, so the cost, `hold.exceeded` and the freeze are written together or not at all. If the transaction
+ * fails, none of it is written, and the gateway's path for an ending it could not record applies (package 1.4: the
+ * journal, then `recordFreeze`). An answer that arrives for a hold already kept or expired is written down and not
+ * settled, as before; if its cost as read is above the hold, the project is frozen in that same transaction too
+ * (kind 'late_answer_above_hold'). Nothing here stops the first such bill: it was billed before it was read.
  */
 export async function settleHold(
   pool: pg.Pool,
-  p: { projectId: string; holdId: string; step: string | null; actualUsd: number; call: Record<string, unknown> },
-): Promise<{ settled: boolean; exceeded: boolean; amountUsd: number }> {
+  p: {
+    projectId: string;
+    holdId: string;
+    step: string | null;
+    actualUsd: number;
+    call: Record<string, unknown>;
+    /** The gateway process settling it, written on a freeze (package 1.4c). Default: the one that opened the hold. */
+    gateway?: string;
+    /** When the call ended, by the gateway's clock, written on a freeze (package 1.4c). Default: now. */
+    endedAt?: Date;
+  },
+): Promise<{ settled: boolean; exceeded: boolean; amountUsd: number; freeze: Freeze | null }> {
   return inTransaction(pool, p.projectId, async (c) => {
     // Under the project's lock, before the hold is read: a deadline that passed while this waited counts.
     const now = new Date();
@@ -242,12 +260,26 @@ export async function settleHold(
       // Kept and marked unreconciled, as every kept hold is since package 1.4 (design note 5.5, steps 2 and 3).
       await c.query("update holds set kept_reason = coalesce(kept_reason, $2), unreconciled = true where id = $1", [p.holdId, "the cost worked out from the answer was not a valid amount"]);
       await event(c, p.projectId, "hold.kept", { hold_id: Number(hold.id), amount_usd: amountUsd, reason: "the cost worked out from the answer was not a valid amount", unreconciled: true, seen: p.call }, p.step);
-      return { settled: false, exceeded: false, amountUsd };
+      return { settled: false, exceeded: false, amountUsd, freeze: null };
     }
+    /** What a freeze of package 1.4c records for this hold and this answer. */
+    const overrunOf = (kind: "bill_above_hold" | "late_answer_above_hold") => ({
+      kind,
+      projectId: p.projectId,
+      holdId: hold.id,
+      holdAmountUsd: amountUsd,
+      billUsd: p.actualUsd,
+      step: p.step,
+      gateway: p.gateway ?? hold.gateway,
+      endedAt: p.endedAt ?? new Date(),
+      record: kind === "bill_above_hold" ? { ...p.call, cost_usd: p.actualUsd } : { ...p.call, cost_usd_as_read: p.actualUsd },
+    });
+    /** A late answer above its hold freezes the project, in this transaction (package 1.4c). */
+    const lateAboveHold = async (): Promise<Freeze | null> => (micro(p.actualUsd) > micro(amountUsd) ? freezeAfterOverrunIn(c, overrunOf("late_answer_above_hold")) : null);
     if (hold.kept_reason !== null && !hold.expired && !hold.unreconciled) {
       // Already kept for a reason: only the owner's recorded action closes it (package 1.5).
       await event(c, p.projectId, "hold.kept", { hold_id: Number(hold.id), amount_usd: amountUsd, reason: `already kept: ${hold.kept_reason}`, seen: { ...p.call, cost_usd_as_read: p.actualUsd } }, p.step);
-      return { settled: false, exceeded: false, amountUsd };
+      return { settled: false, exceeded: false, amountUsd, freeze: await lateAboveHold() };
     }
     if (hold.expired || hold.unreconciled) {
       // An expired or unreconciled hold is closed only by the owner's recorded action. An answer
@@ -256,7 +288,7 @@ export async function settleHold(
       // was found gone; the reason says which (review of the 1.4 design, item 4).
       const why = hold.expired ? "answer arrived after the hold expired" : `answer arrived after the hold was marked unreconciled (${hold.kept_reason ?? "no reason recorded"})`;
       await event(c, p.projectId, "hold.kept", { hold_id: Number(hold.id), amount_usd: amountUsd, reason: why, seen: { ...p.call, cost_usd_as_read: p.actualUsd } }, p.step);
-      return { settled: false, exceeded: false, amountUsd };
+      return { settled: false, exceeded: false, amountUsd, freeze: await lateAboveHold() };
     }
     const exceeded = micro(p.actualUsd) > micro(amountUsd);
     await event(c, p.projectId, "model.call", { ...p.call, cost_usd: p.actualUsd, hold_id: Number(hold.id) }, p.step);
@@ -275,10 +307,13 @@ export async function settleHold(
       },
       p.step,
     );
+    let freeze: Freeze | null = null;
     if (exceeded) {
       await event(c, p.projectId, "hold.exceeded", { hold_id: Number(hold.id), amount_usd: amountUsd, actual_usd: p.actualUsd }, p.step);
+      // Package 1.4c: frozen in this same transaction, naming this hold, until the owner records the bill.
+      freeze = await freezeAfterOverrunIn(c, overrunOf("bill_above_hold"));
     }
-    return { settled: true, exceeded, amountUsd };
+    return { settled: true, exceeded, amountUsd, freeze };
   });
 }
 
@@ -322,17 +357,57 @@ export async function releaseUnsentHold(pool: pg.Pool, p: { projectId: string; h
  * It neither closes nor releases a hold, so it does not mark deadlines first: a hold it keeps after
  * its deadline stays open at its full amount either way, and is marked expired by the sweep, or by
  * the next admission, settlement or release in its project (review bot on 7ce5a33).
+ *
+ * After the review of package 1.4c (13 Nov 2026): a call can end in a way that keeps its hold after the gateway has
+ * read usage figures it trusts (the time limit or the caller leaving after the figures arrived, an error event after
+ * them, a stream with no end marker, a dropped connection, a usage that does not state the speed). The figures in a
+ * usage block only grow, so the cost they give, priced at the lower rate wherever the answer leaves the rate open,
+ * is a floor under the bill. The gateway passes that cost as `costAsRead`; when it is above the hold, this same
+ * transaction also freezes the project, naming this hold (`freezeAfterOverrunIn`, kind 'kept_above_hold'), so the
+ * `hold.kept` and the freeze are written together or not at all. The hold stays open at its full amount, and the
+ * owner's reconciliation of it clears the freeze. A cost that is not a real, non-negative number freezes nothing.
  */
 export async function keepHold(
   pool: pg.Pool,
-  p: { projectId: string; holdId: string; step: string | null; reason: string; seen: Record<string, unknown> },
-): Promise<void> {
-  await inTransaction(pool, p.projectId, async (c) => {
+  p: {
+    projectId: string;
+    holdId: string;
+    step: string | null;
+    reason: string;
+    seen: Record<string, unknown>;
+    /** After the review of 1.4c: the cost worked out from the usage figures read before the call ended, when they could be trusted and priced. */
+    costAsRead?: { usd: number; usage: Record<string, unknown>; gateway: string; endedAt: Date } | null;
+  },
+): Promise<{ kept: boolean; amountUsd: number | null; freeze: Freeze | null }> {
+  return inTransaction(pool, p.projectId, async (c) => {
     const r = await c.query<Hold>("select * from holds where id = $1 and project_id = $2 for update", [p.holdId, p.projectId]);
     const hold = r.rows[0];
-    if (!hold || hold.state !== "open") return;
+    if (!hold || hold.state !== "open") return { kept: false, amountUsd: hold ? Number(hold.amount_usd) : null, freeze: null };
+    const amountUsd = Number(hold.amount_usd);
+    const read = p.costAsRead ?? null;
+    /** The cost as read, when it is a real amount above the hold; otherwise nothing is frozen. */
+    const above = read !== null && Number.isFinite(read.usd) && read.usd >= 0 && read.usd < 1e8 && micro(read.usd) > micro(amountUsd) ? read : null;
     await c.query("update holds set kept_reason = coalesce(kept_reason, $2), unreconciled = true where id = $1", [p.holdId, p.reason]);
-    await event(c, p.projectId, "hold.kept", { hold_id: Number(hold.id), amount_usd: Number(hold.amount_usd), reason: p.reason, unreconciled: true, seen: p.seen }, p.step);
+    await event(
+      c,
+      p.projectId,
+      "hold.kept",
+      { hold_id: Number(hold.id), amount_usd: amountUsd, reason: p.reason, unreconciled: true, seen: p.seen, ...(above ? { frozen: true, cost_usd_as_read: above.usd } : {}) },
+      p.step,
+    );
+    if (!above) return { kept: true, amountUsd, freeze: null };
+    const freeze = await freezeAfterOverrunIn(c, {
+      kind: "kept_above_hold",
+      projectId: p.projectId,
+      holdId: hold.id,
+      holdAmountUsd: amountUsd,
+      billUsd: above.usd,
+      step: p.step,
+      gateway: above.gateway,
+      endedAt: above.endedAt,
+      record: { ...p.seen, kept_reason: p.reason, cost_usd_as_read: above.usd, usage_as_read: above.usage },
+    });
+    return { kept: true, amountUsd, freeze };
   });
 }
 
@@ -642,7 +717,7 @@ export async function openStepHold(
     if (freeze) {
       const budget = await readBudget(c, p.projectId);
       const message = frozenMessage(freeze, "step");
-      const eventId = await event(c, p.projectId, "step.refused", { reason: "project_frozen", freeze_id: Number(freeze.id), journal_id: freeze.journal_id, step_budget_usd: sb.budgetUsd, message }, p.stepId);
+      const eventId = await event(c, p.projectId, "step.refused", { reason: "project_frozen", freeze_id: Number(freeze.id), freeze_kind: freeze.kind, journal_id: freeze.journal_id, step_budget_usd: sb.budgetUsd, message }, p.stepId);
       return { ok: false as const, budget, stepBudget: sb, message, eventId, reason: "project_frozen" as const };
     }
     const now = new Date();

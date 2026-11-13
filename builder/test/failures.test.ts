@@ -1007,8 +1007,9 @@ describe("package 1.4: failure tests, proof rows B8 to B13 (against a stand-in p
     expect(rules(checkTrace([opened(1, 1, 0.01), opened(2, 2, 0.01)], [], micro(0.015)))).toEqual(["1: above the cap"]);
     // (2) settled below what the provider billed.
     expect(rules(checkTrace([opened(1, 1, 0.01), called(2, 1, 0.001), settled(3, 1, 0.01, 0.001)], [{ pinnedAt: 1, billMicro: 6000 }], micro(1)))).toEqual(["2: below what was owed"]);
-    // A settled call above its hold, and the hold.exceeded event that goes with it.
-    expect(rules(checkTrace([opened(1, 1, 0.01), called(2, 1, 0.02), settled(3, 1, 0.01, 0.02), ev(4, "hold.exceeded", {})], [], micro(1)))).toEqual(["a settled call above its hold", "hold.exceeded written"]);
+    // A settled call above its hold, and the hold.exceeded event that goes with it. Since package 1.4c the checker also
+    // flags that no freeze was written with it (rule 3; the cases with a freeze are in test/overrun.test.ts).
+    expect(rules(checkTrace([opened(1, 1, 0.01), called(2, 1, 0.02), settled(3, 1, 0.01, 0.02), ev(4, "hold.exceeded", {})], [], micro(1)))).toEqual(["a settled call above its hold", "hold.exceeded written", "3: a bill above its hold with no freeze in its transaction"]);
     // A cap change with no new cap cannot be read: it is flagged, and rule (1) still applies after it.
     expect(rules(checkTrace([ev(1, "cap.changed", {}), opened(2, 1, 0.01), opened(3, 2, 0.01)], [], micro(0.015)))).toEqual(["an event the replay cannot read", "1: above the cap"]);
     // A billing point where the view showed too little.

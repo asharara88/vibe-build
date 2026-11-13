@@ -1008,7 +1008,7 @@ describe("holds: found by review, and kept fixed", () => {
     expect(JSON.stringify(await listEvents(pool, id))).toContain("[redacted]");
   });
 
-  it("a bill above the hold is charged in full, recorded as a breach, and raises a fault", async () => {
+  it("a bill above the hold is charged in full, recorded as a breach, and raises a fault; since package 1.4c it also freezes the project, so the next call is refused with nothing forwarded", async () => {
     // The stand-in serves fast mode although the request did not ask and the profile does not allow it.
     const breaches: string[] = [];
     const overHold = () => breaches.filter((m) => m.includes("cost more than its hold")).length;
@@ -1028,14 +1028,26 @@ describe("holds: found by review, and kept fixed", () => {
       near(b.spent, p.actual_usd); // the truth is what is charged
       expect(b.spent).toBeGreaterThan(b.cap); // one bill above its hold has taken spend above the cap
       expect(overHold()).toBe(1);
-      expect((await callAt(g.url, tight.token, plain())).status).toBe(402); // no room is left, so the next call is refused at admission
-      // (2) The fault itself stops nothing: on a project with room left, the call after the breach is admitted as usual.
+      // No room is left either; until package 1.4c the next call was refused at admission for that (budget_reached).
+      // Since 1.4c the freeze written with the bill refuses it first, before its counting call.
+      const tightNext = await callAt(g.url, tight.token, plain());
+      expect(tightNext.status).toBe(402);
+      expect(((await tightNext.json()) as { error: { type: string } }).error.type).toBe("project_frozen");
+      // (2) Until package 1.4c the fault stopped nothing: on a project with room left, the call after the breach was
+      // admitted as usual. Since 1.4c (the owner's answer to question 17, (a)) the project is frozen with the bill:
+      // the call after it is refused as frozen, and nothing is forwarded.
       const roomy = await newProject(5);
       expect((await callAt(g.url, roomy.token, { ...plain("fast-1h"), max_tokens: 300 })).status).toBe(200);
       expect(await listEvents(pool, roomy.id, "hold.exceeded")).toHaveLength(1);
       expect(overHold()).toBe(2);
-      expect((await callAt(g.url, roomy.token, plain())).status).toBe(200);
-      expect(await listEvents(pool, roomy.id, "hold.settled")).toHaveLength(2);
+      const frozen = (await listEvents(pool, roomy.id, "project.frozen")).map((e) => e.payload);
+      expect(frozen).toEqual([expect.objectContaining({ kind: "bill_above_hold", hold_id: (await listEvents(pool, roomy.id, "hold.exceeded"))[0]!.payload["hold_id"] })]);
+      const sent = forwarded;
+      const roomyNext = await callAt(g.url, roomy.token, plain());
+      expect(roomyNext.status).toBe(402);
+      expect(((await roomyNext.json()) as { error: { type: string } }).error.type).toBe("project_frozen");
+      expect(forwarded).toBe(sent);
+      expect(await listEvents(pool, roomy.id, "hold.settled")).toHaveLength(1);
     } finally {
       g.server.close();
     }
