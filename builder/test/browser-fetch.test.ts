@@ -45,16 +45,19 @@ beforeAll(async () => {
       b[1000] = b[1000]! ^ 0xff;
       res.writeHead(200, { "content-length": b.length });
       res.end(b);
-    } else if (path === "/endless") {
-      // No length stated, and more than the approved size: it goes on until the client stops reading.
+    } else if (path === "/too-long") {
+      // No length stated, and four times the approved size. Bounded, so that a fetch without its size limit
+      // fails on the size or fingerprint instead of filling the disk (a first, endless version of this
+      // stand-in did fill the scratch disk for a few seconds when its control removed the limit).
       res.writeHead(200);
+      let sent = 0;
       const more = () => {
-        while (res.write(randomBytes(64 * 1024)) && !res.destroyed) {
-          /* keep writing */
+        while (sent < 4 * BODY.length && !res.destroyed) {
+          sent += 64 * 1024;
+          if (!res.write(randomBytes(64 * 1024))) return void res.once("drain", more);
         }
-        if (!res.destroyed) res.once("drain", more);
+        if (!res.destroyed) res.end();
       };
-      res.on("close", () => seen.push("closed /endless"));
       more();
     } else if (path === "/cut-short") {
       // Says the right length, then the connection ends early.
@@ -140,12 +143,10 @@ describe("fetching the approved browser zip (stand-in server, made-up bytes)", (
 
   it("size: with no length stated, the download stops as soon as more than the approved size arrives", async () => {
     const cache = freshCache();
-    const err = await fetchFrom("/endless", cache, { timeLimitMs: 30_000 }).catch((e: unknown) => e);
+    const err = await fetchFrom("/too-long", cache, { timeLimitMs: 30_000 }).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(FetchRefused);
     expect((err as Error).message).toMatch(new RegExp(`More than the approved ${SOURCE.bytes} bytes arrived; the download was stopped`));
     expect(left(cache)).toEqual([]);
-    await new Promise((r) => setTimeout(r, 200));
-    expect(seen).toContain("closed /endless");
   });
 
   it("SHA-256: a download of the approved size with other bytes is refused and deleted; nothing is put in place", async () => {
