@@ -1,0 +1,49 @@
+Package 1.4, 13 Nov 2026, the review bot's finding on 2ad751d (journal.ts ~:109): the new test B10 (9) run with src/ exactly as at 2ad751d (expected to FAIL)
+Development machine (a cloud session), in builder/. Test database builder_test_pkg14 over the local socket (peer authentication, no password). Stand-in provider only; the key is made up; nothing spent.
+The test holds A's mark-done rename (a wrapper around the file operations, in the test), lets B's append run if it is not held back, then lets the rename go.
+$ git diff --quiet 2ad751d -- src/ && echo "src/ identical to 2ad751d"
+src/ identical to 2ad751d
+$ TMPDIR=<scratchpad>/fix14-tmp BUILDER_TEST_DATABASE_URL='postgres:///builder_test_pkg14?host=/var/run/postgresql' flock <scratchpad>/live-tests.lock npx vitest run test/failures.test.ts -t '^.*B10 \(9\): '
+
+ RUN  v5.1.0 <scratchpad>/wt-14/builder
+
+ ❯ test/failures.test.ts (20 tests | 1 failed | 19 skipped) 98ms
+   ❯ package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) (20)
+     × B10 (9): a second call's ending appended to the journal while the first one's line is being moved to the done file is kept: the move cannot drop it, and a gateway started afterwards still finds it (review bot on 2ad751d) 69ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B10 (9): a second call's ending appended to the journal while the first one's line is being moved to the done file is kept: the move cannot drop it, and a gateway started afterwards still finds it (review bot on 2ad751d)
+AssertionError: expected [] to deeply equal [ 'j_test_8e59c229' ]
+
+- Expected
++ Received
+
+- [
+-   "j_test_8e59c229",
+- ]
++ []
+
+ ❯ test/failures.test.ts:840:74
+    838|       const order = fsWatch.order.slice();
+    839|       // B is still waiting in the journal (once), and only A was move…
+    840|       expect((await journal.pending()).records.map((r) => r.journal_id…
+       |                                                                          ^
+    841|       const done = await readFile(journal.doneFile, "utf8");
+    842|       expect(done).toContain(a.journal_id);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 19 skipped (20)
+   Start at  09:03:50
+   Duration  442ms (transform 49%, tests 29%, import 21%, worker 1%)
+
+vitest exit code: 1
+
+== The same command four more times (src/ still as at 2ad751d); the result lines only ==
+run 2: Tests  1 failed | 19 skipped (20); AssertionError: expected [] to deeply equal [ 'j_test_119f98a3' ]
+run 3: Tests  1 failed | 19 skipped (20); AssertionError: expected [] to deeply equal [ 'j_test_3d243db5' ]
+run 4: Tests  1 failed | 19 skipped (20); AssertionError: expected [] to deeply equal [ 'j_test_a5930af1' ]
+run 5: Tests  1 failed | 19 skipped (20); AssertionError: expected [] to deeply equal [ 'j_test_bdcffd9d' ]

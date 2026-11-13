@@ -184,3 +184,132 @@ $ git checkout -- test/invariants.ts; git diff --exit-code   -> exit 0
 | C26 | B10 (3) | the start-up file replays the journal after it starts listening, not before | Tests  1 failed , 18 skipped (19) | 1 | yes |
 | C27 | B13 | the checker reads a cap change with no new cap as a NaN cap again | Tests  1 failed , 18 skipped (19) | 1 | yes |
 ended 2026-11-13T08:26:55Z
+
+Package 1.4, 13 Nov 2026, after the review bot's finding on 2ad751d (journal appends and the mark-done rewrite): each safeguard of the fix removed in turn, B10 (9) run (expected to FAIL)
+Development machine (a cloud session), in builder/, at commit 9962514. Test database builder_test_pkg14 over the local socket (peer authentication, no password).
+Stand-in provider only; the key is made up; nothing spent. For each control: the change as git diff shows it, the test run, the file restored with git checkout --, and git diff --exit-code (expected 0, clean).
+Started 2026-11-13T09:05:37Z. git diff --exit-code before: exit 0
+
+== C28 (B10 (9)): the journal's queue removed: each file operation runs at once, as at 2ad751d (the one-append guard stays) ==
+$ git diff -- src/gateway/journal.ts
+diff --git a/builder/src/gateway/journal.ts b/builder/src/gateway/journal.ts
+index ae56475..956c746 100644
+--- a/builder/src/gateway/journal.ts
++++ b/builder/src/gateway/journal.ts
+@@ -62,12 +62,7 @@ export class FaultJournal {
+ 
+   /** Run one operation on the journal's files once every one queued before it has ended. */
+   private serial<T>(op: () => Promise<T>): Promise<T> {
+-    const run = this.queue.then(op);
+-    this.queue = run.then(
+-      () => undefined,
+-      () => undefined,
+-    );
+-    return run;
++    return op(); // CONTROL: no queue
+   }
+ 
+   /** Append one record as a line and force it to disk. */
+
+$ TMPDIR=<scratchpad>/fix14-tmp BUILDER_TEST_DATABASE_URL=postgres:///builder_test_pkg14?host=/var/run/postgresql flock <scratchpad>/live-tests.lock npx vitest run test/failures.test.ts -t '^.*B10 \(9\): '
+
+ RUN  v5.1.0 <scratchpad>/wt-14/builder
+
+ ❯ test/failures.test.ts (20 tests | 1 failed | 19 skipped) 109ms
+   ❯ package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) (20)
+     × B10 (9): a second call's ending appended to the journal while the first one's line is being moved to the done file is kept: the move cannot drop it, and a gateway started afterwards still finds it (review bot on 2ad751d) 58ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B10 (9): a second call's ending appended to the journal while the first one's line is being moved to the done file is kept: the move cannot drop it, and a gateway started afterwards still finds it (review bot on 2ad751d)
+AssertionError: expected [] to deeply equal [ 'j_test_d91221e1' ]
+
+- Expected
++ Received
+
+- [
+-   "j_test_d91221e1",
+- ]
++ []
+
+ ❯ test/failures.test.ts:840:74
+    838|       const order = fsWatch.order.slice();
+    839|       // B is still waiting in the journal (once), and only A was move…
+    840|       expect((await journal.pending()).records.map((r) => r.journal_id…
+       |                                                                          ^
+    841|       const done = await readFile(journal.doneFile, "utf8");
+    842|       expect(done).toContain(a.journal_id);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 19 skipped (20)
+   Start at  09:05:38
+   Duration  428ms (tests 34%, transform 34%, import 31%, worker 1%)
+
+vitest exit code: 1
+$ git checkout -- src/gateway/journal.ts; git diff --exit-code   -> exit 0
+
+== C29 (B10 (9)): the one-append guard removed: a drain that reaches a record whose append waits in the queue appends it again (the queue stays) ==
+$ git diff -- src/gateway/journal.ts
+diff --git a/builder/src/gateway/journal.ts b/builder/src/gateway/journal.ts
+index ae56475..6e9847d 100644
+--- a/builder/src/gateway/journal.ts
++++ b/builder/src/gateway/journal.ts
+@@ -193,7 +193,7 @@ export class FaultGate {
+     const w = this.waiting.find((x) => x.rec.journal_id === journalId);
+     const journal = this.o.journal;
+     if (!w || w.journaled || !journal) return;
+-    w.appending ??= journal
++    w.appending = journal // CONTROL: a second append for the same record
+       .append(w.rec)
+       .then(
+         () => {
+
+$ TMPDIR=<scratchpad>/fix14-tmp BUILDER_TEST_DATABASE_URL=postgres:///builder_test_pkg14?host=/var/run/postgresql flock <scratchpad>/live-tests.lock npx vitest run test/failures.test.ts -t '^.*B10 \(9\): '
+
+ RUN  v5.1.0 <scratchpad>/wt-14/builder
+
+ ❯ test/failures.test.ts (20 tests | 1 failed | 19 skipped) 76ms
+   ❯ package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) (20)
+     × B10 (9): a second call's ending appended to the journal while the first one's line is being moved to the done file is kept: the move cannot drop it, and a gateway started afterwards still finds it (review bot on 2ad751d) 52ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B10 (9): a second call's ending appended to the journal while the first one's line is being moved to the done file is kept: the move cannot drop it, and a gateway started afterwards still finds it (review bot on 2ad751d)
+AssertionError: expected [ Array(2) ] to deeply equal [ 'j_test_7cdb938a' ]
+
+- Expected
++ Received
+
+  [
+    "j_test_7cdb938a",
++   "j_test_7cdb938a",
+  ]
+
+ ❯ test/failures.test.ts:840:74
+    838|       const order = fsWatch.order.slice();
+    839|       // B is still waiting in the journal (once), and only A was move…
+    840|       expect((await journal.pending()).records.map((r) => r.journal_id…
+       |                                                                          ^
+    841|       const done = await readFile(journal.doneFile, "utf8");
+    842|       expect(done).toContain(a.journal_id);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 19 skipped (20)
+   Start at  09:05:39
+   Duration  328ms (import 34%, transform 33%, tests 32%, worker 1%)
+
+vitest exit code: 1
+$ git checkout -- src/gateway/journal.ts; git diff --exit-code   -> exit 0
+
+== Summary (C28, C29) ==
+| Control | Row | Safeguard removed | Tests | Vitest exit | git diff clean after |
+| --- | --- | --- | --- | --- | --- |
+| C28 | B10 (9) | the journal's queue removed: each file operation runs at once, as at 2ad751d (the one-append guard stays) | Tests  1 failed , 19 skipped (20) | 1 | yes |
+| C29 | B10 (9) | the one-append guard removed: a drain that reaches a record whose append waits in the queue appends it again (the queue stays) | Tests  1 failed , 19 skipped (20) | 1 | yes |
+ended 2026-11-13T09:05:39Z
