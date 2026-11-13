@@ -1,0 +1,193 @@
+Review bot on 7ce5a33 (P2, builder/src/store/holds.ts:155, settleHold): the race shown before the fix
+
+Run 13 Nov 2026 on the development machine (a cloud session), on the host, against the test database builder_test_pkg12. No provider was called: the test calls the store directly.
+Store and gateway code: as at commit 7ce5a33, unchanged. Test file: 7ce5a33 plus the two new B5 tests only, exactly as committed with the fix in 9dc236d (the change is at the end of this file).
+Each test opens a hold, moves its deadline to one second in the past in the database, runs NO sweep, and then asks the store to end it.
+
+$ git rev-parse HEAD
+7ce5a335d1869acb4edd8559b16cb1c3ada27b36
+$ git status --short
+ M builder/test/gateway.test.ts
+$ git diff --stat
+ builder/test/gateway.test.ts | 55 +++++++++++++++++++++++++++++++++++++++++++-
+ 1 file changed, 54 insertions(+), 1 deletion(-)
+
+$ cd builder && npx vitest run test/gateway.test.ts -t 'before the sweep has marked it|that the sweep has not yet marked' --reporter=verbose   (skipped tests left out below)
+
+ RUN  v5.1.0 /home/user/vibe-build/builder
+
+ × test/gateway.test.ts > holds: proof rows B1 to B6 of the design note > B5: an answer that comes after the hold's deadline, before the sweep has marked it, does not settle it: the hold is marked expired there and then and kept at its full amount 40ms
+   → expected { settled: true, hold: { …(5) }, …(3) } to deeply equal { Object (settled, hold, ...) }
+ × test/gateway.test.ts > holds: proof rows B1 to B6 of the design note > B5: a hold past its deadline that the sweep has not yet marked is not released as never sent either: it is marked expired there and then and kept at its full amount 13ms
+   → expected { Object (released, hold, ...) } to deeply equal { released: false, …(4) }
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/gateway.test.ts > holds: proof rows B1 to B6 of the design note > B5: an answer that comes after the hold's deadline, before the sweep has marked it, does not settle it: the hold is marked expired there and then and kept at its full amount
+AssertionError: expected { settled: true, hold: { …(5) }, …(3) } to deeply equal { Object (settled, hold, ...) }
+
+- Expected
++ Received
+
+  {
+    "events": [
+      "hold.opened",
+-     "hold.expired",
+-     "hold.kept",
++     "model.call",
++     "hold.settled",
+    ],
+    "hold": {
+-     "actual_usd": null,
+-     "closed": false,
+-     "expired": true,
+-     "state": "open",
+-     "unreconciled": true,
++     "actual_usd": "0.001000",
++     "closed": true,
++     "expired": false,
++     "state": "settled",
++     "unreconciled": false,
+    },
+-   "open_holds_usd": 0.03,
+-   "settled": false,
+-   "spent_usd": 0,
++   "open_holds_usd": 0,
++   "settled": true,
++   "spent_usd": 0.001,
+  }
+
+ ❯ test/gateway.test.ts:650:60
+    648|     const hold = await holdPastItsDeadline(id, 0.03);
+    649|     const r = await settleHold(pool, { projectId: id, holdId: hold.id,…
+    650|     expect({ settled: r.settled, ...(await outcome(id)) }).toEqual({
+       |                                                            ^
+    651|       settled: false,
+    652|       hold: { state: "open", expired: true, unreconciled: true, actual…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  test/gateway.test.ts > holds: proof rows B1 to B6 of the design note > B5: a hold past its deadline that the sweep has not yet marked is not released as never sent either: it is marked expired there and then and kept at its full amount
+AssertionError: expected { Object (released, hold, ...) } to deeply equal { released: false, …(4) }
+
+- Expected
++ Received
+
+  {
+    "events": [
+      "hold.opened",
+-     "hold.expired",
++     "hold.settled",
+    ],
+    "hold": {
+-     "actual_usd": null,
+-     "closed": false,
+-     "expired": true,
+-     "state": "open",
+-     "unreconciled": true,
++     "actual_usd": "0.000000",
++     "closed": true,
++     "expired": false,
++     "state": "settled",
++     "unreconciled": false,
+    },
+-   "open_holds_usd": 0.02,
+-   "released": false,
++   "open_holds_usd": 0,
++   "released": true,
+    "spent_usd": 0,
+  }
+
+ ❯ test/gateway.test.ts:667:50
+    665|     const hold = await holdPastItsDeadline(id, 0.02);
+    666|     const released = await releaseUnsentHold(pool, { projectId: id, ho…
+    667|     expect({ released, ...(await outcome(id)) }).toEqual({
+       |                                                  ^
+    668|       released: false,
+    669|       hold: { state: "open", expired: true, unreconciled: true, actual…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 86 skipped (88)
+   Start at  05:50:54
+   Duration  392ms (transform 44%, tests 28%, import 27%, worker 1%)
+
+exit code: 1
+
+====================================================================================================
+The test file's change at the time of this run, as `git diff` shows it:
+diff --git a/builder/test/gateway.test.ts b/builder/test/gateway.test.ts
+index 40c7950..c3e6e8f 100644
+--- a/builder/test/gateway.test.ts
++++ b/builder/test/gateway.test.ts
+@@ -10,7 +10,7 @@ import { createGateway, normalisePath, startHoldKeeper } from "../src/gateway/ap
+ import { costUsd, emptyUsage } from "../src/gateway/cost.js";
+ import { COUNT_MARGIN, computeHold, DEFAULT_PROFILES, guardRequest, type ProfileLimits } from "../src/gateway/hold.js";
+ import { listEvents } from "../src/store/events.js";
+-import { expireHolds, getBudget, listHolds, openHold, settleHold } from "../src/store/holds.js";
++import { expireHolds, getBudget, listHolds, openHold, releaseUnsentHold, settleHold } from "../src/store/holds.js";
+ import { createProject, getSpend, issueProjectToken } from "../src/store/projects.js";
+ import { TEST_DB_URL, testPool, uniqueId } from "./helpers.js";
+ 
+@@ -621,6 +621,59 @@ describe("holds: proof rows B1 to B6 of the design note", () => {
+     }
+   });
+ 
++  // Found by the review bot on 7ce5a33: the sweep that marks holds past their deadline runs every 30 seconds, so a
++  // deadline can pass before the sweep has marked the hold. A settlement or a release that takes the project's lock in
++  // that gap must still treat the hold as past its deadline. Each test below moves the deadline into the past in the
++  // database, as if the lock had been waited for past it, and runs no sweep before the store is asked to end the hold.
++  const holdPastItsDeadline = async (projectId: string, amountUsd: number) => {
++    const o = await openHold(pool, { projectId, step: null, amountUsd, deadline: new Date(Date.now() + 60_000), gateway: "gw_test_store", arithmetic: {}, path: "/v1/messages" });
++    if (!o.ok) throw new Error("hold not opened");
++    // One second ago by the gateway's clock, the clock the sweep and the store judge deadlines by.
++    await pool.query("update holds set deadline_at = $2 where id = $1", [o.hold.id, new Date(Date.now() - 1_000)]);
++    return o.hold;
++  };
++  const outcome = async (projectId: string) => {
++    const h = (await listHolds(pool, projectId))[0]!;
++    const b = await getBudget(pool, projectId);
++    return {
++      hold: { state: h.state, expired: h.expired, unreconciled: h.unreconciled, actual_usd: h.actual_usd, closed: h.closed_at !== null },
++      open_holds_usd: b.openHolds,
++      spent_usd: b.spent,
++      events: await kinds(projectId),
++    };
++  };
++
++  it("B5: an answer that comes after the hold's deadline, before the sweep has marked it, does not settle it: the hold is marked expired there and then and kept at its full amount", async () => {
++    const { id } = await newProject(5);
++    const hold = await holdPastItsDeadline(id, 0.03);
++    const r = await settleHold(pool, { projectId: id, holdId: hold.id, step: null, actualUsd: 0.001, call: { status: 200 } });
++    expect({ settled: r.settled, ...(await outcome(id)) }).toEqual({
++      settled: false,
++      hold: { state: "open", expired: true, unreconciled: true, actual_usd: null, closed: false },
++      open_holds_usd: 0.03, // nothing was released
++      spent_usd: 0,
++      events: ["hold.opened", "hold.expired", "hold.kept"],
++    });
++    expect((await listEvents(pool, id, "hold.expired"))[0]!.payload).toMatchObject({ hold_id: Number(hold.id), amount_usd: 0.03, kept: true, unreconciled: true, still_open: true });
++    // The answer is written down for the owner, with the cost as read; it settles nothing.
++    expect((await listEvents(pool, id, "hold.kept"))[0]!.payload).toMatchObject({ hold_id: Number(hold.id), amount_usd: 0.03, reason: "answer arrived after the hold expired", seen: { status: 200, cost_usd_as_read: 0.001 } });
++    expect((await expireHolds(pool)).filter((h) => h.project_id === id)).toEqual([]); // the sweep, when it comes, has nothing left to mark here
++  });
++
++  it("B5: a hold past its deadline that the sweep has not yet marked is not released as never sent either: it is marked expired there and then and kept at its full amount", async () => {
++    const { id } = await newProject(5);
++    const hold = await holdPastItsDeadline(id, 0.02);
++    const released = await releaseUnsentHold(pool, { projectId: id, holdId: hold.id, step: null, reason: "the caller left before the call was forwarded to the provider (test)" });
++    expect({ released, ...(await outcome(id)) }).toEqual({
++      released: false,
++      hold: { state: "open", expired: true, unreconciled: true, actual_usd: null, closed: false },
++      open_holds_usd: 0.02, // nothing was released
++      spent_usd: 0,
++      events: ["hold.opened", "hold.expired"],
++    });
++    expect((await expireHolds(pool)).filter((h) => h.project_id === id)).toEqual([]); // the sweep, when it comes, has nothing left to mark here
++  });
++
+   it("B6: holds are database rows: a gateway that starts finds the hold an earlier one left open, and keeps it", async () => {
+     const first = await listen(createGateway({ pool, modelApiKey: REAL_KEY, upstreamUrl, profiles: PROFILES, gatewayId: "gw_test_first", onFault: (m) => faults.push(m) }));
+     const { id, token } = await newProject(PLAIN_HOLD * 1.5);
