@@ -4,8 +4,9 @@
  * Before the runner's container starts, the builder checks that the version's files match its manifest
  * and that the manifest matches the builder's own `acceptance.version.written` event, and that the right
  * app answers: Compose reports the project's app container running and healthy, and the app's address
- * answers its sign-in page. A run refused at that point never starts a container, and every item is
- * reported "did not run".
+ * answers its sign-in page, asked from a short-lived container on the runner's own network (`front`),
+ * never from the machine (package 0.6c). A run refused at that point never starts the runner's container,
+ * and every item is reported "did not run".
  *
  * The runner's container (sandbox manager, `acceptance` service) sees the version read-only at
  * /acceptance, a fresh run folder at /results and the sample password at /run/secrets/sample-password,
@@ -34,7 +35,7 @@ export interface AcceptanceRunInput {
   store: AcceptanceStore;
   projectId: string;
   version: string;
-  /** The app's address, as the builder checks it before the start (development profile: the same as the runner's BASE_URL). */
+  /** The app's address, http://app:<port>, as the check container asks it before the start: the same as the runner's BASE_URL. */
   appUrl: string;
   samplePassword: string;
   /** How many items the app spec's checklist has. */
@@ -65,7 +66,11 @@ export interface AcceptanceReport {
   events: Event[];
 }
 
-/** The app container is running and healthy by Compose, and its address answers its sign-in page with 200. */
+/**
+ * The app container is running and healthy by Compose, and its address answers its sign-in page with 200,
+ * asked from a short-lived container of the `check` service on the project's `front` network (package 0.6c):
+ * the builder's own process never connects to the app.
+ */
 export async function appAnswers(sb: Sandbox, appUrl: string): Promise<true | string> {
   let services: Array<{ Service?: string; State?: string; Health?: string }>;
   try {
@@ -78,11 +83,11 @@ export async function appAnswers(sb: Sandbox, appUrl: string): Promise<true | st
   if (!app) return "the project's app container is not running";
   if (app.State !== "running" || app.Health !== "healthy") return `the project's app container is ${app.State ?? "in no state"}${app.Health ? ` (${app.Health})` : ""}`;
   try {
-    const res = await fetch(`${appUrl}/en/sign-in`, { redirect: "manual", signal: AbortSignal.timeout(10_000) });
-    await res.arrayBuffer().catch(() => undefined);
+    const res = await sandboxManager.askApp(sb, `${appUrl}/en/sign-in`);
+    if ("error" in res) return `the app's address did not answer, asked from the project's network (${res.error})`;
     if (res.status !== 200) return `the app's sign-in page answered ${res.status}`;
   } catch (err) {
-    return `the app's address did not answer (${(err as Error).message.split("\n")[0]})`;
+    return `the app's address could not be asked from the project's network (${(err as Error).message.split("\n")[0]})`;
   }
   return true;
 }

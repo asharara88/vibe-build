@@ -9,10 +9,68 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import tls from "node:tls";
 import { promisify } from "node:util";
-import { describe, expect, it, onTestFinished } from "vitest";
-import { BODY_READ_MS, classifyError, countOtherSockets, INTERFACES_ALL, INTERFACES_UP, listInterfaces, MAX_MACHINE_LISTENERS, parseAbstractUnix, parseListeners, parseSettings, parseUdpBound, planAttempts, runAttempt, type PlannedAttempt } from "../scripts/isolation-probe.mjs";
-import { ANSWER_WORDING, cell, columnCell, DIFFERS_BY_CONTAINER, gotAnswer, machineListenersFrom, parseProbeOutput, readMachineSide, RESULT, renderMarkdownTable, renderTable, sessionProxyHostPort, summarise, type ProbeAttempt } from "../src/sandbox/isolation.js";
-import { createSandbox, dockerEnv, sandbox, type Sandbox } from "../src/sandbox/manager.js";
+import { afterAll, describe, expect, it, onTestFinished } from "vitest";
+import { appAnswers } from "../src/acceptance/runner.js";
+import {
+  BODY_READ_MS,
+  classifyError,
+  countOtherSockets,
+  DEFAULT_ROUTE_INFO,
+  INTERFACES_ALL,
+  INTERFACES_UP,
+  IPV6_INFO,
+  ipv6State,
+  listInterfaces,
+  MAX_MACHINE_LISTENERS,
+  parseAbstractUnix,
+  parseListeners,
+  parseRoutes,
+  parseSettings,
+  parseUdpBound,
+  planAttempts,
+  ROUTES_INFO,
+  runAttempt,
+  type PlannedAttempt,
+} from "../scripts/isolation-probe.mjs";
+import {
+  ANSWER_WORDING,
+  cell,
+  columnCell,
+  compareIds,
+  compareWithExpected,
+  DIFFERS_BY_CONTAINER,
+  expectedOnDevelopment,
+  expectedPositiveControls,
+  gotAnswer,
+  machineAddressesFrom,
+  machineListenersFrom,
+  parseProbeOutput,
+  readMachineSide,
+  RESULT,
+  renderMarkdownTable,
+  renderTable,
+  sessionProxyHostPort,
+  summarise,
+  type Comparison,
+  type ProbeAttempt,
+} from "../src/sandbox/isolation.js";
+import { composeDocument, createSandbox, dockerEnv, sandbox, socketOwner, toYaml, type Sandbox, type SandboxSpec } from "../src/sandbox/manager.js";
+import {
+  APP_STAND_IN,
+  buildStandIns,
+  devProbeSettings,
+  freePort,
+  GATEWAY_STAND_IN,
+  leftOf,
+  probeComparison,
+  probeInNetworkOf,
+  probeService,
+  removeImages,
+  runnerStandInImage,
+  runnerStandInImageFor,
+  startCanary,
+  startGatewayStandIn,
+} from "../scripts/isolation-harness.js";
 
 // Package 0.6a. The unit tests call the probe's functions only. Those that make an attempt make it only
 // against made-up servers the test itself starts on the loopback address (127.0.0.1 and "localhost"):
@@ -153,6 +211,145 @@ describe("isolation probe: its own settings and words (unit)", () => {
     // Only an IPv4 gateway, and only "address:port" texts, are accepted.
     for (const bad of [{ bridgeGateway: "gateway.invalid" }, { bridgeGateway: "300.1.1.1" }, { machineListeners: ["2024"] }, { machineListeners: ["0.0.0.0:0"] }, { machineListeners: "0.0.0.0:2024" }])
       expect(() => parseSettings(JSON.stringify({ ...SETTINGS, ...bad })), JSON.stringify(bad)).toThrow(/bridgeGateway|machineListeners/);
+  });
+});
+
+describe("isolation probe, package 0.6c additions (unit)", () => {
+  const S06C = { ...SETTINGS, machineListeners: ["0.0.0.0:2024", "127.0.0.1:5432"], machineAddresses: ["192.0.2.2", "172.17.0.1"], egressHost: "egress", gatewayVia: "egress:4010", peers: ["db:5432", "app:3131"] };
+
+  it("group M: every machine address crossed with every port listening on the machine; E through the egress host named; W1 at the door's gateway port; P by service name", () => {
+    const plan = planAttempts(parseSettings(JSON.stringify(S06C)));
+    expect(plan.filter((a) => a.id.startsWith("M")).map((a) => [a.id, a.op])).toEqual([
+      ["M192.0.2.2:2024", { type: "tcp", host: "192.0.2.2", port: 2024 }],
+      ["M192.0.2.2:5432", { type: "tcp", host: "192.0.2.2", port: 5432 }],
+      ["M172.17.0.1:2024", { type: "tcp", host: "172.17.0.1", port: 2024 }],
+      ["M172.17.0.1:5432", { type: "tcp", host: "172.17.0.1", port: 5432 }],
+    ]);
+    expect(plan.find((a) => a.id === "E1")?.op).toEqual({ type: "connect", proxy: { host: "egress", port: 3128 }, target: "registry.npmjs.org:443" });
+    expect(plan.find((a) => a.id === "E1")?.how).toBe("CONNECT through egress:3128");
+    expect(plan.find((a) => a.id === "W1")).toMatchObject({ toward: "gateway", target: "egress:4010", op: { type: "http", host: "egress", port: 4010, path: "/" } });
+    expect(plan.filter((a) => a.id.startsWith("P")).map((a) => [a.id, a.toward, a.target])).toEqual([
+      ["Pdb:5432", "project", "db:5432"],
+      ["Papp:3131", "project", "app:3131"],
+    ]);
+    // Without the new settings nothing of M, W or P is planned, and E keeps 0.6a's 127.0.0.1.
+    const old = planAttempts(parseSettings(JSON.stringify(SETTINGS)));
+    expect(old.some((a) => /^[MWP]/.test(a.id))).toBe(false);
+    expect(old.find((a) => a.id === "E1")?.how).toBe("CONNECT through 127.0.0.1:3128");
+  });
+
+  it("refuses malformed new settings", () => {
+    for (const bad of [{ machineAddresses: ["not-an-address"] }, { machineAddresses: "192.0.2.2" }, { egressHost: "Egress!" }, { gatewayVia: "egress" }, { gatewayVia: "made-up-user@egress:4010" }, { peers: ["db"] }, { peers: ["db:0"] }])
+      expect(() => parseSettings(JSON.stringify({ ...SETTINGS, ...bad })), JSON.stringify(bad)).toThrow(/machineAddresses|egressHost|gatewayVia|peers/);
+  });
+
+  it("reads routes and IPv6 state from the kernel's text (made-up samples in its format)", () => {
+    const route = [
+      "Iface\tDestination\tGateway \tFlags\tRefCnt\tUse\tMetric\tMask\t\tMTU\tWindow\tIRTT",
+      "eth0\t00000000\t010013AC\t0003\t0\t0\t0\t00000000\t0\t0\t0",
+      "eth0\t000013AC\t00000000\t0001\t0\t0\t0\t0000FFFF\t0\t0\t0",
+    ].join("\n");
+    expect(parseRoutes(route)).toEqual(["to 0.0.0.0/0 via 172.19.0.1 on eth0", "to 172.19.0.0/16 via 0.0.0.0 on eth0"]);
+    expect(parseRoutes("")).toEqual([]);
+    expect(ipv6State(null)).toBe("absent: this kernel has no IPv6 here");
+    expect(ipv6State("")).toBe("present, with no address");
+    expect(ipv6State("fe800000000000000000000000000001 02 40 20 80 eth0")).toBe("fe80:0000:0000:0000:0000:0000:0000:0001 on eth0");
+    expect([ROUTES_INFO, DEFAULT_ROUTE_INFO, IPV6_INFO].every((n) => n.length > 0)).toBe(true);
+  });
+
+  it("reads the machine's addresses from the kernel's tables: loopback and IPv6 link-local left out, each once (made-up samples in their format)", () => {
+    const fib = [
+      "Main:",
+      "  +-- 0.0.0.0/0 3 0 4",
+      "     |-- 0.0.0.0",
+      "        /0 universe UNICAST",
+      "           |-- 127.0.0.1",
+      "              /32 host LOCAL",
+      "           |-- 172.17.0.0",
+      "              /16 link UNICAST",
+      "           |-- 172.17.0.1",
+      "              /32 host LOCAL",
+      "        |-- 172.17.255.255",
+      "           /32 link BROADCAST",
+      "           |-- 192.0.2.2",
+      "              /32 host LOCAL",
+      "Local:",
+      "           |-- 192.0.2.2",
+      "              /32 host LOCAL",
+    ].join("\n");
+    expect(machineAddressesFrom(fib, null)).toEqual(["172.17.0.1", "192.0.2.2"]);
+    const v6 = ["20010db8000000000000000000000001 04 40 00 80 br-x", "fe800000000000000000000000000001 02 40 20 80 eth0", "00000000000000000000000000000001 01 80 10 80 lo"].join("\n");
+    expect(machineAddressesFrom(fib, v6)).toEqual(["172.17.0.1", "192.0.2.2", "2001:db8::1"]);
+  });
+
+  it("orders ids by group, then naturally within a group", () => {
+    const ids = ["P1", "M172.17.0.1:5432", "G45887", "M172.17.0.1:2024", "A1", "W1", "E2", "G2024", "X40000", "M192.0.2.2:2024"].map((id) => ({ id }));
+    expect(ids.sort(compareIds).map((x) => x.id)).toEqual(["A1", "X40000", "G2024", "G45887", "M172.17.0.1:2024", "M172.17.0.1:5432", "M192.0.2.2:2024", "E2", "W1", "P1"]);
+  });
+});
+
+describe("isolation harness: comparing a container's attempts with its expected list (unit, package 0.6c)", () => {
+  const ctx = { appPort: 3131, gatewayServer: /server: gateway-stand-in/ };
+  const end = (n: number) => JSON.stringify({ kind: "end", attempts: n });
+
+  it("passes only when every listed answer came, from whom the list says, and nothing else answered", () => {
+    const runner = parseProbeOutput([
+      attempt({ id: "A2", result: "timed out", code: "TIMEOUT" }),
+      attempt({ id: "M172.17.0.1:2024", toward: "host", result: "network unreachable", code: "ENETUNREACH" }),
+      attempt({ id: "Papp:3131", toward: "project", result: "connected", code: null }),
+      attempt({ id: "X41000", toward: "host", target: "127.0.0.11:41000", result: "connected", code: null }),
+      end(4),
+    ]);
+    const ok = compareWithExpected(runner, expectedOnDevelopment("runner", ctx));
+    expect(ok.pass).toBe(true);
+    expect(ok.rows.map((r) => `${r.id} ${r.pass ? "PASS" : "FAIL"}`)).toEqual(["A2 PASS", "X41000 PASS", "M172.17.0.1:2024 PASS", "Papp:3131 PASS"]);
+    // One answer the list does not allow fails the comparison: here, a machine address that connected.
+    const leak = parseProbeOutput([attempt({ id: "M172.17.0.1:2024", toward: "host", result: "connected", code: null }), attempt({ id: "Papp:3131", toward: "project", result: "connected", code: null }), end(2)]);
+    const c = compareWithExpected(leak, expectedOnDevelopment("runner", ctx));
+    expect(c.pass).toBe(false);
+    expect(c.rows.filter((r) => !r.pass).map((r) => r.id)).toEqual(["M172.17.0.1:2024"]);
+    // A listed answer that did not come fails too, and so does one that was never tried.
+    const silent = parseProbeOutput([attempt({ id: "Papp:3131", toward: "project", result: "name not found", code: "ENOTFOUND" }), end(1)]);
+    expect(compareWithExpected(silent, expectedOnDevelopment("runner", ctx)).pass).toBe(false);
+    const none = compareWithExpected(parseProbeOutput([end(0)]), expectedOnDevelopment("runner", ctx));
+    expect(none.pass).toBe(false);
+    expect(none.missing.length).toBeGreaterThan(0);
+  });
+
+  it("compares who answered, not only that something did: a 403 that is not the egress proxy's own refusal fails, and so does a gateway answer from another server", () => {
+    const eng = (e3detail: string, w1detail: string) =>
+      parseProbeOutput([
+        attempt({ id: "E3", toward: "egress-proxy", result: "proxy answered 403", code: null, detail: e3detail }),
+        attempt({ id: "W1", toward: "gateway", result: "HTTP 200", code: null, detail: w1detail }),
+        end(2),
+      ]);
+    const rowsOf = (r: Comparison) => Object.fromEntries(r.rows.map((x) => [x.id, x.pass]));
+    expect(rowsOf(compareWithExpected(eng('says: "egress refused: example.com is not an allowed host"', "server: gateway-stand-in"), expectedOnDevelopment("engine", ctx)))).toEqual({ E3: true, W1: true });
+    expect(rowsOf(compareWithExpected(eng('says: "Forbidden by the session"', "server: something-else"), expectedOnDevelopment("engine", ctx)))).toEqual({ E3: false, W1: false });
+  });
+
+  it("an unnamed error, an unfinished run, or a stray line fails the comparison", () => {
+    const err = parseProbeOutput([attempt({ id: "A1", result: "error", code: "WHATEVER" }), end(1)]);
+    expect(compareWithExpected(err, []).pass).toBe(false);
+    expect(compareWithExpected(parseProbeOutput([attempt({ id: "A1" })]), []).pass).toBe(false);
+    expect(compareWithExpected(parseProbeOutput(["stray", attempt({ id: "A1" }), end(1)]), []).pass).toBe(false);
+  });
+
+  it("the positive controls must get their answers; the comparison containers' other attempts are not compared", () => {
+    const machine = parseProbeOutput([
+      attempt({ id: "M192.0.2.2:40001", toward: "host", result: "connected", code: null }),
+      attempt({ id: "M172.17.0.1:40001", toward: "host", result: "connected", code: null }),
+      attempt({ id: "A2", result: "HTTP 301", code: null }),
+      end(3),
+    ]);
+    expect(compareWithExpected(machine, expectedPositiveControls("machine", { canaryPort: 40001, bridgeAddress: "172.17.0.1" }), false).pass).toBe(true);
+    const blind = parseProbeOutput([attempt({ id: "M192.0.2.2:40001", toward: "host", result: "refused", code: "ECONNREFUSED" }), end(1)]);
+    expect(compareWithExpected(blind, expectedPositiveControls("machine", { canaryPort: 40001, bridgeAddress: "172.17.0.1" }), false).pass).toBe(false);
+    const bridge = parseProbeOutput([attempt({ id: "M172.17.0.1:40001", toward: "host", result: "connected", code: null }), end(1)]);
+    expect(compareWithExpected(bridge, expectedPositiveControls("default-bridge", { canaryPort: 40001, bridgeAddress: "172.17.0.1" }), false).pass).toBe(true);
+    // The address is matched exactly: 172.17.0.10 is not 172.17.0.1.
+    const near = parseProbeOutput([attempt({ id: "M172.17.0.10:40001", toward: "host", result: "connected", code: null }), end(1)]);
+    expect(compareWithExpected(near, expectedPositiveControls("default-bridge", { canaryPort: 40001, bridgeAddress: "172.17.0.1" }), false).pass).toBe(false);
   });
 });
 
@@ -596,8 +793,7 @@ describe("isolation probe: live, the engine container (development profile)", ()
         allowHosts: ["registry.npmjs.org"],
         gatewayUrl: "http://127.0.0.1:4010",
         builderDir,
-        hostProxy: { url: process.env.HTTPS_PROXY ?? "http://127.0.0.1:1", caBundlePath: "/root/.ccr/ca-bundle.crt" },
-        devDbPort: 5563,
+        hostProxy: { url: process.env.HTTPS_PROXY ?? "http://127.0.0.1:1" },
         engine: { workspace: join(dir, "workspace"), changeSets: join(builderDir, "scripted") },
       },
       "sample-only-password",
@@ -637,4 +833,158 @@ describe("isolation probe: live, the engine container (development profile)", ()
     const left = await run("docker", ["ps", "-a", "--filter", `name=${sb.projectName}-isolation-engine`, "--format", "{{.Names}}"], { env: dockerEnv(sb) });
     expect(left.stdout.trim()).toBe("");
   }, 180_000);
+});
+
+/**
+ * Package 0.6c, live: every project container on the development profile, each compared exactly with its
+ * expected list (design note 2.5, amendment of 13 Nov 2026), with the positive controls and both deliberate
+ * misconfigurations. Stand-in images for the app, tools and runner (scripts/isolation-harness.ts): the
+ * networks come from the Compose file, which is the sandbox manager's, unchanged. The egress proxy goes out
+ * through this session's proxy, so E2 needs the registry to answer through it.
+ */
+describe("isolation: live, every project container on the development profile, compared with its expected list (package 0.6c)", () => {
+  const APP_PORT = 3161;
+  const made: Array<{ sb: Sandbox; dir: string; images: string[] }> = [];
+  let gateway: Awaited<ReturnType<typeof startGatewayStandIn>> | undefined;
+  let canary: Awaited<ReturnType<typeof startCanary>> | undefined;
+  let main: Sandbox | undefined;
+  const ctx = () => ({ appPort: APP_PORT, gatewayServer: new RegExp(`server: ${GATEWAY_STAND_IN}`) });
+
+  /**
+   * A sandbox on the development profile with the three stand-in images, and the engine as package 2.2 would
+   * place it. A deliberate misconfiguration changes the sandbox manager's Compose file before anything starts.
+   */
+  async function makeProject(projectId: string, mutate?: (doc: Record<string, unknown>) => void): Promise<Sandbox> {
+    const dir = mkdtempSync(join(tmpdir(), "builder-iso06c-"));
+    const workspace = join(dir, "workspace");
+    mkdirSync(workspace, { recursive: true });
+    const spec: SandboxSpec = {
+      projectId,
+      dir,
+      profile: "development-cloud-session",
+      allowHosts: ["registry.npmjs.org"],
+      gatewayUrl: `http://127.0.0.1:${gateway!.port}`,
+      builderDir,
+      hostProxy: { url: process.env.HTTPS_PROXY ?? "http://127.0.0.1:1" },
+      buildProxyPort: await freePort(),
+      app: { buildContext: workspace, port: APP_PORT, env: { APP_URL: `http://app:${APP_PORT}` } },
+      engine: { workspace, changeSets: join(builderDir, "scripted"), network: "egress" },
+      acceptance: { image: runnerStandInImageFor(projectId), baseUrl: `http://app:${APP_PORT}` },
+    };
+    const sb = createSandbox(spec, "sample-only-password", { AUTH_SECRET: "made-up-secret", APP_SAMPLE_PASSWORD: "made-up-sample" });
+    expect(runnerStandInImage(sb)).toBe(spec.acceptance!.image);
+    if (mutate) {
+      const doc = composeDocument(spec, socketOwner());
+      mutate(doc);
+      writeFileSync(sb.composeFile, toYaml(doc));
+    }
+    made.push({ sb, dir, images: buildStandIns(sb, projectId) });
+    return sb;
+  }
+
+  const report = (lines: string[]) => parseProbeOutput(lines);
+  const failing = (c: Comparison) => c.rows.filter((r) => !r.pass).map((r) => `${r.id} ${r.target}: expected ${r.expected}; got ${r.actual}`);
+
+  afterAll(async () => {
+    for (const m of made) {
+      await sandbox.destroy(m.sb).catch(() => undefined);
+      // A probe container left by a failed run goes before its image.
+      const left = await run("docker", ["ps", "-aq", "--filter", `name=${m.sb.projectName}-`], { env: dockerEnv(m.sb) }).catch(() => ({ stdout: "" }));
+      for (const id of left.stdout.split("\n").filter(Boolean)) await run("docker", ["rm", "-f", id], { env: dockerEnv(m.sb) }).catch(() => undefined);
+      await removeImages(m.sb, m.images);
+      rmSync(m.dir, { recursive: true, force: true });
+    }
+    await gateway?.close();
+    await canary?.close();
+  });
+
+  it("each project container (app, tools, db, runner, the door, and the engine as package 2.2 would place it) reaches exactly what its list allows", async () => {
+    gateway = await startGatewayStandIn();
+    canary = await startCanary();
+    main = await makeProject("p_iso06c_live");
+    await sandbox.up(main, ["app", "egress"]);
+    const { settings, machineAddresses } = await devProbeSettings(main, { appPort: APP_PORT, gatewayPort: gateway.port });
+    expect(machineAddresses.length).toBeGreaterThan(0);
+    const columns: Array<[string, "app" | "tools" | "db" | "runner" | "engine" | "egress", () => Promise<string[]>]> = [
+      ["app", "app", () => probeService(main!, "app", "app", settings)],
+      ["tools", "tools", () => probeService(main!, "tools", "tools", settings)],
+      ["db", "db", () => probeInNetworkOf(main!, "db", "db", settings)],
+      ["runner", "runner", () => probeService(main!, "acceptance", "runner", settings)],
+      ["engine", "engine", () => probeService(main!, "engine", "engine", settings)],
+      ["egress", "egress", () => probeService(main!, "egress", "door", settings)],
+    ];
+    const results: Record<string, string[]> = {};
+    for (const [label, kind, go] of columns) {
+      const r = report(await go());
+      expect(r.problems, label).toEqual([]);
+      const c = compareWithExpected(r, expectedOnDevelopment(kind, ctx()));
+      results[label] = [...failing(c), ...c.missing.map((m) => `not tried: ${m}`)];
+      // Every machine address was tried on every port, and none answered (also covered by the comparison).
+      expect(r.attempts.filter((a) => a.id.startsWith("M")).length, label).toBe(machineAddresses.length * new Set(JSON.parse(settings).machineListeners.map((l: string) => l.split(":").pop())).size);
+      expect(r.info.find((i) => i.name === DEFAULT_ROUTE_INFO)?.value, label).toBe("no");
+    }
+    // All at once, so that a failure shows every container's differences.
+    expect(results).toEqual({ app: [], tools: [], db: [], runner: [], engine: [], egress: [] });
+  }, 900_000);
+
+  it("the builder's check that the right app answers (package 3.1) asks from a container on `front`: it gets the app; the machine itself cannot even look the app's name up", async () => {
+    expect(await appAnswers(main!, `http://app:${APP_PORT}`)).toBe(true);
+    expect(await sandbox.askApp(main!, `http://app:${APP_PORT}/en/sign-in`)).toEqual({ status: 200 });
+    // From this machine's own process, the app's address leads nowhere.
+    const fromMachine = await fetch(`http://app:${APP_PORT}/en/sign-in`, { signal: AbortSignal.timeout(5000) }).then(
+      (r) => `HTTP ${r.status}`,
+      (e: Error & { cause?: { code?: string } }) => e.cause?.code ?? e.name,
+    );
+    expect(fromMachine).toMatch(/ENOTFOUND|EAI_AGAIN|TimeoutError/);
+  }, 120_000);
+
+  it("the positive controls: from the machine's own network and from Docker's default network, the same settings reach the harness's listener (so the targets and ports are right)", async () => {
+    const { settings } = await devProbeSettings(main!, { appPort: APP_PORT, gatewayPort: gateway!.port });
+    const bridgeAddress = (await run("docker", ["network", "inspect", "bridge", "--format", "{{range .IPAM.Config}}{{.Gateway}}{{end}}"], { env: dockerEnv(main!) })).stdout.trim();
+    const onMachine = report(await probeComparison(main!, "host", settings));
+    const onBridge = report(await probeComparison(main!, "bridge", settings));
+    const m = compareWithExpected(onMachine, expectedPositiveControls("machine", { canaryPort: canary!.port, bridgeAddress }), false);
+    const b = compareWithExpected(onBridge, expectedPositiveControls("default-bridge", { canaryPort: canary!.port, bridgeAddress }), false);
+    expect({ machine: [...failing(m), ...m.missing], bridge: [...failing(b), ...b.missing] }).toEqual({ machine: [], bridge: [] });
+    // And each got more answers than any project container is allowed.
+    expect(onMachine.attempts.filter((a) => gotAnswer(a.result)).length).toBeGreaterThan(5);
+    expect(onBridge.attempts.filter((a) => gotAnswer(a.result)).length).toBeGreaterThan(1);
+  }, 600_000);
+
+  it("deliberate misconfiguration 1: the app given a way out (also on an ordinary bridge) fails the app's comparison", async () => {
+    const sb = await makeProject("p_iso06c_mis1", (doc) => {
+      (doc.networks as Record<string, unknown>).ext = { enable_ipv6: false };
+      (doc.services as Record<string, { networks?: string[] }>).app!.networks = ["data", "front", "ext"];
+    });
+    await sandbox.up(sb, ["db"]);
+    const { settings } = await devProbeSettings(sb, { appPort: APP_PORT, gatewayPort: gateway!.port });
+    const c = compareWithExpected(report(await probeService(sb, "app", "app-misconfigured", settings)), expectedOnDevelopment("app", ctx()));
+    expect(c.pass).toBe(false);
+    // What gave it away: answers from outside, or from the machine at its new bridge's address.
+    expect(c.rows.filter((r) => !r.pass && /^(A|B|D1|D5|M)/.test(r.id)).length).toBeGreaterThan(0);
+  }, 600_000);
+
+  it("deliberate misconfiguration 2: the data network made internal without the isolated gateway mode fails the comparison (the machine is reached at that network's address)", async () => {
+    const sb = await makeProject("p_iso06c_mis2", (doc) => {
+      (doc.networks as Record<string, unknown>).data = { internal: true, enable_ipv6: false };
+    });
+    await sandbox.up(sb, ["db"]);
+    // Read after the network exists: its address on the machine appears only then.
+    const { settings, machineAddresses } = await devProbeSettings(sb, { appPort: APP_PORT, gatewayPort: gateway!.port });
+    const c = compareWithExpected(report(await probeService(sb, "tools", "tools-misconfigured", settings)), expectedOnDevelopment("tools", ctx()));
+    expect(c.pass).toBe(false);
+    const leaked = c.rows.filter((r) => !r.pass);
+    expect(leaked.some((r) => r.id.startsWith("M") && r.id.endsWith(`:${canary!.port}`)), JSON.stringify({ leaked, machineAddresses })).toBe(true);
+  }, 600_000);
+
+  it("everything made is removed", async () => {
+    const left: string[] = [];
+    for (const m of made) {
+      await sandbox.destroy(m.sb);
+      await removeImages(m.sb, m.images);
+      left.push(await leftOf(m.sb));
+    }
+    for (const l of left) expect(l).toBe("containers: none; named containers: none; networks: none; volumes: none; images: none");
+    expect(APP_STAND_IN).toBe("app-stand-in");
+  }, 300_000);
 });

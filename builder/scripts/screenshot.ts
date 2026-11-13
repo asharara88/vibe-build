@@ -1,17 +1,21 @@
 /**
  * Take screenshots of a running template or app for the evidence folder, as a person would see it.
- * Usage: npx tsx scripts/screenshot.ts <baseUrl> <outDir> <samplePassword>
  * Pages: sign-in (en, ar), home after signing in as the employee (en, ar), phone-width sign-in.
+ *
+ * It runs only inside the project's acceptance runner container, on the project's `front` network, never on
+ * the machine (package 0.6c): scripts/browser-in-project.ts starts it there with
+ * <baseUrl> <outDir> <samplePasswordFile>, the base address being http://app:<port>.
  */
-import { mkdirSync } from "node:fs";
+import { mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { chromium } from "playwright";
 
-const [baseUrl, outDir, password] = process.argv.slice(2);
-if (!baseUrl || !outDir || !password) {
-  console.error("usage: screenshot.ts <baseUrl> <outDir> <samplePassword>");
+const [baseUrl, outDir, passwordFile] = process.argv.slice(2);
+if (!baseUrl || !outDir || !passwordFile) {
+  console.error("usage: screenshot.ts <baseUrl> <outDir> <samplePasswordFile>");
   process.exit(1);
 }
+const password = readFileSync(passwordFile, "utf8").trim();
 mkdirSync(outDir, { recursive: true });
 
 const browser = await chromium.launch();

@@ -3,27 +3,23 @@
 # (13 Nov 2026, question 11 (a); builder/approved-images.json). The builder's check fails on any other.
 FROM node:22-alpine@sha256:0e1754758c2df4cfa3e68d59e2e1b7374bb7fd9ea6328eaaacf15cc934af8202 AS build
 WORKDIR /app
-# On the development profile the sandbox manager runs this build on the host's network, gives it the
-# cloud session's proxy as build arguments and puts the session's certificate in certs/. On that
-# machine an HTTPS request to the registry, sent directly from a container with no copy of the
-# certificate, got a certificate it did not trust; from one with a copy it got 200 (package 0.6a,
-# 12 Nov 2026, attempt A1). That proxy is not the machine's only way out: requests sent with no proxy
-# also got answers (evidence/2026-11-12-package-0.6a/isolation-checks.md).
-# The proxy's address is passed as a build argument that Docker predefines (HTTPS_PROXY, HTTP_PROXY):
-# it reaches the build steps and, because it is not declared here, it is not recorded in the image's
-# history. The certificate is copied into this build stage: the app image (the `run` stage) does not
-# contain it; the tools image, which is this stage, does, on the development profile only.
-ARG NODE_EXTRA_CA_CERTS
-COPY certs/ /certs/
-RUN if [ -f /certs/session-ca.crt ]; then npm config set cafile /certs/session-ca.crt; fi
+# On the development profile the sandbox manager runs this build on the host's network and gives it, as
+# build arguments that Docker predefines (HTTPS_PROXY, HTTP_PROXY), the project's egress proxy on the
+# machine's loopback address, with the package registry as its only allowed host; that proxy goes out
+# through the cloud session's proxy (package 0.6c). Because the arguments are not declared here, they are
+# not recorded in the image's history. No certificate is given to the build: npm's HTTPS goes through the
+# proxy as a tunnel, and the registry's own certificate is checked against the image's public roots.
 COPY package.json package-lock.json ./
 # The empty stand-in for the image library sharp, which is deliberately not installed (see README).
 COPY vendor/ ./vendor/
-RUN npm ci --no-fund --no-audit
+# Install scripts off: no package's script, and nothing a project's workspace adds, runs while the network
+# is open (package 0.6c; a script planted in vendor/ ran with plain `npm ci`, not with this flag).
+RUN npm ci --ignore-scripts --no-fund --no-audit
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
+# The guard check and the build run the workspace's own code, so they get no network at all.
 # The build needs no database or secret: pages that need them render at request time.
-RUN DATABASE_URL=postgres://build:build@localhost/build AUTH_SECRET=build-time-placeholder-not-a-secret-0000 npm run build
+RUN --network=none DATABASE_URL=postgres://build:build@localhost/build AUTH_SECRET=build-time-placeholder-not-a-secret-0000 npm run build
 
 # The tools image: creates the tables and the sample users, in a container, never on the machine
 # that hosts the builder (package 0.5). It is the build stage, with its development tools, run as

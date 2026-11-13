@@ -43,7 +43,8 @@ const skipWhy = !dockerThere ? " (SKIPPED: Docker is not there)" : !zipThere ? "
 
 describe.skipIf(!dockerThere || !zipThere)(`acceptance runner: live, development profile, stand-in test${skipWhy}`, () => {
   const APP_PORT = 3151;
-  const DB_PORT = 5581;
+  /** The port on the machine's loopback address where the image build's npm finds the egress proxy (package 0.6c). */
+  const BUILD_PROXY_PORT = 13181;
   const projectId = uniqueId("p_acc_live");
   let pool: pg.Pool;
   let dataDir: string;
@@ -86,7 +87,7 @@ describe.skipIf(!dockerThere || !zipThere)(`acceptance runner: live, development
   }, 1_800_000);
 
   it("the stand-in version is written before step 01; steps 01 and 02 run; run A: item 1 passes, with its screenshot and its events", async () => {
-    x = await makeExample1({ projectId, appPort: APP_PORT, dbPort: DB_PORT, runnerImage: RUNNER_IMAGE });
+    x = await makeExample1({ projectId, appPort: APP_PORT, buildProxyPort: BUILD_PROXY_PORT, runnerImage: RUNNER_IMAGE });
     store = openStore(dataDir, { refuse: [x.dir] });
     await createProject(pool, { id: projectId, name: "Package 3.1 live test (made-up)", capUsd: 0 });
     version = await writeStandInVersion(pool, store, projectId, "example-1");
@@ -176,7 +177,7 @@ describe.skipIf(!dockerThere || !zipThere)(`acceptance runner: live, development
 
   it("run D, the deliberately broken copy in a fresh sandbox under the same project id, with the same version: item 1 failed, at step 'sees status waiting'", async () => {
     await destroyExample1(x!);
-    x = await makeExample1({ projectId, appPort: APP_PORT, dbPort: DB_PORT, runnerImage: RUNNER_IMAGE });
+    x = await makeExample1({ projectId, appPort: APP_PORT, buildProxyPort: BUILD_PROXY_PORT, runnerImage: RUNNER_IMAGE });
     for (const step of ["01-data", "02-submitter-screen"]) expect((await runStep(x, step)).ok, step).toBe(true);
     expect((await git(x.repo, ["rev-parse", "HEAD^{tree}"])).trim()).toBe(passTree);
     stageBrokenStep(x);
