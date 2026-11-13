@@ -13,6 +13,10 @@
  *   4. once written, moves the line to the journal's "done" file (copied there and forced to disk first,
  *      then the journal rewritten through a temporary file and a rename). Nothing is deleted.
  *
+ * Every operation on the journal's files (an append, the read of what is waiting, a move to the done file)
+ * passes through one queue per journal, each whole before the next begins (review bot on 2ad751d): an
+ * append can no longer land between a move's read and its rename, where the rename dropped it (B10 (9)).
+ *
  * A journal belongs to one gateway process: its folder is fixed for a deployment
  * (BUILDER_GATEWAY_JOURNAL_DIR), not tied to the gateway's id, which is new at each start. One process per
  * folder is not enforced (known gaps). The record never holds the model key: it is built from what the
@@ -34,6 +38,8 @@ const DONE = "unrecorded-endings.done.jsonl";
 export class FaultJournal {
   readonly file: string;
   readonly doneFile: string;
+  /** The tail of this journal's queue: every file operation waits for the one before it, failed or not. One process only (known gap 105). */
+  private queue: Promise<void> = Promise.resolve();
   private constructor(readonly dir: string) {
     this.file = join(dir, JOURNAL);
     this.doneFile = join(dir, DONE);
@@ -54,13 +60,33 @@ export class FaultJournal {
     return new FaultJournal(dir);
   }
 
+  /** Run one operation on the journal's files once every one queued before it has ended. */
+  private serial<T>(op: () => Promise<T>): Promise<T> {
+    const run = this.queue.then(op);
+    this.queue = run.then(
+      () => undefined,
+      () => undefined,
+    );
+    return run;
+  }
+
   /** Append one record as a line and force it to disk. */
-  async append(rec: UnrecordedEnding): Promise<void> {
-    await appendSynced(this.file, JSON.stringify(rec) + "\n");
+  append(rec: UnrecordedEnding): Promise<void> {
+    const line = JSON.stringify(rec) + "\n";
+    return this.serial(() => appendSynced(this.file, line));
   }
 
   /** The records in the journal not yet written to the database, and the lines that could not be read. */
-  async pending(): Promise<{ records: UnrecordedEnding[]; unreadable: string[] }> {
+  pending(): Promise<{ records: UnrecordedEnding[]; unreadable: string[] }> {
+    return this.serial(() => this.readPending());
+  }
+
+  /** Move a recorded line to the done file: copied there and forced to disk first, then removed from the journal by a rewrite and a rename. The whole move is one operation of the queue. */
+  markDone(journalId: string): Promise<void> {
+    return this.serial(() => this.moveToDone(journalId));
+  }
+
+  private async readPending(): Promise<{ records: UnrecordedEnding[]; unreadable: string[] }> {
     let text: string;
     try {
       text = await readFile(this.file, "utf8");
@@ -83,8 +109,7 @@ export class FaultJournal {
     return { records, unreadable };
   }
 
-  /** Move a recorded line to the done file: copied there and forced to disk first, then removed from the journal by a rewrite and a rename. */
-  async markDone(journalId: string): Promise<void> {
+  private async moveToDone(journalId: string): Promise<void> {
     const text = await readFile(this.file, "utf8").catch(() => "");
     const lines = text.split("\n").filter((l) => l.trim() !== "");
     const isIt = (l: string) => {
@@ -140,7 +165,7 @@ async function syncDir(dir: string): Promise<void> {
  * journal (in tests) it keeps the records in memory only.
  */
 export class FaultGate {
-  private readonly waiting: Array<{ rec: UnrecordedEnding; journaled: boolean }> = [];
+  private readonly waiting: Array<{ rec: UnrecordedEnding; journaled: boolean; appending?: Promise<void> }> = [];
   private draining: Promise<boolean> | null = null;
   constructor(private readonly o: { pool: pg.Pool; journal?: FaultJournal | null; onFault?: (message: string, detail: unknown) => void }) {}
 
@@ -159,16 +184,29 @@ export class FaultGate {
     if (!this.waiting.some((w) => w.rec.journal_id === rec.journal_id)) this.waiting.push({ rec, journaled: false });
   }
 
-  /** Append the record to the journal and force it to disk. A failure leaves the gate closed and the record in memory. */
+  /**
+   * Append the record to the journal and force it to disk. A failure leaves the gate closed and the record in memory.
+   * One append per record at a time: a drain that reaches the record while its append waits in the journal's
+   * queue waits for that append instead of queueing a second line.
+   */
   async persist(journalId: string): Promise<void> {
     const w = this.waiting.find((x) => x.rec.journal_id === journalId);
-    if (!w || w.journaled || !this.o.journal) return;
-    try {
-      await this.o.journal.append(w.rec);
-      w.journaled = true;
-    } catch (err) {
-      this.o.onFault?.("A call's ending could not be written to the gateway's journal file either. The gateway forwards nothing until it is written to the event log.", { journal_id: journalId, error: summary(err) });
-    }
+    const journal = this.o.journal;
+    if (!w || w.journaled || !journal) return;
+    w.appending ??= journal
+      .append(w.rec)
+      .then(
+        () => {
+          w.journaled = true;
+        },
+        (err: unknown) => {
+          this.o.onFault?.("A call's ending could not be written to the gateway's journal file either. The gateway forwards nothing until it is written to the event log.", { journal_id: journalId, error: summary(err) });
+        },
+      )
+      .finally(() => {
+        w.appending = undefined;
+      });
+    await w.appending;
   }
 
   /** Load the journal's lines not yet written (at start-up, before taking calls) and try to write them. */
