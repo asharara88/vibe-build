@@ -348,7 +348,7 @@ Only records conflicted; no code file did. Each kept both sides.
 | `docs/KNOWN-GAPS.md` | In number order: 0.6c's 118 to 128, then J1's 130 to 139, then 140 to 147. No number collides; none renumbered |
 | `docs/STATUS.md` | Rewritten from both: 0.6c merged (#36) and what it gives; J1 then not yet run on its networks (rewritten again at the end of this work) |
 
-Also merged without a conflict, and checked by reading: 0.6c's changes to gaps 1, 60 and 70, its `docs/BUILD-PLAN.md` rows, `docs/SOURCES.md` and `docs/design/stage-1.md`. The merge commit alone does not typecheck: J1's adapter still called `makeExample1` with the database port 0.6c removed (6 errors, all in J1's files); `1b4a5cb` is the fix.
+Also merged without a conflict, and checked by reading: 0.6c's changes to gaps 1, 2, 14, 50, 60, 69, 70 and 75, all eight it changed, each row intact, byte for byte as 0.6c left it (compared after the independent check of `b228d94`: `run-gaps-intact-checkfix.txt`); its `docs/BUILD-PLAN.md` rows, `docs/SOURCES.md` and `docs/design/stage-1.md`. The merge commit alone does not typecheck: J1's adapter still called `makeExample1` with the database port 0.6c removed (6 errors, all in J1's files); `1b4a5cb` is the fix.
 
 ### What 0.6c changed under J1, and each adaptation
 
@@ -432,3 +432,54 @@ From every project container, the owner's interface's port 4020 at each address 
 ### Not reviewed yet
 
 No reviewer has read this merge or these changes.
+
+## After the independent check of b228d94
+
+*13 Nov 2026.* An independent check of `b228d94` found the code sound and reported five points; each is fixed below. Code and tests: commit `9c2da4d`; these records: the commit after it. Every output named here is in this folder.
+
+### The five points
+
+| Point | Done | Shown by |
+| --- | --- | --- |
+| 1. `docs/STATUS.md` had dropped the budget caveat both parents carried | Restored in item 5: shown against a stand-in only; the first bill above its hold is charged in full and only then freezes the project (gap 114); holds are estimates plus a margin, not ceilings | `docs/STATUS.md`, 400 words (`wc -w`) |
+| 2. `docs/STATUS.md` did not say plainly that the interface on 127.0.0.1:4020 is an older copy | Item 4 now says it: an older copy, from before 0.6c, whose projects still use the old arrangement (the app published on the machine) until Claude Code restarts it from this code once J1 merges; "Next" says the same restart | `docs/STATUS.md` |
+| 3. The camera's network check read the service's networks only | `frontOnlyProblem` (`builder/src/orchestrator/example-1-adapter.ts:160`), in the same Compose reading, now also refuses unless the top-level `networks.front` is `internal` (`:172`) and carries `com.docker.network.bridge.gateway_mode_ipv4` "isolated" (`:174`), the option by the name 0.6c's manager writes it: the name is typed against the manager's `PROJECT_NETWORK` (`:151`), so a change there does not typecheck here, and a missing value refuses | `journey.test.ts:992` (made-up readings: front an ordinary bridge, `internal` left out or false; front without the option, with an empty set, with "nat", with the IPv6 option only; no front network; each refused, and through a made-up `docker` program); `journey.test.ts:939` (the real compose file of a journey sandbox, read by the real Compose: no problem; the same file with `internal: true` dropped from `front`, and with the option dropped, each refused with its reason). Controls J1-C86 to J1-C89 |
+| 4. The camera address test ran `camera/app-shots.mjs` on this machine without first knowing the runner's playwright was absent | `journey.test.ts:1065`: before the script is run at all, the test reads the script's imports (exactly `node:fs` and the one browser import, `/runner/node_modules/playwright-core/index.mjs`) and requires that path and its folder to be absent here (`:1074`); present, the test fails there and the script is not run. Its purpose is kept: nine wrong addresses stop before the browser; `http://app:3161` gets past the check and fails only for want of the module (`ERR_MODULE_NOT_FOUND`, `:1086`) | Controls J1-C90 and J1-C91 |
+| 5. This file named three of the gaps 0.6c changed | Part "On the private networks (0.6c)", the conflicts' paragraph, now names all eight: 1, 2, 14, 50, 60, 69, 70 and 75, each checked intact | `run-gaps-intact-checkfix.txt`: the rows 0.6c's merge changed, found from the diff (`c6f4056` to `6ddd0d6`), each the same byte for byte at `b228d94` and `9c2da4d` as at `6ddd0d6`, one row per number, none changed on J1's side |
+
+To keep `docs/STATUS.md` within 400 words with points 1 and 2 in it, other items were shortened: the journey's list of screens, "nothing on the machine connects to the app", the green "Passed" rule, the 0.6c and B10 blockers merged into one line. Each is still in this file; no fact was changed. Its "Checked" line now says the automated run and 0.6c's isolation run were from before these fixes.
+
+### The controls
+
+On a copy of `9c2da4d` (the evidence left out), no container (`docker compose config` only reads a file); scripts in `controls-checkfix-scripts/`, output in `run-controls-checkfix.txt`. Baseline first: the three tests passed unchanged.
+
+| Control | What was removed or changed | Result |
+| --- | --- | --- |
+| J1-C86 | The check that `front` is internal | Both tests failed: the made-up readings (an ordinary bridge let through) and the real Compose's reading of `compose-front-bridge.yaml` (let through) |
+| J1-C87 | The check of the isolated option | Both failed: the made-up readings and `compose-front-not-isolated.yaml` let through |
+| J1-C88 | The whole new check (as at `b228d94`) | Both failed: an ordinary-bridge reading let through, in each |
+| J1-C89 | The option read under another name (the IPv6 one) | Both failed (the right reading refused); and the typecheck failed (exit code 1: the name does not satisfy the type of 0.6c's manager's option) |
+| J1-C90 | A stand-in for the runner's playwright put at the path the script imports from (in the controls' temporary folder; the script and the test pointed there, never at `/runner` on this machine) | The test failed at the new check, before the script ran: the stand-in was not loaded (its marker file absent) |
+| J1-C91 | The same, with the new check removed (the counter-control) | The script ran and loaded the stand-in (its marker file written): what the new check prevents |
+
+`/runner` did not exist on this machine before or after the controls; the copy was the same as a fresh one of `9c2da4d` afterwards.
+
+### What was run, and the results
+
+| Check | Result | Output |
+| --- | --- | --- |
+| `npm run typecheck` | Passed, exit code 0, on `9c2da4d` | `run-typecheck-checkfix.txt` |
+| The whole suite, live tests included, under the shared lock, with the approved zip, a fresh database of its own | **600 of 600** in 26 files, none skipped, exit code 0, 596 s (lock held 16:32:01 to 16:41:58 UTC); no container before or after. The controls ran before it (16:31:26 to 16:31:38 UTC); the typecheck and the licence check, which start no container, during it | `run-tests-full-checkfix.txt` (wrapper: `controls-checkfix-scripts/full-suite.sh`) |
+| `npm run check:licences` | Passed, exit code 0 (the builder and the runner); no dependency added | `run-licences-checkfix.txt` |
+| The eight gap rows | Intact | `run-gaps-intact-checkfix.txt` |
+| The controls | 6 of 6 as expected (J1-C86 to J1-C91; the first four each failing two tests) | `run-controls-checkfix.txt` |
+
+### Checked and assumed
+
+- **Checked:** each point by reading the changed text against the check's words; points 3 and 4 by tests that fail without them (the controls above); the real compose file of a journey sandbox, read by the real Compose, passes the wider check; the eight gap rows by comparing them.
+- **Not run again:** the automated run (54 checks) and 0.6c's isolation run, last run on `f5618c9`. The change to the camera's network check runs in the automated run's app camera step; its effect on the real file is shown by the real-Compose test above, not by a new automated run. `docs/STATUS.md` says these two were run before the last fixes.
+- **Not touched:** the owner's own interface on 127.0.0.1:4020, its folder and its database.
+
+### Not reviewed yet
+
+No reviewer has read these fixes.
