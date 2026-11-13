@@ -1,14 +1,21 @@
 /**
- * The egress proxy: on the server profile, designed to be the only way out of a project's
- * containers (designed, not shown: package 0.6b). On the development profile it is not: package
- * 0.6a's run went round it (evidence/2026-11-12-package-0.6a/isolation-checks.md; known gaps 1 and 60).
+ * The egress proxy: the only way out of a project's containers.
+ * - Server profile: it runs in its own container on the project's `out` network and on an ordinary
+ *   bridge, and connects directly (designed, not shown: package 0.6b).
+ * - Development profile (package 0.6c): it runs on the machine's network (`egress-machine-main.ts`) and
+ *   listens only on a Unix socket in the project's socket folder, which a small door container on the
+ *   project's `out` network forwards to, and on one port of the machine's loopback address for the image
+ *   build. It goes out only through the cloud session's proxy; it refuses to start without one.
  *
  * It is a plain HTTP proxy that allows exactly the hosts it is told to allow and refuses
  * everything else, logging each decision as one JSON line. It handles HTTPS by tunnelling
  * (the CONNECT method), so it never sees or alters the content of an HTTPS exchange.
  *
- * On the development machine the proxy itself must go out through the session's proxy
- * (EGRESS_UPSTREAM_PROXY); on a server it connects directly.
+ * Its way out is set explicitly (`parseUpstream`): the word "direct", accepted only where the caller
+ * allows it (the server profile), or a proxy's address with a host and a port. An empty, missing or
+ * malformed setting is refused, so the proxy never goes out directly by accident: package 0.6c's
+ * measurement saw an empty setting send requests straight out, past the session's proxy
+ * (evidence/2026-11-13-package-0.6c/measure/08-upstream-empty-or-wrong.txt).
  *
  * Design note: docs/design/stage-1.md, section 2.5. Known gap 14 explains how this differs
  * from the secure-deployment guide's "no network at all" pattern.
@@ -20,10 +27,39 @@ import { URL } from "node:url";
 export interface EgressOptions {
   /** Hostnames allowed, exact match or "*.example.com" for subdomains. */
   allow: string[];
-  /** Upstream proxy URL, e.g. http://127.0.0.1:46857, or none for a direct connection. */
+  /**
+   * Upstream proxy URL, e.g. http://127.0.0.1:46857, or none for a direct connection. Given as text, it
+   * must be a proxy address with a host and a port (`parseUpstream`); anything else throws.
+   */
   upstreamProxy?: string;
   /** Called with one record per decision. Default: JSON line to stdout. */
   log?: (record: EgressRecord) => void;
+  /** How long the upstream proxy has to answer a tunnel request before the client is told 504. Default 30 s. */
+  upstreamTimeoutMs?: number;
+}
+
+/**
+ * The egress proxy's way out, checked (package 0.6c). "direct" means no upstream proxy and is accepted only
+ * when `allowDirect` is true (the server profile). Anything else must be a plain-HTTP proxy address with a
+ * host and a port, such as http://127.0.0.1:46857; only its host and port are used, so a user name or
+ * password in it is never sent. An empty, missing or malformed value throws: the proxy must not fall back
+ * to going out directly.
+ */
+export function parseUpstream(value: string | undefined, opts: { allowDirect: boolean }): URL | null {
+  const v = (value ?? "").trim();
+  if (v === "direct") {
+    if (opts.allowDirect) return null;
+    throw new Error('The egress proxy\'s way out is "direct", which this profile does not allow: it must go out through the cloud session\'s proxy.');
+  }
+  if (!v) throw new Error("The egress proxy's way out (EGRESS_UPSTREAM_PROXY) is empty or missing: it refuses to start rather than go out directly.");
+  let u: URL;
+  try {
+    u = new URL(v);
+  } catch {
+    throw new Error("The egress proxy's way out (EGRESS_UPSTREAM_PROXY) is not an address: it refuses to start.");
+  }
+  if (u.protocol !== "http:" || !u.hostname || !u.port) throw new Error("The egress proxy's way out (EGRESS_UPSTREAM_PROXY) must be http://host:port, with a host and a port: it refuses to start.");
+  return new URL(`http://${u.host}`);
 }
 
 export interface EgressRecord {
@@ -46,7 +82,8 @@ export function hostAllowed(host: string, allow: string[]): boolean {
 
 export function createEgressProxy(opts: EgressOptions): http.Server {
   const log = opts.log ?? ((r: EgressRecord) => process.stdout.write(JSON.stringify(r) + "\n"));
-  const upstream = opts.upstreamProxy ? new URL(opts.upstreamProxy) : null;
+  const upstream = opts.upstreamProxy === undefined ? null : parseUpstream(opts.upstreamProxy, { allowDirect: false });
+  const upstreamTimeoutMs = opts.upstreamTimeoutMs ?? 30_000;
   const record = (method: string, host: string, port: number, decision: EgressRecord["decision"], detail?: string) =>
     log({ at: new Date().toISOString(), method, host, port, decision, detail });
 
@@ -92,7 +129,9 @@ export function createEgressProxy(opts: EgressOptions): http.Server {
     }
     record("CONNECT", host, port, "allowed");
     if (!upstream) {
+      let opened = false;
       const target = net.connect(port, host, () => {
+        opened = true;
         clientSocket.write("HTTP/1.1 200 Connection Established\r\n\r\n");
         if (head.length) target.write(head);
         target.pipe(clientSocket);
@@ -100,7 +139,8 @@ export function createEgressProxy(opts: EgressOptions): http.Server {
       });
       target.on("error", (e) => {
         record("CONNECT", host, port, "error", e.message);
-        clientSocket.destroy();
+        if (!opened && !clientSocket.destroyed) clientSocket.end(`HTTP/1.1 502 Bad Gateway\r\nContent-Type: text/plain\r\n\r\negress error: ${e.message}\n`);
+        else clientSocket.destroy();
       });
       clientSocket.on("error", () => target.destroy());
       return;
@@ -111,6 +151,18 @@ export function createEgressProxy(opts: EgressOptions): http.Server {
     });
     let established = false;
     let buffer = Buffer.alloc(0);
+    // Until the upstream proxy has answered, every way the attempt can end gives the client an answer of
+    // ours, never silence (package 0.6c, measurement item 8): 502 when the upstream refuses, fails or closes
+    // first, 504 when it says nothing within the limit.
+    const failBeforeTunnel = (status: "502 Bad Gateway" | "504 Gateway Timeout", detail: string) => {
+      if (established) return;
+      established = true;
+      clearTimeout(timer);
+      record("CONNECT", host, port, "error", detail);
+      if (!clientSocket.destroyed) clientSocket.end(`HTTP/1.1 ${status}\r\nContent-Type: text/plain\r\n\r\negress error: ${detail}\n`);
+      tunnel.destroy();
+    };
+    const timer = setTimeout(() => failBeforeTunnel("504 Gateway Timeout", `the upstream proxy did not answer within ${upstreamTimeoutMs} ms`), upstreamTimeoutMs);
     tunnel.on("data", (chunk: Buffer | string) => {
       if (established) return;
       buffer = Buffer.concat([buffer, Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)]);
@@ -118,14 +170,12 @@ export function createEgressProxy(opts: EgressOptions): http.Server {
       if (end < 0) return;
       const statusLine = buffer.subarray(0, end).toString().split("\r\n")[0] ?? "";
       const rest = buffer.subarray(end + 4);
-      established = true;
       if (!/^HTTP\/1\.[01] 200/.test(statusLine)) {
-        record("CONNECT", host, port, "error", `upstream answered: ${statusLine}`);
-        clientSocket.write("HTTP/1.1 502 Bad Gateway\r\n\r\n");
-        clientSocket.destroy();
-        tunnel.destroy();
+        failBeforeTunnel("502 Bad Gateway", `upstream answered: ${statusLine}`);
         return;
       }
+      established = true;
+      clearTimeout(timer);
       clientSocket.write("HTTP/1.1 200 Connection Established\r\n\r\n");
       if (head.length) tunnel.write(head);
       if (rest.length) clientSocket.write(rest);
@@ -133,22 +183,48 @@ export function createEgressProxy(opts: EgressOptions): http.Server {
       clientSocket.pipe(tunnel);
     });
     tunnel.on("error", (e) => {
-      record("CONNECT", host, port, "error", e.message);
-      clientSocket.destroy();
+      if (!established) failBeforeTunnel("502 Bad Gateway", `the upstream proxy could not be reached or failed: ${e.message}`);
+      else {
+        record("CONNECT", host, port, "error", e.message);
+        clientSocket.destroy();
+      }
+    });
+    tunnel.on("close", () => {
+      if (!established) failBeforeTunnel("502 Bad Gateway", "the upstream proxy closed the connection before it answered");
+      else clientSocket.destroy();
     });
     clientSocket.on("error", () => tunnel.destroy());
+    clientSocket.on("close", () => {
+      clearTimeout(timer);
+      tunnel.destroy();
+    });
   });
 
   return server;
 }
 
-/** Entry point for the container: configuration from the environment. */
-export function startFromEnv(): http.Server {
-  const allow = (process.env.EGRESS_ALLOW ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+/** A comma-separated list setting, as a list of its non-empty entries. */
+export const listSetting = (v: string | undefined) => (v ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+
+/**
+ * Entry point for the server profile's egress container: configuration from the environment.
+ * EGRESS_UPSTREAM_PROXY must be "direct" or a proxy's address (`parseUpstream`); empty or missing, the
+ * proxy refuses to start, saying why on one JSON line, and the process exits with code 2.
+ */
+export function startFromEnv(): http.Server | null {
+  const allow = listSetting(process.env.EGRESS_ALLOW);
   const port = Number(process.env.EGRESS_PORT ?? 3128);
-  const server = createEgressProxy({ allow, upstreamProxy: process.env.EGRESS_UPSTREAM_PROXY || undefined });
+  let upstream: URL | null;
+  try {
+    upstream = parseUpstream(process.env.EGRESS_UPSTREAM_PROXY, { allowDirect: true });
+  } catch (err) {
+    process.stdout.write(JSON.stringify({ at: new Date().toISOString(), refusedToStart: (err as Error).message }) + "\n");
+    process.exitCode = 2;
+    return null;
+  }
+  const server = createEgressProxy({ allow, upstreamProxy: upstream ? upstream.href : undefined });
   server.listen(port, "0.0.0.0", () => {
-    process.stdout.write(JSON.stringify({ at: new Date().toISOString(), listening: port, allow }) + "\n");
+    process.stdout.write(JSON.stringify({ at: new Date().toISOString(), listening: port, allow, upstream: upstream ? upstream.host : "direct" }) + "\n");
   });
   return server;
 }
