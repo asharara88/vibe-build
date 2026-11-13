@@ -519,14 +519,14 @@ describe("the runner image's own files", () => {
   });
 
   it("the browser cache: unset, missing, a link, or another fingerprint is refused before any build", async () => {
-    await expect(checkedBrowserZip(undefined)).rejects.toThrow(/BUILDER_BROWSER_CACHE is not set/);
+    await expect(checkedBrowserZip({})).rejects.toThrow(/BUILDER_BROWSER_CACHE is not set/);
     const cache = mkdtempSync(join(scratch, "cache-"));
-    await expect(checkedBrowserZip(cache)).rejects.toThrow(/has no chrome-headless-shell-linux64\.zip/);
+    await expect(checkedBrowserZip({ BUILDER_BROWSER_CACHE: cache })).rejects.toThrow(/has no chrome-headless-shell-linux64\.zip/);
     writeFileSync(join(cache, "chrome-headless-shell-linux64.zip"), "made-up, not the browser");
-    await expect(checkedBrowserZip(cache)).rejects.toThrow(/not the approved/);
+    await expect(checkedBrowserZip({ BUILDER_BROWSER_CACHE: cache })).rejects.toThrow(/not the approved/);
     const cache2 = mkdtempSync(join(scratch, "cache-"));
     symlinkSync(join(cache, "chrome-headless-shell-linux64.zip"), join(cache2, "chrome-headless-shell-linux64.zip"));
-    await expect(checkedBrowserZip(cache2)).rejects.toThrow(/not a plain file/);
+    await expect(checkedBrowserZip({ BUILDER_BROWSER_CACHE: cache2 })).rejects.toThrow(/not a plain file/);
   });
 });
 

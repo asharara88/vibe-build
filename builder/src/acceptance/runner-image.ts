@@ -55,7 +55,8 @@ export function approvedPackages(which: "runner" | "unpack"): string[] {
  * The browser zip in the cache, checked: a plain file (not a link), with the approved SHA-256.
  * Throws, naming the setting or the fingerprint found, otherwise.
  */
-export async function checkedBrowserZip(cacheDir = process.env.BUILDER_BROWSER_CACHE): Promise<{ path: string; sha256: string; bytes: number }> {
+export async function checkedBrowserZip(env: NodeJS.ProcessEnv = process.env): Promise<{ path: string; sha256: string; bytes: number }> {
+  const cacheDir = env.BUILDER_BROWSER_CACHE;
   if (!cacheDir) throw new Error("BUILDER_BROWSER_CACHE is not set: it must name the folder that holds the approved browser zip (docs/SOURCES.md, 13 Nov 2026).");
   const path = join(resolve(cacheDir), BROWSER_ZIP);
   const st = lstatSync(path, { throwIfNoEntry: false });
