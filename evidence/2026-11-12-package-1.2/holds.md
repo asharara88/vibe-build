@@ -703,8 +703,10 @@ Both failed; the tree was clean after each, and no tracked file was changed afte
 | Type check (`npm run typecheck`), and `scripts/demo-cap.ts` type-checked on its own, at `a1a5059` (code of `02d16bb`) | Exit code 0, and exit code 0 | `run-2026-11-13-merge-candidate-typecheck.txt` |
 | Every test except the live ones, at `a1a5059` | 9 files; 216 passed, 19 skipped (each skipped test is a live one), 235 in all; exit code 0 | `run-2026-11-13-merge-candidate-tests-not-live.txt` |
 | The B6 test with the first gateway as a process of its own, ten times in a row, at `a1a5059` | 10 of 10 passed; no gateway process left running afterwards | `run-2026-11-13-merge-candidate-b6-repeats.txt` |
+| The whole test suite, live tests included, run once under the shared lock (`flock <lock> npx vitest run --reporter=verbose`), at `be69e8e` (code of `02d16bb`), after the records above were committed | 9 files, 235 tests, all passed, none skipped; exit code 0. The machine's containers were listed before and after, while the lock was held: none either time. The image digests Docker gave after the run are at the end of the file, the same as in Runs 7, 11 and 14 | `run-2026-11-13-merge-candidate-tests-full.txt` |
+| Licence check (`npm run check:licences`), at `be69e8e`, run last | RESULT: PASSED, exit code 0; the notices file up to date; `builder/licences.csv` unchanged. No dependency was added or removed (`builder/package.json` and `package-lock.json` are as at `ad2fdc3`) | `run-2026-11-13-merge-candidate-licences.txt` |
 
-Not yet run at this commit: the whole test suite with the live tests, and the licence check. They run last, once these records are committed, and their results are added here then.
+The outputs were searched for key-like text and none was found. No real provider was called, no real key exists in these runs, and nothing was spent.
 
 **Hand-off.**
 - **For Claude Code:** push; the pull request's description (gap 62 for 45; B1 to B6 and B15 to B19; #8's gap 62; the commit each review read, this merge candidate included).
