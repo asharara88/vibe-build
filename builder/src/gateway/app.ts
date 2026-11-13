@@ -234,23 +234,22 @@ export function createGateway(opts: GatewayOptions) {
 
   app.get("/healthz", (c) => c.json({ ok: true }));
 
+  // Package 1.4: the two refusals of a gateway that must forward nothing, on arrival and again just before
+  // a metered call is forwarded (`sent` says what, if anything, reached the provider).
+  const livenessLost = (sent: string) =>
+    errorBody("gateway_unavailable", `This gateway has lost the database connection that shows it is running, so it forwards nothing until that connection is back. ${sent}`);
+  const gateClosed = (sent: string) =>
+    errorBody(
+      "gateway_unrecorded",
+      `This gateway has stopped forwarding: a model call that ended at ${gate.oldest()?.ended_at ?? "an unknown time"} could not be recorded in the event log, and until it is, the gateway forwards nothing for any project. ${sent}`,
+    );
+
   app.all("/v1/*", async (c) => {
     // Package 1.4. These two refusals come before anything else, and write nothing to the database.
-    if (opts.liveness && !opts.liveness.ok()) {
-      return c.json(errorBody("gateway_unavailable", "This gateway has lost the database connection that shows it is running, so it forwards nothing until that connection is back. Nothing was forwarded."), 503);
-    }
+    if (opts.liveness && !opts.liveness.ok()) return c.json(livenessLost("Nothing was forwarded."), 503);
     // The gate: closed while a call's ending is unrecorded. It tries to record it first.
     if (gate.closed()) await gate.drain();
-    if (gate.closed()) {
-      const o = gate.oldest();
-      return c.json(
-        errorBody(
-          "gateway_unrecorded",
-          `This gateway has stopped forwarding: a model call that ended at ${o?.ended_at ?? "an unknown time"} could not be recorded in the event log, and until it is, the gateway forwards nothing for any project. Nothing was forwarded.`,
-        ),
-        503,
-      );
-    }
+    if (gate.closed()) return c.json(gateClosed("Nothing was forwarded."), 503);
     const token = c.req.header("x-api-key") ?? bearer(c.req.header("authorization"));
     if (!token) return c.json(errorBody("authentication_error", "No project token was sent. The engine must send its project token as the API key."), 401);
     const owner = await tokenOwner(opts.pool, token);
@@ -523,6 +522,21 @@ export function createGateway(opts: GatewayOptions) {
       }
     };
     const clientGone = c.req.raw.signal;
+    // The gate and the liveness lock checked again (review of 1.4): a call that passed them on arrival may
+    // have waited at its counting call or for the lock while one closed. Then it is not forwarded, and as
+    // only the counting call was sent, its hold is given back. No await stands between this and the forward.
+    const stoppedSince = gate.closed() ? "gate" : opts.liveness && !opts.liveness.ok() ? "liveness" : null;
+    if (stoppedSince) {
+      ended = true;
+      const why = stoppedSince === "gate" ? "a call's ending could not be recorded, so the gateway's gate closed" : "the gateway lost its liveness lock";
+      try {
+        await releaseUnsentHold(opts.pool, { projectId: project.id, holdId, step, reason: `${why} before this call was forwarded (only the counting call, assumed to cost nothing, was sent)` });
+      } catch (err) {
+        fault("A hold for a call that was never sent could not be closed. It stays open at its full amount.", { project: project.id, hold: holdId, error: errorSummary(err) });
+      }
+      const sent = "This call was not forwarded (only the counting call, assumed to cost nothing, was sent).";
+      return c.json(stoppedSince === "gate" ? gateClosed(sent) : livenessLost(sent), 503);
+    }
     // A caller that left before the call was forwarded: only the counting call has been sent, and
     // the call itself has not been forwarded, so the hold is settled at nothing with that reason. No
     // await stands between this check and the forward below, so the caller cannot leave in between

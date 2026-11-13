@@ -124,6 +124,18 @@ async function standIn(req: IncomingMessage, res: ServerResponse): Promise<void>
   const closed = new Promise<"closed">((r) => res.once("close", () => r("closed")));
   if (req.url === "/v1/messages/count_tokens") {
     stand.counts++;
+    // A counting call whose first message is "park-count:<tag>" is held until the test releases "count:<tag>".
+    let first: unknown;
+    try {
+      first = (JSON.parse(text) as { messages?: Array<{ content?: unknown }> }).messages?.[0]?.content;
+    } catch {
+      first = undefined;
+    }
+    if (typeof first === "string" && first.startsWith("park-count:")) {
+      const tag = `count:${first.slice("park-count:".length)}`;
+      stand.arrivedByTag.set(tag, (stand.arrivedByTag.get(tag) ?? 0) + 1);
+      if ((await Promise.race([park(tag).promise, closed])) === "closed") return;
+    }
     res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({ input_tokens: 42 }));
     return;
   }
@@ -695,6 +707,37 @@ describe("package 1.4: failure tests, proof rows B8 to B13 (against a stand-in p
     await invariantsHold(q.id);
   }, 60_000);
 
+  it("B10 (8): a call that passed the gate before it closed, and waits at its counting call, is not forwarded once the gate is closed: its hold is given back (only the counting call was sent) and it gets the 503", async () => {
+    const g = await inProcessGateway("gw_b10_8", { journalDir: await newJournalDir() });
+    const p = await newProject(HOLD_USD * 3); // room for both calls: a refusal must come from the gate, not the budget
+    const a = callAt(g.url, p.token, body(p.id, "park", "b10-8a"));
+    await until("call A at the stand-in", () => (stand.arrivedByTag.get("b10-8a") ?? 0) === 1);
+    // Call B, same project, passes the gate while it is open and is held at its counting call.
+    const b = callAt(g.url, p.token, body(p.id, "ok", "b10-8b", { messages: [{ role: "user", content: "park-count:b10-8b" }] }));
+    await until("call B at its counting call", () => (stand.arrivedByTag.get("count:b10-8b") ?? 0) === 1);
+    // A's ending and the freeze are both refused: the gate closes and stays closed.
+    await fault.on(p.id, "model.call");
+    await fault.on(p.id, "project_freezes");
+    release("b10-8a");
+    expect((await a).status).toBe(200);
+    expect(g.gate.closed()).toBe(true);
+    const before = stand.messages;
+    release("count:b10-8b");
+    const rb = await b;
+    expect(rb.status).toBe(503);
+    expect((await errorOf(rb)).type).toBe("gateway_unrecorded");
+    expect(stand.messages).toBe(before); // B never reached the stand-in
+    expect(stand.arrivedByTag.get("b10-8b")).toBeUndefined();
+    // B's hold was opened under the lock, then given back at nothing, marked not forwarded; A's stays open, full.
+    expect(await kinds(p.id)).toEqual(["hold.opened", "hold.opened", "hold.settled"]);
+    expect((await listEvents(pool, p.id, "hold.settled"))[0]!.payload).toMatchObject({ actual_usd: 0, forwarded: false });
+    await fault.off();
+    expect(await g.gate.drain()).toBe(true);
+    expect(await kinds(p.id)).toEqual(["hold.opened", "hold.opened", "hold.settled", "hold.kept", "gateway.fault", "project.frozen"]);
+    expect((await listHolds(pool, p.id)).filter((h) => h.state === "open")).toHaveLength(1);
+    await invariantsHold(p.id);
+  }, 60_000);
+
   it("B10 (4): under the project's lock, a frozen project opens no hold, starts no step, and a running step's calls are refused, whatever the cap", async () => {
     const { id } = await newProject(5);
     const deadline = new Date(Date.now() + 600_000);
@@ -859,6 +902,25 @@ describe("package 1.4: failure tests, proof rows B8 to B13 (against a stand-in p
     await until("the lock taken again", () => g.liveness.ok());
     expect(g.liveness.pid()).not.toBe(pid);
     expect((await callAt(g.url, p.token, body(p.id))).status).toBe(200);
+  });
+
+  it("1.4: a call that passed the liveness check, and waits at its counting call, is not forwarded once the gateway has lost its lock: its hold is given back and it gets the 503", async () => {
+    const g = await inProcessGateway("gw_live_mid", { retryMs: 120_000 }); // the lock is not taken again during the test
+    const p = await newProject(5);
+    const b = callAt(g.url, p.token, body(p.id, "ok", "live-mid", { messages: [{ role: "user", content: "park-count:live-mid" }] }));
+    await until("the call at its counting call", () => (stand.arrivedByTag.get("count:live-mid") ?? 0) === 1);
+    await pool.query("select pg_terminate_backend($1)", [g.liveness.pid()]);
+    await until("the gateway to see its lock lost", () => !g.liveness.ok());
+    const before = stand.messages;
+    release("count:live-mid");
+    const r = await b;
+    expect(r.status).toBe(503);
+    expect((await errorOf(r)).type).toBe("gateway_unavailable");
+    expect(stand.messages).toBe(before);
+    expect(stand.arrivedByTag.get("live-mid")).toBeUndefined();
+    expect(await kinds(p.id)).toEqual(["hold.opened", "hold.settled"]);
+    expect((await listEvents(pool, p.id, "hold.settled"))[0]!.payload).toMatchObject({ actual_usd: 0, forwarded: false });
+    await invariantsHold(p.id);
   });
 
   it("1.4: a database that cannot be reached gets a 503 that names the reason, not a bare 500, and the error's text is not passed on", async () => {
