@@ -1,0 +1,35 @@
+
+ RUN  v5.1.0 <checkout>/builder
+
+ ✓ test/scripted-engine.test.ts > scripted engine: the fixed change sets of example 1 > has the two steps of the design note's slice, in order 2ms
+ ✓ test/scripted-engine.test.ts > scripted engine: the fixed change sets of example 1 > each copy matches its fingerprint; each add is a file not there yet; each replace names the fingerprint of the file the step finds (the template's, or the previous step's) 2ms
+ ✓ test/scripted-engine.test.ts > scripted engine: the fixed change sets of example 1 > no path is protected, outside the workspace, under certs/ or hidden 1ms
+ ✓ test/scripted-engine.test.ts > scripted engine: the fixed change sets of example 1 > every protected path is a plain file in the template 1ms
+ ✓ test/scripted-engine.test.ts > scripted engine: the fixed change sets of example 1 > every code file written starts with "Written by the scripted engine (fixed change …). No AI model wrote this." 1ms
+ ✓ test/scripted-engine.test.ts > scripted engine: the fixed change sets of example 1 > after each step the banner says, in both languages, that the scripted engine built the app; English and Arabic have the same messages 1ms
+ ✓ test/scripted-engine.test.ts > scripted engine: the fixed change sets of example 1 > the leave-request statuses are exactly the example spec's, with waiting as the default 1ms
+ ✓ test/scripted-engine.test.ts > scripted engine: the fixed change sets of example 1 > the change sets hold nothing but the applier, the manifests and the files they list 1ms
+ ✓ test/scripted-engine.test.ts > scripted engine: the fixed change sets of example 1 > the applier uses nothing but Node's own modules 1ms
+ ✓ test/scripted-engine.test.ts > scripted engine: the engine service in the compose file > server profile: no network, no settings, the hardening, user node, and exactly three mounts 1ms
+ ✓ test/scripted-engine.test.ts > scripted engine: the engine service in the compose file > development-cloud-session profile: no network, no settings, the hardening, user node, and exactly three mounts 0ms
+ ✓ test/scripted-engine.test.ts > scripted engine: the engine service in the compose file > there is no engine service unless the sandbox asks for one 1ms
+ ✓ test/scripted-engine.test.ts > scripted engine: the engine service in the compose file > Docker Compose accepts the file; the empty folder is made; up refuses the engine service 96ms
+ ✓ test/scripted-engine.test.ts > scripted engine: the class, against a stand-in runner (no container, no model) > a step that runs: name scripted, its events, zero usage, turns = files written, and a commit labelled [scripted] by the scripted engine 151ms
+ ✓ test/scripted-engine.test.ts > scripted engine: the class, against a stand-in runner (no container, no model) > the turn limit: the container is told it; a limit line ends the step as failed with 'turn limit reached'; nothing is committed 132ms
+ ✓ test/scripted-engine.test.ts > scripted engine: the class, against a stand-in runner (no container, no model) > an unknown step fails before any container is started 55ms
+ ✓ test/scripted-engine.test.ts > scripted engine: the class, against a stand-in runner (no container, no model) > a write to a protected path refused by the applier becomes a 'blocked' event and a failed step 89ms
+ ✓ test/scripted-engine.test.ts > scripted engine: the class, against a stand-in runner (no container, no model) > a file the change does not name, or one git ignores, fails the step and is reported; nothing is committed 234ms
+ ✓ test/scripted-engine.test.ts > scripted engine: the class, against a stand-in runner (no container, no model) > stop() kills the running container and the step ends 'stopped' 120ms
+ ✓ test/scripted-engine.test.ts > scripted engine: the class, against a stand-in runner (no container, no model) > a step does not start on a workspace with changes that are not committed, or when a protected path is missing 97ms
+ ✓ test/scripted-engine.test.ts > scripted engine: live, in the engine container (development profile) > set-up: a fresh copy of the template, its history outside it, owned by the engine's user 57ms
+ ✓ test/scripted-engine.test.ts > scripted engine: live, in the engine container (development profile) > stop() part-way: the container is killed and removed, and the workspace is put back 2533ms
+ ✓ test/scripted-engine.test.ts > scripted engine: live, in the engine container (development profile) > applies both fixed steps in the engine container; each is committed as [scripted] by the scripted engine, with zero usage 937ms
+ ✓ test/scripted-engine.test.ts > scripted engine: live, in the engine container (development profile) > a write to a protected path is refused: by the applier (a 'blocked' event), and by the read-only mount (the system refuses it) 832ms
+ ✓ test/scripted-engine.test.ts > scripted engine: live, in the engine container (development profile) > inside the engine container: user node, no settings of its own, no network but loopback, an empty certs folder, the change sets read-only 380ms
+ ✓ test/scripted-engine.test.ts > scripted engine: live, in the engine container (development profile) > removing the project also removes an engine container whose run was cut off 10560ms
+
+ Test Files  1 passed (1)
+      Tests  26 passed (26)
+   Start at  16:13:37
+   Duration  16.61s (tests 100%)
+

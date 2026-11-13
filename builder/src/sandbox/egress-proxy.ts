@@ -1,5 +1,7 @@
 /**
- * The egress proxy: the only way out of a project's containers.
+ * The egress proxy: on the server profile, designed to be the only way out of a project's
+ * containers (designed, not shown: package 0.6b). On the development profile it is not: package
+ * 0.6a's run went round it (evidence/2026-11-12-package-0.6a/isolation-checks.md; known gaps 1 and 60).
  *
  * It is a plain HTTP proxy that allows exactly the hosts it is told to allow and refuses
  * everything else, logging each decision as one JSON line. It handles HTTPS by tunnelling

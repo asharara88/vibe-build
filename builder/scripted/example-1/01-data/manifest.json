@@ -1,0 +1,30 @@
+{
+  "example": "example-1",
+  "step": "01-data",
+  "label": "The data step: the leave-request table, the configuration that names it, and the banner sentence that labels the app as built by the scripted engine",
+  "files": [
+    {
+      "path": "src/db/app-schema.ts",
+      "op": "add",
+      "sha256": "89b7086a7ec0162537892c3786587354bd69df43c597a15e88934239484d5c87"
+    },
+    {
+      "path": "drizzle.config.ts",
+      "op": "replace",
+      "sha256": "ab958c36ecc0b3f1f8f4238fc2b0a6ce9a42fe733ccbf4f55c4c420b25783192",
+      "expectSha256": "e2f5f6e281242c9b8ad447c6f87a687c21cea6eae25723c8ec61ff31cac0a949"
+    },
+    {
+      "path": "messages/en.json",
+      "op": "replace",
+      "sha256": "a5baa4d2febeebcd453b1c6ddd91747cf87a027939dd301eed6a082cacb81b61",
+      "expectSha256": "190cf6b4317d86bf9e564305aaf6a4344b7e240176a8cf245926d02ca99d1739"
+    },
+    {
+      "path": "messages/ar.json",
+      "op": "replace",
+      "sha256": "1138ac8b1e73cc273d50ef9c54a1087570f1523134402b38435c729de669fdf0",
+      "expectSha256": "617a99aff4d741514b1651b36b0a2ace7f8878249b8079e2c38f51e1411e09a2"
+    }
+  ]
+}

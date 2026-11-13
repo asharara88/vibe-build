@@ -1,10 +1,16 @@
 # House template, TypeScript candidate. Two stages: build with development tools, run without them.
 FROM node:22-alpine AS build
 WORKDIR /app
-# The development machine reaches the internet only through a proxy with its own certificate.
-# Both are passed in as build arguments and used only during the build. Neither is in the image.
-ARG HTTPS_PROXY
-ARG HTTP_PROXY
+# On the development profile the sandbox manager runs this build on the host's network, gives it the
+# cloud session's proxy as build arguments and puts the session's certificate in certs/. On that
+# machine an HTTPS request to the registry, sent directly from a container with no copy of the
+# certificate, got a certificate it did not trust; from one with a copy it got 200 (package 0.6a,
+# 12 Nov 2026, attempt A1). That proxy is not the machine's only way out: requests sent with no proxy
+# also got answers (evidence/2026-11-12-package-0.6a/isolation-checks.md).
+# The proxy's address is passed as a build argument that Docker predefines (HTTPS_PROXY, HTTP_PROXY):
+# it reaches the build steps and, because it is not declared here, it is not recorded in the image's
+# history. The certificate is copied into this build stage: the app image (the `run` stage) does not
+# contain it; the tools image, which is this stage, does, on the development profile only.
 ARG NODE_EXTRA_CA_CERTS
 COPY certs/ /certs/
 RUN if [ -f /certs/session-ca.crt ]; then npm config set cafile /certs/session-ca.crt; fi
@@ -16,6 +22,17 @@ COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
 # The build needs no database or secret: pages that need them render at request time.
 RUN DATABASE_URL=postgres://build:build@localhost/build AUTH_SECRET=build-time-placeholder-not-a-secret-0000 npm run build
+
+# The tools image: creates the tables and the sample users, in a container, never on the machine
+# that hosts the builder (package 0.5). It is the build stage, with its development tools, run as
+# an unprivileged user. It is never started as the app and is not shipped to anyone.
+FROM build AS tools
+USER node
+# The base image starts every command through a shell script, which adds settings of its own
+# (PWD, SHLVL). The tools container runs its command directly, so that its environment is exactly
+# the named list plus what the image declares.
+ENTRYPOINT []
+CMD ["node", "-e", "console.error('The tools image runs one named command at a time, e.g. drizzle-kit push or the seed.'); process.exit(1)"]
 
 FROM node:22-alpine AS run
 WORKDIR /app

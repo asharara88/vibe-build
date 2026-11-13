@@ -1,14 +1,11 @@
-import { getTranslations, setRequestLocale } from "next-intl/server";
+import { getTranslations } from "next-intl/server";
 import { ROLES } from "@/app-config";
 import { EmptyState } from "@/components/EmptyState";
 import { SignOutButton } from "@/components/SignOutButton";
-import { requireRole } from "@/lib/roles";
+import { guardedPage } from "@/lib/roles";
 
-export default async function Home({ params }: { params: Promise<{ locale: string }> }) {
-  const { locale } = await params;
-  setRequestLocale(locale);
-  // Rule 5: the role check comes before anything is rendered. Home is open to every role.
-  const { user } = await requireRole(locale, ROLES);
+// Rule 5: the role check comes before anything is rendered. Home is open to every recognised role.
+export default guardedPage(ROLES, async ({ user }) => {
   const t = await getTranslations("home");
   const roles = await getTranslations("roles");
   return (
@@ -26,4 +23,4 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
       </div>
     </div>
   );
-}
+});

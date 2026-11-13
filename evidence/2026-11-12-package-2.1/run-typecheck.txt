@@ -1,0 +1,6 @@
+# npm run typecheck (from builder/, files of commit 69b0e28, 12 Nov 2026; the checkout's path is shown as <checkout>)
+
+> builder@0.0.1 typecheck
+> tsc --noEmit
+
+exit code: 0
