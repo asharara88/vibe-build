@@ -1,0 +1,19 @@
+J1 after its review, 13 Nov 2026: the wrapper's own output around the automated run (the lock lines and the run's own output, as printed).
+$ flock <scratchpad>/live-tests.lock npx tsx scripts/demo-journey.ts <evidence folder>
+waiting for the lock at 14:26:58 UTC
+lock held at 14:26:58 UTC
+J1's automated run, 2026-11-13T14:26:58.543Z (run 20261113_856a94).
+Builder tree: 5662ce635099af724e3969b8e798fb2258ee4020 (git write-tree --prefix=builder/ of the index at the start of the run).
+Free disk before: /dev/vda        252G   26G   14G  66% /
+docker system df before:
+TYPE            TOTAL     ACTIVE    SIZE      RECLAIMABLE
+Images          8         0         2.422GB   2.291GB (94%)
+Containers      0         0         0B        0B
+Local Volumes   4         0         0B        0B
+Build Cache     116       0         9.29GB    4.455GB
+Containers on the machine before (every one, running or not; others belong to other sessions):
+(none)
+J1's containers, images, volumes and networks before: none
+Refused: something already listens on 127.0.0.1:4020; nothing was started.
+exit code: 2
+lock released at 14:26:59 UTC

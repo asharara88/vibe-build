@@ -1,0 +1,17 @@
+J1 after the review, 13 Nov 2026: the builder camera given an address that is not http://127.0.0.1:<port> (BUILDER_CAMERA_BASE=http://192.0.2.1:4021, a documentation address), in the approved runner image with no network at all and a made-up password file.
+builder/ tree e9a10214310d3a2e5c3d5e1e9ae482a52e5dcb2d (the index).
+Waiting for the lock from 14:29:03 UTC.
+Lock held at 14:37:55 UTC.
+
+1. camera/builder-shots.mjs as it is:
+{"kind":"check","name":"the camera's address is 127.0.0.1","ok":false,"detail":"BUILDER_CAMERA_BASE is not http://127.0.0.1:<port>"}
+exit code: 1
+
+2. Control: the same script with the address check removed:
+{"kind":"check","name":"the walk ran to its end without an error","ok":false,"detail":"page.goto: net::ERR_INTERNET_DISCONNECTED at http://192.0.2.1:4021/projects"}
+{"kind":"check","name":"nothing but 192.0.2.1:4021 was loaded","ok":true,"detail":""}
+{"kind":"done","failed":1}
+exit code: 1
+
+Containers left: 0
+Lock released at 14:37:57 UTC.

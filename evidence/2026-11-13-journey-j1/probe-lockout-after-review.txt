@@ -1,0 +1,14 @@
+J1 after the review, 13 Nov 2026, 14:27:07 UTC: the reviewer's two lock-out probes (kept in the session's scratchpad, revj1/attack/; not in the repository), run on commit 945c4a2, builder/ tree 5662ce6, against the test database builder_test_j1. The probes' password is a made-up one written in the probe.
+
+$ npx tsx revj1/attack/lockout-http.mts   (over real HTTP on 127.0.0.1: 29 wrong guesses and the right password, 13th, on 30 connections; each request's headers sent first, every body 1.5 s later)
+over HTTP, 29 simultaneous wrong guesses: statuses { '401': 4, '429': 25 } ; passwords actually checked: 5 ; the right password, 13th in the burst: 429
+the right password after the burst: 429
+exit code: 0
+
+$ npx tsx revj1/attack/lockout.mts   (hono's app.request: 40 wrong guesses and the right password at the same moment)
+simultaneous wrong guesses: status counts { '401': 4, '429': 36 } (401 = checked against the password, 429 = refused by the lock-out)
+the right password sent last, at the same moment: status 429 null
+the right password sent afterwards: status 429
+exit code: 0
+
+Before the fix (the reviewer's run on builder/ tree 4259eb0, as the review reports it): 30 passwords checked; the right password, 13th in the burst, got 303 and a session cookie while the server was locked.

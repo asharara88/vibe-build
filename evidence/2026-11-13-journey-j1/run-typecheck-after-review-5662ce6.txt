@@ -1,0 +1,8 @@
+Package J1 after its review, 13 Nov 2026, in builder/ of the worktree of branch claude/j1-journey; builder/ tree 5662ce635099af724e3969b8e798fb2258ee4020 (git write-tree --prefix=builder/ of the index: the fixes before their commit).
+
+$ npm run typecheck
+
+> builder@0.0.1 typecheck
+> tsc --noEmit
+
+exit code: 0

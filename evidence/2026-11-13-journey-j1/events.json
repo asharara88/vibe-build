@@ -1,12 +1,12 @@
 {
- "run": "20261113_da580c",
- "database": "builder_j1_20261113_da580c",
+ "run": "20261113_2ba608",
+ "database": "builder_j1_20261113_2ba608",
  "note": "Every event of the run's database, in id order. Made-up data only. Paths are of this machine's run folders, removed after the run.",
  "events": [
   {
    "id": "1",
-   "project_id": "j1-2d82dec13d74",
-   "at": "2026-11-13T13:37:33.760Z",
+   "project_id": "j1-146ec98dc91a",
+   "at": "2026-11-13T14:38:13.034Z",
    "kind": "intake.brief_entered",
    "step": null,
    "payload": {
@@ -17,8 +17,8 @@
   },
   {
    "id": "2",
-   "project_id": "j1-2d82dec13d74",
-   "at": "2026-11-13T13:37:33.891Z",
+   "project_id": "j1-146ec98dc91a",
+   "at": "2026-11-13T14:38:13.197Z",
    "kind": "intake.continued",
    "step": null,
    "payload": {
@@ -30,8 +30,8 @@
   },
   {
    "id": "3",
-   "project_id": "j1-2d82dec13d74",
-   "at": "2026-11-13T13:37:34.377Z",
+   "project_id": "j1-146ec98dc91a",
+   "at": "2026-11-13T14:38:13.782Z",
    "kind": "intake.answer",
    "step": null,
    "payload": {
@@ -47,8 +47,8 @@
   },
   {
    "id": "4",
-   "project_id": "j1-2d82dec13d74",
-   "at": "2026-11-13T13:37:34.378Z",
+   "project_id": "j1-146ec98dc91a",
+   "at": "2026-11-13T14:38:13.783Z",
    "kind": "intake.answer",
    "step": null,
    "payload": {
@@ -64,8 +64,8 @@
   },
   {
    "id": "5",
-   "project_id": "j1-2d82dec13d74",
-   "at": "2026-11-13T13:37:34.609Z",
+   "project_id": "j1-146ec98dc91a",
+   "at": "2026-11-13T14:38:14.013Z",
    "kind": "intake.answer",
    "step": null,
    "payload": {
@@ -81,8 +81,8 @@
   },
   {
    "id": "6",
-   "project_id": "j1-2d82dec13d74",
-   "at": "2026-11-13T13:37:34.610Z",
+   "project_id": "j1-146ec98dc91a",
+   "at": "2026-11-13T14:38:14.014Z",
    "kind": "intake.answer",
    "step": null,
    "payload": {
@@ -98,8 +98,8 @@
   },
   {
    "id": "7",
-   "project_id": "j1-2d82dec13d74",
-   "at": "2026-11-13T13:37:34.611Z",
+   "project_id": "j1-146ec98dc91a",
+   "at": "2026-11-13T14:38:14.015Z",
    "kind": "intake.answer",
    "step": null,
    "payload": {
@@ -115,8 +115,8 @@
   },
   {
    "id": "8",
-   "project_id": "j1-2d82dec13d74",
-   "at": "2026-11-13T13:37:35.191Z",
+   "project_id": "j1-146ec98dc91a",
+   "at": "2026-11-13T14:38:14.614Z",
    "kind": "intake.answer",
    "step": null,
    "payload": {
@@ -132,8 +132,8 @@
   },
   {
    "id": "9",
-   "project_id": "j1-2d82dec13d74",
-   "at": "2026-11-13T13:37:35.192Z",
+   "project_id": "j1-146ec98dc91a",
+   "at": "2026-11-13T14:38:14.615Z",
    "kind": "intake.answer",
    "step": null,
    "payload": {
@@ -161,8 +161,8 @@
   },
   {
    "id": "10",
-   "project_id": "j1-2d82dec13d74",
-   "at": "2026-11-13T13:37:35.193Z",
+   "project_id": "j1-146ec98dc91a",
+   "at": "2026-11-13T14:38:14.616Z",
    "kind": "intake.answer",
    "step": null,
    "payload": {
@@ -178,8 +178,8 @@
   },
   {
    "id": "11",
-   "project_id": "j1-2d82dec13d74",
-   "at": "2026-11-13T13:37:35.424Z",
+   "project_id": "j1-146ec98dc91a",
+   "at": "2026-11-13T14:38:14.846Z",
    "kind": "intake.answer",
    "step": null,
    "payload": {
@@ -195,8 +195,8 @@
   },
   {
    "id": "12",
-   "project_id": "j1-2d82dec13d74",
-   "at": "2026-11-13T13:37:35.425Z",
+   "project_id": "j1-146ec98dc91a",
+   "at": "2026-11-13T14:38:14.847Z",
    "kind": "intake.answer",
    "step": null,
    "payload": {
@@ -212,8 +212,8 @@
   },
   {
    "id": "13",
-   "project_id": "j1-2d82dec13d74",
-   "at": "2026-11-13T13:37:35.426Z",
+   "project_id": "j1-146ec98dc91a",
+   "at": "2026-11-13T14:38:14.848Z",
    "kind": "intake.answer",
    "step": null,
    "payload": {
@@ -229,8 +229,8 @@
   },
   {
    "id": "14",
-   "project_id": "j1-2d82dec13d74",
-   "at": "2026-11-13T13:37:35.660Z",
+   "project_id": "j1-146ec98dc91a",
+   "at": "2026-11-13T14:38:15.080Z",
    "kind": "intake.answer",
    "step": null,
    "payload": {
@@ -246,8 +246,8 @@
   },
   {
    "id": "15",
-   "project_id": "j1-2d82dec13d74",
-   "at": "2026-11-13T13:37:35.661Z",
+   "project_id": "j1-146ec98dc91a",
+   "at": "2026-11-13T14:38:15.084Z",
    "kind": "intake.answer",
    "step": null,
    "payload": {
@@ -263,8 +263,8 @@
   },
   {
    "id": "16",
-   "project_id": "j1-2d82dec13d74",
-   "at": "2026-11-13T13:37:35.661Z",
+   "project_id": "j1-146ec98dc91a",
+   "at": "2026-11-13T14:38:15.085Z",
    "kind": "intake.answer",
    "step": null,
    "payload": {
@@ -280,8 +280,8 @@
   },
   {
    "id": "17",
-   "project_id": "j1-2d82dec13d74",
-   "at": "2026-11-13T13:37:35.894Z",
+   "project_id": "j1-146ec98dc91a",
+   "at": "2026-11-13T14:38:15.312Z",
    "kind": "intake.answer",
    "step": null,
    "payload": {
@@ -297,8 +297,8 @@
   },
   {
    "id": "18",
-   "project_id": "j1-2d82dec13d74",
-   "at": "2026-11-13T13:37:35.895Z",
+   "project_id": "j1-146ec98dc91a",
+   "at": "2026-11-13T14:38:15.313Z",
    "kind": "intake.answer",
    "step": null,
    "payload": {
@@ -314,8 +314,8 @@
   },
   {
    "id": "19",
-   "project_id": "j1-2d82dec13d74",
-   "at": "2026-11-13T13:37:35.896Z",
+   "project_id": "j1-146ec98dc91a",
+   "at": "2026-11-13T14:38:15.314Z",
    "kind": "intake.answer",
    "step": null,
    "payload": {
@@ -331,8 +331,8 @@
   },
   {
    "id": "20",
-   "project_id": "j1-2d82dec13d74",
-   "at": "2026-11-13T13:37:36.009Z",
+   "project_id": "j1-146ec98dc91a",
+   "at": "2026-11-13T14:38:15.430Z",
    "kind": "intake.answer",
    "step": null,
    "payload": {
@@ -348,8 +348,8 @@
   },
   {
    "id": "21",
-   "project_id": "j1-2d82dec13d74",
-   "at": "2026-11-13T13:37:36.192Z",
+   "project_id": "j1-146ec98dc91a",
+   "at": "2026-11-13T14:38:15.613Z",
    "kind": "intake.answer",
    "step": null,
    "payload": {
@@ -365,8 +365,8 @@
   },
   {
    "id": "22",
-   "project_id": "j1-2d82dec13d74",
-   "at": "2026-11-13T13:37:36.193Z",
+   "project_id": "j1-146ec98dc91a",
+   "at": "2026-11-13T14:38:15.614Z",
    "kind": "intake.answer",
    "step": null,
    "payload": {
@@ -382,8 +382,8 @@
   },
   {
    "id": "23",
-   "project_id": "j1-2d82dec13d74",
-   "at": "2026-11-13T13:37:36.659Z",
+   "project_id": "j1-146ec98dc91a",
+   "at": "2026-11-13T14:38:16.115Z",
    "kind": "journey.brief_confirmed",
    "step": null,
    "payload": {
@@ -397,8 +397,8 @@
   },
   {
    "id": "24",
-   "project_id": "j1-2d82dec13d74",
-   "at": "2026-11-13T13:37:36.810Z",
+   "project_id": "j1-146ec98dc91a",
+   "at": "2026-11-13T14:38:16.265Z",
    "kind": "acceptance.version.written",
    "step": null,
    "payload": {
@@ -406,7 +406,7 @@
      {
       "file": "item-01.spec.ts",
       "number": 1,
-      "sha256": "5201e4bcad4473b5b1474d76de5e525c5d817101cf7eaf593cada2a4ae58618b"
+      "sha256": "4630a0b9038988902d21990c0e1aa6805b572a52dcac7f5e273def1375c54119"
      }
     ],
     "label": "stand-in test",
@@ -414,13 +414,13 @@
     "written_by": "stand-in",
     "app_spec_sha256": "b09cc4240ad1f05a6540380ab72aca381522d6e3ce3698244270a8de1339a4b8",
     "checklist_items": 6,
-    "manifest_sha256": "b15c8563110f8823628cd4894b150a585f3adabd2e67819e53af28978a0f4750"
+    "manifest_sha256": "b90ffefdb437e11821f07828f4b9bf9c667d779ee6a12569587a8d827c7ae174"
    }
   },
   {
    "id": "25",
-   "project_id": "j1-2d82dec13d74",
-   "at": "2026-11-13T13:37:36.811Z",
+   "project_id": "j1-146ec98dc91a",
+   "at": "2026-11-13T14:38:16.267Z",
    "kind": "journey.plan_confirmed",
    "step": null,
    "payload": {
@@ -445,34 +445,34 @@
   },
   {
    "id": "26",
-   "project_id": "j1-2d82dec13d74",
-   "at": "2026-11-13T13:37:37.110Z",
+   "project_id": "j1-146ec98dc91a",
+   "at": "2026-11-13T14:38:16.562Z",
    "kind": "journey.job.started",
    "step": "01-data",
    "payload": {
     "kind": "build_step",
     "step": "01-data",
-    "job_id": "job-bcf0d55b"
+    "job_id": "job-aacb6aaf"
    }
   },
   {
    "id": "27",
-   "project_id": "j1-2d82dec13d74",
-   "at": "2026-11-13T13:37:37.182Z",
+   "project_id": "j1-146ec98dc91a",
+   "at": "2026-11-13T14:38:16.642Z",
    "kind": "journey.sandbox.made",
    "step": "01-data",
    "payload": {
-    "dir": "/tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/j1-tmp/builder-acceptance-OCAyUj",
+    "dir": "/tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/j1-tmp/builder-acceptance-xC7YPL",
     "db_port": 5591,
     "app_port": 3161,
     "containers": 0,
-    "compose_project": "builder_j1-2d82dec13d74"
+    "compose_project": "builder_j1-146ec98dc91a"
    }
   },
   {
    "id": "28",
-   "project_id": "j1-2d82dec13d74",
-   "at": "2026-11-13T13:37:37.185Z",
+   "project_id": "j1-146ec98dc91a",
+   "at": "2026-11-13T14:38:16.647Z",
    "kind": "step.hold_opened",
    "step": "01-data",
    "payload": {
@@ -496,7 +496,7 @@
      "output_rate_usd_per_million": 20,
      "long_prompt_threshold_tokens": null
     },
-    "deadline_at": "2026-11-13T13:48:37.185Z",
+    "deadline_at": "2026-11-13T14:49:16.645Z",
     "per_turn_usd": 0.3888,
     "step_hold_id": 1,
     "budget_before": {
@@ -512,36 +512,36 @@
   },
   {
    "id": "29",
-   "project_id": "j1-2d82dec13d74",
-   "at": "2026-11-13T13:37:37.194Z",
+   "project_id": "j1-146ec98dc91a",
+   "at": "2026-11-13T14:38:16.674Z",
    "kind": "engine.event",
    "step": "01-data",
    "payload": {
-    "at": "2026-11-13T13:37:37.191Z",
+    "at": "2026-11-13T14:38:16.668Z",
     "text": "Scripted engine: fixed change example-1/01-data. The instruction (117 characters) is not read. No model is called.",
     "type": "text"
    }
   },
   {
    "id": "30",
-   "project_id": "j1-2d82dec13d74",
-   "at": "2026-11-13T13:37:37.497Z",
+   "project_id": "j1-146ec98dc91a",
+   "at": "2026-11-13T14:38:17.020Z",
    "kind": "engine.event",
    "step": "01-data",
    "payload": {
-    "at": "2026-11-13T13:37:37.497Z",
+    "at": "2026-11-13T14:38:17.019Z",
     "text": "Scripted engine: The data step: the leave-request table, the configuration that names it, and the banner sentence that labels the app as built by the scripted engine (4 files).",
     "type": "text"
    }
   },
   {
    "id": "31",
-   "project_id": "j1-2d82dec13d74",
-   "at": "2026-11-13T13:37:37.499Z",
+   "project_id": "j1-146ec98dc91a",
+   "at": "2026-11-13T14:38:17.021Z",
    "kind": "engine.event",
    "step": "01-data",
    "payload": {
-    "at": "2026-11-13T13:37:37.497Z",
+    "at": "2026-11-13T14:38:17.021Z",
     "tool": "scripted.write",
     "type": "tool_call",
     "input": {
@@ -553,12 +553,12 @@
   },
   {
    "id": "32",
-   "project_id": "j1-2d82dec13d74",
-   "at": "2026-11-13T13:37:37.500Z",
+   "project_id": "j1-146ec98dc91a",
+   "at": "2026-11-13T14:38:17.022Z",
    "kind": "engine.event",
    "step": "01-data",
    "payload": {
-    "at": "2026-11-13T13:37:37.498Z",
+    "at": "2026-11-13T14:38:17.021Z",
     "tool": "scripted.write",
     "type": "tool_call",
     "input": {
@@ -570,12 +570,12 @@
   },
   {
    "id": "33",
-   "project_id": "j1-2d82dec13d74",
-   "at": "2026-11-13T13:37:37.500Z",
+   "project_id": "j1-146ec98dc91a",
+   "at": "2026-11-13T14:38:17.023Z",
    "kind": "engine.event",
    "step": "01-data",
    "payload": {
-    "at": "2026-11-13T13:37:37.499Z",
+    "at": "2026-11-13T14:38:17.021Z",
     "tool": "scripted.write",
     "type": "tool_call",
     "input": {
@@ -587,12 +587,12 @@
   },
   {
    "id": "34",
-   "project_id": "j1-2d82dec13d74",
-   "at": "2026-11-13T13:37:37.501Z",
+   "project_id": "j1-146ec98dc91a",
+   "at": "2026-11-13T14:38:17.024Z",
    "kind": "engine.event",
    "step": "01-data",
    "payload": {
-    "at": "2026-11-13T13:37:37.499Z",
+    "at": "2026-11-13T14:38:17.021Z",
     "tool": "scripted.write",
     "type": "tool_call",
     "input": {
@@ -604,19 +604,19 @@
   },
   {
    "id": "35",
-   "project_id": "j1-2d82dec13d74",
-   "at": "2026-11-13T13:37:37.609Z",
+   "project_id": "j1-146ec98dc91a",
+   "at": "2026-11-13T14:38:17.140Z",
    "kind": "engine.event",
    "step": "01-data",
    "payload": {
-    "at": "2026-11-13T13:37:37.609Z",
+    "at": "2026-11-13T14:38:17.140Z",
     "type": "finished"
    }
   },
   {
    "id": "36",
-   "project_id": "j1-2d82dec13d74",
-   "at": "2026-11-13T13:37:37.611Z",
+   "project_id": "j1-146ec98dc91a",
+   "at": "2026-11-13T14:38:17.141Z",
    "kind": "step.hold_closed",
    "step": "01-data",
    "payload": {
@@ -635,8 +635,8 @@
   },
   {
    "id": "37",
-   "project_id": "j1-2d82dec13d74",
-   "at": "2026-11-13T13:37:37.614Z",
+   "project_id": "j1-146ec98dc91a",
+   "at": "2026-11-13T14:38:17.145Z",
    "kind": "journey.job.finished",
    "step": "01-data",
    "payload": {
@@ -644,37 +644,37 @@
     "kind": "build_step",
     "step": "01-data",
     "turns": 4,
-    "job_id": "job-bcf0d55b",
+    "job_id": "job-aacb6aaf",
     "changed_files": 4
    }
   },
   {
    "id": "38",
-   "project_id": "j1-2d82dec13d74",
-   "at": "2026-11-13T13:37:38.875Z",
+   "project_id": "j1-146ec98dc91a",
+   "at": "2026-11-13T14:38:18.365Z",
    "kind": "journey.step_approved",
    "step": "01-data",
    "payload": {
     "step": "01-data",
-    "job_id": "job-bcf0d55b"
+    "job_id": "job-aacb6aaf"
    }
   },
   {
    "id": "39",
-   "project_id": "j1-2d82dec13d74",
-   "at": "2026-11-13T13:37:38.878Z",
+   "project_id": "j1-146ec98dc91a",
+   "at": "2026-11-13T14:38:18.369Z",
    "kind": "journey.job.started",
    "step": "02-submitter-screen",
    "payload": {
     "kind": "build_step",
     "step": "02-submitter-screen",
-    "job_id": "job-e8d00b2d"
+    "job_id": "job-39c04f7b"
    }
   },
   {
    "id": "40",
-   "project_id": "j1-2d82dec13d74",
-   "at": "2026-11-13T13:37:38.879Z",
+   "project_id": "j1-146ec98dc91a",
+   "at": "2026-11-13T14:38:18.371Z",
    "kind": "step.hold_opened",
    "step": "02-submitter-screen",
    "payload": {
@@ -698,7 +698,7 @@
      "output_rate_usd_per_million": 20,
      "long_prompt_threshold_tokens": null
     },
-    "deadline_at": "2026-11-13T13:48:38.879Z",
+    "deadline_at": "2026-11-13T14:49:18.370Z",
     "per_turn_usd": 0.3888,
     "step_hold_id": 2,
     "budget_before": {
@@ -714,36 +714,36 @@
   },
   {
    "id": "41",
-   "project_id": "j1-2d82dec13d74",
-   "at": "2026-11-13T13:37:38.889Z",
+   "project_id": "j1-146ec98dc91a",
+   "at": "2026-11-13T14:38:18.382Z",
    "kind": "engine.event",
    "step": "02-submitter-screen",
    "payload": {
-    "at": "2026-11-13T13:37:38.886Z",
+    "at": "2026-11-13T14:38:18.378Z",
     "text": "Scripted engine: fixed change example-1/02-submitter-screen. The instruction (117 characters) is not read. No model is called.",
     "type": "text"
    }
   },
   {
    "id": "42",
-   "project_id": "j1-2d82dec13d74",
-   "at": "2026-11-13T13:37:39.181Z",
+   "project_id": "j1-146ec98dc91a",
+   "at": "2026-11-13T14:38:18.690Z",
    "kind": "engine.event",
    "step": "02-submitter-screen",
    "payload": {
-    "at": "2026-11-13T13:37:39.181Z",
+    "at": "2026-11-13T14:38:18.690Z",
     "text": "Scripted engine: The submitter's screen: an employee's list of their own requests, and a form to add one, with validation (8 files).",
     "type": "text"
    }
   },
   {
    "id": "43",
-   "project_id": "j1-2d82dec13d74",
-   "at": "2026-11-13T13:37:39.183Z",
+   "project_id": "j1-146ec98dc91a",
+   "at": "2026-11-13T14:38:18.692Z",
    "kind": "engine.event",
    "step": "02-submitter-screen",
    "payload": {
-    "at": "2026-11-13T13:37:39.183Z",
+    "at": "2026-11-13T14:38:18.692Z",
     "tool": "scripted.write",
     "type": "tool_call",
     "input": {
@@ -755,12 +755,12 @@
   },
   {
    "id": "44",
-   "project_id": "j1-2d82dec13d74",
-   "at": "2026-11-13T13:37:39.184Z",
+   "project_id": "j1-146ec98dc91a",
+   "at": "2026-11-13T14:38:18.693Z",
    "kind": "engine.event",
    "step": "02-submitter-screen",
    "payload": {
-    "at": "2026-11-13T13:37:39.183Z",
+    "at": "2026-11-13T14:38:18.692Z",
     "tool": "scripted.write",
     "type": "tool_call",
     "input": {
@@ -772,12 +772,12 @@
   },
   {
    "id": "45",
-   "project_id": "j1-2d82dec13d74",
-   "at": "2026-11-13T13:37:39.185Z",
+   "project_id": "j1-146ec98dc91a",
+   "at": "2026-11-13T14:38:18.694Z",
    "kind": "engine.event",
    "step": "02-submitter-screen",
    "payload": {
-    "at": "2026-11-13T13:37:39.184Z",
+    "at": "2026-11-13T14:38:18.692Z",
     "tool": "scripted.write",
     "type": "tool_call",
     "input": {
@@ -789,12 +789,12 @@
   },
   {
    "id": "46",
-   "project_id": "j1-2d82dec13d74",
-   "at": "2026-11-13T13:37:39.186Z",
+   "project_id": "j1-146ec98dc91a",
+   "at": "2026-11-13T14:38:18.695Z",
    "kind": "engine.event",
    "step": "02-submitter-screen",
    "payload": {
-    "at": "2026-11-13T13:37:39.184Z",
+    "at": "2026-11-13T14:38:18.692Z",
     "tool": "scripted.write",
     "type": "tool_call",
     "input": {
@@ -806,12 +806,12 @@
   },
   {
    "id": "47",
-   "project_id": "j1-2d82dec13d74",
-   "at": "2026-11-13T13:37:39.187Z",
+   "project_id": "j1-146ec98dc91a",
+   "at": "2026-11-13T14:38:18.696Z",
    "kind": "engine.event",
    "step": "02-submitter-screen",
    "payload": {
-    "at": "2026-11-13T13:37:39.184Z",
+    "at": "2026-11-13T14:38:18.692Z",
     "tool": "scripted.write",
     "type": "tool_call",
     "input": {
@@ -823,12 +823,12 @@
   },
   {
    "id": "48",
-   "project_id": "j1-2d82dec13d74",
-   "at": "2026-11-13T13:37:39.188Z",
+   "project_id": "j1-146ec98dc91a",
+   "at": "2026-11-13T14:38:18.696Z",
    "kind": "engine.event",
    "step": "02-submitter-screen",
    "payload": {
-    "at": "2026-11-13T13:37:39.184Z",
+    "at": "2026-11-13T14:38:18.692Z",
     "tool": "scripted.write",
     "type": "tool_call",
     "input": {
@@ -840,12 +840,12 @@
   },
   {
    "id": "49",
-   "project_id": "j1-2d82dec13d74",
-   "at": "2026-11-13T13:37:39.190Z",
+   "project_id": "j1-146ec98dc91a",
+   "at": "2026-11-13T14:38:18.697Z",
    "kind": "engine.event",
    "step": "02-submitter-screen",
    "payload": {
-    "at": "2026-11-13T13:37:39.185Z",
+    "at": "2026-11-13T14:38:18.692Z",
     "tool": "scripted.write",
     "type": "tool_call",
     "input": {
@@ -857,12 +857,12 @@
   },
   {
    "id": "50",
-   "project_id": "j1-2d82dec13d74",
-   "at": "2026-11-13T13:37:39.192Z",
+   "project_id": "j1-146ec98dc91a",
+   "at": "2026-11-13T14:38:18.698Z",
    "kind": "engine.event",
    "step": "02-submitter-screen",
    "payload": {
-    "at": "2026-11-13T13:37:39.190Z",
+    "at": "2026-11-13T14:38:18.693Z",
     "tool": "scripted.write",
     "type": "tool_call",
     "input": {
@@ -874,19 +874,19 @@
   },
   {
    "id": "51",
-   "project_id": "j1-2d82dec13d74",
-   "at": "2026-11-13T13:37:39.289Z",
+   "project_id": "j1-146ec98dc91a",
+   "at": "2026-11-13T14:38:18.801Z",
    "kind": "engine.event",
    "step": "02-submitter-screen",
    "payload": {
-    "at": "2026-11-13T13:37:39.288Z",
+    "at": "2026-11-13T14:38:18.800Z",
     "type": "finished"
    }
   },
   {
    "id": "52",
-   "project_id": "j1-2d82dec13d74",
-   "at": "2026-11-13T13:37:39.290Z",
+   "project_id": "j1-146ec98dc91a",
+   "at": "2026-11-13T14:38:18.802Z",
    "kind": "step.hold_closed",
    "step": "02-submitter-screen",
    "payload": {
@@ -905,8 +905,8 @@
   },
   {
    "id": "53",
-   "project_id": "j1-2d82dec13d74",
-   "at": "2026-11-13T13:37:39.296Z",
+   "project_id": "j1-146ec98dc91a",
+   "at": "2026-11-13T14:38:18.806Z",
    "kind": "journey.job.finished",
    "step": "02-submitter-screen",
    "payload": {
@@ -914,37 +914,37 @@
     "kind": "build_step",
     "step": "02-submitter-screen",
     "turns": 8,
-    "job_id": "job-e8d00b2d",
+    "job_id": "job-39c04f7b",
     "changed_files": 8
    }
   },
   {
    "id": "54",
-   "project_id": "j1-2d82dec13d74",
-   "at": "2026-11-13T13:37:41.060Z",
+   "project_id": "j1-146ec98dc91a",
+   "at": "2026-11-13T14:38:20.496Z",
    "kind": "journey.step_approved",
    "step": "02-submitter-screen",
    "payload": {
     "step": "02-submitter-screen",
-    "job_id": "job-e8d00b2d"
+    "job_id": "job-39c04f7b"
    }
   },
   {
    "id": "55",
-   "project_id": "j1-2d82dec13d74",
-   "at": "2026-11-13T13:37:41.064Z",
+   "project_id": "j1-146ec98dc91a",
+   "at": "2026-11-13T14:38:20.503Z",
    "kind": "journey.job.started",
    "step": null,
    "payload": {
     "kind": "preview",
     "step": null,
-    "job_id": "job-447207d9"
+    "job_id": "job-963e4bca"
    }
   },
   {
    "id": "56",
-   "project_id": "j1-2d82dec13d74",
-   "at": "2026-11-13T13:37:46.917Z",
+   "project_id": "j1-146ec98dc91a",
+   "at": "2026-11-13T14:38:26.639Z",
    "kind": "journey.preview.line",
    "step": null,
    "payload": {
@@ -953,8 +953,8 @@
   },
   {
    "id": "57",
-   "project_id": "j1-2d82dec13d74",
-   "at": "2026-11-13T13:37:54.093Z",
+   "project_id": "j1-146ec98dc91a",
+   "at": "2026-11-13T14:38:33.668Z",
    "kind": "journey.preview.line",
    "step": null,
    "payload": {
@@ -963,8 +963,8 @@
   },
   {
    "id": "58",
-   "project_id": "j1-2d82dec13d74",
-   "at": "2026-11-13T13:37:54.096Z",
+   "project_id": "j1-146ec98dc91a",
+   "at": "2026-11-13T14:38:33.670Z",
    "kind": "journey.preview.line",
    "step": null,
    "payload": {
@@ -973,8 +973,8 @@
   },
   {
    "id": "59",
-   "project_id": "j1-2d82dec13d74",
-   "at": "2026-11-13T13:38:00.390Z",
+   "project_id": "j1-146ec98dc91a",
+   "at": "2026-11-13T14:38:39.921Z",
    "kind": "journey.preview.line",
    "step": null,
    "payload": {
@@ -983,8 +983,8 @@
   },
   {
    "id": "60",
-   "project_id": "j1-2d82dec13d74",
-   "at": "2026-11-13T13:38:00.391Z",
+   "project_id": "j1-146ec98dc91a",
+   "at": "2026-11-13T14:38:39.922Z",
    "kind": "journey.app.started",
    "step": null,
    "payload": {
@@ -996,8 +996,8 @@
   },
   {
    "id": "61",
-   "project_id": "j1-2d82dec13d74",
-   "at": "2026-11-13T13:38:01.972Z",
+   "project_id": "j1-146ec98dc91a",
+   "at": "2026-11-13T14:38:41.589Z",
    "kind": "journey.preview.line",
    "step": null,
    "payload": {
@@ -1006,8 +1006,8 @@
   },
   {
    "id": "62",
-   "project_id": "j1-2d82dec13d74",
-   "at": "2026-11-13T13:38:02.725Z",
+   "project_id": "j1-146ec98dc91a",
+   "at": "2026-11-13T14:38:42.399Z",
    "kind": "journey.preview.line",
    "step": null,
    "payload": {
@@ -1016,8 +1016,8 @@
   },
   {
    "id": "63",
-   "project_id": "j1-2d82dec13d74",
-   "at": "2026-11-13T13:38:03.356Z",
+   "project_id": "j1-146ec98dc91a",
+   "at": "2026-11-13T14:38:43.055Z",
    "kind": "journey.preview.line",
    "step": null,
    "payload": {
@@ -1026,8 +1026,8 @@
   },
   {
    "id": "64",
-   "project_id": "j1-2d82dec13d74",
-   "at": "2026-11-13T13:38:04.023Z",
+   "project_id": "j1-146ec98dc91a",
+   "at": "2026-11-13T14:38:43.709Z",
    "kind": "journey.preview.line",
    "step": null,
    "payload": {
@@ -1036,8 +1036,8 @@
   },
   {
    "id": "65",
-   "project_id": "j1-2d82dec13d74",
-   "at": "2026-11-13T13:38:04.674Z",
+   "project_id": "j1-146ec98dc91a",
+   "at": "2026-11-13T14:38:44.334Z",
    "kind": "journey.preview.line",
    "step": null,
    "payload": {
@@ -1046,8 +1046,8 @@
   },
   {
    "id": "66",
-   "project_id": "j1-2d82dec13d74",
-   "at": "2026-11-13T13:38:04.724Z",
+   "project_id": "j1-146ec98dc91a",
+   "at": "2026-11-13T14:38:44.374Z",
    "kind": "journey.preview.line",
    "step": null,
    "payload": {
@@ -1056,13 +1056,13 @@
   },
   {
    "id": "67",
-   "project_id": "j1-2d82dec13d74",
-   "at": "2026-11-13T13:38:04.815Z",
+   "project_id": "j1-146ec98dc91a",
+   "at": "2026-11-13T14:38:44.461Z",
    "kind": "journey.screenshot",
    "step": null,
    "payload": {
     "file": {
-     "path": "<run folder>/data/journey/j1-2d82dec13d74/shots/01-app-home-en.png",
+     "path": "<run folder>/data/journey/j1-146ec98dc91a/shots/01-app-home-en.png",
      "sha256": "45b0e34c991286b332841e918496f6757cb651b892f659ef809557f16ae22364"
     },
     "lang": "en",
@@ -1070,19 +1070,19 @@
     "name": "app-home-en",
     "page": "/en/home",
     "camera": "app camera (approved runner image, project's acceptance service; no video, no trace)",
-    "caption": "Screenshot of the running app at 2026-11-13 13:38:04 UTC. Not live. Sample data.",
-    "taken_at": "2026-11-13T13:38:04.814Z"
+    "caption": "Screenshot of the running app at 2026-11-13 14:38:44 UTC. Not live. Sample data.",
+    "taken_at": "2026-11-13T14:38:44.460Z"
    }
   },
   {
    "id": "68",
-   "project_id": "j1-2d82dec13d74",
-   "at": "2026-11-13T13:38:04.817Z",
+   "project_id": "j1-146ec98dc91a",
+   "at": "2026-11-13T14:38:44.462Z",
    "kind": "journey.screenshot",
    "step": null,
    "payload": {
     "file": {
-     "path": "<run folder>/data/journey/j1-2d82dec13d74/shots/02-app-my-requests-en.png",
+     "path": "<run folder>/data/journey/j1-146ec98dc91a/shots/02-app-my-requests-en.png",
      "sha256": "440e292861fdc0ffff4dcf9d038c837396aa1c6996e4ad56764807be51c5e692"
     },
     "lang": "en",
@@ -1090,19 +1090,19 @@
     "name": "app-my-requests-en",
     "page": "/en/my-requests",
     "camera": "app camera (approved runner image, project's acceptance service; no video, no trace)",
-    "caption": "Screenshot of the running app at 2026-11-13 13:38:04 UTC. Not live. Sample data.",
-    "taken_at": "2026-11-13T13:38:04.814Z"
+    "caption": "Screenshot of the running app at 2026-11-13 14:38:44 UTC. Not live. Sample data.",
+    "taken_at": "2026-11-13T14:38:44.460Z"
    }
   },
   {
    "id": "69",
-   "project_id": "j1-2d82dec13d74",
-   "at": "2026-11-13T13:38:04.818Z",
+   "project_id": "j1-146ec98dc91a",
+   "at": "2026-11-13T14:38:44.463Z",
    "kind": "journey.screenshot",
    "step": null,
    "payload": {
     "file": {
-     "path": "<run folder>/data/journey/j1-2d82dec13d74/shots/03-app-home-ar.png",
+     "path": "<run folder>/data/journey/j1-146ec98dc91a/shots/03-app-home-ar.png",
      "sha256": "4439d6866cd82c3e9af1cf69bbb55caa0f96253c320779957ab6d2064b44840b"
     },
     "lang": "ar",
@@ -1110,19 +1110,19 @@
     "name": "app-home-ar",
     "page": "/ar/home",
     "camera": "app camera (approved runner image, project's acceptance service; no video, no trace)",
-    "caption": "Screenshot of the running app at 2026-11-13 13:38:04 UTC. Not live. Sample data.",
-    "taken_at": "2026-11-13T13:38:04.814Z"
+    "caption": "Screenshot of the running app at 2026-11-13 14:38:44 UTC. Not live. Sample data.",
+    "taken_at": "2026-11-13T14:38:44.460Z"
    }
   },
   {
    "id": "70",
-   "project_id": "j1-2d82dec13d74",
-   "at": "2026-11-13T13:38:04.819Z",
+   "project_id": "j1-146ec98dc91a",
+   "at": "2026-11-13T14:38:44.464Z",
    "kind": "journey.screenshot",
    "step": null,
    "payload": {
     "file": {
-     "path": "<run folder>/data/journey/j1-2d82dec13d74/shots/04-app-my-requests-ar.png",
+     "path": "<run folder>/data/journey/j1-146ec98dc91a/shots/04-app-my-requests-ar.png",
      "sha256": "37f420511d144e13b19b572db9a603489c5e0838fc6cddee2f4a8c95007f0860"
     },
     "lang": "ar",
@@ -1130,56 +1130,56 @@
     "name": "app-my-requests-ar",
     "page": "/ar/my-requests",
     "camera": "app camera (approved runner image, project's acceptance service; no video, no trace)",
-    "caption": "Screenshot of the running app at 2026-11-13 13:38:04 UTC. Not live. Sample data.",
-    "taken_at": "2026-11-13T13:38:04.814Z"
+    "caption": "Screenshot of the running app at 2026-11-13 14:38:44 UTC. Not live. Sample data.",
+    "taken_at": "2026-11-13T14:38:44.460Z"
    }
   },
   {
    "id": "71",
-   "project_id": "j1-2d82dec13d74",
-   "at": "2026-11-13T13:38:04.822Z",
+   "project_id": "j1-146ec98dc91a",
+   "at": "2026-11-13T14:38:44.467Z",
    "kind": "journey.job.finished",
    "step": null,
    "payload": {
     "kind": "preview",
-    "job_id": "job-447207d9",
+    "job_id": "job-963e4bca",
     "screenshots": 4
    }
   },
   {
    "id": "72",
-   "project_id": "j1-2d82dec13d74",
-   "at": "2026-11-13T13:38:06.375Z",
+   "project_id": "j1-146ec98dc91a",
+   "at": "2026-11-13T14:38:45.729Z",
    "kind": "journey.job.started",
    "step": null,
    "payload": {
     "kind": "acceptance",
     "step": null,
-    "job_id": "job-6fd76959"
+    "job_id": "job-0ab7432a"
    }
   },
   {
    "id": "73",
-   "project_id": "j1-2d82dec13d74",
-   "at": "2026-11-13T13:38:09.095Z",
+   "project_id": "j1-146ec98dc91a",
+   "at": "2026-11-13T14:38:48.206Z",
    "kind": "acceptance.run.started",
    "step": null,
    "payload": {
     "label": "stand-in test",
-    "run_id": "run-20261113t133806-913648ab",
+    "run_id": "run-20261113t143845-d557cdc2",
     "refused": null,
     "version": "v001",
     "base_url": "http://127.0.0.1:3161",
     "written_by": "stand-in",
     "app_answered": true,
-    "manifest_sha256": "b15c8563110f8823628cd4894b150a585f3adabd2e67819e53af28978a0f4750",
+    "manifest_sha256": "b90ffefdb437e11821f07828f4b9bf9c667d779ee6a12569587a8d827c7ae174",
     "container_started": true
    }
   },
   {
    "id": "74",
-   "project_id": "j1-2d82dec13d74",
-   "at": "2026-11-13T13:38:09.096Z",
+   "project_id": "j1-146ec98dc91a",
+   "at": "2026-11-13T14:38:48.207Z",
    "kind": "acceptance.item",
    "step": null,
    "payload": {
@@ -1188,48 +1188,48 @@
     "item": 1,
     "step": null,
     "label": "stand-in test",
-    "run_id": "run-20261113t133806-913648ab",
+    "run_id": "run-20261113t143845-d557cdc2",
     "status": "passed",
     "version": "v001",
     "screenshot": {
-     "path": "<run folder>/data/acceptance-runs/j1-2d82dec13d74/run-20261113t133806-913648ab/results/test-results/item-01-item-1-stand-in-te-1c2bf-ir-list-with-status-waiting/attachments/item-screenshot-0e8f8c2486ac91f4cdc3a6b50823c1ddc7d42a81.png",
-     "sha256": "3d43d55ab6dba2d0f96616fdcb096d16abd8f4517e7545546fc6baf5185b7b46"
+     "path": "<run folder>/data/acceptance-runs/j1-146ec98dc91a/run-20261113t143845-d557cdc2/results/test-results/item-01-item-1-stand-in-te-1c2bf-ir-list-with-status-waiting/attachments/item-screenshot-0e8f8c2486ac91f4cdc3a6b50823c1ddc7d42a81.png",
+     "sha256": "cfce7ad923230361490bb7b0fe430005eb5aab1c1b2a26ab57a0939766d54aba"
     },
     "test_title": "item 1 (stand-in test): an employee signs in, submits a five-day request, and sees it in their list with status waiting",
     "written_by": "stand-in",
     "failure_file": null,
-    "manifest_sha256": "b15c8563110f8823628cd4894b150a585f3adabd2e67819e53af28978a0f4750"
+    "manifest_sha256": "b90ffefdb437e11821f07828f4b9bf9c667d779ee6a12569587a8d827c7ae174"
    }
   },
   {
    "id": "75",
-   "project_id": "j1-2d82dec13d74",
-   "at": "2026-11-13T13:38:09.097Z",
+   "project_id": "j1-146ec98dc91a",
+   "at": "2026-11-13T14:38:48.207Z",
    "kind": "acceptance.run.finished",
    "step": null,
    "payload": {
     "label": "stand-in test",
-    "run_id": "run-20261113t133806-913648ab",
+    "run_id": "run-20261113t143845-d557cdc2",
     "summary": "version passed; checklist incomplete (5 of the app spec's 6 checklist items have no test)",
     "version": "v001",
     "exit_code": 0,
     "timed_out": false,
     "written_by": "stand-in",
     "run_problems": [],
-    "manifest_sha256": "b15c8563110f8823628cd4894b150a585f3adabd2e67819e53af28978a0f4750"
+    "manifest_sha256": "b90ffefdb437e11821f07828f4b9bf9c667d779ee6a12569587a8d827c7ae174"
    }
   },
   {
    "id": "76",
-   "project_id": "j1-2d82dec13d74",
-   "at": "2026-11-13T13:38:09.098Z",
+   "project_id": "j1-146ec98dc91a",
+   "at": "2026-11-13T14:38:48.208Z",
    "kind": "journey.job.finished",
    "step": null,
    "payload": {
     "kind": "acceptance",
     "label": "stand-in test, not independent acceptance",
-    "job_id": "job-6fd76959",
-    "run_id": "run-20261113t133806-913648ab",
+    "job_id": "job-0ab7432a",
+    "run_id": "run-20261113t143845-d557cdc2",
     "refused": null,
     "summary": "version passed; checklist incomplete (5 of the app spec's 6 checklist items have no test)",
     "version": "v001",
@@ -1238,47 +1238,47 @@
   },
   {
    "id": "77",
-   "project_id": "j1-2d82dec13d74",
-   "at": "2026-11-13T13:38:10.175Z",
+   "project_id": "j1-146ec98dc91a",
+   "at": "2026-11-13T14:38:49.475Z",
    "kind": "journey.signed_off",
    "step": null,
    "payload": {
     "label": "Sign-off on a simulated build, checked by a stand-in test of item 1 only: not acceptance",
-    "acceptance_job": "job-6fd76959",
-    "acceptance_run": "run-20261113t133806-913648ab",
+    "acceptance_job": "job-0ab7432a",
+    "acceptance_run": "run-20261113t143845-d557cdc2",
     "acceptance_label": "stand-in test, not independent acceptance",
     "acceptance_summary": "version passed; checklist incomplete (5 of the app spec's 6 checklist items have no test)"
    }
   },
   {
    "id": "78",
-   "project_id": "j1-2d82dec13d74",
-   "at": "2026-11-13T13:38:10.875Z",
+   "project_id": "j1-146ec98dc91a",
+   "at": "2026-11-13T14:38:50.127Z",
    "kind": "journey.job.started",
    "step": null,
    "payload": {
     "kind": "export",
     "step": null,
-    "job_id": "job-a4e884b4"
+    "job_id": "job-8f66b1a8"
    }
   },
   {
    "id": "79",
-   "project_id": "j1-2d82dec13d74",
-   "at": "2026-11-13T13:38:11.013Z",
+   "project_id": "j1-146ec98dc91a",
+   "at": "2026-11-13T14:38:50.267Z",
    "kind": "journey.export.written",
    "step": null,
    "payload": {
     "file": {
-     "path": "<run folder>/data/journey/j1-2d82dec13d74/exports/j1-2d82dec13d74-export.tar.gz",
-     "sha256": "8c38eb19683ed0349a6f3e728fd8f9bf48dbc81d9e44d3bcf73a6fed7994e26e"
+     "path": "<run folder>/data/journey/j1-146ec98dc91a/exports/j1-146ec98dc91a-export.tar.gz",
+     "sha256": "074b5e2c335e67c8a6fea94dfac7ef761af0102a376e8432f6773d6db9195bfa"
     },
-    "bytes": 415862,
+    "bytes": 380083,
     "files": 66,
     "label": "Internal only, not for customers. Not yet shown to start without the builder (package 3.2): its tables are made by the builder's tools container, and it has no notices file.",
     "commits": 4,
-    "export_commit": "86646024ba9f3a33743e61aa0d117ee817a8a02a",
-    "workspace_head": "1a61f53379c6c9307fcbc458dadb4152018f4b32",
+    "export_commit": "33f68246c1f4b59017dd4770c94137a268a0e302",
+    "workspace_head": "186ca6925bb9c8c847ad27d4e98e0d152b3063e6",
     "acceptance_version": "v001",
     "workspace_history_changed": false,
     "acceptance_in_exported_copy_only": true
@@ -1286,22 +1286,22 @@
   },
   {
    "id": "80",
-   "project_id": "j1-2d82dec13d74",
-   "at": "2026-11-13T13:38:11.015Z",
+   "project_id": "j1-146ec98dc91a",
+   "at": "2026-11-13T14:38:50.268Z",
    "kind": "journey.job.finished",
    "step": null,
    "payload": {
-    "file": "<run folder>/data/journey/j1-2d82dec13d74/exports/j1-2d82dec13d74-export.tar.gz",
+    "file": "<run folder>/data/journey/j1-146ec98dc91a/exports/j1-146ec98dc91a-export.tar.gz",
     "kind": "export",
-    "bytes": 415862,
-    "job_id": "job-a4e884b4",
-    "sha256": "8c38eb19683ed0349a6f3e728fd8f9bf48dbc81d9e44d3bcf73a6fed7994e26e"
+    "bytes": 380083,
+    "job_id": "job-8f66b1a8",
+    "sha256": "074b5e2c335e67c8a6fea94dfac7ef761af0102a376e8432f6773d6db9195bfa"
    }
   },
   {
    "id": "81",
-   "project_id": "j1-2d82dec13d74",
-   "at": "2026-11-13T13:38:17.354Z",
+   "project_id": "j1-146ec98dc91a",
+   "at": "2026-11-13T14:38:56.471Z",
    "kind": "journey.sandbox.removed",
    "step": null,
    "payload": {
@@ -1311,8 +1311,8 @@
   },
   {
    "id": "82",
-   "project_id": "j1-2d82dec13d74",
-   "at": "2026-11-13T13:38:17.355Z",
+   "project_id": "j1-146ec98dc91a",
+   "at": "2026-11-13T14:38:56.473Z",
    "kind": "journey.closed",
    "step": null,
    "payload": {
@@ -1321,8 +1321,8 @@
   },
   {
    "id": "83",
-   "project_id": "j1-7eee3fa9e666",
-   "at": "2026-11-13T13:38:18.374Z",
+   "project_id": "j1-615be77c0d59",
+   "at": "2026-11-13T14:38:57.428Z",
    "kind": "intake.brief_entered",
    "step": null,
    "payload": {
@@ -1333,8 +1333,8 @@
   },
   {
    "id": "84",
-   "project_id": "j1-7eee3fa9e666",
-   "at": "2026-11-13T13:38:18.472Z",
+   "project_id": "j1-615be77c0d59",
+   "at": "2026-11-13T14:38:57.507Z",
    "kind": "intake.continued",
    "step": null,
    "payload": {
@@ -1346,8 +1346,8 @@
   },
   {
    "id": "85",
-   "project_id": "j1-7eee3fa9e666",
-   "at": "2026-11-13T13:38:18.576Z",
+   "project_id": "j1-615be77c0d59",
+   "at": "2026-11-13T14:38:57.591Z",
    "kind": "intake.answer",
    "step": null,
    "payload": {
@@ -1363,8 +1363,8 @@
   },
   {
    "id": "86",
-   "project_id": "j1-7eee3fa9e666",
-   "at": "2026-11-13T13:38:18.576Z",
+   "project_id": "j1-615be77c0d59",
+   "at": "2026-11-13T14:38:57.592Z",
    "kind": "intake.answer",
    "step": null,
    "payload": {
@@ -1380,8 +1380,8 @@
   },
   {
    "id": "87",
-   "project_id": "j1-7eee3fa9e666",
-   "at": "2026-11-13T13:38:18.577Z",
+   "project_id": "j1-615be77c0d59",
+   "at": "2026-11-13T14:38:57.592Z",
    "kind": "intake.answer",
    "step": null,
    "payload": {
@@ -1397,8 +1397,8 @@
   },
   {
    "id": "88",
-   "project_id": "j1-7eee3fa9e666",
-   "at": "2026-11-13T13:38:18.577Z",
+   "project_id": "j1-615be77c0d59",
+   "at": "2026-11-13T14:38:57.593Z",
    "kind": "intake.answer",
    "step": null,
    "payload": {
@@ -1414,8 +1414,8 @@
   },
   {
    "id": "89",
-   "project_id": "j1-7eee3fa9e666",
-   "at": "2026-11-13T13:38:18.578Z",
+   "project_id": "j1-615be77c0d59",
+   "at": "2026-11-13T14:38:57.594Z",
    "kind": "intake.answer",
    "step": null,
    "payload": {
@@ -1431,8 +1431,8 @@
   },
   {
    "id": "90",
-   "project_id": "j1-7eee3fa9e666",
-   "at": "2026-11-13T13:38:18.579Z",
+   "project_id": "j1-615be77c0d59",
+   "at": "2026-11-13T14:38:57.594Z",
    "kind": "intake.answer",
    "step": null,
    "payload": {
@@ -1448,8 +1448,8 @@
   },
   {
    "id": "91",
-   "project_id": "j1-7eee3fa9e666",
-   "at": "2026-11-13T13:38:18.579Z",
+   "project_id": "j1-615be77c0d59",
+   "at": "2026-11-13T14:38:57.595Z",
    "kind": "intake.answer",
    "step": null,
    "payload": {
@@ -1477,8 +1477,8 @@
   },
   {
    "id": "92",
-   "project_id": "j1-7eee3fa9e666",
-   "at": "2026-11-13T13:38:18.580Z",
+   "project_id": "j1-615be77c0d59",
+   "at": "2026-11-13T14:38:57.596Z",
    "kind": "intake.answer",
    "step": null,
    "payload": {
@@ -1494,8 +1494,8 @@
   },
   {
    "id": "93",
-   "project_id": "j1-7eee3fa9e666",
-   "at": "2026-11-13T13:38:18.580Z",
+   "project_id": "j1-615be77c0d59",
+   "at": "2026-11-13T14:38:57.597Z",
    "kind": "intake.answer",
    "step": null,
    "payload": {
@@ -1511,8 +1511,8 @@
   },
   {
    "id": "94",
-   "project_id": "j1-7eee3fa9e666",
-   "at": "2026-11-13T13:38:18.581Z",
+   "project_id": "j1-615be77c0d59",
+   "at": "2026-11-13T14:38:57.598Z",
    "kind": "intake.answer",
    "step": null,
    "payload": {
@@ -1528,8 +1528,8 @@
   },
   {
    "id": "95",
-   "project_id": "j1-7eee3fa9e666",
-   "at": "2026-11-13T13:38:18.582Z",
+   "project_id": "j1-615be77c0d59",
+   "at": "2026-11-13T14:38:57.598Z",
    "kind": "intake.answer",
    "step": null,
    "payload": {
@@ -1545,8 +1545,8 @@
   },
   {
    "id": "96",
-   "project_id": "j1-7eee3fa9e666",
-   "at": "2026-11-13T13:38:18.583Z",
+   "project_id": "j1-615be77c0d59",
+   "at": "2026-11-13T14:38:57.599Z",
    "kind": "intake.answer",
    "step": null,
    "payload": {
@@ -1562,8 +1562,8 @@
   },
   {
    "id": "97",
-   "project_id": "j1-7eee3fa9e666",
-   "at": "2026-11-13T13:38:18.584Z",
+   "project_id": "j1-615be77c0d59",
+   "at": "2026-11-13T14:38:57.600Z",
    "kind": "intake.answer",
    "step": null,
    "payload": {
@@ -1579,8 +1579,8 @@
   },
   {
    "id": "98",
-   "project_id": "j1-7eee3fa9e666",
-   "at": "2026-11-13T13:38:18.584Z",
+   "project_id": "j1-615be77c0d59",
+   "at": "2026-11-13T14:38:57.600Z",
    "kind": "intake.answer",
    "step": null,
    "payload": {
@@ -1596,8 +1596,8 @@
   },
   {
    "id": "99",
-   "project_id": "j1-7eee3fa9e666",
-   "at": "2026-11-13T13:38:18.585Z",
+   "project_id": "j1-615be77c0d59",
+   "at": "2026-11-13T14:38:57.601Z",
    "kind": "intake.answer",
    "step": null,
    "payload": {
@@ -1613,8 +1613,8 @@
   },
   {
    "id": "100",
-   "project_id": "j1-7eee3fa9e666",
-   "at": "2026-11-13T13:38:18.585Z",
+   "project_id": "j1-615be77c0d59",
+   "at": "2026-11-13T14:38:57.601Z",
    "kind": "intake.answer",
    "step": null,
    "payload": {
@@ -1630,8 +1630,8 @@
   },
   {
    "id": "101",
-   "project_id": "j1-7eee3fa9e666",
-   "at": "2026-11-13T13:38:18.586Z",
+   "project_id": "j1-615be77c0d59",
+   "at": "2026-11-13T14:38:57.602Z",
    "kind": "intake.answer",
    "step": null,
    "payload": {
@@ -1647,8 +1647,8 @@
   },
   {
    "id": "102",
-   "project_id": "j1-7eee3fa9e666",
-   "at": "2026-11-13T13:38:18.587Z",
+   "project_id": "j1-615be77c0d59",
+   "at": "2026-11-13T14:38:57.603Z",
    "kind": "intake.answer",
    "step": null,
    "payload": {
@@ -1664,8 +1664,8 @@
   },
   {
    "id": "103",
-   "project_id": "j1-7eee3fa9e666",
-   "at": "2026-11-13T13:38:18.587Z",
+   "project_id": "j1-615be77c0d59",
+   "at": "2026-11-13T14:38:57.603Z",
    "kind": "intake.answer",
    "step": null,
    "payload": {
@@ -1681,8 +1681,8 @@
   },
   {
    "id": "104",
-   "project_id": "j1-7eee3fa9e666",
-   "at": "2026-11-13T13:38:18.588Z",
+   "project_id": "j1-615be77c0d59",
+   "at": "2026-11-13T14:38:57.604Z",
    "kind": "intake.answer",
    "step": null,
    "payload": {
@@ -1698,8 +1698,8 @@
   },
   {
    "id": "105",
-   "project_id": "j1-7eee3fa9e666",
-   "at": "2026-11-13T13:38:18.773Z",
+   "project_id": "j1-615be77c0d59",
+   "at": "2026-11-13T14:38:57.759Z",
    "kind": "journey.brief_confirmed",
    "step": null,
    "payload": {
@@ -1713,8 +1713,8 @@
   },
   {
    "id": "106",
-   "project_id": "j1-7eee3fa9e666",
-   "at": "2026-11-13T13:38:18.876Z",
+   "project_id": "j1-615be77c0d59",
+   "at": "2026-11-13T14:38:57.842Z",
    "kind": "acceptance.version.written",
    "step": null,
    "payload": {
@@ -1722,7 +1722,7 @@
      {
       "file": "item-01.spec.ts",
       "number": 1,
-      "sha256": "54e6b8af837941bcc32d511fca935cb0ed614b27463c03edb746b6e37ff74ecc"
+      "sha256": "b21859b64053abcb9875e862f4bc23d07a5b47500375c03de8eaeb859fb5ce5c"
      }
     ],
     "label": "stand-in test",
@@ -1730,13 +1730,13 @@
     "written_by": "stand-in",
     "app_spec_sha256": "b09cc4240ad1f05a6540380ab72aca381522d6e3ce3698244270a8de1339a4b8",
     "checklist_items": 6,
-    "manifest_sha256": "4ab2105ab5ef932f44ad61c9b492f427085d212774644ffb6a5fcb3c3689ed6a"
+    "manifest_sha256": "e528e345fd5d8d40bd181c4881ef92a4f958808deca56c42ab62c0b047a61c28"
    }
   },
   {
    "id": "107",
-   "project_id": "j1-7eee3fa9e666",
-   "at": "2026-11-13T13:38:18.877Z",
+   "project_id": "j1-615be77c0d59",
+   "at": "2026-11-13T14:38:57.843Z",
    "kind": "journey.plan_confirmed",
    "step": null,
    "payload": {
@@ -1761,34 +1761,34 @@
   },
   {
    "id": "108",
-   "project_id": "j1-7eee3fa9e666",
-   "at": "2026-11-13T13:38:19.057Z",
+   "project_id": "j1-615be77c0d59",
+   "at": "2026-11-13T14:38:57.992Z",
    "kind": "journey.job.started",
    "step": "01-data",
    "payload": {
     "kind": "build_step",
     "step": "01-data",
-    "job_id": "job-2ae994d5"
+    "job_id": "job-2db48217"
    }
   },
   {
    "id": "109",
-   "project_id": "j1-7eee3fa9e666",
-   "at": "2026-11-13T13:38:19.163Z",
+   "project_id": "j1-615be77c0d59",
+   "at": "2026-11-13T14:38:58.044Z",
    "kind": "journey.sandbox.made",
    "step": "01-data",
    "payload": {
-    "dir": "/tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/j1-tmp/builder-acceptance-TD4z1v",
+    "dir": "/tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/j1-tmp/builder-acceptance-f5BVeU",
     "db_port": 5591,
     "app_port": 3161,
     "containers": 0,
-    "compose_project": "builder_j1-7eee3fa9e666"
+    "compose_project": "builder_j1-615be77c0d59"
    }
   },
   {
    "id": "110",
-   "project_id": "j1-7eee3fa9e666",
-   "at": "2026-11-13T13:38:19.166Z",
+   "project_id": "j1-615be77c0d59",
+   "at": "2026-11-13T14:38:58.049Z",
    "kind": "step.refused",
    "step": "01-data",
    "payload": {
@@ -1827,20 +1827,20 @@
   },
   {
    "id": "111",
-   "project_id": "j1-7eee3fa9e666",
-   "at": "2026-11-13T13:38:19.169Z",
+   "project_id": "j1-615be77c0d59",
+   "at": "2026-11-13T14:38:58.060Z",
    "kind": "engine.event",
    "step": "01-data",
    "payload": {
-    "at": "2026-11-13T13:38:19.169Z",
+    "at": "2026-11-13T14:38:58.060Z",
     "type": "failed",
     "reason": "This step needs up to $1.56 to finish (4 turns); this project has $1.00 left of its budget of $1.00 (spent $0.00, with $0.00 held for work in progress or awaiting reconciliation). The step was not started. A cap of at least $1.56 would let it start now."
    }
   },
   {
    "id": "112",
-   "project_id": "j1-7eee3fa9e666",
-   "at": "2026-11-13T13:38:19.217Z",
+   "project_id": "j1-615be77c0d59",
+   "at": "2026-11-13T14:38:58.092Z",
    "kind": "journey.workspace.reset",
    "step": "01-data",
    "payload": {
@@ -1851,20 +1851,20 @@
   },
   {
    "id": "113",
-   "project_id": "j1-7eee3fa9e666",
-   "at": "2026-11-13T13:38:19.219Z",
+   "project_id": "j1-615be77c0d59",
+   "at": "2026-11-13T14:38:58.094Z",
    "kind": "journey.job.failed",
    "step": "01-data",
    "payload": {
     "kind": "build_step",
-    "job_id": "job-2ae994d5",
+    "job_id": "job-2db48217",
     "reason": "This step needs up to $1.56 to finish (4 turns); this project has $1.00 left of its budget of $1.00 (spent $0.00, with $0.00 held for work in progress or awaiting reconciliation). The step was not started. A cap of at least $1.56 would let it start now."
    }
   },
   {
    "id": "114",
-   "project_id": "j1-7eee3fa9e666",
-   "at": "2026-11-13T13:38:21.206Z",
+   "project_id": "j1-615be77c0d59",
+   "at": "2026-11-13T14:39:00.046Z",
    "kind": "journey.sandbox.removed",
    "step": null,
    "payload": {
@@ -1874,8 +1874,8 @@
   },
   {
    "id": "115",
-   "project_id": "j1-7eee3fa9e666",
-   "at": "2026-11-13T13:38:21.207Z",
+   "project_id": "j1-615be77c0d59",
+   "at": "2026-11-13T14:39:00.047Z",
    "kind": "journey.closed",
    "step": null,
    "payload": {
