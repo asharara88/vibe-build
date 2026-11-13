@@ -1,0 +1,60 @@
+# Package 0.6c, first step: option (a-prime), the Unix-socket door, as a throwaway Compose project for measurement
+# only. Not the builder's Compose file. Every name starts "m06c-". Settings filled in from the environment when run:
+#   M06C_BUILDER (the builder folder, read-only), M06C_FILES (this folder, read-only), M06C_SOCK (a folder on the
+#   machine for the two sockets, owned by uid 1000), M06C_SESSION_PROXY (host and port only), M06C_DOOR_UID.
+# The gateway stand-in of setup A (127.0.0.1:14610, host network) is reused.
+name: m06c-b
+
+x-hardening: &hardening
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+  pids_limit: 256
+  mem_limit: 1g
+  read_only: true
+
+networks:
+  out:
+    internal: true
+    enable_ipv6: false
+    driver_opts:
+      com.docker.network.bridge.gateway_mode_ipv4: isolated
+
+services:
+  # The machine side (host network): the builder's own egress proxy, listening only on a Unix socket in M06C_SOCK
+  # (for the project's door) and on 127.0.0.1:13129 (for the image build); plus a forwarder from a second socket
+  # to the gateway on the machine's loopback.
+  egress-host:
+    image: node:22-alpine@sha256:0e1754758c2df4cfa3e68d59e2e1b7374bb7fd9ea6328eaaacf15cc934af8202
+    <<: *hardening
+    tmpfs: ["/tmp:rw,noexec,nosuid,size=32m"]
+    user: "1000"
+    network_mode: host
+    working_dir: /builder
+    command: ["sh", "-c", "node /m06c/m06c-fwd.mjs & exec node --import tsx /m06c/m06c-egress-unix.mts"]
+    environment:
+      EGRESS_SOCKET: /sock/egress.sock
+      EGRESS_ALLOW: "registry.npmjs.org"
+      EGRESS_UPSTREAM_PROXY: ${M06C_SESSION_PROXY}
+      EGRESS_LOOPBACK_PORT: "13129"
+      EGRESS_LOOPBACK_ALLOW: "registry.npmjs.org"
+      FWD_LISTEN: /sock/gw.sock
+      FWD_TARGET: "127.0.0.1:14610"
+    volumes: ["${M06C_BUILDER}:/builder:ro", "${M06C_FILES}:/m06c:ro", "${M06C_SOCK}:/sock"]
+
+  # The project side: the door, on `out` only, with the name `egress`; two forwarders, TCP to the sockets.
+  door:
+    image: node:22-alpine@sha256:0e1754758c2df4cfa3e68d59e2e1b7374bb7fd9ea6328eaaacf15cc934af8202
+    <<: *hardening
+    user: "${M06C_DOOR_UID:-1000}"
+    command: ["sh", "-c", "FWD_LISTEN=0.0.0.0:4010 FWD_TARGET=/sock/gw.sock node /m06c/m06c-fwd.mjs & FWD_LISTEN=0.0.0.0:3128 FWD_TARGET=/sock/egress.sock exec node /m06c/m06c-fwd.mjs"]
+    volumes: ["${M06C_FILES}:/m06c:ro", "${M06C_SOCK}:/sock:ro"]
+    networks:
+      out: { aliases: [egress] }
+    depends_on: [egress-host]
+
+  engine-net:
+    image: node:22-alpine@sha256:0e1754758c2df4cfa3e68d59e2e1b7374bb7fd9ea6328eaaacf15cc934af8202
+    <<: *hardening
+    user: "1000"
+    command: ["sleep", "3600"]
+    networks: [out]

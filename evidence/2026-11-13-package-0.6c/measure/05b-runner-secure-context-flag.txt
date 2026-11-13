@@ -1,0 +1,12 @@
+# Item 5, follow-up: Chromium's flag with a persistent profile, same image (sha256:94407e8508f286ef110e7ab6b9553ca473f385a923a49ae0d14ad894c5d33b39), network and hardening as 05a. 2026-11-13T10:47:13Z
+
+Running 1 test using 1 worker
+
+[1/1] ../acceptance/item-03.spec.ts:6:5 › 5. with the flag and a persistent profile: isSecureContext and crypto.subtle
+../acceptance/item-03.spec.ts:6:5 › 5. with the flag and a persistent profile: isSecureContext and crypto.subtle
+M06C flag + persistent profile: isSecureContext: false
+
+M06C flag + persistent profile: crypto.subtle: "undefined"
+
+  1 passed (965ms)
+exit 0

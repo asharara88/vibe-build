@@ -1,0 +1,108 @@
+# Item 1 (CLI): internal network with gateway_mode_ipv4=isolated, Docker 29.9.2, 2026-11-13T10:13:23Z
+
+$ docker network create --internal -o com.docker.network.bridge.gateway_mode_ipv4=isolated m06c-t-iso
+0ac88fe66f44a1a22838ed09a67dec8998c6c8cfa59cca0f07eae3359acb21b1
+exit 0
+
+$ docker network create -o com.docker.network.bridge.gateway_mode_ipv4=isolated m06c-t-noint   (not internal)
+Error response from daemon: gateway mode 'isolated' can only be used for an internal network
+exit 1
+
+$ docker network create --internal m06c-t-plain   (internal, no gateway mode: deliberate misconfiguration 2)
+a408da11f7d25652725cf38cf54599925fc473670fa18fef1fb5a12f095d7664
+exit 0
+
+$ docker network inspect m06c-t-iso (selected fields)
+m06c-t-iso id=0ac88fe66f44 internal=true ipv6=false options={"com.docker.network.bridge.gateway_mode_ipv4":"isolated"} ipam=[{"Subnet":"172.18.0.0/16"}]
+
+$ docker network inspect m06c-t-plain (selected fields)
+m06c-t-plain id=a408da11f7d2 internal=true ipv6=false options={} ipam=[{"Gateway":"172.19.0.1","Subnet":"172.19.0.0/16"}]
+
+# Before any container is attached: the machine's addresses (read in a host-network container, busybox ip)
+1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN qlen 1000
+    inet 127.0.0.1/8 scope host lo
+4: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1400 qdisc pfifo_fast state UP qlen 1000
+    inet 192.0.2.2/24 brd 192.0.2.255 scope global eth0
+5: docker0: <NO-CARRIER,BROADCAST,MULTICAST,UP> mtu 1500 qdisc noqueue state DOWN 
+    inet 172.17.0.1/16 brd 172.17.255.255 scope global docker0
+9: br-a408da11f7d2: <NO-CARRIER,BROADCAST,MULTICAST,UP> mtu 1500 qdisc noqueue state DOWN 
+    inet 172.19.0.1/16 brd 172.19.255.255 scope global br-a408da11f7d2
+
+# Start one container on each network, then read again
+m06c-t-iso bridge device: br-0ac88fe66f44
+m06c-t-plain bridge device: br-a408da11f7d2
+1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN qlen 1000
+    inet 127.0.0.1/8 scope host lo
+4: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1400 qdisc pfifo_fast state UP qlen 1000
+    inet 192.0.2.2/24 brd 192.0.2.255 scope global eth0
+5: docker0: <NO-CARRIER,BROADCAST,MULTICAST,UP> mtu 1500 qdisc noqueue state DOWN 
+    inet 172.17.0.1/16 brd 172.17.255.255 scope global docker0
+9: br-a408da11f7d2: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue state UP 
+    inet 172.19.0.1/16 brd 172.19.255.255 scope global br-a408da11f7d2
+
+# IPv6 on the machine's bridges
+(exit 0)
+bridge
+core
+ipv4
+mptcp
+netfilter
+nf_conntrack_max
+unix
+/proc/net/if_inet6 absent: this kernel has no IPv6
+
+# Inside m06c-t-iso-c: addresses and routes
+1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN qlen 1000
+    inet 127.0.0.1/8 scope host lo
+2: eth0@if10: <BROADCAST,MULTICAST,UP,LOWER_UP,M-DOWN> mtu 1500 qdisc noqueue state UP 
+    inet 172.18.0.1/16 brd 172.18.255.255 scope global eth0
+routes:
+172.18.0.0/16 dev eth0 scope link  src 172.18.0.1 
+(end of routes)
+
+# Inside m06c-t-plain-c: addresses and routes
+1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN qlen 1000
+    inet 127.0.0.1/8 scope host lo
+2: eth0@if11: <BROADCAST,MULTICAST,UP,LOWER_UP,M-DOWN> mtu 1500 qdisc noqueue state UP 
+    inet 172.19.0.2/16 brd 172.19.255.255 scope global eth0
+routes:
+172.19.0.0/16 dev eth0 scope link  src 172.19.0.2 
+(end of routes)
+
+# Every interface on the machine (ip link), and every IPv4 address (ip -4 addr), with the two test containers running, 2026-11-13T10:13:33Z
+1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN qlen 1000
+    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+2: ifb0: <BROADCAST,NOARP> mtu 1500 qdisc noop state DOWN qlen 32
+    link/ether 5a:13:cc:e4:9e:f8 brd ff:ff:ff:ff:ff:ff
+3: ifb1: <BROADCAST,NOARP> mtu 1500 qdisc noop state DOWN qlen 32
+    link/ether 06:52:67:67:6a:8c brd ff:ff:ff:ff:ff:ff
+4: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1400 qdisc pfifo_fast state UP qlen 1000
+    link/ether 02:fc:00:00:00:01 brd ff:ff:ff:ff:ff:ff
+5: docker0: <NO-CARRIER,BROADCAST,MULTICAST,UP> mtu 1500 qdisc noqueue state DOWN 
+    link/ether 66:9a:a0:ca:87:13 brd ff:ff:ff:ff:ff:ff
+8: br-0ac88fe66f44: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue state UP 
+    link/ether a6:7c:1e:7d:7d:87 brd ff:ff:ff:ff:ff:ff
+9: br-a408da11f7d2: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue state UP 
+    link/ether ca:7d:d3:3c:78:b6 brd ff:ff:ff:ff:ff:ff
+10: vethc3fba1f@ifb0: <BROADCAST,MULTICAST,UP,LOWER_UP,M-DOWN> mtu 1500 qdisc noqueue master br-0ac88fe66f44 state UP 
+    link/ether 3a:94:a7:94:09:89 brd ff:ff:ff:ff:ff:ff
+11: veth0f2879d@ifb0: <BROADCAST,MULTICAST,UP,LOWER_UP,M-DOWN> mtu 1500 qdisc noqueue master br-a408da11f7d2 state UP 
+    link/ether 6a:38:a7:b9:09:f7 brd ff:ff:ff:ff:ff:ff
+
+1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN qlen 1000
+    inet 127.0.0.1/8 scope host lo
+       valid_lft forever preferred_lft forever
+4: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1400 qdisc pfifo_fast state UP qlen 1000
+    inet 192.0.2.2/24 brd 192.0.2.255 scope global eth0
+       valid_lft forever preferred_lft forever
+5: docker0: <NO-CARRIER,BROADCAST,MULTICAST,UP> mtu 1500 qdisc noqueue state DOWN 
+    inet 172.17.0.1/16 brd 172.17.255.255 scope global docker0
+       valid_lft forever preferred_lft forever
+9: br-a408da11f7d2: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue state UP 
+    inet 172.19.0.1/16 brd 172.19.255.255 scope global br-a408da11f7d2
+       valid_lft forever preferred_lft forever
+
+default via 192.0.2.1 dev eth0 
+172.17.0.0/16 dev docker0 scope link  src 172.17.0.1 
+172.19.0.0/16 dev br-a408da11f7d2 scope link  src 172.19.0.1 
+192.0.2.0/24 dev eth0 scope link  src 192.0.2.2 

@@ -1,0 +1,20 @@
+--- <checkout>/templates/next/Dockerfile	2026-11-13 10:05:28.259878656 +0000
++++ Dockerfile	2026-11-13 10:14:15.809938329 +0000
+@@ -19,11 +19,15 @@
+ COPY package.json package-lock.json ./
+ # The empty stand-in for the image library sharp, which is deliberately not installed (see README).
+ COPY vendor/ ./vendor/
+-RUN npm ci --no-fund --no-audit
++# m06c measurement: install scripts off, through the project's egress proxy (HTTPS_PROXY build argument), no certificate.
++RUN npm ci --ignore-scripts --no-fund --no-audit
++# m06c measurement: what a step under --network=none sees.
++RUN --network=none sh -c 'echo M06C-NONE-STEP; echo interfaces:; ls /sys/class/net; echo routes:; cat /proc/net/route; node -e "fetch(\"https://registry.npmjs.org/-/ping\").then(r=>console.log(\"M06C fetch answered\",r.status)).catch(e=>console.log(\"M06C fetch failed:\",e.cause?.code??e.message))"'
+ COPY . .
+ ENV NEXT_TELEMETRY_DISABLED=1
+ # The build needs no database or secret: pages that need them render at request time.
+-RUN DATABASE_URL=postgres://build:build@localhost/build AUTH_SECRET=build-time-placeholder-not-a-secret-0000 npm run build
++# m06c measurement: the guard check and next build with no network at all.
++RUN --network=none DATABASE_URL=postgres://build:build@localhost/build AUTH_SECRET=build-time-placeholder-not-a-secret-0000 npm run build
+ 
+ # The tools image: creates the tables and the sample users, in a container, never on the machine
+ # that hosts the builder (package 0.5). It is the build stage, with its development tools, run as

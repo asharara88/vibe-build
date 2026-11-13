@@ -1,0 +1,33 @@
+# Item 4, contrast: a lifecycle script planted in vendor/no-sharp/package.json (the template's own linked package), 2026-11-13T10:18:12Z
+# In a container with --network none (npm needs no registry for a file: dependency). The planted script only prints M06C-PLANTED-INSTALL-SCRIPT-RAN.
+## vendor/no-sharp/package.json as planted
+{
+  "name": "sharp",
+  "version": "0.0.0-removed",
+  "private": true,
+  "license": "UNLICENSED",
+  "description": "Empty stand-in. The image library sharp (and its LGPL-licensed parts) is deliberately not installed in this template. See README.",
+  "main": "index.js",
+  "scripts": { "install": "echo M06C-PLANTED-INSTALL-SCRIPT-RAN" }
+}
+## package.json
+{"name":"m06c-planted","version":"0.0.0","private":true,"dependencies":{"sharp":"file:./vendor/no-sharp"},"overrides":{"sharp":"$sharp"}}
+## npm install (writes the lock file)
+
+> sharp@0.0.0-removed install
+> echo M06C-PLANTED-INSTALL-SCRIPT-RAN
+
+M06C-PLANTED-INSTALL-SCRIPT-RAN
+
+added 1 package in 557ms
+## npm ci (plain, as the template Dockerfile runs it today)
+
+> sharp@0.0.0-removed install
+> echo M06C-PLANTED-INSTALL-SCRIPT-RAN
+
+M06C-PLANTED-INSTALL-SCRIPT-RAN
+
+added 1 package in 237ms
+## npm ci --ignore-scripts
+
+added 1 package in 230ms

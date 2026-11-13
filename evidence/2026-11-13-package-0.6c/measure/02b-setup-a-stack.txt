@@ -1,0 +1,60 @@
+# Setup A: database, tables and sample users (tools on data only), app on data and front. 2026-11-13T10:18:28Z
+$ docker compose up -d --wait db
+ Container m06c-a-db-1 Starting 
+ Container m06c-a-db-1 Started 
+ Container m06c-a-db-1 Waiting 
+ Container m06c-a-db-1 Healthy 
+$ docker compose run --rm --no-deps -T tools node_modules/.bin/drizzle-kit push --force
+Reading config file '/app/drizzle.config.ts'
+Using 'pg' driver for database querying
+[⣷] Pulling schema from database...
+[2K[1G[✓] Pulling schema from database...
+[✓] Changes applied
+$ docker compose run --rm --no-deps -T tools node --import tsx scripts/seed.ts
+ Container m06c-a-tools-run-39d6cd04b0f0 Creating 
+ Container m06c-a-tools-run-39d6cd04b0f0 Created 
+created: employee@example.test (employee)
+created: manager@example.test (manager)
+created: hr.admin@example.test (hr_admin)
+$ docker compose up -d --wait app
+ Container m06c-a-db-1 Running 
+ Container m06c-a-db-1 Waiting 
+ Container m06c-a-db-1 Healthy 
+ Container m06c-a-app-1 Starting 
+ Container m06c-a-app-1 Started 
+ Container m06c-a-app-1 Waiting 
+ Container m06c-a-db-1 Waiting 
+ Container m06c-a-db-1 Healthy 
+ Container m06c-a-app-1 Healthy 
+$ docker compose up -d tools-net runner-net engine-net mis1-app-with-ext mis2-plain-internal
+5 containers started
+m06c-a-app-1 Up 6 seconds (healthy)
+m06c-a-db-1 Up 13 seconds (healthy)
+m06c-a-egress-1 Up 3 minutes
+m06c-a-engine-net-1 Up Less than a second
+m06c-a-gw-1 Up 3 minutes
+m06c-a-mis1-app-with-ext-1 Up Less than a second
+m06c-a-mis2-plain-internal-1 Up Less than a second
+m06c-a-relay-1 Up 3 minutes
+m06c-a-runner-net-1 Up Less than a second
+m06c-a-tools-net-1 Up Less than a second
+## db health check as Compose ran it (pg_isready over TCP)
+["CMD-SHELL","pg_isready -h 127.0.0.1 -U app -d app"] -> healthy; last output: 127.0.0.1:5432 - accepting connections
+
+## networks of the project
+m06c-a_data internal=true ipv6=false options={"com.docker.network.bridge.gateway_mode_ipv4":"isolated"} ipam=[{"Subnet":"172.19.0.0/16"}] bridge=br-06e6e23ec069
+m06c-a_front internal=true ipv6=false options={"com.docker.network.bridge.gateway_mode_ipv4":"isolated"} ipam=[{"Subnet":"172.20.0.0/16"}] bridge=br-752ebc27944f
+m06c-a_out internal=true ipv6=false options={"com.docker.network.bridge.gateway_mode_ipv4":"isolated"} ipam=[{"Subnet":"172.18.0.0/16"}] bridge=br-1522af90ed68
+m06c-a_ext internal=false ipv6=false options={} ipam=[{"Gateway":"10.231.60.1","Subnet":"10.231.60.0/28"}] bridge=br-eb770dd6da9d
+m06c-a_data-plain internal=true ipv6=false options={} ipam=[{"Gateway":"172.21.0.1","Subnet":"172.21.0.0/16"}] bridge=br-478ee2db8dbc
+## each container's addresses (docker inspect, network fields only)
+/m06c-a-app-1: m06c-a_data m06c-a_data=172.19.0.2 m06c-a_front=172.20.0.1 
+/m06c-a-db-1: m06c-a_data m06c-a_data=172.19.0.1 
+/m06c-a-egress-1: m06c-a_ext m06c-a_ext=10.231.60.2 m06c-a_out=172.18.0.1 
+/m06c-a-engine-net-1: m06c-a_out m06c-a_out=172.18.0.2 
+/m06c-a-gw-1: host host=invalid IP 
+/m06c-a-mis1-app-with-ext-1: m06c-a_data m06c-a_data=172.19.0.4 m06c-a_ext=10.231.60.3 m06c-a_front=172.20.0.2 
+/m06c-a-mis2-plain-internal-1: m06c-a_data-plain m06c-a_data-plain=172.21.0.2 
+/m06c-a-relay-1: host host=invalid IP 
+/m06c-a-runner-net-1: m06c-a_front m06c-a_front=172.20.0.3 
+/m06c-a-tools-net-1: m06c-a_data m06c-a_data=172.19.0.3 

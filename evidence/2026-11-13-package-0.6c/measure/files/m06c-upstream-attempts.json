@@ -1,0 +1,3 @@
+[{"id":"E2","type":"connect","proxy":"egress:3128","target":"registry.npmjs.org:443","https":true,"path":"/-/ping","what":"through the egress proxy: tunnel to the registry, then HTTPS GET with the container's own trust store"},
+ {"id":"E4","type":"http","url":"http://registry.npmjs.org/-/ping","connectHost":"egress","connectPort":3128,"proxied":true,"what":"through the egress proxy: plain HTTP, allowed host"},
+ {"id":"E3","type":"connect","proxy":"egress:3128","target":"example.com:443","what":"through the egress proxy: a refused host"}]

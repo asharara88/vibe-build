@@ -1,0 +1,12 @@
+{"label":"other-project-ext","kind":"info","name":"uid","value":1000}
+{"label":"other-project-ext","kind":"info","name":"interfaces (up, as Node lists them)","value":["lo: IPv4 127.0.0.1","eth0: IPv4 10.231.61.2"]}
+{"label":"other-project-ext","kind":"info","name":"interfaces in /sys/class/net","value":["eth0","lo"]}
+{"label":"other-project-ext","kind":"info","name":"IPv4 routes (/proc/net/route)","value":["eth0 dest 0.0.0.0 gw 10.231.61.1 mask 0.0.0.0","eth0 dest 10.231.61.0 gw 0.0.0.0 mask 255.255.255.240"]}
+{"label":"other-project-ext","kind":"info","name":"default route present","value":true}
+{"label":"other-project-ext","kind":"info","name":"ip_forward (/proc/sys/net/ipv4/ip_forward)","value":"1"}
+{"label":"other-project-ext","kind":"info","name":"IPv6 in this network namespace","value":{"/proc/net/if_inet6":"(absent)","/proc/sys/net/ipv6":"absent"}}
+{"label":"other-project-ext","kind":"info","name":"name servers (/etc/resolv.conf)","value":["nameserver 127.0.0.11"]}
+{"label":"other-project-ext","kind":"attempt","id":"R1","what":"the relay's session-proxy port: a tunnel to the registry, then HTTPS GET","target":"registry.npmjs.org:443","how":"connect via 10.231.60.1:13128","result":"connection reset","code":"ECONNRESET"}
+{"label":"other-project-ext","kind":"attempt","id":"R3","what":"the relay's session-proxy port: a tunnel to a host outside the project's list (github.com)","target":"github.com:443","how":"connect via 10.231.60.1:13128","result":"connection reset","code":"ECONNRESET"}
+{"label":"other-project-ext","kind":"attempt","id":"R2","what":"the relay's gateway port","target":"http://10.231.60.1:14010/v1/ping","how":"http","result":"connection reset","code":"ECONNRESET"}
+{"label":"other-project-ext","kind":"end","attempts":3}

@@ -1,0 +1,64 @@
+{"label":"db","kind":"info","name":"uid","value":1000}
+{"label":"db","kind":"info","name":"interfaces (up, as Node lists them)","value":["lo: IPv4 127.0.0.1","eth0: IPv4 172.19.0.1"]}
+{"label":"db","kind":"info","name":"interfaces in /sys/class/net","value":["eth0","lo"]}
+{"label":"db","kind":"info","name":"IPv4 routes (/proc/net/route)","value":["eth0 dest 172.19.0.0 gw 0.0.0.0 mask 255.255.0.0"]}
+{"label":"db","kind":"info","name":"default route present","value":false}
+{"label":"db","kind":"info","name":"ip_forward (/proc/sys/net/ipv4/ip_forward)","value":"1"}
+{"label":"db","kind":"info","name":"IPv6 in this network namespace","value":{"/proc/net/if_inet6":"(absent)","/proc/sys/net/ipv6":"absent"}}
+{"label":"db","kind":"info","name":"name servers (/etc/resolv.conf)","value":["nameserver 127.0.0.11"]}
+{"label":"db","kind":"attempt","id":"G 127.0.0.1:2024","what":"a machine address and a port that listens on the machine","target":"127.0.0.1:2024","how":"tcp","result":"refused","code":"ECONNREFUSED"}
+{"label":"db","kind":"attempt","id":"G 127.0.0.1:5432","what":"a machine address and a port that listens on the machine","target":"127.0.0.1:5432","how":"tcp","result":"connected","detail":"from 127.0.0.1"}
+{"label":"db","kind":"attempt","id":"G 127.0.0.1:13128","what":"a machine address and a port that listens on the machine","target":"127.0.0.1:13128","how":"tcp","result":"refused","code":"ECONNREFUSED"}
+{"label":"db","kind":"attempt","id":"G 127.0.0.1:14010","what":"a machine address and a port that listens on the machine","target":"127.0.0.1:14010","how":"tcp","result":"refused","code":"ECONNREFUSED"}
+{"label":"db","kind":"attempt","id":"G 127.0.0.1:14610","what":"a machine address and a port that listens on the machine","target":"127.0.0.1:14610","how":"tcp","result":"refused","code":"ECONNREFUSED"}
+{"label":"db","kind":"attempt","id":"G 127.0.0.1:45589","what":"a machine address and a port that listens on the machine","target":"127.0.0.1:45589","how":"tcp","result":"refused","code":"ECONNREFUSED"}
+{"label":"db","kind":"attempt","id":"G 127.0.0.1:46619","what":"a machine address and a port that listens on the machine","target":"127.0.0.1:46619","how":"tcp","result":"refused","code":"ECONNREFUSED"}
+{"label":"db","kind":"attempt","id":"G 192.0.2.2:2024","what":"a machine address and a port that listens on the machine","target":"192.0.2.2:2024","how":"tcp","result":"network unreachable","code":"ENETUNREACH"}
+{"label":"db","kind":"attempt","id":"G 192.0.2.2:5432","what":"a machine address and a port that listens on the machine","target":"192.0.2.2:5432","how":"tcp","result":"network unreachable","code":"ENETUNREACH"}
+{"label":"db","kind":"attempt","id":"G 192.0.2.2:13128","what":"a machine address and a port that listens on the machine","target":"192.0.2.2:13128","how":"tcp","result":"network unreachable","code":"ENETUNREACH"}
+{"label":"db","kind":"attempt","id":"G 192.0.2.2:14010","what":"a machine address and a port that listens on the machine","target":"192.0.2.2:14010","how":"tcp","result":"network unreachable","code":"ENETUNREACH"}
+{"label":"db","kind":"attempt","id":"G 192.0.2.2:14610","what":"a machine address and a port that listens on the machine","target":"192.0.2.2:14610","how":"tcp","result":"network unreachable","code":"ENETUNREACH"}
+{"label":"db","kind":"attempt","id":"G 192.0.2.2:45589","what":"a machine address and a port that listens on the machine","target":"192.0.2.2:45589","how":"tcp","result":"network unreachable","code":"ENETUNREACH"}
+{"label":"db","kind":"attempt","id":"G 192.0.2.2:46619","what":"a machine address and a port that listens on the machine","target":"192.0.2.2:46619","how":"tcp","result":"network unreachable","code":"ENETUNREACH"}
+{"label":"db","kind":"attempt","id":"G 172.17.0.1:2024","what":"a machine address and a port that listens on the machine","target":"172.17.0.1:2024","how":"tcp","result":"network unreachable","code":"ENETUNREACH"}
+{"label":"db","kind":"attempt","id":"G 172.17.0.1:5432","what":"a machine address and a port that listens on the machine","target":"172.17.0.1:5432","how":"tcp","result":"network unreachable","code":"ENETUNREACH"}
+{"label":"db","kind":"attempt","id":"G 172.17.0.1:13128","what":"a machine address and a port that listens on the machine","target":"172.17.0.1:13128","how":"tcp","result":"network unreachable","code":"ENETUNREACH"}
+{"label":"db","kind":"attempt","id":"G 172.17.0.1:14010","what":"a machine address and a port that listens on the machine","target":"172.17.0.1:14010","how":"tcp","result":"network unreachable","code":"ENETUNREACH"}
+{"label":"db","kind":"attempt","id":"G 172.17.0.1:14610","what":"a machine address and a port that listens on the machine","target":"172.17.0.1:14610","how":"tcp","result":"network unreachable","code":"ENETUNREACH"}
+{"label":"db","kind":"attempt","id":"G 172.17.0.1:45589","what":"a machine address and a port that listens on the machine","target":"172.17.0.1:45589","how":"tcp","result":"network unreachable","code":"ENETUNREACH"}
+{"label":"db","kind":"attempt","id":"G 172.17.0.1:46619","what":"a machine address and a port that listens on the machine","target":"172.17.0.1:46619","how":"tcp","result":"network unreachable","code":"ENETUNREACH"}
+{"label":"db","kind":"attempt","id":"G 10.231.60.1:2024","what":"a machine address and a port that listens on the machine","target":"10.231.60.1:2024","how":"tcp","result":"network unreachable","code":"ENETUNREACH"}
+{"label":"db","kind":"attempt","id":"G 10.231.60.1:5432","what":"a machine address and a port that listens on the machine","target":"10.231.60.1:5432","how":"tcp","result":"network unreachable","code":"ENETUNREACH"}
+{"label":"db","kind":"attempt","id":"G 10.231.60.1:13128","what":"a machine address and a port that listens on the machine","target":"10.231.60.1:13128","how":"tcp","result":"network unreachable","code":"ENETUNREACH"}
+{"label":"db","kind":"attempt","id":"G 10.231.60.1:14010","what":"a machine address and a port that listens on the machine","target":"10.231.60.1:14010","how":"tcp","result":"network unreachable","code":"ENETUNREACH"}
+{"label":"db","kind":"attempt","id":"G 10.231.60.1:14610","what":"a machine address and a port that listens on the machine","target":"10.231.60.1:14610","how":"tcp","result":"network unreachable","code":"ENETUNREACH"}
+{"label":"db","kind":"attempt","id":"G 10.231.60.1:45589","what":"a machine address and a port that listens on the machine","target":"10.231.60.1:45589","how":"tcp","result":"network unreachable","code":"ENETUNREACH"}
+{"label":"db","kind":"attempt","id":"G 10.231.60.1:46619","what":"a machine address and a port that listens on the machine","target":"10.231.60.1:46619","how":"tcp","result":"network unreachable","code":"ENETUNREACH"}
+{"label":"db","kind":"attempt","id":"G 172.21.0.1:2024","what":"a machine address and a port that listens on the machine","target":"172.21.0.1:2024","how":"tcp","result":"network unreachable","code":"ENETUNREACH"}
+{"label":"db","kind":"attempt","id":"G 172.21.0.1:5432","what":"a machine address and a port that listens on the machine","target":"172.21.0.1:5432","how":"tcp","result":"network unreachable","code":"ENETUNREACH"}
+{"label":"db","kind":"attempt","id":"G 172.21.0.1:13128","what":"a machine address and a port that listens on the machine","target":"172.21.0.1:13128","how":"tcp","result":"network unreachable","code":"ENETUNREACH"}
+{"label":"db","kind":"attempt","id":"G 172.21.0.1:14010","what":"a machine address and a port that listens on the machine","target":"172.21.0.1:14010","how":"tcp","result":"network unreachable","code":"ENETUNREACH"}
+{"label":"db","kind":"attempt","id":"G 172.21.0.1:14610","what":"a machine address and a port that listens on the machine","target":"172.21.0.1:14610","how":"tcp","result":"network unreachable","code":"ENETUNREACH"}
+{"label":"db","kind":"attempt","id":"G 172.21.0.1:45589","what":"a machine address and a port that listens on the machine","target":"172.21.0.1:45589","how":"tcp","result":"network unreachable","code":"ENETUNREACH"}
+{"label":"db","kind":"attempt","id":"G 172.21.0.1:46619","what":"a machine address and a port that listens on the machine","target":"172.21.0.1:46619","how":"tcp","result":"network unreachable","code":"ENETUNREACH"}
+{"label":"db","kind":"attempt","id":"A2","what":"outside, by name, plain HTTP, no proxy","target":"http://registry.npmjs.org/-/ping","how":"http","result":"no name server answered","code":"EAI_AGAIN"}
+{"label":"db","kind":"attempt","id":"A4","what":"outside, refused host, plain HTTP, no proxy","target":"http://example.com/","how":"http","result":"no name server answered","code":"EAI_AGAIN"}
+{"label":"db","kind":"attempt","id":"B1","what":"outside address, TCP 443","target":"1.1.1.1:443","how":"tcp","result":"network unreachable","code":"ENETUNREACH"}
+{"label":"db","kind":"attempt","id":"B4","what":"the cloud's machine-information address","target":"http://169.254.169.254/","how":"http","result":"network unreachable","code":"ENETUNREACH"}
+{"label":"db","kind":"attempt","id":"D1","what":"allowed outside name, the container's resolver","target":"registry.npmjs.org","how":"lookup","result":"timed out","detail":"no answer within 3000 ms"}
+{"label":"db","kind":"attempt","id":"D2","what":"refused outside name, the container's resolver","target":"example.com","how":"lookup","result":"timed out","detail":"no answer within 3000 ms"}
+{"label":"db","kind":"attempt","id":"D3","what":"the project's database by service name","target":"db","how":"lookup","result":"timed out","detail":"no answer within 3000 ms"}
+{"label":"db","kind":"attempt","id":"D5","what":"allowed name, asking 1.1.1.1 directly (UDP 53)","target":"registry.npmjs.org","how":"resolve @1.1.1.1","result":"refused","code":"ECONNREFUSED"}
+{"label":"db","kind":"attempt","id":"D6","what":"asking Docker's own name server directly","target":"registry.npmjs.org","how":"resolve @127.0.0.11","result":"error","code":"ESERVFAIL"}
+{"label":"db","kind":"attempt","id":"E2","what":"through the egress proxy: tunnel, then HTTPS GET, no session certificate","target":"registry.npmjs.org:443","how":"connect via egress:3128","result":"timed out","detail":"no answer within 3000 ms"}
+{"label":"db","kind":"attempt","id":"E3","what":"through the egress proxy: a refused host","target":"example.com:443","how":"connect via egress:3128","result":"timed out","detail":"no answer within 3000 ms"}
+{"label":"db","kind":"attempt","id":"E4","what":"through the egress proxy: plain HTTP, allowed host","target":"http://registry.npmjs.org/-/ping","how":"http","result":"timed out","detail":"no answer within 3000 ms"}
+{"label":"db","kind":"attempt","id":"E5","what":"through the egress proxy: plain HTTP, refused host","target":"http://example.com/","how":"http","result":"timed out","detail":"no answer within 3000 ms"}
+{"label":"db","kind":"attempt","id":"W1","what":"the gateway through the egress container's fixed port","target":"http://egress:4010/v1/ping","how":"http","result":"timed out","detail":"no answer within 3000 ms"}
+{"label":"db","kind":"attempt","id":"W2","what":"the gateway by proxy semantics (gateway.internal through the egress proxy)","target":"http://gateway.internal:4010/v1/ping","how":"http","result":"timed out","detail":"no answer within 3000 ms"}
+{"label":"db","kind":"attempt","id":"R1","what":"the relay's session-proxy port directly (not through the egress proxy)","target":"registry.npmjs.org:443","how":"connect via 10.231.60.1:13128","result":"network unreachable","code":"ENETUNREACH"}
+{"label":"db","kind":"attempt","id":"R2","what":"the relay's gateway port directly","target":"http://10.231.60.1:14010/v1/ping","how":"http","result":"network unreachable","code":"ENETUNREACH"}
+{"label":"db","kind":"attempt","id":"P1","what":"the project's database","target":"db:5432","how":"tcp","result":"timed out","detail":"no answer within 3000 ms"}
+{"label":"db","kind":"attempt","id":"P2","what":"the project's app, sign-in page","target":"http://app:3000/en/sign-in","how":"http","result":"timed out","detail":"no answer within 3000 ms"}
+{"label":"db","kind":"attempt","id":"P3","what":"the project's egress proxy","target":"egress:3128","how":"tcp","result":"timed out","detail":"no answer within 3000 ms"}
+{"label":"db","kind":"end","attempts":55}

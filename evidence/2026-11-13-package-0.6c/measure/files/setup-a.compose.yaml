@@ -1,0 +1,161 @@
+# Package 0.6c, first step: the draft's option (a), as a throwaway Compose project for measurement only.
+# Not the builder's Compose file. Every name starts "m06c-". Settings filled in from the environment when run:
+#   M06C_BUILDER (the builder folder, mounted read-only), M06C_FILES (this folder, read-only),
+#   M06C_SESSION_PROXY (the session proxy, host and port only), M06C_RELAY_ALLOW (source check: an address, or "any").
+name: m06c-a
+
+x-hardening: &hardening
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+  pids_limit: 256
+  mem_limit: 1g
+
+x-isolated: &isolated
+  internal: true
+  enable_ipv6: false
+  driver_opts:
+    com.docker.network.bridge.gateway_mode_ipv4: isolated
+
+networks:
+  data: *isolated
+  front: *isolated
+  out: *isolated
+  ext:
+    enable_ipv6: false
+    ipam:
+      config:
+        - subnet: 10.231.60.0/28
+  # Deliberate misconfiguration 2: an internal network WITHOUT the isolated gateway mode.
+  data-plain:
+    internal: true
+    enable_ipv6: false
+
+secrets:
+  db_password:
+    file: ./secrets/db_password
+
+volumes:
+  dbdata: {}
+
+services:
+  # The machine side (host network): builder code only.
+  relay:
+    image: node:22-alpine@sha256:0e1754758c2df4cfa3e68d59e2e1b7374bb7fd9ea6328eaaacf15cc934af8202
+    <<: *hardening
+    read_only: true
+    user: node
+    network_mode: host
+    command: ["node", "/m06c/m06c-relay.mjs"]
+    environment:
+      HTTPS_PROXY: ${M06C_SESSION_PROXY}
+      RELAY_LISTEN: 10.231.60.1
+      RELAY_ROUTES: "13128>session,14010>127.0.0.1:14610"
+      RELAY_ALLOW: ${M06C_RELAY_ALLOW}
+    volumes: ["${M06C_FILES}:/m06c:ro"]
+  gw:
+    image: node:22-alpine@sha256:0e1754758c2df4cfa3e68d59e2e1b7374bb7fd9ea6328eaaacf15cc934af8202
+    <<: *hardening
+    read_only: true
+    user: node
+    network_mode: host
+    command: ["node", "/m06c/m06c-gw-standin.mjs"]
+    environment: { GW_LISTEN: "127.0.0.1:14610" }
+    volumes: ["${M06C_FILES}:/m06c:ro"]
+
+  # The project's egress proxy: the builder's own code, unchanged, on out and ext. A second process
+  # (m06c-fwd.mjs) is the measured "fixed gateway port": egress:4010 to the relay's gateway port.
+  egress:
+    image: node:22-alpine@sha256:0e1754758c2df4cfa3e68d59e2e1b7374bb7fd9ea6328eaaacf15cc934af8202
+    <<: *hardening
+    read_only: true
+    tmpfs: ["/tmp:rw,noexec,nosuid,size=32m"]
+    user: node
+    working_dir: /builder
+    command: ["sh", "-c", "node /m06c/m06c-fwd.mjs & exec node --import tsx src/sandbox/egress-main.ts"]
+    environment:
+      EGRESS_ALLOW: "registry.npmjs.org,gateway.internal"
+      EGRESS_PORT: "3128"
+      EGRESS_UPSTREAM_PROXY: ${M06C_EGRESS_UPSTREAM-http://10.231.60.1:13128}
+      FWD_LISTEN: "0.0.0.0:4010"
+      FWD_TARGET: "10.231.60.1:14010"
+    volumes: ["${M06C_BUILDER}:/builder:ro", "${M06C_FILES}:/m06c:ro"]
+    networks:
+      out: {}
+      ext: { ipv4_address: 10.231.60.2 }
+
+  db:
+    image: postgres:16-alpine@sha256:aa6cb33cf4c19c765cefcf48d96176258800870a9a1e930ad126200f9d825139
+    <<: *hardening
+    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER, SETGID, SETUID]
+    environment: { POSTGRES_USER: app, POSTGRES_PASSWORD_FILE: /run/secrets/db_password, POSTGRES_DB: app }
+    secrets: [db_password]
+    volumes: ["dbdata:/var/lib/postgresql/data"]
+    networks: [data]
+    # Over TCP, not the local socket (critique, item 10; gap 69).
+    healthcheck: { test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U app -d app"], interval: 2s, retries: 30 }
+
+  app:
+    image: m06c-a-app:latest
+    pull_policy: never
+    <<: *hardening
+    read_only: true
+    tmpfs: ["/tmp:rw,noexec,nosuid,size=64m", "/app/.next/cache:rw,nosuid,size=128m"]
+    env_file: [./secrets/app.env]
+    environment: { PORT: "3000", DATABASE_URL: "postgres://app:${DB_PASSWORD}@db:5432/app", APP_URL: "http://app:3000" }
+    depends_on: { db: { condition: service_healthy } }
+    networks: [data, front]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:3000/en/sign-in || exit 1"]
+      interval: 3s
+      retries: 40
+      start_period: 10s
+
+  tools:
+    image: m06c-a-tools:latest
+    pull_policy: never
+    profiles: [tools]
+    <<: *hardening
+    read_only: true
+    tmpfs: ["/tmp:rw,noexec,nosuid,size=64m"]
+    env_file: [./secrets/app.env]
+    environment: { DATABASE_URL: "postgres://app:${DB_PASSWORD}@db:5432/app", APP_URL: "http://app:3000" }
+    networks: [data]
+
+  # Stand-ins with the network membership the design gives each container, for the probes.
+  tools-net:
+    image: node:22-alpine@sha256:0e1754758c2df4cfa3e68d59e2e1b7374bb7fd9ea6328eaaacf15cc934af8202
+    <<: *hardening
+    read_only: true
+    user: node
+    command: ["sleep", "3600"]
+    networks: [data]
+  runner-net:
+    image: node:22-alpine@sha256:0e1754758c2df4cfa3e68d59e2e1b7374bb7fd9ea6328eaaacf15cc934af8202
+    <<: *hardening
+    read_only: true
+    user: node
+    command: ["sleep", "3600"]
+    networks: [front]
+  engine-net:
+    image: node:22-alpine@sha256:0e1754758c2df4cfa3e68d59e2e1b7374bb7fd9ea6328eaaacf15cc934af8202
+    <<: *hardening
+    read_only: true
+    user: node
+    command: ["sleep", "3600"]
+    networks: [out]
+  # Deliberate misconfiguration 1: the app's networks plus ext.
+  mis1-app-with-ext:
+    image: node:22-alpine@sha256:0e1754758c2df4cfa3e68d59e2e1b7374bb7fd9ea6328eaaacf15cc934af8202
+    <<: *hardening
+    read_only: true
+    user: node
+    command: ["sleep", "3600"]
+    networks: [data, front, ext]
+  # Deliberate misconfiguration 2: a container on data-plain (internal, without the isolated gateway mode).
+  mis2-plain-internal:
+    image: node:22-alpine@sha256:0e1754758c2df4cfa3e68d59e2e1b7374bb7fd9ea6328eaaacf15cc934af8202
+    <<: *hardening
+    read_only: true
+    user: node
+    command: ["sleep", "3600"]
+    networks: [data-plain]

@@ -1,0 +1,26 @@
+# Docker objects before the measurements, 2026-11-13T10:11:55Z
+## containers
+builder_p_acc_live_4076c27e-acceptance-run-20261113t101150-89e7ca8e Up 4 seconds
+builder_p_acc_live_4076c27e-app-1 Up 10 seconds (healthy)
+builder_p_acc_live_4076c27e-db-1 Up 16 seconds (healthy)
+## networks
+bridge bridge
+host host
+none null
+## volumes
+40f47574967d269e4ea8727b73a4d9ddd745544d91304ce778775dd062af0baf
+78d56c5811a844b4ea7f5cc09064e2ac1f68b82e40760951c7c7c219fd3fd217
+6706b172a455c99953ac01bf2e52d1973ca44bf6d1decd52e56a1c78c1577afa
+1067820107a378f921c5efd119a336dcf0135c7de3b22a47b6299b2301e292b3
+builder_p_acc_live_4076c27e_dbdata
+## images
+builder_p_acc_live_4076c27e-app:latest b92349be6a8d
+builder_p_acc_live_4076c27e-tools:latest 36e4293c1993
+builder-acceptance-runner:local cf19cec85875
+node:22-bookworm-slim e9f565d32859
+ubuntu:24.04 2198e4c65076
+node:22-alpine 0e1754758c2d
+postgres:16-alpine aa6cb33cf4c1
+python:3.13-slim e48f59cdba69
+alpine:3.20 d9e853e87e55
+curlimages/curl:8.10.1 d9b4541e214b
