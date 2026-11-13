@@ -1,0 +1,20 @@
+Package 1.4c after its review: the full suite, under the shared lock (flock <scratchpad>/live-tests.lock npx vitest run, from builder/), on builder_test_f14c, with BUILDER_BROWSER_CACHE=<scratchpad>/p31-cache. Script: <scratchpad>/f14c-work/full-suite.sh. The files listed below are the ones committed as 25b8bea and 0842aaf (their sha1 checked against those commits after the run).
+Head: 0784859; files of builder/ changed or new since it (with their sha1, to match the commit that follows):
+  2b134d99a0ff0ca50ce27cda795dad29e0bf1ded  scripts/reconcile.ts
+  e63b4548c49110e53916e6cf717ddc66561a8fa4  src/gateway/app.ts
+  27f0fc0405b6d853fbf50bdc1e9a97ee0071204e  src/store/freezes.ts
+  d0ae243ad5718550503626cf0f922607bdb0ba13  src/store/holds.ts
+  443523e014c9be2c104136087253f50bef261083  src/store/migrations/011_kept_above_hold.sql
+  63fd6218e4939e0df437cc9377d0402e69970ab9  src/store/reconcile.ts
+  b5d13abe618beccec0ac40f48fefe29a1986251e  test/overrun.test.ts
+Started 2026-11-13T12:08:51Z; waiting for the shared lock
+
+ RUN  v5.1.0 <scratchpad>/wt-14c/builder
+
+
+ Test Files  16 passed (16)
+      Tests  417 passed (417)
+   Start at  12:18:47
+   Duration  210.34s (tests 99%, import 1%)
+
+Exit code: 0; finished 2026-11-13T12:22:17Z

@@ -1,0 +1,32 @@
+Builder as committed in the merge, 64e67b5: the run started at 13:12:13 UTC on the working tree, whose builder/ folder no file changed after that time and which the merge commit (13:13:02 UTC) took as it was (git status of builder/ empty after the commit); only evidence and records change after it.
+$ BUILDER_TEST_DATABASE_URL=postgres:///builder_test_m14b?host=/var/run/postgresql TMPDIR=<scratchpad>/m14b-tmp BUILDER_BROWSER_CACHE=<scratchpad>/p31-cache flock <scratchpad>/live-tests.lock npx vitest run
+(the lock was waited for from 13:10:37 UTC, held by other runs)
+
+ RUN  v5.1.0 <scratchpad>/wt-14b/builder
+
+(node:17066) Warning: Closing file descriptor 25 on garbage collection
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:17066) [DEP0137] DeprecationWarning: Closing a FileHandle object on garbage collection is deprecated. Please close FileHandle objects explicitly using FileHandle.prototype.close(). In the future, an error will be thrown if a file descriptor is closed during garbage collection.
+(node:17066) Warning: Closing file descriptor 24 on garbage collection
+(node:17066) Warning: Closing file descriptor 26 on garbage collection
+(node:17066) Warning: Closing file descriptor 27 on garbage collection
+(node:17066) Warning: Closing file descriptor 28 on garbage collection
+(node:17066) Warning: Closing file descriptor 29 on garbage collection
+(node:17066) Warning: Closing file descriptor 24 on garbage collection
+(node:17066) Warning: Closing file descriptor 25 on garbage collection
+(node:17066) Warning: Closing file descriptor 26 on garbage collection
+(node:17066) Warning: Closing file descriptor 28 on garbage collection
+(node:17066) Warning: Closing file descriptor 25 on garbage collection
+(node:17066) Warning: Closing file descriptor 26 on garbage collection
+(node:17066) Warning: Closing file descriptor 27 on garbage collection
+(node:17066) Warning: Closing file descriptor 28 on garbage collection
+(node:17066) Warning: Closing file descriptor 25 on garbage collection
+(node:17066) Warning: Closing file descriptor 26 on garbage collection
+(node:17066) Warning: Closing file descriptor 27 on garbage collection
+
+ Test Files  20 passed (20)
+      Tests  444 passed (444)
+   Start at  13:12:13
+   Duration  228.30s (tests 99%, import 1%)
+
+exit code: 0

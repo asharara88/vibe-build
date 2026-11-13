@@ -2,11 +2,13 @@
  * One acceptance run (package 3.1; design note 2.7; docs/design/package-3.1.md, sections 3 to 5).
  *
  * Before the runner's container starts, the builder checks that the version's files match its manifest
- * and that the manifest matches the builder's own `acceptance.version.written` event, and that the right
- * app answers: Compose reports the project's app container running and healthy, and the app's address
- * answers its sign-in page, asked from a short-lived container on the runner's own network (`front`),
- * never from the machine (package 0.6c). A run refused at that point never starts the runner's container,
- * and every item is reported "did not run".
+ * and that the manifest matches the builder's own `acceptance.version.written` event; that Docker answers
+ * and the runner image the sandbox names is on this machine, labelled with the approved browser zip's
+ * fingerprint (package 3.1b); and that the right app answers: Compose reports the project's app container
+ * running and healthy, and the app's address answers its sign-in page, asked from a short-lived container
+ * on the runner's own network (`front`), never from the machine (package 0.6c). A run refused at that
+ * point never starts the runner's container, every item is reported "did not run", and the run's outcome
+ * is "not passed".
  *
  * The runner's container (sandbox manager, `acceptance` service) sees the version read-only at
  * /acceptance, a fresh run folder at /results and the sample password at /run/secrets/sample-password,
@@ -19,10 +21,10 @@
 import { chownSync, chmodSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type pg from "pg";
-import { sandbox as sandboxManager, type Sandbox, type StreamingEnd, type StreamingRun } from "../sandbox/manager.js";
+import { dockerEnv, sandbox as sandboxManager, type Sandbox, type StreamingEnd, type StreamingRun } from "../sandbox/manager.js";
 import { appendEvent, listEvents, type Event } from "../store/events.js";
 import { readRun, type RunReading } from "./results.js";
-import { RUNNER_UID } from "./runner-image.js";
+import { RUNNER_UID, runnerImageProblem } from "./runner-image.js";
 import { newRunFolder, newRunId, projectDir, sha256, STAND_IN_LABEL, verifyVersion, type AcceptanceStore, type RunFolder } from "./store.js";
 
 /** The runner's command: Playwright Test with the runner's own configuration, baked into its image. */
@@ -122,14 +124,24 @@ export async function runAcceptance(input: AcceptanceRunInput): Promise<Acceptan
     if (mismatch) refused = mismatch;
   }
   const manifestSha256 = check.manifestSha256 ?? null;
-  // 2. The right app answers.
+  // 2. Docker answers, and the runner image is here, built from the approved browser zip (package 3.1b).
+  if (!refused) {
+    let imageProblem: string | null;
+    try {
+      imageProblem = sb.acceptanceImage ? await runnerImageProblem(sb.acceptanceImage, dockerEnv(sb)) : "the sandbox has no acceptance service";
+    } catch (err) {
+      imageProblem = `Docker's settings could not be used (${(err as Error).message.split("\n")[0]})`;
+    }
+    if (imageProblem) refused = `the runner cannot start: ${imageProblem}`;
+  }
+  // 3. The right app answers.
   const appAnswered: true | string = refused ? "not checked: the run was refused before this check" : await appAnswers(sb, input.appUrl);
   if (!refused && appAnswered !== true) refused = `the app did not answer before the start: ${appAnswered}`;
 
   let exit: StreamingEnd | null = null;
   let args: string[] | null = null;
   if (!refused) {
-    // 3. The runner's container, with the run's own mounts.
+    // 4. The runner's container, with the run's own mounts.
     writeFileSync(runFolder.secretFile, input.samplePassword, { mode: 0o400 });
     if (process.getuid?.() === 0) {
       chownSync(runFolder.results, RUNNER_UID, RUNNER_UID);
@@ -160,7 +172,7 @@ export async function runAcceptance(input: AcceptanceRunInput): Promise<Acceptan
     }
   }
 
-  // 4. The results, under the builder's own rules; then the events. verifyVersion gives no manifest that is not
+  // 5. The results, under the builder's own rules; then the events. verifyVersion gives no manifest that is not
   // in the store's shape, so such a version is refused and reported "did not run" with no item, and readRun does not throw.
   const reading = readRun({
     resultsDir: runFolder.results,
@@ -211,6 +223,7 @@ export async function runAcceptance(input: AcceptanceRunInput): Promise<Acceptan
       manifest_sha256: manifestSha256,
       exit_code: exit?.code ?? null,
       timed_out: Boolean(exit?.timedOut),
+      outcome: reading.outcome,
       summary: reading.summary,
       run_problems: reading.runProblems,
     }),

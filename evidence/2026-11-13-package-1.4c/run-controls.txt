@@ -1,0 +1,170 @@
+Controls of package 1.4c, on a copy of commit acb5d5b (git archive), 2026-11-13T11:08:44Z
+=== Y1: the freeze written by a settlement above its hold (not streamed)
+    file: src/store/holds.ts; test: 1.4c \(a1\)
+    -      freeze = await freezeAfterOverrunIn(c, overrunOf("bill_above_hold"));
+    |      × 1.4c (a1) not streamed: a bill above its hold is charged in full and, in the same transaction as its hold.exceeded, freezes the project naming that hold; the project's next calls are refused with nothing forwarded; another project's call is forwarded 5300ms
+    | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+    | Error: timed out waiting for: the project's freeze
+    |       Tests  1 failed | 9 skipped (10)
+    RESULT: the test FAILED, as it should (exit 1)
+=== Y2: the same, for a streamed call
+    file: src/store/holds.ts; test: 1.4c \(a2\)
+    -      freeze = await freezeAfterOverrunIn(c, overrunOf("bill_above_hold"));
+    |      × 1.4c (a2) streamed: the same, for a stream settled when its last event is read 5272ms
+    | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+    | Error: timed out waiting for: the project's freeze
+    |       Tests  1 failed | 9 skipped (10)
+    RESULT: the test FAILED, as it should (exit 1)
+=== Y3: the same, for a step-held call
+    file: src/store/holds.ts; test: 1.4c \(b\)
+    -      freeze = await freezeAfterOverrunIn(c, overrunOf("bill_above_hold"));
+    |      × 1.4c (b) a step-held call above its hold: charged in full, the step's room takes the difference, the project is frozen naming that hold; the step's next call and a new step are refused; once the bill is recorded, the step's next call is forwarded and settled 58ms
+    | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+    | AssertionError: expected undefined to match object { kind: 'bill_above_hold', …(1) }
+    |       Tests  1 failed | 9 skipped (10)
+    RESULT: the test FAILED, as it should (exit 1)
+=== Y4: the freeze in the settle's own transaction (moved to a transaction of its own, after the settle commits): the atomicity test
+    file: src/store/holds.ts; test: 1.4c \(a3\)
+    -  return inTransaction(pool, p.projectId, async (c) => {
+    +  let after: any = null;
+    +  const out = await inTransaction(pool, p.projectId, async (c) => {
+    -      freeze = await freezeAfterOverrunIn(c, overrunOf("bill_above_hold"));
+    +      after = overrunOf("bill_above_hold");
+    +  if (after) out.freeze = await inTransaction(pool, p.projectId, (c2) => freezeAfterOverrunIn(c2, after));
+    +  return out;
+    |      × 1.4c (a3) one transaction: with the freeze's write refused, nothing of the settle is written (no cost, no hold.exceeded, no freeze of this kind); the ending goes to package 1.4's journal path and the project is still frozen; the owner's reconciliation above the hold does not freeze 59ms
+    | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+    | AssertionError: expected [ 'hold.opened', 'model.call', …(4) ] to not include 'model.call'
+    |       Tests  1 failed | 9 skipped (10)
+    RESULT: the test FAILED, as it should (exit 1)
+=== Y5: the same move: the test that reads each row's transaction id
+    file: src/store/holds.ts; test: 1.4c \(a1\)
+    -  return inTransaction(pool, p.projectId, async (c) => {
+    +  let after: any = null;
+    +  const out = await inTransaction(pool, p.projectId, async (c) => {
+    -      freeze = await freezeAfterOverrunIn(c, overrunOf("bill_above_hold"));
+    +      after = overrunOf("bill_above_hold");
+    +  if (after) out.freeze = await inTransaction(pool, p.projectId, (c2) => freezeAfterOverrunIn(c2, after));
+    +  return out;
+    |      × 1.4c (a1) not streamed: a bill above its hold is charged in full and, in the same transaction as its hold.exceeded, freezes the project naming that hold; the project's next calls are refused with nothing forwarded; another project's call is forwarded 66ms
+    | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+    | AssertionError: expected 2 to be 1 // Object.is equality
+    |       Tests  1 failed | 9 skipped (10)
+    RESULT: the test FAILED, as it should (exit 1)
+=== Y6: the freeze after a late answer above its hold
+    file: src/store/holds.ts; test: 1.4c \(late\)
+    -    const lateAboveHold = async (): Promise<Freeze | null> => (micro(p.actualUsd) > micro(amountUsd) ? freezeAfterOverrunIn(c, overrunOf("late_answer_above_hold")) : null);
+    +    const lateAboveHold = async (): Promise<Freeze | null> => (micro(p.actualUsd) > micro(amountUsd) ? null : null);
+    |      × 1.4c (late) an answer that arrives after its hold expired, with a cost above the hold, freezes the project (kind 'late_answer_above_hold') in the same transaction as its hold.kept; one below its hold does not; the owner's reconciliation of that hold clears it, and the record of a bill refuses it 55ms
+    | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+    | AssertionError: expected { settled: false, …(3) } to match object { settled: false, …(3) }
+    |       Tests  1 failed | 9 skipped (10)
+    RESULT: the test FAILED, as it should (exit 1)
+=== Y7: the refusal's message naming the bill, the hold and the difference
+    file: src/store/freezes.ts; test: 1.4c \(a1\)
+    -  if (f.kind === "bill_above_hold" || f.kind === "late_answer_above_hold") {
+    +  if (false) {
+    |      × 1.4c (a1) not streamed: a bill above its hold is charged in full and, in the same transaction as its hold.exceeded, freezes the project naming that hold; the project's next calls are refused with nothing forwarded; another project's call is forwarded 76ms
+    | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+    | AssertionError: expected 'This project is stopped: a model call…' to contain 'was billed $0.012284, more than its h…'
+    |       Tests  1 failed | 9 skipped (10)
+    RESULT: the test FAILED, as it should (exit 1)
+=== Y8: the refusal of a freeze of another kind, or of a hold with none
+    file: src/store/reconcile.ts; test: 1.4c \(c2\)
+    -    const overrun = freezes.find((f) => f.kind === "bill_above_hold");
+    +    const overrun = freezes.find((f) => f.cleared_at === null) ?? freezes[0];
+    |      × 1.4c (c2) the record is refused, changing and writing nothing: a freeze of another kind, a hold with no freeze, one already recorded, missing or unstorable texts, a bad id, an unknown project, another project's hold 137ms
+    | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+    | AssertionError: expected the refusal no_overrun_freeze: expected null to be an instance of ReconcileRefused
+    |     195|   expect(err, `expected the refusal ${code}`).toBeInstanceOf(Reconcile…
+    |     196|   expect((err as ReconcileRefused).code).toBe(code);
+    |     197|   expect((err as ReconcileRefused).message).toContain("Nothing was cha…
+    RESULT: the test FAILED, as it should (exit 1)
+=== Y9: the refusal of a record already made
+    file: src/store/reconcile.ts; test: 1.4c \(c2\)
+    -    if (overrun.cleared_at !== null) {
+    +    if (false) {
+    |      × 1.4c (c2) the record is refused, changing and writing nothing: a freeze of another kind, a hold with no freeze, one already recorded, missing or unstorable texts, a bad id, an unknown project, another project's hold 166ms
+    | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+    | AssertionError: expected the refusal overrun_already_recorded: expected TypeError: Cannot read properties of unde… to be an instance of ReconcileRefused
+    |     195|   expect(err, `expected the refusal ${code}`).toBeInstanceOf(Reconcile…
+    |     196|   expect((err as ReconcileRefused).code).toBe(code);
+    |     197|   expect((err as ReconcileRefused).message).toContain("Nothing was cha…
+    RESULT: the test FAILED, as it should (exit 1)
+=== Y10: the check of the evidence (missing, too long, not storable)
+    file: src/store/reconcile.ts; test: 1.4c \(c2\)
+    -  const evidence = checkText("evidence", p.evidence, MAX_EVIDENCE);
+    +  const evidence = String(p.evidence ?? "");
+    |      × 1.4c (c2) the record is refused, changing and writing nothing: a freeze of another kind, a hold with no freeze, one already recorded, missing or unstorable texts, a bad id, an unknown project, another project's hold 145ms
+    | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+    | AssertionError: expected the refusal evidence_missing: expected null to be an instance of ReconcileRefused
+    |     195|   expect(err, `expected the refusal ${code}`).toBeInstanceOf(Reconcile…
+    |     196|   expect((err as ReconcileRefused).code).toBe(code);
+    |     197|   expect((err as ReconcileRefused).message).toContain("Nothing was cha…
+    RESULT: the test FAILED, as it should (exit 1)
+=== Y11: the refusal of another project's hold
+    file: src/store/reconcile.ts; test: 1.4c \(c2\)
+    -    const hold = (await c.query<Hold>("select * from holds where id = $1 and project_id = $2", [p.holdId, p.projectId])).rows[0];
+    +    const hold = (await c.query<Hold>("select * from holds where id = $1 and $2::text is not null", [p.holdId, p.projectId])).rows[0];
+    |      × 1.4c (c2) the record is refused, changing and writing nothing: a freeze of another kind, a hold with no freeze, one already recorded, missing or unstorable texts, a bad id, an unknown project, another project's hold 146ms
+    | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+    | AssertionError: expected 'no_overrun_freeze' to be 'unknown_hold' // Object.is equality
+    |     195|   expect(err, `expected the refusal ${code}`).toBeInstanceOf(Reconcile…
+    |     196|   expect((err as ReconcileRefused).code).toBe(code);
+    |     197|   expect((err as ReconcileRefused).message).toContain("Nothing was cha…
+    RESULT: the test FAILED, as it should (exit 1)
+=== Y12: clearing only the freeze this record names
+    file: src/store/reconcile.ts; test: 1.4c \(c3\)
+    -    const cleared = (await c.query<Freeze>("update project_freezes set cleared_at = clock_timestamp() where id = $1 and cleared_at is null returning *", [overrun.id])).rows[0]!;
+    +    const cleared = (await c.query<Freeze>("update project_freezes set cleared_at = clock_timestamp() where project_id = (select project_id from project_freezes where id = $1) and cleared_at is null returning *", [overrun.id])).rows[0]!;
+    |      × 1.4c (c3) two calls billed above their holds: two freezes; each record clears only its own, and the project runs again only after both 42ms
+    | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+    | AssertionError: expected false to be true // Object.is equality
+    |       Tests  1 failed | 9 skipped (10)
+    RESULT: the test FAILED, as it should (exit 1)
+=== Y13: the list's section of projects frozen after a bill above its hold
+    file: src/store/reconcile.ts; test: 1.4c \(c3\)
+    -        where f.cleared_at is null and f.kind = 'bill_above_hold' and ($1::text is null or f.project_id = $1)
+    +        where false and f.cleared_at is null and f.kind = 'bill_above_hold' and ($1::text is null or f.project_id = $1)
+    |      × 1.4c (c3) two calls billed above their holds: two freezes; each record clears only its own, and the project runs again only after both 51ms
+    | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+    | AssertionError: expected [] to deeply equal [ [ '1180', 0.00996, …(2) ], …(1) ]
+    |       Tests  1 failed | 9 skipped (10)
+    RESULT: the test FAILED, as it should (exit 1)
+=== Y14: the script's refusal of --actual with --overrun
+    file: scripts/reconcile.ts; test: 1.4c \(c4\)
+    -  if (v.actual !== undefined) misuse("--overrun takes no --actual: the bill was charged in full when the call was settled");
+    |      × 1.4c (c4) the script: --list shows each project frozen after a bill above its hold with the bill, the hold and the difference; --overrun records it (exit 0) and is refused a second time (exit 2); misuse is refused before the database (exit 1); no address is printed 1072ms
+    | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+    | AssertionError: --overrun takes no --actual: expected +0 to be 1 // Object.is equality
+    |       Tests  1 failed | 9 skipped (10)
+    RESULT: the test FAILED, as it should (exit 1)
+=== Y15: rule 3 (a settlement's hold.exceeded needs its freeze)
+    file: test/invariants.ts; test: 1.4c \(d\)
+    -          if (!freeze) violations.push({ rule: "3: a bill above its hold with no freeze in its transaction", at: `event ${e.id}`, detail: { ...p, tx: e.tx ?? null } });
+    +          if (false) violations.push({ rule: "3: a bill above its hold with no freeze in its transaction", at: `event ${e.id}`, detail: { ...p, tx: e.tx ?? null } });
+    |      × 1.4c (d) the invariant checker: rule 3 (a settlement's hold.exceeded needs a 'bill_above_hold' freeze of that hold, written in the same transaction) and rule 4 (nothing opens while a freeze is not cleared), on made-up traces 13ms
+    | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+    | AssertionError: expected [ …(2) ] to deeply equal [ …(3) ]
+    |       Tests  1 failed | 9 skipped (10)
+    RESULT: the test FAILED, as it should (exit 1)
+=== Y16: rule 3's condition that the freeze is in the same transaction
+    file: test/invariants.ts; test: 1.4c \(d\)
+    -              (e.tx === undefined || f.tx === e.tx),
+    +              true,
+    |      × 1.4c (d) the invariant checker: rule 3 (a settlement's hold.exceeded needs a 'bill_above_hold' freeze of that hold, written in the same transaction) and rule 4 (nothing opens while a freeze is not cleared), on made-up traces 8ms
+    | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+    | AssertionError: expected [ …(2) ] to deeply equal [ …(3) ]
+    |       Tests  1 failed | 9 skipped (10)
+    RESULT: the test FAILED, as it should (exit 1)
+=== Y17: rule 4 (nothing opens while a freeze is not cleared)
+    file: test/invariants.ts; test: 1.4c \(d\)
+    -    if (frozen.size > 0) violations.push({ rule: "4: a hold opened or a step started while its project was frozen", at: `event ${e.id} ${e.kind}`, detail: { freezes: [...frozen] } });
+    +    if (false) violations.push({ rule: "4: a hold opened or a step started while its project was frozen", at: `event ${e.id} ${e.kind}`, detail: { freezes: [...frozen] } });
+    |      × 1.4c (d) the invariant checker: rule 3 (a settlement's hold.exceeded needs a 'bill_above_hold' freeze of that hold, written in the same transaction) and rule 4 (nothing opens while a freeze is not cleared), on made-up traces 9ms
+    | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+    | AssertionError: expected [] to deeply equal [ Array(1) ]
+    |       Tests  1 failed | 9 skipped (10)
+    RESULT: the test FAILED, as it should (exit 1)
+=== controls that failed as they should: 17; that did not: 0
+The worktree, untouched: 6 changed or new files

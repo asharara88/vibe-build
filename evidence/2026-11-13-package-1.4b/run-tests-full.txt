@@ -1,0 +1,13 @@
+$ git rev-parse --short HEAD
+236c70a
+$ BUILDER_TEST_DATABASE_URL=postgres:///builder_test_p14b?host=/var/run/postgresql TMPDIR=<scratchpad>/p14b-tmp BUILDER_BROWSER_CACHE=<scratchpad>/p31-cache flock <scratchpad>/live-tests.lock npx vitest run
+
+ RUN  v5.1.0 <scratchpad>/wt-14b/builder
+
+
+ Test Files  16 passed (16)
+      Tests  409 passed (409)
+   Start at  10:45:13
+   Duration  255.16s (tests 99%)
+
+exit code: 0

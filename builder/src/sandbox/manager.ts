@@ -523,6 +523,8 @@ export interface Sandbox {
   toolsEnvNames?: string[];
   /** The host folders the engine service mounts in every run (package 3.1's mount rule checks them too). */
   engineMountSources?: string[];
+  /** The image of the acceptance service, when there is one (package 3.1b: a run checks it before it starts). */
+  acceptanceImage?: string;
 }
 
 /** The setting that names the acceptance store's data folder (package 3.1; builder/src/acceptance/store.ts). */
@@ -629,7 +631,7 @@ export function createSandbox(spec: SandboxSpec, dbPassword: string, appSecrets:
   const toolsEnvNames = spec.app
     ? [...new Set(["DATABASE_URL", ...Object.keys(spec.app.toolsEnv ?? {}), ...Object.keys(appSecrets)])].sort()
     : undefined;
-  return { dir: spec.dir, composeFile, projectName: composeProjectName(spec.projectId), appBuild, toolsEnvNames, engineMountSources };
+  return { dir: spec.dir, composeFile, projectName: composeProjectName(spec.projectId), appBuild, toolsEnvNames, engineMountSources, acceptanceImage: spec.acceptance?.image };
 }
 
 /** Settings that only say which Docker daemon to talk to. Passed on, so every command reaches the same daemon. */

@@ -1,0 +1,46 @@
+The first whole-suite run after the fix, kept because it failed: the working tree before B10 (9)'s file watcher in builder/test/failures.test.ts was changed to count an append opened "a+" (the evidence file, "Package 1.4's test B10 (9), changed").
+$ (working tree: the commit fa2b38c plus this round's changes, committed next)
+$ BUILDER_TEST_DATABASE_URL=postgres:///builder_test_p14bfix?host=/var/run/postgresql TMPDIR=<scratchpad>/p14bfix-tmp BUILDER_BROWSER_CACHE=<scratchpad>/p31-cache flock <scratchpad>/live-tests.lock npx vitest run
+started 11:55:51 UTC
+
+ RUN  v5.1.0 <scratchpad>/wt-14b/builder
+
+ ❯ test/failures.test.ts (22 tests | 1 failed) 4684ms
+   ❯ package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) (22)
+     × B10 (9): a second call's ending appended to the journal while the first one's line is being moved to the done file is kept: the move cannot drop it, and a gateway started afterwards still finds it (review bot on 2ad751d) 46ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B10 (9): a second call's ending appended to the journal while the first one's line is being moved to the done file is kept: the move cannot drop it, and a gateway started afterwards still finds it (review bot on 2ad751d)
+AssertionError: expected [ …(2) ] to deeply equal [ …(6) ]
+
+- Expected
++ Received
+
+  [
+-   "append to the journal: opened",
+-   "append to the journal: closed",
+    "mark-done rewrite: rename held",
+    "mark-done rewrite: renamed",
+-   "append to the journal: opened",
+-   "append to the journal: closed",
+  ]
+
+ ❯ test/failures.test.ts:845:21
+    843|       expect(done).not.toContain(b.journal_id);
+    844|       // B's append ran after the rewrite's rename, never inside it.
+    845|       expect(order).toEqual([
+       |                     ^
+    846|         "append to the journal: opened",
+    847|         "append to the journal: closed",
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed | 16 passed (17)
+      Tests  1 failed | 416 passed (417)
+   Start at  11:55:51
+   Duration  238.33s (tests 99%, import 1%)
+
+exit code: 1
+ended 11:59:50 UTC

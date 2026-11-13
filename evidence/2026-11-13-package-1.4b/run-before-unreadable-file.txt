@@ -1,0 +1,16 @@
+$ (in a copy of the builder at 4e8354a, before 1.4b) mkdir <journal folder>/unrecorded-endings.jsonl
+$ BUILDER_DATABASE_URL=postgres:///builder_test_p14b?host=/var/run/postgresql BUILDER_MODEL_API_KEY=<made up> BUILDER_GATEWAY_PORT=0 BUILDER_GATEWAY_JOURNAL_DIR=<journal folder> node --import tsx src/gateway/main.ts
+node:internal/fs/promises:555
+    const bytesRead = (await PromisePrototypeThen(
+                       ^
+
+Error: EISDIR: illegal operation on a directory, read
+    at async readFileHandle (node:internal/fs/promises:555:24)
+    at async FaultJournal.readPending (<copy at 4e8354a>/builder/src/gateway/journal.ts:92:14) {
+  errno: -21,
+  code: 'EISDIR',
+  syscall: 'read'
+}
+
+Node.js v22.23.4
+exit code: 1

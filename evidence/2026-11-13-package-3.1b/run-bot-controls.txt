@@ -1,0 +1,135 @@
+Package 3.1b, after the review bot on 1ebe1cc: controls, 2026-11-13T12:37:02Z. Each: a fresh copy of commit 0f46808 (git archive into the scratch folder, builder/node_modules linked from the worktree), the fix taken out as shown, the fetch's test file run in the copy's builder/, the copy then removed. Stand-in servers on 127.0.0.1 and made-up bytes only.
+
+=== K1. res.resume() put back in both refusals at the headers (as at 1ebe1cc) ===
+--- a/builder/src/acceptance/browser-fetch.ts
++++ b/builder/src/acceptance/browser-fetch.ts
+@@ -216 +216 @@
+-      res.destroy(); // not read on: the answer and its connection are closed before the refusal (the time limits end with it)
++      res.resume();
+@@ -222 +222 @@
+-      res.destroy(); // as above
++      res.resume();
+$ npx vitest run test/browser-fetch.test.ts --reporter=verbose   (in the copy's builder/)
+ ✓ test/browser-fetch.test.ts > fetching the approved browser zip (stand-in server, made-up bytes) > the script's address and the approved size and fingerprint are the recorded ones 1ms
+ ✓ test/browser-fetch.test.ts > fetching the approved browser zip (stand-in server, made-up bytes) > fetches into a new cache folder (made 0700): the zip in place is a plain file with the size and SHA-256 given; no temporary file is left 29ms
+ ✓ test/browser-fetch.test.ts > fetching the approved browser zip (stand-in server, made-up bytes) > a second fetch finds the approved zip there, asks the server nothing and changes nothing 16ms
+ ✓ test/browser-fetch.test.ts > fetching the approved browser zip (stand-in server, made-up bytes) > size: a stated length other than the approved size is refused before anything is written 4ms
+ ✓ test/browser-fetch.test.ts > fetching the approved browser zip (stand-in server, made-up bytes) > size: with no length stated, the download stops as soon as more than the approved size arrives 11ms
+ ✓ test/browser-fetch.test.ts > fetching the approved browser zip (stand-in server, made-up bytes) > SHA-256: a download of the approved size with other bytes is refused and deleted; nothing is put in place 6ms
+ ✓ test/browser-fetch.test.ts > fetching the approved browser zip (stand-in server, made-up bytes) > a connection that ends before the stated length is a failure; nothing is put in place 53ms
+ ✓ test/browser-fetch.test.ts > fetching the approved browser zip (stand-in server, made-up bytes) > an answer other than 200 is refused; a move elsewhere (302) is not followed 5ms
+ ✓ test/browser-fetch.test.ts > fetching the approved browser zip (stand-in server, made-up bytes) > time limits: a download that goes silent is stopped; one that goes on too long is stopped; no file is left 708ms
+ × test/browser-fetch.test.ts > fetching the approved browser zip (stand-in server, made-up bytes) > a refused answer whose body stays open (a stated length other than the approved size; an answer other than 200) has its connection closed at once, not left open past both time limits; no file is left 3011ms
+ ✓ test/browser-fetch.test.ts > fetching the approved browser zip (stand-in server, made-up bytes) > every other way a fetch ends while the body is open closes its connection too: silence, the whole time limit, more bytes than approved 1618ms
+ ✓ test/browser-fetch.test.ts > fetching the approved browser zip (stand-in server, made-up bytes) > never replaces what is at the zip's place: another file, a link or a folder is refused, left as it was, and the server is not asked 3ms
+ ✓ test/browser-fetch.test.ts > fetching the approved browser zip (stand-in server, made-up bytes) > the cache folder: a relative path, a folder inside the repository, and a folder reached through a link are refused 1ms
+ ✓ test/browser-fetch.test.ts > fetching through the environment's proxy (stand-in proxy) > an https address: the download goes through the proxy's tunnel, and TLS is checked: a certificate Node does not trust is refused; once trusted, the zip is fetched through the tunnel 31ms
+ × test/browser-fetch.test.ts > fetching through the environment's proxy (stand-in proxy) > through the tunnel too: a refused answer whose body stays open, and a certificate Node does not trust, close the tunnel at once, not left open past both time limits; no file is left 4521ms
+ ✓ test/browser-fetch.test.ts > fetching through the environment's proxy (stand-in proxy) > an https address goes through a tunnel; a tunnel the proxy refuses is reported with its answer; the user name and password go to the proxy and are never printed 3ms
+ ✓ test/browser-fetch.test.ts > fetching through the environment's proxy (stand-in proxy) > a tunnel the proxy lets through carries the TLS connection; reset, it fails the fetch: the program does not stop, and no file is left 203ms
+ ✓ test/browser-fetch.test.ts > fetching through the environment's proxy (stand-in proxy) > a plain address goes through HTTP_PROXY as a whole address; what is printed names the proxy's host and port only 17ms
+ ✓ test/browser-fetch.test.ts > fetching through the environment's proxy (stand-in proxy) > NO_PROXY: a host it lists is fetched directly; the list's forms are read as hosts and domains 5ms
+ ✓ test/browser-fetch.test.ts > fetching through the environment's proxy (stand-in proxy) > a proxy setting that is not an http:// address is refused, naming the setting and not its value 1ms
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+AssertionError: expected [ …(2) ] to deeply equal [ …(2) ]
+- Expected
++ Received
+-   "/wrong-length-stall: closed within 0.25 s of the refusal",
+-   "/refused-stall: closed within 0.25 s of the refusal",
++   "/wrong-length-stall: still open 1501 ms after the refusal",
++   "/refused-stall: still open 1499 ms after the refusal",
+AssertionError: expected [ …(3) ] to deeply equal [ …(3) ]
+- Expected
++ Received
+-   "/wrong-length-stall: closed within 0.25 s of the refusal",
+-   "/refused-stall: closed within 0.25 s of the refusal",
++   "/wrong-length-stall: still open 1496 ms after the refusal",
++   "/refused-stall: still open 1496 ms after the refusal",
+ Test Files  1 failed (1)
+      Tests  2 failed | 18 passed (20)
+exit code: 1
+
+=== K2. res.resume() put back in the refusal of an answer other than 200 only ===
+--- a/builder/src/acceptance/browser-fetch.ts
++++ b/builder/src/acceptance/browser-fetch.ts
+@@ -216 +216 @@
+-      res.destroy(); // not read on: the answer and its connection are closed before the refusal (the time limits end with it)
++      res.resume();
+$ npx vitest run test/browser-fetch.test.ts --reporter=verbose   (in the copy's builder/)
+ ✓ test/browser-fetch.test.ts > fetching the approved browser zip (stand-in server, made-up bytes) > the script's address and the approved size and fingerprint are the recorded ones 2ms
+ ✓ test/browser-fetch.test.ts > fetching the approved browser zip (stand-in server, made-up bytes) > fetches into a new cache folder (made 0700): the zip in place is a plain file with the size and SHA-256 given; no temporary file is left 20ms
+ ✓ test/browser-fetch.test.ts > fetching the approved browser zip (stand-in server, made-up bytes) > a second fetch finds the approved zip there, asks the server nothing and changes nothing 9ms
+ ✓ test/browser-fetch.test.ts > fetching the approved browser zip (stand-in server, made-up bytes) > size: a stated length other than the approved size is refused before anything is written 6ms
+ ✓ test/browser-fetch.test.ts > fetching the approved browser zip (stand-in server, made-up bytes) > size: with no length stated, the download stops as soon as more than the approved size arrives 16ms
+ ✓ test/browser-fetch.test.ts > fetching the approved browser zip (stand-in server, made-up bytes) > SHA-256: a download of the approved size with other bytes is refused and deleted; nothing is put in place 7ms
+ ✓ test/browser-fetch.test.ts > fetching the approved browser zip (stand-in server, made-up bytes) > a connection that ends before the stated length is a failure; nothing is put in place 54ms
+ ✓ test/browser-fetch.test.ts > fetching the approved browser zip (stand-in server, made-up bytes) > an answer other than 200 is refused; a move elsewhere (302) is not followed 7ms
+ ✓ test/browser-fetch.test.ts > fetching the approved browser zip (stand-in server, made-up bytes) > time limits: a download that goes silent is stopped; one that goes on too long is stopped; no file is left 710ms
+ × test/browser-fetch.test.ts > fetching the approved browser zip (stand-in server, made-up bytes) > a refused answer whose body stays open (a stated length other than the approved size; an answer other than 200) has its connection closed at once, not left open past both time limits; no file is left 3008ms
+ ✓ test/browser-fetch.test.ts > fetching the approved browser zip (stand-in server, made-up bytes) > every other way a fetch ends while the body is open closes its connection too: silence, the whole time limit, more bytes than approved 1614ms
+ ✓ test/browser-fetch.test.ts > fetching the approved browser zip (stand-in server, made-up bytes) > never replaces what is at the zip's place: another file, a link or a folder is refused, left as it was, and the server is not asked 4ms
+ ✓ test/browser-fetch.test.ts > fetching the approved browser zip (stand-in server, made-up bytes) > the cache folder: a relative path, a folder inside the repository, and a folder reached through a link are refused 2ms
+ ✓ test/browser-fetch.test.ts > fetching through the environment's proxy (stand-in proxy) > an https address: the download goes through the proxy's tunnel, and TLS is checked: a certificate Node does not trust is refused; once trusted, the zip is fetched through the tunnel 27ms
+ × test/browser-fetch.test.ts > fetching through the environment's proxy (stand-in proxy) > through the tunnel too: a refused answer whose body stays open, and a certificate Node does not trust, close the tunnel at once, not left open past both time limits; no file is left 4522ms
+ ✓ test/browser-fetch.test.ts > fetching through the environment's proxy (stand-in proxy) > an https address goes through a tunnel; a tunnel the proxy refuses is reported with its answer; the user name and password go to the proxy and are never printed 3ms
+ ✓ test/browser-fetch.test.ts > fetching through the environment's proxy (stand-in proxy) > a tunnel the proxy lets through carries the TLS connection; reset, it fails the fetch: the program does not stop, and no file is left 202ms
+ ✓ test/browser-fetch.test.ts > fetching through the environment's proxy (stand-in proxy) > a plain address goes through HTTP_PROXY as a whole address; what is printed names the proxy's host and port only 7ms
+ ✓ test/browser-fetch.test.ts > fetching through the environment's proxy (stand-in proxy) > NO_PROXY: a host it lists is fetched directly; the list's forms are read as hosts and domains 6ms
+ ✓ test/browser-fetch.test.ts > fetching through the environment's proxy (stand-in proxy) > a proxy setting that is not an http:// address is refused, naming the setting and not its value 2ms
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+AssertionError: expected [ …(2) ] to deeply equal [ …(2) ]
+- Expected
++ Received
+-   "/refused-stall: closed within 0.25 s of the refusal",
++   "/refused-stall: still open 1499 ms after the refusal",
+AssertionError: expected [ …(3) ] to deeply equal [ …(3) ]
+- Expected
++ Received
+-   "/refused-stall: closed within 0.25 s of the refusal",
++   "/refused-stall: still open 1492 ms after the refusal",
+ Test Files  1 failed (1)
+      Tests  2 failed | 18 passed (20)
+exit code: 1
+
+=== K3. res.resume() put back in the refusal of a stated length other than the approved size only ===
+--- a/builder/src/acceptance/browser-fetch.ts
++++ b/builder/src/acceptance/browser-fetch.ts
+@@ -222 +222 @@
+-      res.destroy(); // as above
++      res.resume();
+$ npx vitest run test/browser-fetch.test.ts --reporter=verbose   (in the copy's builder/)
+ ✓ test/browser-fetch.test.ts > fetching the approved browser zip (stand-in server, made-up bytes) > the script's address and the approved size and fingerprint are the recorded ones 2ms
+ ✓ test/browser-fetch.test.ts > fetching the approved browser zip (stand-in server, made-up bytes) > fetches into a new cache folder (made 0700): the zip in place is a plain file with the size and SHA-256 given; no temporary file is left 21ms
+ ✓ test/browser-fetch.test.ts > fetching the approved browser zip (stand-in server, made-up bytes) > a second fetch finds the approved zip there, asks the server nothing and changes nothing 7ms
+ ✓ test/browser-fetch.test.ts > fetching the approved browser zip (stand-in server, made-up bytes) > size: a stated length other than the approved size is refused before anything is written 4ms
+ ✓ test/browser-fetch.test.ts > fetching the approved browser zip (stand-in server, made-up bytes) > size: with no length stated, the download stops as soon as more than the approved size arrives 16ms
+ ✓ test/browser-fetch.test.ts > fetching the approved browser zip (stand-in server, made-up bytes) > SHA-256: a download of the approved size with other bytes is refused and deleted; nothing is put in place 5ms
+ ✓ test/browser-fetch.test.ts > fetching the approved browser zip (stand-in server, made-up bytes) > a connection that ends before the stated length is a failure; nothing is put in place 53ms
+ ✓ test/browser-fetch.test.ts > fetching the approved browser zip (stand-in server, made-up bytes) > an answer other than 200 is refused; a move elsewhere (302) is not followed 4ms
+ ✓ test/browser-fetch.test.ts > fetching the approved browser zip (stand-in server, made-up bytes) > time limits: a download that goes silent is stopped; one that goes on too long is stopped; no file is left 709ms
+ × test/browser-fetch.test.ts > fetching the approved browser zip (stand-in server, made-up bytes) > a refused answer whose body stays open (a stated length other than the approved size; an answer other than 200) has its connection closed at once, not left open past both time limits; no file is left 3009ms
+ ✓ test/browser-fetch.test.ts > fetching the approved browser zip (stand-in server, made-up bytes) > every other way a fetch ends while the body is open closes its connection too: silence, the whole time limit, more bytes than approved 1615ms
+ ✓ test/browser-fetch.test.ts > fetching the approved browser zip (stand-in server, made-up bytes) > never replaces what is at the zip's place: another file, a link or a folder is refused, left as it was, and the server is not asked 3ms
+ ✓ test/browser-fetch.test.ts > fetching the approved browser zip (stand-in server, made-up bytes) > the cache folder: a relative path, a folder inside the repository, and a folder reached through a link are refused 1ms
+ ✓ test/browser-fetch.test.ts > fetching through the environment's proxy (stand-in proxy) > an https address: the download goes through the proxy's tunnel, and TLS is checked: a certificate Node does not trust is refused; once trusted, the zip is fetched through the tunnel 29ms
+ × test/browser-fetch.test.ts > fetching through the environment's proxy (stand-in proxy) > through the tunnel too: a refused answer whose body stays open, and a certificate Node does not trust, close the tunnel at once, not left open past both time limits; no file is left 4525ms
+ ✓ test/browser-fetch.test.ts > fetching through the environment's proxy (stand-in proxy) > an https address goes through a tunnel; a tunnel the proxy refuses is reported with its answer; the user name and password go to the proxy and are never printed 3ms
+ ✓ test/browser-fetch.test.ts > fetching through the environment's proxy (stand-in proxy) > a tunnel the proxy lets through carries the TLS connection; reset, it fails the fetch: the program does not stop, and no file is left 204ms
+ ✓ test/browser-fetch.test.ts > fetching through the environment's proxy (stand-in proxy) > a plain address goes through HTTP_PROXY as a whole address; what is printed names the proxy's host and port only 7ms
+ ✓ test/browser-fetch.test.ts > fetching through the environment's proxy (stand-in proxy) > NO_PROXY: a host it lists is fetched directly; the list's forms are read as hosts and domains 7ms
+ ✓ test/browser-fetch.test.ts > fetching through the environment's proxy (stand-in proxy) > a proxy setting that is not an http:// address is refused, naming the setting and not its value 2ms
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+AssertionError: expected [ …(2) ] to deeply equal [ …(2) ]
+- Expected
++ Received
+-   "/wrong-length-stall: closed within 0.25 s of the refusal",
++   "/wrong-length-stall: still open 1498 ms after the refusal",
+AssertionError: expected [ …(3) ] to deeply equal [ …(3) ]
+- Expected
++ Received
+-   "/wrong-length-stall: closed within 0.25 s of the refusal",
++   "/wrong-length-stall: still open 1493 ms after the refusal",
+ Test Files  1 failed (1)
+      Tests  2 failed | 18 passed (20)
+exit code: 1
+

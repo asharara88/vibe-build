@@ -5,6 +5,7 @@
  * test/acceptance-live.test.ts.
  */
 import { execFileSync } from "node:child_process";
+import { randomBytes } from "node:crypto";
 import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, relative, resolve } from "node:path";
@@ -13,8 +14,8 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { traceScreenFrames, zipEntryNames } from "../src/acceptance/probes.js";
 import { readRun, plainFileInside, type RunFacts } from "../src/acceptance/results.js";
 import { runAcceptance } from "../src/acceptance/runner.js";
-import { approvedPackages, BROWSER_ZIP_SHA256, checkedBrowserZip, RUNNER_BASE_IMAGES, RUNNER_DIR, RUNNER_IMAGE } from "../src/acceptance/runner-image.js";
-import { exampleChecklist, standInSources, STAND_IN_DIR } from "../src/acceptance/stand-in.js";
+import { approvedPackages, BROWSER_ZIP_LABEL, BROWSER_ZIP_SHA256, checkedBrowserZip, RUNNER_BASE_IMAGES, RUNNER_DIR, RUNNER_IMAGE, runnerImageLabelProblem } from "../src/acceptance/runner-image.js";
+import { exampleChecklist, standInSources, STAND_IN_DIR, writeStandInVersion } from "../src/acceptance/stand-in.js";
 import {
   dataDirFromSetting,
   listVersions,
@@ -215,11 +216,11 @@ describe("a run refused because its manifest is malformed still says 'did not ru
       const r = await runAcceptance({ pool, sandbox: untouchable, store, projectId, version: v.version, appUrl: "http://127.0.0.1:1", samplePassword: "made-up", checklistItems: 6 });
       const refused = `the version does not match its manifest: the manifest is not in the shape the store writes: ${why}`;
       expect(r).toMatchObject({ refused, manifestSha256: null, appAnswered: "not checked: the run was refused before this check", exit: null, args: null });
-      expect(r.reading).toEqual({ items: [], runProblems: [`the run was refused before its start: ${refused}`], summary: `did not run: the run was refused before its start: ${refused}` });
+      expect(r.reading).toEqual({ outcome: "not passed", items: [], runProblems: [`the run was refused before its start: ${refused}`], summary: `did not run: the run was refused before its start: ${refused}` });
       const events = await listEvents(pool, projectId);
       expect(events.map((e) => e.kind)).toEqual(["acceptance.run.started", "acceptance.run.finished"]);
       expect(events[0]!.payload).toMatchObject({ run_id: r.runId, version: "v001", written_by: "stand-in", manifest_sha256: null, container_started: false, refused });
-      expect(events[1]!.payload).toMatchObject({ run_id: r.runId, exit_code: null, timed_out: false, summary: r.reading.summary });
+      expect(events[1]!.payload).toMatchObject({ run_id: r.runId, exit_code: null, timed_out: false, outcome: "not passed", summary: r.reading.summary });
       const saved = JSON.parse(readFileSync(join(r.runFolder.builder, "report.json"), "utf8"));
       expect(saved).toMatchObject({ runId: r.runId, refused, reading: { summary: r.reading.summary }, events: events.map((e) => e.id) });
       expect(existsSync(r.runFolder.secretFile)).toBe(false);
@@ -305,6 +306,7 @@ describe("acceptance results: passed only when it ran and passed", () => {
     expect(r.items[0]).toMatchObject({ status: "passed", title: "item 1 (stand-in test): made-up" });
     expect(r.items[0]!.screenshot).toEqual({ path: join(d, "test-results", "item-01", "item-01-stand-in-test.png"), sha256: sha256("made-up png") });
     expect(r.summary).toBe("version passed; checklist incomplete (5 of the app spec's 6 checklist items have no test)");
+    expect(r.outcome).toBe("passed");
   });
 
   it("failed: a recorded failure names the failing step, or 'no step named'; a test's own time limit is a failure; the error text is kept apart, colour codes removed", () => {
@@ -320,6 +322,7 @@ describe("acceptance results: passed only when it ran and passed", () => {
     expect(r.items[0]!.errorText).not.toContain("\u001b");
     expect(r.items[0]!.screenshot?.sha256).toBe(sha256("made-up png"));
     expect(r.summary).toBe('version failed: item 1 failed at step "sees status waiting"');
+    expect(r.outcome).toBe("failed");
     const outside = passedResult({ status: "failed", error: { message: "made-up" }, steps: [] });
     expect(item1(facts(runFolder(report({ tests: [{ expectedStatus: "passed", status: "unexpected", results: [outside] }] }))))).toMatchObject({ status: "failed", step: "no step named" });
     const tooLong = passedResult({ status: "timedOut", steps: [{ title: "signs in as the sample employee" }] });
@@ -357,8 +360,34 @@ describe("acceptance results: passed only when it ran and passed", () => {
       expect(r.items[0]!.status, name).toBe("did not run");
       expect(r.items[0]!.why, name).toMatch(why);
       expect(r.summary).not.toMatch(/^version passed/);
+      expect(r.outcome, name).toBe("not passed");
     });
   }
+
+  // Package 3.1b (the third outside review supplied by the owner, item 3): a run in which no browser test ran is never a pass.
+  it("no browser test ran: a version that names no test is never read as passed, whatever the results file holds", () => {
+    const none: VersionManifest = { ...manifest, items: [] };
+    const empty = { ...report(), suites: [] };
+    for (const [label, content] of [["a results file with no test", empty], ["a results file with a passing test the version does not name", report()]] as const) {
+      const r = readRun(facts(runFolder(content), { manifest: none }));
+      expect(r, label).toEqual({ outcome: "not passed", items: [], runProblems: ["the version names no test, so no browser test ran"], summary: "did not run: the version names no test, so no browser test ran" });
+    }
+  });
+
+  it("no browser test ran: results with no test at all, or with every test skipped, are 'not passed', every item 'did not run'", () => {
+    const two: VersionManifest = { ...manifest, items: [manifest.items[0]!, { number: 2, file: "item-02.spec.ts", sha256: "e".repeat(64), checklist: "" }] };
+    const skipped = (file: string) => ({ title: `${file} (stand-in test): made-up`, file, tests: [{ expectedStatus: "skipped", status: "skipped", annotations: [], results: [{ status: "skipped", retry: 0, annotations: [], attachments: [] }] }] });
+    const cases: Array<[string, unknown]> = [
+      ["no test at all", { ...report(), suites: [] }],
+      ["every test skipped", { ...report(), suites: [{ title: "item-01.spec.ts", file: "item-01.spec.ts", specs: [skipped("item-01.spec.ts")] }, { title: "item-02.spec.ts", file: "item-02.spec.ts", specs: [skipped("item-02.spec.ts")] }] }],
+    ];
+    for (const [label, content] of cases) {
+      const r = readRun(facts(runFolder(content), { manifest: two }));
+      expect(r.outcome, label).toBe("not passed");
+      expect(r.items.map((i) => i.status), label).toEqual(["did not run", "did not run"]);
+      expect(r.summary, label).toMatch(/^version not passed: item 1 did not run \(.+\); item 2 did not run \(.+\)$/);
+    }
+  });
 
   // Review bot on a7f85b6 (P2): valid JSON with this run's metadata but report fields of the wrong shape threw
   // in the reader, so runAcceptance wrote no events and no report. Each is now "did not run", with the place named.
@@ -476,6 +505,84 @@ describe("acceptance runner: the service in the Compose file", () => {
     const dir = mkdtempSync(join(scratch, "sb-up-"));
     const sb = createSandbox({ ...base, profile: "development-cloud-session", dir, acceptance: { image: RUNNER_IMAGE, baseUrl: "http://127.0.0.1:3131" } }, "made-up");
     await expect(sandbox.up(sb, ["acceptance"])).rejects.toThrow(/acceptance service runs one acceptance run at a time/);
+  });
+});
+
+// Package 3.1b (the third outside review supplied by the owner, item 3): a run whose runner cannot start, because
+// Docker does not answer or the runner image (built from the approved browser zip) is not here, is recorded as
+// "not passed", with its events and its report; no container is started and the app is not asked.
+describe("a run whose runner cannot start is recorded 'not passed' (test database; no container started)", () => {
+  let pool: pg.Pool;
+  beforeAll(async () => {
+    pool = await testPool();
+  });
+  afterAll(async () => {
+    await pool?.end();
+  });
+  /** A stand-in version of example 1, written and recorded; a sandbox whose acceptance service names `image`. */
+  async function setUp(image: string) {
+    const projectId = uniqueId("p_acc_nostart");
+    await createProject(pool, { id: projectId, name: "made-up", capUsd: 0 });
+    const store = freshStore();
+    const v = await writeStandInVersion(pool, store, projectId, "example-1");
+    const sb = createSandbox({ ...base, projectId, profile: "development-cloud-session", dir: mkdtempSync(join(scratch, "sb-nostart-")), acceptance: { image, baseUrl: "http://127.0.0.1:1" } }, "made-up");
+    return { projectId, store, v, sb };
+  }
+  async function expectNotPassed(projectId: string, r: Awaited<ReturnType<typeof runAcceptance>>, refused: RegExp) {
+    expect(r.refused).toMatch(refused);
+    expect(r).toMatchObject({ appAnswered: "not checked: the run was refused before this check", exit: null, args: null });
+    expect(r.reading.outcome).toBe("not passed");
+    expect(r.reading.items.map((i) => i.status)).toEqual(["did not run"]);
+    expect(r.reading.summary).toBe(`did not run: the run was refused before its start: ${r.refused}`);
+    const events = await listEvents(pool, projectId);
+    expect(events.map((e) => e.kind)).toEqual(["acceptance.version.written", "acceptance.run.started", "acceptance.item", "acceptance.run.finished"]);
+    expect(events[1]!.payload).toMatchObject({ run_id: r.runId, container_started: false, refused: r.refused });
+    expect(events[2]!.payload).toMatchObject({ run_id: r.runId, status: "did not run" });
+    expect(events[3]!.payload).toMatchObject({ run_id: r.runId, exit_code: null, outcome: "not passed", summary: r.reading.summary });
+    const saved = JSON.parse(readFileSync(join(r.runFolder.builder, "report.json"), "utf8"));
+    expect(saved).toMatchObject({ runId: r.runId, refused: r.refused, reading: { outcome: "not passed", summary: r.reading.summary } });
+    expect(existsSync(r.runFolder.secretFile)).toBe(false);
+  }
+
+  it("Docker does not answer: refused before its start, naming Docker; 'not passed' in the run's events and report", async () => {
+    const { projectId, store, v, sb } = await setUp(RUNNER_IMAGE);
+    const saved = process.env.DOCKER_HOST;
+    process.env.DOCKER_HOST = "unix:///nonexistent-p31b/docker.sock"; // short: a socket's path has a length limit
+    try {
+      const r = await runAcceptance({ pool, sandbox: sb, store, projectId, version: v.version, appUrl: "http://127.0.0.1:1", samplePassword: "made-up", checklistItems: 6 });
+      await expectNotPassed(projectId, r, /^the runner cannot start: Docker did not answer \(.*(?:failed to connect to the docker API|Cannot connect to the Docker daemon) at unix:\/\/\/nonexistent-p31b\/docker\.sock.*\), so the runner image could not be checked: start Docker as CLAUDE\.md, Commands, says$/);
+    } finally {
+      if (saved === undefined) delete process.env.DOCKER_HOST;
+      else process.env.DOCKER_HOST = saved;
+    }
+  });
+
+  it("the runner image is not on this machine (it is built from the approved zip): refused before its start, naming the image; 'not passed'", async () => {
+    const image = `builder-acceptance-runner:made-up-absent-${randomBytes(4).toString("hex")}`;
+    const { projectId, store, v, sb } = await setUp(image);
+    const r = await runAcceptance({ pool, sandbox: sb, store, projectId, version: v.version, appUrl: "http://127.0.0.1:1", samplePassword: "made-up", checklistItems: 6 });
+    await expectNotPassed(projectId, r, new RegExp(`^the runner cannot start: the runner image ${image} is not on this machine: it is built from the approved browser zip`));
+  });
+
+  it("an image without the approved zip's label, or with another zip's, is refused; with the approved one it is accepted", () => {
+    expect(runnerImageLabelProblem(RUNNER_IMAGE, JSON.stringify({ "builder.package": "3.1", [BROWSER_ZIP_LABEL]: BROWSER_ZIP_SHA256 }))).toBeNull();
+    expect(runnerImageLabelProblem(RUNNER_IMAGE, JSON.stringify({ "builder.package": "3.1" }))).toMatch(/has no builder\.browser-zip-sha256 label, so it was not built by this version of the builder from the approved browser zip/);
+    expect(runnerImageLabelProblem(RUNNER_IMAGE, "null")).toMatch(/has no builder\.browser-zip-sha256 label/);
+    expect(runnerImageLabelProblem(RUNNER_IMAGE, JSON.stringify({ [BROWSER_ZIP_LABEL]: "0".repeat(64) }))).toMatch(/built from a browser zip with another fingerprint/);
+    expect(runnerImageLabelProblem(RUNNER_IMAGE, "not json")).toMatch(/labels could not be read/);
+  });
+
+  it("a version that names no test is refused before its start (the store's check); 'not passed', never passed", async () => {
+    const projectId = uniqueId("p_acc_notest");
+    await createProject(pool, { id: projectId, name: "made-up", capUsd: 0 });
+    const { store, v } = withManifest((m) => ({ ...m, items: [] }), projectId);
+    const untouchable = new Proxy({}, { get: (_t, p) => { throw new Error(`the sandbox was used (${String(p)})`); } }) as Sandbox;
+    const r = await runAcceptance({ pool, sandbox: untouchable, store, projectId, version: v.version, appUrl: "http://127.0.0.1:1", samplePassword: "made-up", checklistItems: 6 });
+    expect(r.refused).toMatch(/^the version does not match its manifest: .*the manifest names no test/);
+    expect(r.reading).toMatchObject({ outcome: "not passed", items: [] });
+    expect(r.reading.summary).toMatch(/^did not run: /);
+    const finished = (await listEvents(pool, projectId, "acceptance.run.finished"))[0]!;
+    expect(finished.payload).toMatchObject({ outcome: "not passed" });
   });
 });
 

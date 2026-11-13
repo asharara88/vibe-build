@@ -1,0 +1,114 @@
+The scratch commit e5db818 named below is a commit object made from the working tree for this run only (never on a branch). Its builder folder is the tree 70e93853d9e5c1d83cc139d1b26d25afb838017d, the same tree as the builder folder of the code committed after it (see the evidence file, "Runs").
+$ SCRATCHPAD=<scratchpad> BUILDER_TEST_DATABASE_URL=postgres:///builder_test_p14bfix_ctl?host=/var/run/postgresql python3 evidence/2026-11-13-package-1.4b/controls-after-review.py <commit>
+Scratch copy: git archive e5db818 builder, with the checkout's node_modules linked in
+=== X15: the blocking item: a call's ending appended to the journal while the gateway does not hold its folder's lock (here: the append guarded again, as at fa2b38c)
+    file: src/gateway/journal.ts; test: test/journal-recovery.test.ts -t '\(h\) after'
+    - return this.serial(() => appendWhole(this.file, line));
+    + return this.serial(async () => { this.checkMayWrite(); await appendWhole(this.file, line); });
+    | × (h) after 1.4b's review, the review's probe: the gateway's lock connection lost and kept from it, then a call's ending refused by the database, then the gateway killed: the ending is in its journal, and the restarted gateway (main.ts as a process) freezes the project and forwards nothing for it 15
+    | Tests  1 failed | 12 skipped (13)
+    | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+    | Error: timed out waiting for: the ending written to the journal file
+    RESULT: the test FAILED, as it should (exit 1)
+=== X16: a rewrite carrying over what was appended to the old file after it was read
+    file: src/gateway/journal.ts; test: test/journal-files.test.ts -t '\(r1\) an append'
+    - const carriedOver = await this.carryOver(old, read.length);
+    + const carriedOver = 0;
+    | × (r1) an append that lands in the old journal file after a rewrite read it, and before its rename, is carried over into the new file 18ms
+    | Tests  1 failed | 4 skipped (5)
+    | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+    | AssertionError: expected '{"journal_id":"j_made_up_files_1","ga…' to be '{"journal_id":"j_made_up_files_1","ga…' // Object.is equality
+    RESULT: the test FAILED, as it should (exit 1)
+=== X17: an append writing its line again when its file was replaced while it wrote
+    file: src/gateway/journal.ts; test: test/journal-files.test.ts -t '\(r2\) an append'
+    - if (now !== null && now.ino === wroteTo.ino && now.dev === wroteTo.dev) return;
+    + return;
+    | × (r2) an append that opened the old journal file before a rewrite's rename, and writes after it, writes its line again into the new file 18ms
+    | Tests  1 failed | 4 skipped (5)
+    | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+    | AssertionError: expected '{"journal_id":"j_made_up_files_1","ga…' to be '{"journal_id":"j_made_up_files_1","ga…' // Object.is equality
+    RESULT: the test FAILED, as it should (exit 1)
+=== X18: the folder's id file written under a temporary name and linked into place (here: written under its own name, as at fa2b38c)
+    file: src/gateway/journal.ts; test: test/journal-files.test.ts -t '\(r3\) the folder'
+    - const fh = await open(tmp, "wx");
+    + const fh = await open(file, "wx");
+    | × (r3) the folder's id file is never left empty: a write of it that fails leaves no id file, and the next start makes a whole one 16ms
+    | Tests  1 failed | 4 skipped (5)
+    | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+    | AssertionError: expected [ 'journal-folder-id' ] to deeply equal []
+    RESULT: the test FAILED, as it should (exit 1)
+=== X19: a set-aside entry starting on a line of its own after an entry cut short (here: appended as at fa2b38c)
+    file: src/gateway/journal.ts; test: test/journal-files.test.ts -t '\(r4\) an entry'
+    - await appendWhole(this.setAsideFile, Buffer.from(JSON.stringify(entry) + "\n"));
+    + await appendSynced(this.setAsideFile, JSON.stringify(entry) + "\n");
+    | × (r4) an entry appended to the set-aside file after an entry cut short by a crash starts on a line of its own, and can be read 14ms
+    | Tests  1 failed | 4 skipped (5)
+    | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+    | AssertionError: expected '{"set_aside_id":"sa_made_up_cut","lin…' to be '{"set_aside_id":"sa_made_up_cut","lin…' // Object.is equality
+    RESULT: the test FAILED, as it should (exit 1)
+=== X20: --list reading which locks are held without taking one (here: it also takes the folder's lock for one transaction, as at fa2b38c)
+    file: src/gateway/journal-recovery.ts; test: test/journal-recovery.test.ts -t '\(i\) after'
+    - return r.rows[0]!.held;
+    - }
+    + const c = await pool.connect();
+    + try {
+    + await c.query("begin");
+    + await c.query(`select pg_try_advisory_xact_lock(${journalFolderLockKeySql("$1")})`, [folderId]);
+    + } finally {
+    + await c.query("rollback").catch(() => undefined);
+    + c.release();
+    + }
+    + return r.rows[0]!.held;
+    + }
+    | × (i) after 1.4b's review: --list takes no lock, even for a moment, yet says when the folder is in use; and it decodes only the start of a very long line 354ms
+    | Tests  1 failed | 12 skipped (13)
+    | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+    | AssertionError: expected [ …(2) ] to deeply equal []
+    RESULT: the test FAILED, as it should (exit 1)
+=== X21: --list decoding only the start of a long line
+    file: src/gateway/journal-recovery.ts; test: test/journal-recovery.test.ts -t '\(i\) after'
+    - text: shownText(l.bytes.subarray(0, LISTED_BYTES))
+    + text: shownText(l.bytes)
+    | × (i) after 1.4b's review: --list takes no lock, even for a moment, yet says when the folder is in use; and it decodes only the start of a very long line 58ms
+    | Tests  1 failed | 12 skipped (13)
+    | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+    | AssertionError: expected { lines: 1, length: 3145728, …(2) } to deeply equal { lines: 1, length: 3145728, …(2) }
+    RESULT: the test FAILED, as it should (exit 1)
+=== X22: a re-run naming another hold than the earlier record's being told so
+    file: src/gateway/journal-recovery.ts; test: test/journal-recovery.test.ts -t '\(e3\) after'
+    - holdDiffersFromRequest: (mine.hold_id === null ? null : String(mine.hold_id)) !== req.hold
+    + holdDiffersFromRequest: false
+    | × (e3) after 1.4b's review: a set-aside cut short, then run again naming another hold, finishes the earlier record (its hold's project frozen), writes nothing for the hold asked now, and the script says so 600ms
+    | Tests  1 failed | 12 skipped (13)
+    | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+    | AssertionError: expected 'Database: builder_test_p14bfix_ctl (i…' to contain 'NOTE: this line was set aside earlier…'
+    RESULT: the test FAILED, as it should (exit 1)
+=== X23: the health check answering 503 while an unreadable line keeps the gateway closed (here: {ok: true} always, as at fa2b38c)
+    file: src/gateway/app.ts; test: test/journal-recovery.test.ts -t '\(a\) the review'
+    - (gate.unreadableLines().length > 0 ? c.json({ ok: false, ...journalUnreadable("This is the gateway's health check.") }, 503) : c.json({ ok: true }))
+    + c.json({ ok: true })
+    | × (a) the review's required test: the journal's last record cut short mid-line, as a crash during its append leaves it, then the gateway restarted (main.ts as a process): every request, metered, counting or passed through, any project, is refused 503 gateway_journal_unreadable; the stand-in receives
+    | Tests  1 failed | 12 skipped (13)
+    | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+    | AssertionError: expected { status: 200, ok: true, …(1) } to deeply equal { status: 503, ok: false, …(1) }
+    RESULT: the test FAILED, as it should (exit 1)
+=== X24: a rewrite waiting for a line still being written into the old file to end before carrying it over
+    file: src/gateway/journal.ts; test: test/journal-files.test.ts -t '\(r1b\) a line'
+    - waited < CARRY_OVER_WAIT_MS;
+    + waited < 0;
+    | × (r1b) a line still being written into the old file when it is replaced is carried over once it ends, not cut 221ms
+    | Tests  1 failed | 4 skipped (5)
+    | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+    | AssertionError: expected '{"journal_id":"j_made_up_files_1","ga…' to be '{"journal_id":"j_made_up_files_1","ga…' // Object.is equality
+    RESULT: the test FAILED, as it should (exit 1)
+=== X25: package 1.4's queue for appends (B10 (9)), whose test's file watcher was changed in this round to see an append opened "a+": with the append taken out of the queue, the test still fails
+    file: src/gateway/journal.ts; test: test/failures.test.ts -t 'B10 \(9\)'
+    - return this.serial(() => appendWhole(this.file, line));
+    + return appendWhole(this.file, line);
+    | × B10 (9): a second call's ending appended to the journal while the first one's line is being moved to the done file is kept: the move cannot drop it, and a gateway started afterwards still finds it (review bot on 2ad751d) 70ms
+    | Tests  1 failed | 21 skipped (22)
+    | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+    | AssertionError: expected [ …(8) ] to deeply equal [ …(6) ]
+    RESULT: the test FAILED, as it should (exit 1)
+=== controls that failed as they should: 11; that did not: 0
+exit code: 0

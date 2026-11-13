@@ -1,0 +1,351 @@
+Package 3.1b: the live acceptance test file run with a prerequisite missing. In builder/, at commit a0b0ff1. 2026-11-13T10:49:21Z. Docker answering (docker info: 29.9.2). Test database builder_test_p31b. No container is started by these runs.
+
+== A. BUILDER_BROWSER_CACHE names an empty folder (the zip absent) ==
+$ BUILDER_BROWSER_CACHE=<scratch>/p31b-tmp/empty-cache npx vitest run test/acceptance-live.test.ts
+
+ RUN  v5.1.0 <scratch>/wt-31b/builder
+
+ ❯ test/acceptance-live.test.ts (7 tests | 7 failed) 19ms
+   ❯ acceptance runner: live, development profile, stand-in test (7)
+     × its prerequisites are here: Docker answers, and the folder BUILDER_BROWSER_CACHE names holds the approved browser zip 3ms
+     × the runner image builds from the cached zip; it holds the base image's packages and exactly the 109 approved ones at their versions 1ms
+     × the stand-in version is written before step 01; steps 01 and 02 run; run A: item 1 passes, with its screenshot and its events 1ms
+     × run B, stopped by a half-second time limit: every item 'did not run', never passed 0ms
+     × from inside the engine container: every path to the store fails, no readable file holds the marker, a phrase of the test or the run's reason; its mounts hold nothing of the store; the history holds no acceptance file 1ms
+     × run C, with the app stopped: refused before its start, no container, every item 'did not run' 0ms
+     × run D, the deliberately broken copy in a fresh sandbox under the same project id, with the same version: item 1 failed, at step 'sees status waiting' 0ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 7 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/acceptance-live.test.ts > acceptance runner: live, development profile, stand-in test > its prerequisites are here: Docker answers, and the folder BUILDER_BROWSER_CACHE names holds the approved browser zip
+Error: This live acceptance test cannot exercise the browser, so it fails (it is never skipped). Missing: The approved browser zip is not in the folder BUILDER_BROWSER_CACHE names: The browser cache has no chrome-headless-shell-linux64.zip (<scratch>/p31b-tmp/empty-cache/chrome-headless-shell-linux64.zip). To put it right, from builder/, run `BUILDER_BROWSER_CACHE=<a folder outside the repository> npx tsx scripts/fetch-browser.ts`, then run the tests with BUILDER_BROWSER_CACHE set to that folder; if the session's network refuses storage.googleapis.com, the owner's cloud environment must let that host through first (docs/ENVIRONMENT-CHECK.md, 'Session set-up'; known gap 110).
+ ❯ needsPrerequisites test/acceptance-live.test.ts:34:29
+     32| /** Every live test starts with this: with a prerequisite missing it f…
+     33| const needsPrerequisites = () => {
+     34|   if (missing.length) throw new Error(`This live acceptance test canno…
+       |                             ^
+     35| };
+     36|
+ ❯ test/acceptance-live.test.ts:74:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/7]⎯
+
+ FAIL  test/acceptance-live.test.ts > acceptance runner: live, development profile, stand-in test > the runner image builds from the cached zip; it holds the base image's packages and exactly the 109 approved ones at their versions
+Error: This live acceptance test cannot exercise the browser, so it fails (it is never skipped). Missing: The approved browser zip is not in the folder BUILDER_BROWSER_CACHE names: The browser cache has no chrome-headless-shell-linux64.zip (<scratch>/p31b-tmp/empty-cache/chrome-headless-shell-linux64.zip). To put it right, from builder/, run `BUILDER_BROWSER_CACHE=<a folder outside the repository> npx tsx scripts/fetch-browser.ts`, then run the tests with BUILDER_BROWSER_CACHE set to that folder; if the session's network refuses storage.googleapis.com, the owner's cloud environment must let that host through first (docs/ENVIRONMENT-CHECK.md, 'Session set-up'; known gap 110).
+ ❯ needsPrerequisites test/acceptance-live.test.ts:34:29
+     32| /** Every live test starts with this: with a prerequisite missing it f…
+     33| const needsPrerequisites = () => {
+     34|   if (missing.length) throw new Error(`This live acceptance test canno…
+       |                             ^
+     35| };
+     36|
+ ❯ test/acceptance-live.test.ts:79:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/7]⎯
+
+ FAIL  test/acceptance-live.test.ts > acceptance runner: live, development profile, stand-in test > the stand-in version is written before step 01; steps 01 and 02 run; run A: item 1 passes, with its screenshot and its events
+Error: This live acceptance test cannot exercise the browser, so it fails (it is never skipped). Missing: The approved browser zip is not in the folder BUILDER_BROWSER_CACHE names: The browser cache has no chrome-headless-shell-linux64.zip (<scratch>/p31b-tmp/empty-cache/chrome-headless-shell-linux64.zip). To put it right, from builder/, run `BUILDER_BROWSER_CACHE=<a folder outside the repository> npx tsx scripts/fetch-browser.ts`, then run the tests with BUILDER_BROWSER_CACHE set to that folder; if the session's network refuses storage.googleapis.com, the owner's cloud environment must let that host through first (docs/ENVIRONMENT-CHECK.md, 'Session set-up'; known gap 110).
+ ❯ needsPrerequisites test/acceptance-live.test.ts:34:29
+     32| /** Every live test starts with this: with a prerequisite missing it f…
+     33| const needsPrerequisites = () => {
+     34|   if (missing.length) throw new Error(`This live acceptance test canno…
+       |                             ^
+     35| };
+     36|
+ ❯ test/acceptance-live.test.ts:90:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/7]⎯
+
+ FAIL  test/acceptance-live.test.ts > acceptance runner: live, development profile, stand-in test > run B, stopped by a half-second time limit: every item 'did not run', never passed
+Error: This live acceptance test cannot exercise the browser, so it fails (it is never skipped). Missing: The approved browser zip is not in the folder BUILDER_BROWSER_CACHE names: The browser cache has no chrome-headless-shell-linux64.zip (<scratch>/p31b-tmp/empty-cache/chrome-headless-shell-linux64.zip). To put it right, from builder/, run `BUILDER_BROWSER_CACHE=<a folder outside the repository> npx tsx scripts/fetch-browser.ts`, then run the tests with BUILDER_BROWSER_CACHE set to that folder; if the session's network refuses storage.googleapis.com, the owner's cloud environment must let that host through first (docs/ENVIRONMENT-CHECK.md, 'Session set-up'; known gap 110).
+ ❯ needsPrerequisites test/acceptance-live.test.ts:34:29
+     32| /** Every live test starts with this: with a prerequisite missing it f…
+     33| const needsPrerequisites = () => {
+     34|   if (missing.length) throw new Error(`This live acceptance test canno…
+       |                             ^
+     35| };
+     36|
+ ❯ test/acceptance-live.test.ts:123:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/7]⎯
+
+ FAIL  test/acceptance-live.test.ts > acceptance runner: live, development profile, stand-in test > from inside the engine container: every path to the store fails, no readable file holds the marker, a phrase of the test or the run's reason; its mounts hold nothing of the store; the history holds no acceptance file
+Error: This live acceptance test cannot exercise the browser, so it fails (it is never skipped). Missing: The approved browser zip is not in the folder BUILDER_BROWSER_CACHE names: The browser cache has no chrome-headless-shell-linux64.zip (<scratch>/p31b-tmp/empty-cache/chrome-headless-shell-linux64.zip). To put it right, from builder/, run `BUILDER_BROWSER_CACHE=<a folder outside the repository> npx tsx scripts/fetch-browser.ts`, then run the tests with BUILDER_BROWSER_CACHE set to that folder; if the session's network refuses storage.googleapis.com, the owner's cloud environment must let that host through first (docs/ENVIRONMENT-CHECK.md, 'Session set-up'; known gap 110).
+ ❯ needsPrerequisites test/acceptance-live.test.ts:34:29
+     32| /** Every live test starts with this: with a prerequisite missing it f…
+     33| const needsPrerequisites = () => {
+     34|   if (missing.length) throw new Error(`This live acceptance test canno…
+       |                             ^
+     35| };
+     36|
+ ❯ test/acceptance-live.test.ts:133:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/7]⎯
+
+ FAIL  test/acceptance-live.test.ts > acceptance runner: live, development profile, stand-in test > run C, with the app stopped: refused before its start, no container, every item 'did not run'
+Error: This live acceptance test cannot exercise the browser, so it fails (it is never skipped). Missing: The approved browser zip is not in the folder BUILDER_BROWSER_CACHE names: The browser cache has no chrome-headless-shell-linux64.zip (<scratch>/p31b-tmp/empty-cache/chrome-headless-shell-linux64.zip). To put it right, from builder/, run `BUILDER_BROWSER_CACHE=<a folder outside the repository> npx tsx scripts/fetch-browser.ts`, then run the tests with BUILDER_BROWSER_CACHE set to that folder; if the session's network refuses storage.googleapis.com, the owner's cloud environment must let that host through first (docs/ENVIRONMENT-CHECK.md, 'Session set-up'; known gap 110).
+ ❯ needsPrerequisites test/acceptance-live.test.ts:34:29
+     32| /** Every live test starts with this: with a prerequisite missing it f…
+     33| const needsPrerequisites = () => {
+     34|   if (missing.length) throw new Error(`This live acceptance test canno…
+       |                             ^
+     35| };
+     36|
+ ❯ test/acceptance-live.test.ts:176:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/7]⎯
+
+ FAIL  test/acceptance-live.test.ts > acceptance runner: live, development profile, stand-in test > run D, the deliberately broken copy in a fresh sandbox under the same project id, with the same version: item 1 failed, at step 'sees status waiting'
+Error: This live acceptance test cannot exercise the browser, so it fails (it is never skipped). Missing: The approved browser zip is not in the folder BUILDER_BROWSER_CACHE names: The browser cache has no chrome-headless-shell-linux64.zip (<scratch>/p31b-tmp/empty-cache/chrome-headless-shell-linux64.zip). To put it right, from builder/, run `BUILDER_BROWSER_CACHE=<a folder outside the repository> npx tsx scripts/fetch-browser.ts`, then run the tests with BUILDER_BROWSER_CACHE set to that folder; if the session's network refuses storage.googleapis.com, the owner's cloud environment must let that host through first (docs/ENVIRONMENT-CHECK.md, 'Session set-up'; known gap 110).
+ ❯ needsPrerequisites test/acceptance-live.test.ts:34:29
+     32| /** Every live test starts with this: with a prerequisite missing it f…
+     33| const needsPrerequisites = () => {
+     34|   if (missing.length) throw new Error(`This live acceptance test canno…
+       |                             ^
+     35| };
+     36|
+ ❯ test/acceptance-live.test.ts:187:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/7]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  7 failed (7)
+   Start at  10:49:22
+   Duration  256ms (import 65%, transform 18%, tests 14%, worker 2%)
+
+exit code: 1
+
+== B. BUILDER_BROWSER_CACHE not set ==
+$ env -u BUILDER_BROWSER_CACHE npx vitest run test/acceptance-live.test.ts
+
+ RUN  v5.1.0 <scratch>/wt-31b/builder
+
+ ❯ test/acceptance-live.test.ts (7 tests | 7 failed) 18ms
+   ❯ acceptance runner: live, development profile, stand-in test (7)
+     × its prerequisites are here: Docker answers, and the folder BUILDER_BROWSER_CACHE names holds the approved browser zip 4ms
+     × the runner image builds from the cached zip; it holds the base image's packages and exactly the 109 approved ones at their versions 1ms
+     × the stand-in version is written before step 01; steps 01 and 02 run; run A: item 1 passes, with its screenshot and its events 0ms
+     × run B, stopped by a half-second time limit: every item 'did not run', never passed 0ms
+     × from inside the engine container: every path to the store fails, no readable file holds the marker, a phrase of the test or the run's reason; its mounts hold nothing of the store; the history holds no acceptance file 1ms
+     × run C, with the app stopped: refused before its start, no container, every item 'did not run' 0ms
+     × run D, the deliberately broken copy in a fresh sandbox under the same project id, with the same version: item 1 failed, at step 'sees status waiting' 0ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 7 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/acceptance-live.test.ts > acceptance runner: live, development profile, stand-in test > its prerequisites are here: Docker answers, and the folder BUILDER_BROWSER_CACHE names holds the approved browser zip
+Error: This live acceptance test cannot exercise the browser, so it fails (it is never skipped). Missing: BUILDER_BROWSER_CACHE is not set, so the approved browser zip cannot be found. To put it right, from builder/, run `BUILDER_BROWSER_CACHE=<a folder outside the repository> npx tsx scripts/fetch-browser.ts`, then run the tests with BUILDER_BROWSER_CACHE set to that folder; if the session's network refuses storage.googleapis.com, the owner's cloud environment must let that host through first (docs/ENVIRONMENT-CHECK.md, 'Session set-up'; known gap 110).
+ ❯ needsPrerequisites test/acceptance-live.test.ts:34:29
+     32| /** Every live test starts with this: with a prerequisite missing it f…
+     33| const needsPrerequisites = () => {
+     34|   if (missing.length) throw new Error(`This live acceptance test canno…
+       |                             ^
+     35| };
+     36|
+ ❯ test/acceptance-live.test.ts:74:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/7]⎯
+
+ FAIL  test/acceptance-live.test.ts > acceptance runner: live, development profile, stand-in test > the runner image builds from the cached zip; it holds the base image's packages and exactly the 109 approved ones at their versions
+Error: This live acceptance test cannot exercise the browser, so it fails (it is never skipped). Missing: BUILDER_BROWSER_CACHE is not set, so the approved browser zip cannot be found. To put it right, from builder/, run `BUILDER_BROWSER_CACHE=<a folder outside the repository> npx tsx scripts/fetch-browser.ts`, then run the tests with BUILDER_BROWSER_CACHE set to that folder; if the session's network refuses storage.googleapis.com, the owner's cloud environment must let that host through first (docs/ENVIRONMENT-CHECK.md, 'Session set-up'; known gap 110).
+ ❯ needsPrerequisites test/acceptance-live.test.ts:34:29
+     32| /** Every live test starts with this: with a prerequisite missing it f…
+     33| const needsPrerequisites = () => {
+     34|   if (missing.length) throw new Error(`This live acceptance test canno…
+       |                             ^
+     35| };
+     36|
+ ❯ test/acceptance-live.test.ts:79:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/7]⎯
+
+ FAIL  test/acceptance-live.test.ts > acceptance runner: live, development profile, stand-in test > the stand-in version is written before step 01; steps 01 and 02 run; run A: item 1 passes, with its screenshot and its events
+Error: This live acceptance test cannot exercise the browser, so it fails (it is never skipped). Missing: BUILDER_BROWSER_CACHE is not set, so the approved browser zip cannot be found. To put it right, from builder/, run `BUILDER_BROWSER_CACHE=<a folder outside the repository> npx tsx scripts/fetch-browser.ts`, then run the tests with BUILDER_BROWSER_CACHE set to that folder; if the session's network refuses storage.googleapis.com, the owner's cloud environment must let that host through first (docs/ENVIRONMENT-CHECK.md, 'Session set-up'; known gap 110).
+ ❯ needsPrerequisites test/acceptance-live.test.ts:34:29
+     32| /** Every live test starts with this: with a prerequisite missing it f…
+     33| const needsPrerequisites = () => {
+     34|   if (missing.length) throw new Error(`This live acceptance test canno…
+       |                             ^
+     35| };
+     36|
+ ❯ test/acceptance-live.test.ts:90:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/7]⎯
+
+ FAIL  test/acceptance-live.test.ts > acceptance runner: live, development profile, stand-in test > run B, stopped by a half-second time limit: every item 'did not run', never passed
+Error: This live acceptance test cannot exercise the browser, so it fails (it is never skipped). Missing: BUILDER_BROWSER_CACHE is not set, so the approved browser zip cannot be found. To put it right, from builder/, run `BUILDER_BROWSER_CACHE=<a folder outside the repository> npx tsx scripts/fetch-browser.ts`, then run the tests with BUILDER_BROWSER_CACHE set to that folder; if the session's network refuses storage.googleapis.com, the owner's cloud environment must let that host through first (docs/ENVIRONMENT-CHECK.md, 'Session set-up'; known gap 110).
+ ❯ needsPrerequisites test/acceptance-live.test.ts:34:29
+     32| /** Every live test starts with this: with a prerequisite missing it f…
+     33| const needsPrerequisites = () => {
+     34|   if (missing.length) throw new Error(`This live acceptance test canno…
+       |                             ^
+     35| };
+     36|
+ ❯ test/acceptance-live.test.ts:123:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/7]⎯
+
+ FAIL  test/acceptance-live.test.ts > acceptance runner: live, development profile, stand-in test > from inside the engine container: every path to the store fails, no readable file holds the marker, a phrase of the test or the run's reason; its mounts hold nothing of the store; the history holds no acceptance file
+Error: This live acceptance test cannot exercise the browser, so it fails (it is never skipped). Missing: BUILDER_BROWSER_CACHE is not set, so the approved browser zip cannot be found. To put it right, from builder/, run `BUILDER_BROWSER_CACHE=<a folder outside the repository> npx tsx scripts/fetch-browser.ts`, then run the tests with BUILDER_BROWSER_CACHE set to that folder; if the session's network refuses storage.googleapis.com, the owner's cloud environment must let that host through first (docs/ENVIRONMENT-CHECK.md, 'Session set-up'; known gap 110).
+ ❯ needsPrerequisites test/acceptance-live.test.ts:34:29
+     32| /** Every live test starts with this: with a prerequisite missing it f…
+     33| const needsPrerequisites = () => {
+     34|   if (missing.length) throw new Error(`This live acceptance test canno…
+       |                             ^
+     35| };
+     36|
+ ❯ test/acceptance-live.test.ts:133:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/7]⎯
+
+ FAIL  test/acceptance-live.test.ts > acceptance runner: live, development profile, stand-in test > run C, with the app stopped: refused before its start, no container, every item 'did not run'
+Error: This live acceptance test cannot exercise the browser, so it fails (it is never skipped). Missing: BUILDER_BROWSER_CACHE is not set, so the approved browser zip cannot be found. To put it right, from builder/, run `BUILDER_BROWSER_CACHE=<a folder outside the repository> npx tsx scripts/fetch-browser.ts`, then run the tests with BUILDER_BROWSER_CACHE set to that folder; if the session's network refuses storage.googleapis.com, the owner's cloud environment must let that host through first (docs/ENVIRONMENT-CHECK.md, 'Session set-up'; known gap 110).
+ ❯ needsPrerequisites test/acceptance-live.test.ts:34:29
+     32| /** Every live test starts with this: with a prerequisite missing it f…
+     33| const needsPrerequisites = () => {
+     34|   if (missing.length) throw new Error(`This live acceptance test canno…
+       |                             ^
+     35| };
+     36|
+ ❯ test/acceptance-live.test.ts:176:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/7]⎯
+
+ FAIL  test/acceptance-live.test.ts > acceptance runner: live, development profile, stand-in test > run D, the deliberately broken copy in a fresh sandbox under the same project id, with the same version: item 1 failed, at step 'sees status waiting'
+Error: This live acceptance test cannot exercise the browser, so it fails (it is never skipped). Missing: BUILDER_BROWSER_CACHE is not set, so the approved browser zip cannot be found. To put it right, from builder/, run `BUILDER_BROWSER_CACHE=<a folder outside the repository> npx tsx scripts/fetch-browser.ts`, then run the tests with BUILDER_BROWSER_CACHE set to that folder; if the session's network refuses storage.googleapis.com, the owner's cloud environment must let that host through first (docs/ENVIRONMENT-CHECK.md, 'Session set-up'; known gap 110).
+ ❯ needsPrerequisites test/acceptance-live.test.ts:34:29
+     32| /** Every live test starts with this: with a prerequisite missing it f…
+     33| const needsPrerequisites = () => {
+     34|   if (missing.length) throw new Error(`This live acceptance test canno…
+       |                             ^
+     35| };
+     36|
+ ❯ test/acceptance-live.test.ts:187:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/7]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  7 failed (7)
+   Start at  10:49:23
+   Duration  250ms (import 66%, transform 20%, tests 13%, worker 2%)
+
+exit code: 1
+
+== C. Docker not answering (DOCKER_HOST names a socket where nothing listens); the approved zip present ==
+$ DOCKER_HOST=unix:///nonexistent-p31b/docker.sock BUILDER_BROWSER_CACHE=<scratch>/p31-cache npx vitest run test/acceptance-live.test.ts
+
+ RUN  v5.1.0 <scratch>/wt-31b/builder
+
+ ❯ test/acceptance-live.test.ts (7 tests | 7 failed) 20ms
+   ❯ acceptance runner: live, development profile, stand-in test (7)
+     × its prerequisites are here: Docker answers, and the folder BUILDER_BROWSER_CACHE names holds the approved browser zip 3ms
+     × the runner image builds from the cached zip; it holds the base image's packages and exactly the 109 approved ones at their versions 1ms
+     × the stand-in version is written before step 01; steps 01 and 02 run; run A: item 1 passes, with its screenshot and its events 1ms
+     × run B, stopped by a half-second time limit: every item 'did not run', never passed 0ms
+     × from inside the engine container: every path to the store fails, no readable file holds the marker, a phrase of the test or the run's reason; its mounts hold nothing of the store; the history holds no acceptance file 0ms
+     × run C, with the app stopped: refused before its start, no container, every item 'did not run' 0ms
+     × run D, the deliberately broken copy in a fresh sandbox under the same project id, with the same version: item 1 failed, at step 'sees status waiting' 0ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 7 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/acceptance-live.test.ts > acceptance runner: live, development profile, stand-in test > its prerequisites are here: Docker answers, and the folder BUILDER_BROWSER_CACHE names holds the approved browser zip
+Error: This live acceptance test cannot exercise the browser, so it fails (it is never skipped). Missing: Docker does not answer on this machine (`docker info` failed: failed to connect to the docker API at unix:///nonexistent-p31b/docker.sock; check if the path is correct and if the daemon is running: dial unix /nonexistent-p31b/docker.sock: connect: no such file o). To put it right, start Docker as CLAUDE.md, Commands, says (in a cloud session: `nohup dockerd > /tmp/dockerd.log 2>&1 &`).
+ ❯ needsPrerequisites test/acceptance-live.test.ts:34:29
+     32| /** Every live test starts with this: with a prerequisite missing it f…
+     33| const needsPrerequisites = () => {
+     34|   if (missing.length) throw new Error(`This live acceptance test canno…
+       |                             ^
+     35| };
+     36|
+ ❯ test/acceptance-live.test.ts:74:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/7]⎯
+
+ FAIL  test/acceptance-live.test.ts > acceptance runner: live, development profile, stand-in test > the runner image builds from the cached zip; it holds the base image's packages and exactly the 109 approved ones at their versions
+Error: This live acceptance test cannot exercise the browser, so it fails (it is never skipped). Missing: Docker does not answer on this machine (`docker info` failed: failed to connect to the docker API at unix:///nonexistent-p31b/docker.sock; check if the path is correct and if the daemon is running: dial unix /nonexistent-p31b/docker.sock: connect: no such file o). To put it right, start Docker as CLAUDE.md, Commands, says (in a cloud session: `nohup dockerd > /tmp/dockerd.log 2>&1 &`).
+ ❯ needsPrerequisites test/acceptance-live.test.ts:34:29
+     32| /** Every live test starts with this: with a prerequisite missing it f…
+     33| const needsPrerequisites = () => {
+     34|   if (missing.length) throw new Error(`This live acceptance test canno…
+       |                             ^
+     35| };
+     36|
+ ❯ test/acceptance-live.test.ts:79:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/7]⎯
+
+ FAIL  test/acceptance-live.test.ts > acceptance runner: live, development profile, stand-in test > the stand-in version is written before step 01; steps 01 and 02 run; run A: item 1 passes, with its screenshot and its events
+Error: This live acceptance test cannot exercise the browser, so it fails (it is never skipped). Missing: Docker does not answer on this machine (`docker info` failed: failed to connect to the docker API at unix:///nonexistent-p31b/docker.sock; check if the path is correct and if the daemon is running: dial unix /nonexistent-p31b/docker.sock: connect: no such file o). To put it right, start Docker as CLAUDE.md, Commands, says (in a cloud session: `nohup dockerd > /tmp/dockerd.log 2>&1 &`).
+ ❯ needsPrerequisites test/acceptance-live.test.ts:34:29
+     32| /** Every live test starts with this: with a prerequisite missing it f…
+     33| const needsPrerequisites = () => {
+     34|   if (missing.length) throw new Error(`This live acceptance test canno…
+       |                             ^
+     35| };
+     36|
+ ❯ test/acceptance-live.test.ts:90:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/7]⎯
+
+ FAIL  test/acceptance-live.test.ts > acceptance runner: live, development profile, stand-in test > run B, stopped by a half-second time limit: every item 'did not run', never passed
+Error: This live acceptance test cannot exercise the browser, so it fails (it is never skipped). Missing: Docker does not answer on this machine (`docker info` failed: failed to connect to the docker API at unix:///nonexistent-p31b/docker.sock; check if the path is correct and if the daemon is running: dial unix /nonexistent-p31b/docker.sock: connect: no such file o). To put it right, start Docker as CLAUDE.md, Commands, says (in a cloud session: `nohup dockerd > /tmp/dockerd.log 2>&1 &`).
+ ❯ needsPrerequisites test/acceptance-live.test.ts:34:29
+     32| /** Every live test starts with this: with a prerequisite missing it f…
+     33| const needsPrerequisites = () => {
+     34|   if (missing.length) throw new Error(`This live acceptance test canno…
+       |                             ^
+     35| };
+     36|
+ ❯ test/acceptance-live.test.ts:123:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/7]⎯
+
+ FAIL  test/acceptance-live.test.ts > acceptance runner: live, development profile, stand-in test > from inside the engine container: every path to the store fails, no readable file holds the marker, a phrase of the test or the run's reason; its mounts hold nothing of the store; the history holds no acceptance file
+Error: This live acceptance test cannot exercise the browser, so it fails (it is never skipped). Missing: Docker does not answer on this machine (`docker info` failed: failed to connect to the docker API at unix:///nonexistent-p31b/docker.sock; check if the path is correct and if the daemon is running: dial unix /nonexistent-p31b/docker.sock: connect: no such file o). To put it right, start Docker as CLAUDE.md, Commands, says (in a cloud session: `nohup dockerd > /tmp/dockerd.log 2>&1 &`).
+ ❯ needsPrerequisites test/acceptance-live.test.ts:34:29
+     32| /** Every live test starts with this: with a prerequisite missing it f…
+     33| const needsPrerequisites = () => {
+     34|   if (missing.length) throw new Error(`This live acceptance test canno…
+       |                             ^
+     35| };
+     36|
+ ❯ test/acceptance-live.test.ts:133:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/7]⎯
+
+ FAIL  test/acceptance-live.test.ts > acceptance runner: live, development profile, stand-in test > run C, with the app stopped: refused before its start, no container, every item 'did not run'
+Error: This live acceptance test cannot exercise the browser, so it fails (it is never skipped). Missing: Docker does not answer on this machine (`docker info` failed: failed to connect to the docker API at unix:///nonexistent-p31b/docker.sock; check if the path is correct and if the daemon is running: dial unix /nonexistent-p31b/docker.sock: connect: no such file o). To put it right, start Docker as CLAUDE.md, Commands, says (in a cloud session: `nohup dockerd > /tmp/dockerd.log 2>&1 &`).
+ ❯ needsPrerequisites test/acceptance-live.test.ts:34:29
+     32| /** Every live test starts with this: with a prerequisite missing it f…
+     33| const needsPrerequisites = () => {
+     34|   if (missing.length) throw new Error(`This live acceptance test canno…
+       |                             ^
+     35| };
+     36|
+ ❯ test/acceptance-live.test.ts:176:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/7]⎯
+
+ FAIL  test/acceptance-live.test.ts > acceptance runner: live, development profile, stand-in test > run D, the deliberately broken copy in a fresh sandbox under the same project id, with the same version: item 1 failed, at step 'sees status waiting'
+Error: This live acceptance test cannot exercise the browser, so it fails (it is never skipped). Missing: Docker does not answer on this machine (`docker info` failed: failed to connect to the docker API at unix:///nonexistent-p31b/docker.sock; check if the path is correct and if the daemon is running: dial unix /nonexistent-p31b/docker.sock: connect: no such file o). To put it right, start Docker as CLAUDE.md, Commands, says (in a cloud session: `nohup dockerd > /tmp/dockerd.log 2>&1 &`).
+ ❯ needsPrerequisites test/acceptance-live.test.ts:34:29
+     32| /** Every live test starts with this: with a prerequisite missing it f…
+     33| const needsPrerequisites = () => {
+     34|   if (missing.length) throw new Error(`This live acceptance test canno…
+       |                             ^
+     35| };
+     36|
+ ❯ test/acceptance-live.test.ts:187:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/7]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  7 failed (7)
+   Start at  10:49:23
+   Duration  389ms (import 79%, transform 13%, tests 7%, worker 1%)
+
+exit code: 1
+
+Containers on the machine whose name holds this run's project prefix (p_acc_live) afterwards: 0

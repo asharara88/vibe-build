@@ -1,0 +1,167 @@
+The script that made this output (<scratchpad>/f14c-work/before-fix.sh), run with TESTREV=0842aaf:
+  | #!/usr/bin/env bash
+  | # Package 1.4c after its review: the three new tests (e), (f), (g) on the code BEFORE the fix (commit 0784859, as
+  | # the review read it), with the new test file put in a git-archive copy, on a database made empty for this run.
+  | set -uo pipefail
+  | S=<scratchpad>
+  | WT=$S/wt-14c
+  | TESTREV=${TESTREV:?the commit holding the new tests}
+  | export TMPDIR=$S/f14c-tmp
+  | W=$S/f14c-before
+  | rm -rf "$W"; mkdir -p "$W" "$TMPDIR"
+  | git -C "$WT" archive 0784859 builder | tar -x -C "$W"
+  | git -C "$WT" show "$TESTREV:builder/test/overrun.test.ts" > "$W/builder/test/overrun.test.ts"
+  | ln -s "$WT/builder/node_modules" "$W/builder/node_modules"
+  | dropdb --if-exists -h /var/run/postgresql builder_test_f14c_before; createdb -h /var/run/postgresql builder_test_f14c_before
+  | echo "Before the fix: the code of 0784859 (git archive), test/overrun.test.ts of $(git -C "$WT" rev-parse --short "$TESTREV"), on builder_test_f14c_before (made empty for this run), $(date -u +%FT%TZ)"
+  | echo "Migrations in the copy: $(ls "$W/builder/src/store/migrations" | tr '\n' ' ')"
+  | cd "$W/builder" && BUILDER_TEST_DATABASE_URL="postgres:///builder_test_f14c_before?host=/var/run/postgresql" timeout 300 npx vitest run test/overrun.test.ts -t '1.4c \((e[1-6]|f|g)\)' 2>&1 | sed "s#$S#<scratchpad>#g"
+  | echo "Exit code: ${PIPESTATUS[0]}"
+  | cd /; rm -rf "$W"; dropdb --if-exists -h /var/run/postgresql builder_test_f14c_before
+
+NOTICE:  database "builder_test_f14c_before" does not exist, skipping
+Before the fix: the code of 0784859 (git archive), test/overrun.test.ts of 0842aaf, on builder_test_f14c_before (made empty for this run), 2026-11-13T12:22:54Z
+Migrations in the copy: 001_init.sql 002_events_truncate.sql 003_holds.sql 004_holds_checks.sql 005_budget_view.sql 006_budget_view_guards.sql 007_project_cap_checks.sql 008_step_holds.sql 009_project_freezes.sql 010_overrun_freezes.sql 
+
+ RUN  v5.1.0 <scratchpad>/f14c-before/builder
+
+stderr | test/overrun.test.ts > package 1.4c: a bill above its hold freezes the project until the owner records it (against a stand-in provider) > 1.4c (e1) after its review: a streamed call the gateway keeps, whose usage figures read before it ended already price it above its hold ($0.012284 against $0.009960), freezes the project in the same transaction as its hold.kept, and the next call is refused with nothing forwarded: the time limit, reached after the end marker while the provider's body stays open; the hold is listed as kept above it, the record of a bill refuses it, and the owner's reconciliation of the hold clears it
+Error: time limit reached
+    at Timeout._onTimeout (<scratchpad>/f14c-before/builder/src/gateway/app.ts:576:53)
+    at listOnTimeout (node:internal/timers:585:17)
+    at process.processTimers (node:internal/timers:521:7)
+
+stderr | test/overrun.test.ts > package 1.4c: a bill above its hold freezes the project until the owner records it (against a stand-in provider) > 1.4c (e5) after its review: a streamed call the gateway keeps, whose usage figures read before it ended already price it above its hold ($0.012284 against $0.009960), freezes the project in the same transaction as its hold.kept, and the next call is refused with nothing forwarded: a connection dropped after the figures
+TypeError: terminated
+    at Fetch.onAborted (node:internal/deps/undici/undici:11581:53)
+    at Fetch.emit (node:events:519:28)
+    at Fetch.terminate (node:internal/deps/undici/undici:10738:14)
+    at Object.onError (node:internal/deps/undici/undici:11701:38)
+    at Request.onError (node:internal/deps/undici/undici:2304:31)
+    at Object.errorRequest (node:internal/deps/undici/undici:1742:17)
+    at Socket.<anonymous> (node:internal/deps/undici/undici:6595:16)
+    at Socket.emit (node:events:531:35)
+    at TCP.<anonymous> (node:net:347:12) {
+  [cause]: SocketError: other side closed
+      at Socket.<anonymous> (node:internal/deps/undici/undici:6569:28)
+      at Socket.emit (node:events:531:35)
+      at endReadableNT (node:internal/streams/readable:1698:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:89:21) {
+    code: 'UND_ERR_SOCKET',
+    socket: {
+      localAddress: '127.0.0.1',
+      localPort: 49200,
+      remoteAddress: '127.0.0.1',
+      remotePort: 37231,
+      remoteFamily: 'IPv4',
+      timeout: undefined,
+      bytesWritten: 808,
+      bytesRead: 780
+    },
+    [Symbol(undici.error.UND_ERR)]: true,
+    [Symbol(undici.error.UND_ERR_SOCKET)]: true
+  }
+}
+
+ ❯ test/overrun.test.ts (18 tests | 7 failed | 10 skipped) 33012ms
+   ❯ package 1.4c: a bill above its hold freezes the project until the owner records it (against a stand-in provider) (18)
+     × 1.4c (e1) after its review: a streamed call the gateway keeps, whose usage figures read before it ended already price it above its hold ($0.012284 against $0.009960), freezes the project in the same transaction as its hold.kept, and the next call is refused with nothing forwarded: the time limit, reached after the end marker while the provider's body stays open; the hold is listed as kept above it, the record of a bill refuses it, and the owner's reconciliation of the hold clears it 5755ms
+     × 1.4c (e2) after its review: a streamed call the gateway keeps, whose usage figures read before it ended already price it above its hold ($0.012284 against $0.009960), freezes the project in the same transaction as its hold.kept, and the next call is refused with nothing forwarded: the caller leaves once it has read the end marker, before the provider's body ends 5643ms
+     × 1.4c (e3) after its review: a streamed call the gateway keeps, whose usage figures read before it ended already price it above its hold ($0.012284 against $0.009960), freezes the project in the same transaction as its hold.kept, and the next call is refused with nothing forwarded: an error event after the figures 5224ms
+     × 1.4c (e4) after its review: a streamed call the gateway keeps, whose usage figures read before it ended already price it above its hold ($0.012284 against $0.009960), freezes the project in the same transaction as its hold.kept, and the next call is refused with nothing forwarded: a body that ends with no end marker 5191ms
+     × 1.4c (e5) after its review: a streamed call the gateway keeps, whose usage figures read before it ended already price it above its hold ($0.012284 against $0.009960), freezes the project in the same transaction as its hold.kept, and the next call is refused with nothing forwarded: a connection dropped after the figures 5281ms
+     × 1.4c (f) after its review: a plain answer kept because its usage does not state the speed, whose figures at the standard rates already price it above its hold (which allowed for fast mode), freezes the project in the same transaction as its hold.kept; one below its hold does not 5165ms
+     × 1.4c (g) after its review: the database refuses a freeze of the three new kinds whose bill is not above its hold, is not a number, or names no hold, and a second one of the same kind for the same hold; writing one twice through the store adds nothing 74ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 7 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/overrun.test.ts > package 1.4c: a bill above its hold freezes the project until the owner records it (against a stand-in provider) > 1.4c (e1) after its review: a streamed call the gateway keeps, whose usage figures read before it ended already price it above its hold ($0.012284 against $0.009960), freezes the project in the same transaction as its hold.kept, and the next call is refused with nothing forwarded: the time limit, reached after the end marker while the provider's body stays open; the hold is listed as kept above it, the record of a bill refuses it, and the owner's reconciliation of the hold clears it
+Error: timed out waiting for: the project's freeze
+ ❯ until test/overrun.test.ts:211:9
+    209|     await new Promise((r) => setTimeout(r, 25));
+    210|   }
+    211|   throw new Error(`timed out waiting for: ${what}`);
+       |         ^
+    212| }
+    213|
+ ❯ keptAboveItsHold test/overrun.test.ts:747:5
+ ❯ test/overrun.test.ts:807:21
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/7]⎯
+
+ FAIL  test/overrun.test.ts > package 1.4c: a bill above its hold freezes the project until the owner records it (against a stand-in provider) > 1.4c (e2) after its review: a streamed call the gateway keeps, whose usage figures read before it ended already price it above its hold ($0.012284 against $0.009960), freezes the project in the same transaction as its hold.kept, and the next call is refused with nothing forwarded: the caller leaves once it has read the end marker, before the provider's body ends
+Error: timed out waiting for: the project's freeze
+ ❯ until test/overrun.test.ts:211:9
+    209|     await new Promise((r) => setTimeout(r, 25));
+    210|   }
+    211|   throw new Error(`timed out waiting for: ${what}`);
+       |         ^
+    212| }
+    213|
+ ❯ keptAboveItsHold test/overrun.test.ts:747:5
+ ❯ test/overrun.test.ts:841:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/7]⎯
+
+ FAIL  test/overrun.test.ts > package 1.4c: a bill above its hold freezes the project until the owner records it (against a stand-in provider) > 1.4c (e3) after its review: a streamed call the gateway keeps, whose usage figures read before it ended already price it above its hold ($0.012284 against $0.009960), freezes the project in the same transaction as its hold.kept, and the next call is refused with nothing forwarded: an error event after the figures
+ FAIL  test/overrun.test.ts > package 1.4c: a bill above its hold freezes the project until the owner records it (against a stand-in provider) > 1.4c (e4) after its review: a streamed call the gateway keeps, whose usage figures read before it ended already price it above its hold ($0.012284 against $0.009960), freezes the project in the same transaction as its hold.kept, and the next call is refused with nothing forwarded: a body that ends with no end marker
+ FAIL  test/overrun.test.ts > package 1.4c: a bill above its hold freezes the project until the owner records it (against a stand-in provider) > 1.4c (e5) after its review: a streamed call the gateway keeps, whose usage figures read before it ended already price it above its hold ($0.012284 against $0.009960), freezes the project in the same transaction as its hold.kept, and the next call is refused with nothing forwarded: a connection dropped after the figures
+Error: timed out waiting for: the project's freeze
+ ❯ until test/overrun.test.ts:211:9
+    209|     await new Promise((r) => setTimeout(r, 25));
+    210|   }
+    211|   throw new Error(`timed out waiting for: ${what}`);
+       |         ^
+    212| }
+    213|
+ ❯ keptAboveItsHold test/overrun.test.ts:747:5
+ ❯ test/overrun.test.ts:855:7
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/7]⎯
+
+ FAIL  test/overrun.test.ts > package 1.4c: a bill above its hold freezes the project until the owner records it (against a stand-in provider) > 1.4c (f) after its review: a plain answer kept because its usage does not state the speed, whose figures at the standard rates already price it above its hold (which allowed for fast mode), freezes the project in the same transaction as its hold.kept; one below its hold does not
+Error: timed out waiting for: the project's freeze
+ ❯ until test/overrun.test.ts:211:9
+    209|     await new Promise((r) => setTimeout(r, 25));
+    210|   }
+    211|   throw new Error(`timed out waiting for: ${what}`);
+       |         ^
+    212| }
+    213|
+ ❯ keptAboveItsHold test/overrun.test.ts:747:5
+ ❯ test/overrun.test.ts:879:24
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/7]⎯
+
+ FAIL  test/overrun.test.ts > package 1.4c: a bill above its hold freezes the project until the owner records it (against a stand-in provider) > 1.4c (g) after its review: the database refuses a freeze of the three new kinds whose bill is not above its hold, is not a number, or names no hold, and a second one of the same kind for the same hold; writing one twice through the store adds nothing
+AssertionError: project_freezes_overrun_figures: expected error: new row for relation "project_free… { …(15) } to match object { code: '23514', …(1) }
+(16 matching properties omitted from actual)
+
+- Expected
++ Received
+
+- {
++ DatabaseError {
+    "code": "23514",
+-   "constraint": "project_freezes_overrun_figures",
++   "constraint": "project_freezes_kind_known",
+  }
+
+ ❯ refusedBy test/overrun.test.ts:901:31
+    899|         (e: unknown) => e,
+    900|       );
+    901|       expect(err, constraint).toMatchObject({ code, constraint });
+       |                               ^
+    902|     };
+    903|     for (const kind of ["bill_above_hold", "late_answer_above_hold", "…
+ ❯ test/overrun.test.ts:913:9
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/7]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  7 failed | 1 passed | 10 skipped (18)
+   Start at  12:22:55
+   Duration  33.24s (tests 100%)
+
+Exit code: 1

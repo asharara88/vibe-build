@@ -1,0 +1,23 @@
+$ git rev-parse --short HEAD
+236c70a
+$ BUILDER_TEST_DATABASE_URL=postgres:///builder_test_p14b?host=/var/run/postgresql TMPDIR=<scratchpad>/p14b-tmp npx vitest run test/journal-recovery.test.ts --reporter=verbose
+
+ RUN  v5.1.0 <scratchpad>/wt-14b/builder
+
+ ✓ test/journal-recovery.test.ts > the third outside review, item 1: an unreadable journal line keeps the gateway closed until it is recovered (package 1.4b, against a stand-in provider) > (a) the review's required test: the journal's last record cut short mid-line, as a crash during its append leaves it, then the gateway restarted (main.ts as a process): every request, metered, counting or passed through, any project, is refused 503 gateway_journal_unreadable; the stand-in receives nothing, no hold is opened, nothing is written 661ms
+ ✓ test/journal-recovery.test.ts > the third outside review, item 1: an unreadable journal line keeps the gateway closed until it is recovered (package 1.4b, against a stand-in provider) > (a2) the same refusal at the re-checks just before each forward: requests that passed the arrival checks and waited for their token are refused 503 gateway_journal_unreadable once the journal's replay finds an unreadable line; nothing reaches the stand-in 59ms
+ ✓ test/journal-recovery.test.ts > the third outside review, item 1: an unreadable journal line keeps the gateway closed until it is recovered (package 1.4b, against a stand-in provider) > (b) a line that is not JSON between two readable records: both records are written (their projects frozen), the gate stays closed for every project, and the line is kept as it was 33ms
+ ✓ test/journal-recovery.test.ts > the third outside review, item 1: an unreadable journal line keeps the gateway closed until it is recovered (package 1.4b, against a stand-in provider) > (b2) each kind of line that cannot be read is found and closes the gate: not JSON, JSON not of a record's shape (one the 1.4 check took), not valid UTF-8, and a whole record that is the file's last line with no line end; blank lines are skipped 18ms
+ ✓ test/journal-recovery.test.ts > the third outside review, item 1: an unreadable journal line keeps the gateway closed until it is recovered (package 1.4b, against a stand-in provider) > (c) markDone keeps every line it does not move byte for byte (one not JSON, one not UTF-8, a blank one, and a last one with no line end), and an append after that last line starts on a line of its own 16ms
+ ✓ test/journal-recovery.test.ts > the third outside review, item 1: an unreadable journal line keeps the gateway closed until it is recovered (package 1.4b, against a stand-in provider) > (d) the recovery: --list shows the line and the candidate hold; --set-aside naming that hold freezes its project; after a restart another project's call is forwarded and settled and the named one is refused; 1.5's reconciliation clears the freeze and its next call is forwarded 2361ms
+ ✓ test/journal-recovery.test.ts > the third outside review, item 1: an unreadable journal line keeps the gateway closed until it is recovered (package 1.4b, against a stand-in provider) > (e) the script's refusals, each changing nothing: a missing reason, a line number out of range, a fingerprint that differs, a readable line, a hold not open, a hold still in flight, a running gateway, and a second set-aside of the same line; --no-hold records the set-aside and freezes nothing 3745ms
+ ✓ test/journal-recovery.test.ts > the third outside review, item 1: an unreadable journal line keeps the gateway closed until it is recovered (package 1.4b, against a stand-in provider) > (e2) a set-aside cut short after its record is finished by the same command run again: the line moved out, nothing written to the database twice 47ms
+ ✓ test/journal-recovery.test.ts > the third outside review, item 1: an unreadable journal line keeps the gateway closed until it is recovered (package 1.4b, against a stand-in provider) > (f) a journal file that exists and cannot be read stops start-up, with a plain message, before the gateway listens; a second gateway on a folder in use does not start either 665ms
+ ✓ test/journal-recovery.test.ts > the third outside review, item 1: an unreadable journal line keeps the gateway closed until it is recovered (package 1.4b, against a stand-in provider) > (g) the folder's lock: a gateway that loses its connection does not take the folder back while a recovery holds it (it stays stopped meanwhile), and its journal writes nothing while it does not hold the lock 1067ms
+
+ Test Files  1 passed (1)
+      Tests  10 passed (10)
+   Start at  10:49:47
+   Duration  8.93s (tests 99%, import 1%)
+
+exit code: 0

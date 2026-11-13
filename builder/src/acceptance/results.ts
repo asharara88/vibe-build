@@ -13,6 +13,11 @@
  * "did not run": a kill, exit code 137, the overall time limit, a skipped or interrupted test, a missing
  * or unreadable file, a file not in that shape.
  *
+ * The run as a whole has one outcome (package 3.1b): "passed" only when the version names at least one
+ * item, every item passed and nothing else was found about the run; "failed" when an item recorded a
+ * failure; "not passed" otherwise. A version that names no test is never read as passed, whatever the
+ * results file holds: with no test, no browser ran.
+ *
  * The run folder is written by the runner, and the builder runs as root (known gap 57), so it is read
  * without following links: each path is checked part by part with lstat, only plain files are read, only
  * inside the run folder, within size limits. An attachment whose path is outside /results is ignored.
@@ -44,7 +49,12 @@ export interface ItemResult {
   trace?: { path: string; sha256: string };
 }
 
+/** The run's outcome: never "passed" unless at least one test ran and every item passed. Never "skipped". */
+export type RunOutcome = "passed" | "failed" | "not passed";
+
 export interface RunReading {
+  /** "passed", "failed" or "not passed" (package 3.1b): what the run's record says, in one word. */
+  outcome: RunOutcome;
   items: ItemResult[];
   /** What was found about the run as a whole (unreadable results, a wrong id, errors outside any test). */
   runProblems: string[];
@@ -251,12 +261,13 @@ export function readRun(f: RunFacts): RunReading {
   const manifestShape = manifestShapeProblem(f.manifest);
   if (manifestShape) {
     const why = `the manifest is not in the shape the store writes (${manifestShape}), so no item is read`;
-    return { items: [], runProblems: [why], summary: `did not run: ${why}` };
+    return { outcome: "not passed", items: [], runProblems: [why], summary: `did not run: ${why}` };
   }
   const items: ItemResult[] = f.manifest.items.map((it) => ({ number: it.number, file: it.file, status: "did not run" as ItemStatus, why: "not reached" }));
   const runProblems: string[] = [];
   // Every item afresh, so that nothing set by a reading cut short (a status, a screenshot) is kept.
   const allDidNotRun = (why: string): RunReading => ({
+    outcome: "not passed",
     items: f.manifest.items.map((it) => ({ number: it.number, file: it.file, status: "did not run", why })),
     runProblems: [...runProblems, why],
     summary: `did not run: ${why}`,
@@ -266,6 +277,8 @@ export function readRun(f: RunFacts): RunReading {
   if (!f.exit) return allDidNotRun("the runner was not started");
   if (f.exit.timedOut) return allDidNotRun("the run went past its time limit and its container was stopped");
   if (f.exit.code !== 0 && f.exit.code !== 1) return allDidNotRun(`the runner's container ended with exit code ${f.exit.code ?? "none (killed)"}`);
+  // Package 3.1b: with no item there is nothing to pass. Without this, every one of no items "passed".
+  if (f.manifest.items.length === 0) return allDidNotRun("the version names no test, so no browser test ran");
   try {
     return readResults(f, items, runProblems, allDidNotRun);
   } catch (err) {
@@ -363,10 +376,17 @@ function readResults(f: RunFacts, items: ItemResult[], runProblems: string[], al
   const passed = items.filter((i) => i.status === "passed");
   const failed = items.filter((i) => i.status === "failed");
   let summary: string;
-  if (failed.length) summary = `version failed: ${failed.map((i) => `item ${i.number} failed at step "${i.step}"`).join("; ")}`;
-  else if (passed.length === items.length && runProblems.length === 0) {
+  let outcome: RunOutcome;
+  if (failed.length) {
+    outcome = "failed";
+    summary = `version failed: ${failed.map((i) => `item ${i.number} failed at step "${i.step}"`).join("; ")}`;
+  } else if (passed.length === items.length && runProblems.length === 0) {
+    outcome = "passed";
     const missing = f.checklistItems - items.length;
     summary = missing > 0 ? `version passed; checklist incomplete (${missing} of the app spec's ${f.checklistItems} checklist items have no test)` : "version passed";
-  } else summary = `version not passed: ${items.filter((i) => i.status === "did not run").map((i) => `item ${i.number} did not run (${i.why})`).concat(runProblems).join("; ")}`;
-  return { items, runProblems, summary };
+  } else {
+    outcome = "not passed";
+    summary = `version not passed: ${items.filter((i) => i.status === "did not run").map((i) => `item ${i.number} did not run (${i.why})`).concat(runProblems).join("; ")}`;
+  }
+  return { outcome, items, runProblems, summary };
 }

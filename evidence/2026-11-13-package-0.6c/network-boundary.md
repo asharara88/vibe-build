@@ -211,3 +211,58 @@ The line references in "What was built" above are to commit `d6db9bf`; the machi
 About the controls: C36 shows the 502 the proxy gives when, with no upstream, it tries to reach the made-up name `registry.example.test` directly (a reserved name that no name server answers; the lookup was made). For C38, with the folder check removed, the test's second start of the machine side went ahead, made a socket outside its folder (`/tmp/m06c-elsewhere.sock`, removed by the script) and failed only later, on the image build's port, which the first start held; the test failed because the refusal it expects never came. None of these tests starts a container.
 
 Seen in passing, not changed: some unit tests in `sandbox.test.ts`, most of them package 0.5's tests of the Docker client's settings, still leave small folders of made-up settings in the temporary folder; after the fifth run: four `builder-sb-…`, two `builder-user-docker-…` and one `builder-home-…`.
+
+## Brought up to date with the integration branch (13 November 2026)
+
+**What was merged.** The integration branch `claude/stage-1` at `c6f4056` was merged into this branch at `44329ca` (`git merge --no-ff`). Since this package's base (`b52e041`) it had gained three packages, all merged there: **1.4c** (pull request #35: a bill above its hold freezes the project; migrations 010 and 011), **3.1b** (#34: the live acceptance tests fail, never skip, without Docker or the browser; a scan of the test suite for skips; the browser fetch; the runner image checked before a run; one outcome word per run) and **1.4b** (#33: an unreadable journal line keeps the gateway closed until it is recovered; migration 012). The merge commit is the one that adds this section; its parents are `44329ca` and `c6f4056`.
+
+**Where the two sides met, and what was kept.** Both sides' behaviour is kept in every conflict.
+
+| File | Conflict | Resolution |
+| --- | --- | --- |
+| `builder/src/acceptance/runner.ts`, header comment, lines 4 to 11 | 0.6c: the "right app answers" check asks from a short-lived container on `front`. 3.1b: before a run, Docker must answer and the runner image must carry the approved zip's fingerprint; a refused run's outcome is "not passed" | One comment naming both checks in the order the code runs them: the version, then the runner image (3.1b), then the app asked from `front` (0.6c). The code merged without conflict: `runnerImageProblem` (3.1b, line 131) runs before `appAnswers`, which asks through `askApp` (0.6c, line 88); the run's event carries `outcome` (3.1b, line 226) |
+| `builder/test/acceptance-live.test.ts`, lines 91 to 92 | 0.6c: `makeExample1` takes the build's proxy port, not a database port. 3.1b: every live test starts with `needsPrerequisites()` | Both: `needsPrerequisites();` then `makeExample1({ …, buildProxyPort: BUILD_PROXY_PORT, … })`. No skip came back: the file has no skip, and the gate's scan passed (below) |
+| `docs/DECISIONS.md`, rows at lines 120 to 127 | Both sides added rows after the same row | Both kept, all dated 13 Nov: the integration branch's seven rows (1.4c, 3.1b, 1.4b) first, in the order they were merged there, then 0.6c's "built as follows" |
+| `docs/KNOWN-GAPS.md`, lines 121 to 152 | 0.6c added gaps 118 to 128; the integration branch added 106 to 117 and 140 to 147, and extended gap 105 | Every row kept, in number order: 105 (the integration branch's extended text; 0.6c had not changed it), 106 to 117, 118 to 128, 140 to 147. No number is used twice |
+| `docs/SOURCES.md`, lines 282 to 311 | Both sides added a section after the same one | Both kept: 1.4b's "after its review" section, then 0.6c's |
+| `docs/STATUS.md` | Both sides rewrote "State" and "Next" | Rewritten from both, 398 words in all: 1.4b, 1.4c and 3.1b merged; 0.6c this pull request (#36) |
+
+**What merged without a conflict.** Every file that 1.4b and 1.4c changed (the gateway, the store, migrations 010 to 012, the recovery and reconciliation scripts, their tests), and every file of 3.1b that this package did not touch (the browser fetch, the prerequisites, the results reader, the runner image, the gate's scan and its test), is byte for byte the integration branch's. The two code files both sides changed without a conflict, `builder/src/sandbox/manager.ts` (3.1b: the sandbox records its runner image) and `builder/test/acceptance.test.ts`, each hold exactly the integration branch's lines plus exactly this package's (compared line by line in this session).
+
+**The checks, on the merged code before its commit** (the tree of `builder/` was `a5e262a…`, of `templates/` `10ae560…`, the same as in the merge commit; nothing under them unstaged):
+
+| Check | Result | File |
+| --- | --- | --- |
+| `npm run typecheck` | Passed, exit code 0 | `checks/merge-typecheck.txt` |
+| The whole suite, live tests included, under the shared lock, with the approved zip (`BUILDER_BROWSER_CACHE` set) | **23 files, 517 tests, 517 passed, none skipped**, exit code 0 (14:28 to 14:38 UTC). Among them: the gate's tests, the scan of the whole suite for skips included (3.1b); the 7 live acceptance tests; this package's live isolation tests. No container before the run or after it | `checks/merge-tests-full.txt` |
+| `npm run check:licences` | Passed; no package dependency added | `checks/merge-licences.txt` |
+| The live acceptance test file alone, **with** the approved zip | **7 of 7 passed**, exit code 0: the runner image built and carries the zip's fingerprint; run A passed, B stopped by its limit, C refused with the app stopped, D failed at its step; the right-app check from `front` | `checks/merge-live-with-zip.txt` |
+| The same file **without** the zip (`BUILDER_BROWSER_CACHE` an empty folder of this run's own) | **7 of 7 failed**, none skipped, exit code 1, each naming the missing zip and how to put it right; under half a second; no container before or after | `checks/merge-live-without-zip.txt` |
+
+**The isolation run** (`scripts/demo-isolation.ts`, as this package's evidence ran it, under the shared lock, 14:39 to 14:44 UTC, 302 s; `checks/merge-isolation.txt`; its probe lines, comparisons and table in `demo/run-merge/`). Every container matched its expected list, attempt by attempt, who answered included:
+
+| Container | Attempts | Got an answer (each on its list) | Compared with its list |
+| --- | --- | --- | --- |
+| app (`data`, `front`) | 55 | Docker's name server; `db` found; the database and the app by name | PASS: 55 rows PASS, 0 FAIL |
+| tools (`data`) | 55 | the same four | PASS: 55 rows PASS, 0 FAIL |
+| database (the probe in its network namespace) | 55 | its own loopback (C5, C7), and the same four | PASS: 55 rows PASS, 0 FAIL |
+| runner (`front`) | 55 | Docker's name server; the app by name | PASS: 55 rows PASS, 0 FAIL |
+| engine, as package 2.2 would place it (`out`) | 55 | the registry through the door's proxy (200, and 200 inside the tunnel); example.com refused in the proxy's own words (403, twice); plain HTTP to the registry passed on to the session's proxy (405); the stand-in gateway at the door's port (200); the door's two ports by name | PASS: 55 rows PASS, 0 FAIL |
+| the door (a one-off container of its service, `out`) | 55 | the same nine | PASS: 55 rows PASS, 0 FAIL |
+| comparison: the machine's own network | 59 | the canary at every machine address, and what an ordinary container reaches | PASS: its answers came |
+| comparison: Docker's default network | 54 | the canary at that network's address on the machine | PASS: its answers came |
+| misconfiguration 1: the app also on an ordinary bridge | 63 | outside hosts and names, the machine's port 2024 and the canary | **FAIL, as it must:** 15 rows |
+| misconfiguration 2: `data` internal without the "isolated" mode | 71 | the machine's port 2024 and the canary, at the machine's address on that network | **FAIL, as it must:** 2 rows |
+
+Each project container made 55 attempts, not 53 as in `demo/run-2`: the machine had one more listening port at this run, 127.0.0.1:4020, so group M crossed it with both machine addresses; neither attempt got an answer. That port is the owner's own builder interface, running from another folder of this session. The comparison container on the machine's own network opened a connection to it, as it does to every port listening on the machine (`checks/merge-isolation.txt`, "X4020"); nothing was sent to it. Nothing was left of the run's three projects; the machine's Docker objects after the run were the same as before.
+
+**The controls, on a copy of the merged code** (`checks/controls-merge.py`, run under the shared lock on a `git archive` copy of the merged tree; output `checks/merge-controls.txt`). 0.6c's controls are read unchanged from `checks/controls.py` and `checks/controls-3.py`; 3.1b's controls that touch the runner and the live tests (its C1, C3, C3b, C4 and C5) are written from the changes in `evidence/2026-11-13-package-3.1b/run-controls.txt`.
+
+| Controls | Result |
+| --- | --- |
+| 0.6c C1 to C11, C13 to C41 (40 controls) | Each **failed** with its safeguard removed, and passed again once restored. C26 and C29 let their test start a `check` container or network of the test's own project (`builder_p_test`), removed by the script; C38 left a socket at `/tmp/m06c-elsewhere.sock`, removed |
+| 0.6c C12, as written | **Not run:** its text is no longer in `egress-machine-main.ts`. This package's own commit `dcfebcf` (after its review, before this merge) moved the machine side's start-up into `egress-machine.ts`; `checks/controls-3.txt` did not run C12 again |
+| C12b: C12's change made where the code now is (`egress-machine.ts`) | **Passed with the change: the control did not catch it.** Found by this run; not caused by the merge (next paragraph) |
+| 3.1b C1 (the skip put back on the live tests), C3, C3b, C4 (the runner image check removed), C5 (the label check accepts any image) | Each **failed** with its change and passed once restored. With C1's skip, the live file alone and an empty cache folder **passed with 7 skipped**, exit code 0: what `npm test` would do without the gate |
+
+**C12b, explained.** With "direct" accepted, the machine side went on and stopped only when it could not open its socket under `/sock/` (which exists only inside its container), with the same exit code 2 and the same `refusedToStart` line, only with another reason: "listen EACCES: permission denied /sock/egress.sock" (run by hand in this session on the control's copy; with the safeguard in place it says that "direct" is not allowed). The test checks the exit code and that line, not its reason, so it cannot tell the two apart. Before `dcfebcf`, a socket that could not be opened ended the program with exit code 1, so the test did tell them apart (C12 failed in `checks/controls-2.txt`). The machine side still refuses "direct" (the run with the safeguard in place, above, and the isolation run's machine side going out only through the session's proxy); what was weak is the test. It is made to check the reason in the commit after this one, and C12b is run again there.
