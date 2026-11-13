@@ -19,12 +19,13 @@ import { buildPortRefusal, cameraImageProblem, cameraNetworkProblem, checkJourne
 import { secretLikePath } from "../src/orchestrator/export.js";
 import { APP_SHOTS, JourneyJobs, REFUSAL_EXTRA } from "../src/orchestrator/journey-jobs.js";
 import { journeyFolder, recordedFile } from "../src/web/files.js";
-import { previewPage } from "../src/web/pages.js";
+import { frontTexts, previewPage } from "../src/web/pages.js";
 import { PASSED_SUMMARY, PNG_1X1, slowPoolFor, StandInSandboxes } from "./journey-stand-ins.js";
 import type { BuildEngine } from "../src/engine/interface.js";
 import { ScriptedEngine } from "../src/engine/scripted.js";
 import { DEFAULT_PROFILES } from "../src/gateway/hold.js";
-import { diskRefusal, EV, EventQueue, EXPORT_LABEL, jobRunFinished, Journey, JourneyRefused, JOURNEY_STAND_IN_LABEL, orderedEngine, runOutcome, scriptedEngineFor, engineEventHandler, SIGN_OFF_LABEL, type JobRecord } from "../src/orchestrator/journey.js";
+import { diskRefusal, EV, EventQueue, EXPORT_LABEL, jobRunFinished, Journey, JourneyRefused, JOURNEY_STAND_IN_LABEL, orderedEngine, runOutcome, scriptedEngineFor, scriptedOnlyProblem, engineEventHandler, SIGN_OFF_LABEL, type JobRecord } from "../src/orchestrator/journey.js";
+import { LivePreview } from "../src/web/preview.js";
 import { runBudgetedStep } from "../src/orchestrator/steps.js";
 import { sandbox as sandboxManager, type Sandbox, type StreamingOptions } from "../src/sandbox/manager.js";
 import { networkChecks } from "../scripts/journey-network-checks.js";
@@ -1361,5 +1362,178 @@ describe("J1 journey after the review bot on defb9c4: the app camera's container
       rmSync(bin, { recursive: true, force: true });
       rmSync(sbDir, { recursive: true, force: true });
     }
+  });
+});
+
+/* ---------------------------------------------------------------- package J3: the live app (stand-in sandbox, the forked front) */
+
+describe("J3: the live app, on the journey (stand-in sandbox, the real front, a stand-in app on this machine's loopback address)", () => {
+  let sandboxes: StandInSandboxes;
+  let upstream: import("node:http").Server;
+  let previews: LivePreview[] = [];
+  beforeAll(async () => {
+    sandboxes = new StandInSandboxes(pool);
+    const http = await import("node:http");
+    upstream = http.createServer((_q, s) => s.writeHead(200, { "content-type": "text/html" }).end("made-up app page"));
+    await new Promise<void>((r) => upstream.listen(0, "127.0.0.1", r));
+    sandboxes.upstreamPort = (upstream.address() as net.AddressInfo).port;
+  });
+  afterAll(async () => {
+    for (const p of previews) await p.stop().catch(() => undefined);
+    sandboxes.removeAll();
+    await new Promise((r) => upstream.close(r));
+  });
+
+  const make = async () => {
+    const box: { jobs?: JourneyJobs } = {};
+    const j = new Journey({ pool, dataDir, cleanupProject: (id, rec) => box.jobs!.cleanup(id, rec) });
+    const jobs = new JourneyJobs({ journey: j, sandboxes, measureFree: () => 50 * 1024 ** 3 });
+    box.jobs = jobs;
+    const s = net.createServer();
+    await new Promise<void>((r) => s.listen(0, "127.0.0.1", r));
+    const port = (s.address() as net.AddressInfo).port;
+    await new Promise((r) => s.close(r));
+    const preview = new LivePreview({ port, texts: frontTexts(), base: "/tmp", openStream: (id) => jobs.openStream(id), onEvent: async (id, kind, payload) => void (await appendEvent(pool, id, kind, payload)) });
+    previews.push(preview);
+    await preview.start();
+    jobs.attachPreview(preview);
+    return { j, jobs, preview, port };
+  };
+  const previewed = async (j: Journey, jobs: JourneyJobs) => {
+    const id = await j.createProject({ name: "Leave requests (made-up, J3)", cap: "5", brief: "I need an app where staff can request leave and managers approve it" });
+    await j.continueWithExample(id);
+    await j.answerRestFromSheet(id);
+    await j.confirmBrief(id);
+    await j.confirmPlan(id);
+    await jobs.buildStep(id, "01-data");
+    await j.waitForJob();
+    await jobs.approve(id, "01-data");
+    await j.waitForJob();
+    await jobs.approve(id, "02-submitter-screen");
+    await j.waitForJob();
+    return id;
+  };
+  const enter = (port: number, shown: string) =>
+    fetch(`http://127.0.0.1:${port}/__builder/enter`, { method: "POST", headers: { origin: `http://127.0.0.1:${port}`, "content-type": "application/x-www-form-urlencoded" }, body: `pass=${shown}`, redirect: "manual" });
+
+  it("opens only while the app runs, as a live job; records live_opened without the pass; the pass works once at the front", async () => {
+    const { j, jobs, port } = await make();
+    const id = await j.createProject({ name: "Not built (made-up)", cap: "5", brief: "Made-up brief." });
+    await expect(jobs.openLive(id, "builder-session")).rejects.toThrow(/plan is not confirmed|not running/);
+    const id2 = await previewed(j, jobs);
+    expect((await j.state(id2)).appStartedEventId).not.toBeNull();
+    const started = await listEvents(pool, id2, EV.appStarted);
+    expect(started.at(-1)!.payload).toMatchObject({ live_view: true });
+    const r = await jobs.openLive(id2, "builder-session");
+    await j.waitForJob();
+    const s = await j.state(id2);
+    expect(s.jobs.at(-1)).toMatchObject({ kind: "live", state: "finished" });
+    const opened = await listEvents(pool, id2, EV.liveOpened);
+    expect(opened).toHaveLength(1);
+    expect(opened[0]!.payload).toMatchObject({ session: r.sessionId, pass_recorded: false, label: "Simulated build: scripted engine, sample data" });
+    // The pass is in no event of the project, in any spelling.
+    const all = JSON.stringify((await listEvents(pool, id2)).map((e) => e.payload));
+    expect(all.includes(r.pass)).toBe(false);
+    expect(all.includes(r.shown)).toBe(false);
+    expect((await enter(port, r.shown)).status).toBe(303);
+    await new Promise((x) => setTimeout(x, 100));
+    expect((await listEvents(pool, id2, EV.liveEntered)).at(-1)!.payload).toMatchObject({ session: r.sessionId });
+    expect(sandboxes.streamNetworkChecks).toBeGreaterThan(0);
+    await j.closeProject(id);
+    await j.closeProject(id2);
+  });
+
+  it("is refused for a record that does not show the scripted engine's fixed change sets alone: a model call, or an engine event of another kind", async () => {
+    const { j, jobs } = await make();
+    const id = await previewed(j, jobs);
+    await appendEvent(pool, id, EV.engineEvent, { type: "tool_call", tool: "Write", input: { path: "src/x.ts" }, at: new Date().toISOString() }, "02-submitter-screen");
+    await expect(jobs.openLive(id, "builder-session")).rejects.toThrow(/not one the scripted engine writes/);
+    expect(scriptedOnlyProblem(await j.state(id))).toMatch(/not one the scripted engine writes/);
+    // One project's app runs at a time: each is closed before the next is previewed.
+    await j.closeProject(id);
+    const id2 = await previewed(j, jobs);
+    await appendEvent(pool, id2, "model.call", { model: "made-up" });
+    await expect(jobs.openLive(id2, "builder-session")).rejects.toThrow(/holds a model call/);
+    // A write whose digest is not the fixed change's.
+    await j.closeProject(id2);
+    const id3 = await previewed(j, jobs);
+    const s3 = await j.state(id3);
+    expect(scriptedOnlyProblem(s3)).toBeNull();
+    const w = s3.events.find((e) => e.kind === EV.engineEvent && e.payload.type === "tool_call")!;
+    const tampered = s3.events.map((e) => (e.id === w.id ? { ...e, payload: { ...e.payload, input: { ...(e.payload.input as object), sha256: "0".repeat(64) } } } : e));
+    expect(scriptedOnlyProblem({ ...s3, events: tampered })).toMatch(/not exactly its fixed change's files/);
+    await j.closeProject(id3);
+  });
+
+  it("is refused when Compose does not read the check service as on front alone", async () => {
+    const { j, jobs } = await make();
+    const id = await previewed(j, jobs);
+    sandboxes.streamNetwork = "Compose puts the check service on front, out, not on the project's front network alone";
+    try {
+      await expect(jobs.openLive(id, "builder-session")).rejects.toThrow(/front network alone/);
+    } finally {
+      sandboxes.streamNetwork = null;
+    }
+    expect(await listEvents(pool, id, EV.liveOpened)).toHaveLength(0);
+    await j.closeProject(id);
+  });
+
+  it("the checklist ends the live session first, and its record says the app was used live and its data changed", async () => {
+    const { j, jobs, port, preview } = await make();
+    const id = await previewed(j, jobs);
+    const r = await jobs.openLive(id, "builder-session");
+    await j.waitForJob();
+    expect((await enter(port, r.shown)).status).toBe(303);
+    await new Promise((x) => setTimeout(x, 100));
+    expect(preview.status(id)?.entered).toBe(true);
+    await jobs.acceptance(id);
+    await j.waitForJob();
+    expect(preview.status(id)).toBeNull();
+    expect((await listEvents(pool, id, EV.liveClosed)).at(-1)!.payload).toMatchObject({ reason: "checklist", entered: true });
+    const finished = (await listEvents(pool, id, EV.jobFinished)).at(-1)!;
+    expect(finished.payload).toMatchObject({ kind: "acceptance", app_used_live: true, app_used_live_note: "The app was used live before this run; its data changed." });
+    // The order: the session closed before the run's first event.
+    const ev = await listEvents(pool, id);
+    const closedAt = ev.findIndex((e) => e.kind === EV.liveClosed);
+    const runAt = ev.findIndex((e) => e.kind.startsWith("acceptance.run"));
+    expect(closedAt).toBeGreaterThan(-1);
+    expect(runAt === -1 || closedAt < runAt).toBe(true);
+    await j.closeProject(id);
+  });
+
+  it("closing the project ends the live session (project_closed); Show gives the made-up employee only while the app runs", async () => {
+    const { j, jobs, preview } = await make();
+    const id = await previewed(j, jobs);
+    expect(jobs.sampleSignIn(id)).toEqual({ email: "employee@example.test", password: "made-up-sample-password" });
+    await jobs.openLive(id, "builder-session");
+    await j.waitForJob();
+    await j.closeProject(id);
+    expect(preview.status(id)).toBeNull();
+    expect((await listEvents(pool, id, EV.liveClosed)).at(-1)!.payload).toMatchObject({ reason: "project_closed" });
+    expect(() => jobs.sampleSignIn(id)).toThrow(/not held|not running/);
+  });
+
+  it("a stream is opened only for a project whose app this interface runs; otherwise the session ends (app_stopped)", async () => {
+    const { j, jobs, port, preview } = await make();
+    const id = await previewed(j, jobs);
+    const r = await jobs.openLive(id, "builder-session");
+    await j.waitForJob();
+    const cookie = ((await enter(port, r.shown)).headers.get("set-cookie") ?? "").split(";")[0]!;
+    await new Promise((x) => setTimeout(x, 100));
+    const before = sandboxes.streamsOpened;
+    expect(await (await fetch(`http://127.0.0.1:${port}/en/home`, { headers: { cookie } })).text()).toBe("made-up app page");
+    expect(sandboxes.streamsOpened).toBe(before + 1);
+    jobs.handle(id)!.appStarted = false;
+    const after = await fetch(`http://127.0.0.1:${port}/en/other`, { headers: { cookie: `${cookie}` }, signal: AbortSignal.timeout(10_000) }).then((x) => x.status, () => -1);
+    expect([200, 502, -1]).toContain(after);
+    await new Promise((x) => setTimeout(x, 200));
+    // A kept-alive stream may have answered; a new one is not opened, and the session ends once one is asked for.
+    if (preview.status(id)) {
+      await fetch(`http://127.0.0.1:${port}/en/third`, { headers: { cookie, connection: "close" } }).catch(() => undefined);
+      await preview.closeFor(id, "app_stopped");
+    }
+    expect(preview.status(id)).toBeNull();
+    expect(sandboxes.streamsOpened).toBeLessThanOrEqual(before + 1);
+    await j.closeProject(id);
   });
 });

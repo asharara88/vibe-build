@@ -24,7 +24,8 @@ import { createWebApp, PUBLIC_PATHS } from "../src/web/app.js";
 import { PASSWORD_FILE, PasswordState, passwordFromSettings, Sessions, SignInLimiter, digestPassword } from "../src/web/auth.js";
 import { journeyFolder } from "../src/web/files.js";
 import { holdInstanceLock, LOCK_LOST, readSettings, SCRUBBED, stopAfterLockLost } from "../src/web/main.js";
-import { messageKeys, t } from "../src/web/pages.js";
+import { frontTexts, messageKeys, t } from "../src/web/pages.js";
+import { LivePreview } from "../src/web/preview.js";
 import { testPool, TEST_DB_URL, uniqueId } from "./helpers.js";
 import { PASSED_SUMMARY, StandInSandboxes } from "./journey-stand-ins.js";
 
@@ -1290,3 +1291,79 @@ describe("J1 interface: the instance lock lost while the interface serves (revie
   });
 });
 
+
+describe("J3 interface: the live app's screens (stand-in sandbox, the real front)", () => {
+  let sandboxes: StandInSandboxes;
+  let preview: LivePreview;
+  beforeAll(async () => {
+    sandboxes = new StandInSandboxes(pool);
+  });
+  afterAll(async () => {
+    await preview?.stop().catch(() => undefined);
+    sandboxes.removeAll();
+  });
+
+  it("Open the live app and Show are POSTs only, behind sign-in; the pass and the sample password are on their answers only, never on a GET page or in a record; sign-out ends the live session", async () => {
+    const box: { jobs?: JourneyJobs } = {};
+    const j = new Journey({ pool, dataDir, cleanupProject: (id, rec) => box.jobs!.cleanup(id, rec) });
+    const jobs = new JourneyJobs({ journey: j, sandboxes, measureFree: () => 50 * 1024 ** 3 });
+    box.jobs = jobs;
+    const net = await import("node:net");
+    const s = net.createServer();
+    await new Promise<void>((r) => s.listen(0, "127.0.0.1", r));
+    const port = (s.address() as import("node:net").AddressInfo).port;
+    await new Promise((r) => s.close(r));
+    preview = new LivePreview({ port, texts: frontTexts(), base: "/tmp", openStream: (id) => jobs.openStream(id), onEvent: async (id, kind, payload) => void (await appendEvent(pool, id, kind, payload)) });
+    await preview.start();
+    jobs.attachPreview(preview);
+    const app = createWebApp({ journey: j, jobs, password: new PasswordState("env", digestPassword(PASSWORD), null), sessions: new Sessions(), limiter: new SignInLimiter(), dataDir, preview });
+    const cookie = await signIn(app);
+    const made = await post(app, "/projects", { name: "Leave requests (made-up, J3)", cap: "5.00", brief: "I need an app where staff can request leave and managers approve it" }, { cookie });
+    const id = /\/projects\/(j1-[0-9a-f]{12})\//.exec(made.headers.get("location") ?? "")![1]!;
+    for (const a of ["continue", "answer-rest", "confirm-brief", "confirm-plan"]) expect((await post(app, `/projects/${id}/${a}`, {}, { cookie })).status).toBe(303);
+    for (const [a, step] of [["build", "01-data"], ["approve", "01-data"], ["approve", "02-submitter-screen"]] as const) {
+      expect((await post(app, `/projects/${id}/${a}`, { step }, { cookie })).status).toBe(303);
+      await j.waitForJob();
+    }
+    let html = await (await get(app, `/projects/${id}/preview`, cookie)).text();
+    expect(html).toContain("data-live-open");
+    expect(html).toContain("Simulated build: scripted engine, sample data");
+    expect(html).toContain("Made-up data only. No customer or personal details. Removed when the project closes.");
+    expect(html).toContain("data-live-not-approved");
+    expect(html).toContain(`port ${port}`);
+    // No GET route opens or shows anything.
+    for (const p of [`/projects/${id}/live`, `/projects/${id}/live/show`, `/projects/${id}/live/end`]) expect((await get(app, p, cookie)).status, p).toBe(404);
+    // Not signed in, or from another site: refused.
+    expect((await post(app, `/projects/${id}/live`, {})).status).toBe(303);
+    expect((await post(app, `/projects/${id}/live`, {}, { cookie, origin: "https://evil.example" })).status).toBe(403);
+    expect(await listEvents(pool, id, EV.liveOpened)).toHaveLength(0);
+    const opened = await post(app, `/projects/${id}/live`, {}, { cookie });
+    expect(opened.status).toBe(200);
+    expect(opened.headers.get("cache-control")).toBe("no-store");
+    const passPage = await opened.text();
+    const pass = /data-pass[^>]*><code[^>]*>([0-9A-Z]{4}-[0-9A-Z]{4})</.exec(passPage)?.[1];
+    expect(pass).toBeDefined();
+    await j.waitForJob();
+    html = await (await get(app, `/projects/${id}/preview`, cookie)).text();
+    expect(html.includes(pass!)).toBe(false);
+    expect(html).toContain('data-live-state="pass_open"');
+    const shown = await post(app, `/projects/${id}/live/show`, {}, { cookie });
+    expect(shown.status).toBe(200);
+    const shownHtml = await shown.text();
+    expect(shownHtml).toContain("employee@example.test");
+    expect(shownHtml).toContain("made-up-sample-password");
+    expect((await (await get(app, `/projects/${id}/preview`, cookie)).text()).includes("made-up-sample-password")).toBe(false);
+    const record = JSON.stringify((await listEvents(pool, id)).map((e) => e.payload));
+    expect(record.includes(pass!)).toBe(false);
+    expect(record.includes(pass!.replace("-", ""))).toBe(false);
+    expect(record.includes("made-up-sample-password")).toBe(false);
+    // Every value of the sign-in cookie is read: a made-up one of the same name in front of it does not sign the owner out.
+    expect((await get(app, "/projects", `builder_session=made-up-not-valid; ${cookie}`)).status).toBe(200);
+    // Sign-out ends the live session opened from that sign-in.
+    expect(preview.status(id)).not.toBeNull();
+    expect((await post(app, "/sign-out", {}, { cookie })).status).toBe(303);
+    expect(preview.status(id)).toBeNull();
+    expect((await listEvents(pool, id, EV.liveClosed)).at(-1)!.payload).toMatchObject({ reason: "sign_out" });
+    await j.closeProject(id);
+  }, 60_000);
+});

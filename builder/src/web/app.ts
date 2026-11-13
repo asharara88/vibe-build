@@ -10,6 +10,10 @@
  * - `secureHeaders()` on every response, with a content-security-policy that allows no script at all, styles
  *   and images from this site only, and forms posted only to it; every page is `no-store`.
  * - Once the interface has lost its instance lock (`unavailable`, review bot on defb9c4), every request gets a plain 503.
+ * - Package J3: every value of the sign-in cookie is read, and any valid one accepted (a page on another port of the
+ *   same host, such as the live app's, can add a cookie of the same name). "Open the live app" and "Show" are POSTs,
+ *   behind sign-in and csrf(); the pass and the sample password are on the page that answers the POST only, never on
+ *   a GET page or in a record. Sign-out ends the live session bound to it.
  */
 import { Hono, type Context } from "hono";
 import { bodyLimit } from "hono/body-limit";
@@ -26,6 +30,8 @@ import { Journey, JourneyRefused } from "../orchestrator/journey.js";
 import { PRICED_MODEL, type JourneyJobs } from "../orchestrator/journey-jobs.js";
 import { passwordProblem, SESSION_COOKIE, type PasswordState, type Sessions, type SignInLimiter } from "./auth.js";
 import { recordedFile } from "./files.js";
+import type { LivePreview } from "./preview.js";
+import { cookieValues } from "./preview-rules.ts";
 import {
   acceptancePage,
   briefPage,
@@ -34,6 +40,8 @@ import {
   errorPage,
   exportPage,
   isJourneyId,
+  livePassPage,
+  liveSamplePage,
   LANGS,
   newProjectPage,
   notFoundPage,
@@ -67,9 +75,17 @@ export interface WebDeps {
    * While it gives a reason, every request, open or behind the guard, is answered with that reason, plain, and 503.
    */
   unavailable?: () => string | null;
+  /** Package J3: the live preview, whose session bound to a sign-in ends with its sign-out. */
+  preview?: LivePreview;
 }
 
-type Env = { Variables: { lang: Lang; signedIn: boolean } };
+type Env = { Variables: { lang: Lang; signedIn: boolean; session: string | null } };
+
+/** The first valid sign-in session among every value of the cookie (package J3), or null. */
+function sessionFrom(c: Context<Env>, sessions: Sessions): string | null {
+  for (const v of cookieValues(c.req.header("cookie") ?? "", SESSION_COOKIE)) if (sessions.valid(v)) return v;
+  return null;
+}
 
 /** Paths a visitor with no session may reach. Everything else is behind the guard. */
 export const PUBLIC_PATHS = new Set(["/sign-in", "/setup", "/language", "/static/app.css"]);
@@ -118,7 +134,9 @@ export function createWebApp(d: WebDeps): Hono<Env> {
     const q = c.req.query("lang");
     const ck = getCookie(c, LANG_COOKIE);
     c.set("lang", (LANGS as string[]).includes(q ?? "") ? (q as Lang) : (LANGS as string[]).includes(ck ?? "") ? (ck as Lang) : "en");
-    c.set("signedIn", d.sessions.valid(getCookie(c, SESSION_COOKIE)));
+    const session = sessionFrom(c, d.sessions);
+    c.set("session", session);
+    c.set("signedIn", session !== null);
     await next();
   });
 
@@ -175,7 +193,7 @@ export function createWebApp(d: WebDeps): Hono<Env> {
       return c.html(now > 0 ? signInPage(lang, { message: "locked", lockedSeconds: Math.ceil(now / 1000) }) : signInPage(lang, { message: "wrong" }), now > 0 ? 429 : 401);
     }
     d.limiter.succeed();
-    d.sessions.end(getCookie(c, SESSION_COOKIE));
+    for (const v of cookieValues(c.req.header("cookie") ?? "", SESSION_COOKIE)) d.sessions.end(v);
     setCookie(c, SESSION_COOKIE, d.sessions.create(), cookieOpts);
     return c.redirect("/projects", 303);
   });
@@ -199,8 +217,10 @@ export function createWebApp(d: WebDeps): Hono<Env> {
 
   /* ---------------------------------------------------------------- behind the guard */
 
-  app.post("/sign-out", (c) => {
-    d.sessions.end(getCookie(c, SESSION_COOKIE));
+  app.post("/sign-out", async (c) => {
+    // Package J3: the live session opened from this sign-in ends with it.
+    await d.preview?.signedOut(c.get("session") ?? undefined);
+    for (const v of cookieValues(c.req.header("cookie") ?? "", SESSION_COOKIE)) d.sessions.end(v);
     deleteCookie(c, SESSION_COOKIE, { path: "/" });
     return c.redirect("/sign-in?m=signed_out", 303);
   });
@@ -244,7 +264,11 @@ export function createWebApp(d: WebDeps): Hono<Env> {
   app.get("/projects/:id/proposal", async (c) => c.html(proposalPage(c.get("lang"), await j.state(c.req.param("id")), j)));
   app.get("/projects/:id/plan", async (c) => c.html(planPage(c.get("lang"), await j.state(c.req.param("id")), j)));
   app.get("/projects/:id/build", async (c) => c.html(buildPage(c.get("lang"), await j.state(c.req.param("id")), j)));
-  app.get("/projects/:id/preview", async (c) => c.html(previewPage(c.get("lang"), await j.state(c.req.param("id")))));
+  app.get("/projects/:id/preview", async (c) => {
+    const s = await j.state(c.req.param("id"));
+    const port = d.jobs?.livePort() ?? null;
+    return c.html(previewPage(c.get("lang"), s, port === null ? null : { port, session: d.jobs?.liveStatus(s.project.id) ?? null }));
+  });
   app.get("/projects/:id/acceptance", async (c) => c.html(acceptancePage(c.get("lang"), await j.state(c.req.param("id")), j)));
   app.get("/projects/:id/export", async (c) => c.html(exportPage(c.get("lang"), await j.state(c.req.param("id")))));
   app.get("/projects/:id/record", async (c) => c.html(recordPage(c.get("lang"), await j.state(c.req.param("id")))));
@@ -317,6 +341,25 @@ export function createWebApp(d: WebDeps): Hono<Env> {
   act("acceptance", async (id) => (await jobs().acceptance(id), `/projects/${id}/acceptance`));
   act("sign-off", async (id) => (await j.signOff(id), `/projects/${id}/acceptance`));
   act("export", async (id) => (await jobs().exportProject(id), `/projects/${id}/export`));
+
+  // Package J3: the live app. Each answers the POST with its page (the pass, the sample sign-in); nothing of either is
+  // on a GET page or in a record.
+  app.post("/projects/:id/live", async (c) => {
+    const id = c.req.param("id");
+    await c.req.parseBody();
+    const session = c.get("session");
+    if (!session) return c.redirect("/sign-in", 303);
+    const r = await jobs().openLive(id, session);
+    const s = await j.state(id);
+    return c.html(livePassPage(c.get("lang"), s, { shown: r.shown, expiresAt: r.expiresAt, port: jobs().livePort() ?? 0 }));
+  });
+  app.post("/projects/:id/live/show", async (c) => {
+    const id = c.req.param("id");
+    await c.req.parseBody();
+    const sample = jobs().sampleSignIn(id);
+    return c.html(liveSamplePage(c.get("lang"), await j.state(id), sample));
+  });
+  act("live/end", async (id) => (await jobs().endLive(id), `/projects/${id}/preview`));
 
   return app;
 }

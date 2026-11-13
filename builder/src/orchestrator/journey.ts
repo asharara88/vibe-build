@@ -69,6 +69,12 @@ export const EV = {
   screenshot: "journey.screenshot",
   /** The export archive: `file` {path, sha256} (files.ts serves it as an attachment). */
   exportWritten: "journey.export.written",
+  /** Package J3: a live session opened, its pass shown once (the pass is never recorded). */
+  liveOpened: "journey.preview.live_opened",
+  /** Package J3: the pass was used at the preview front (whether Sec-Fetch-Site came; no origin is recorded). */
+  liveEntered: "journey.preview.live_entered",
+  /** Package J3: a live session ended, and why. */
+  liveClosed: "journey.preview.live_closed",
 } as const;
 
 /** The label a sign-off carries (final design, section 1, item 8). */
@@ -78,7 +84,7 @@ export const EXPORT_LABEL =
   "Internal only, not for customers. Not yet shown to start without the builder (package 3.2): its tables are made by the builder's tools container, and it has no notices file.";
 
 export type Stage = "brief" | "questions" | "brief_review" | "plan_review" | "build" | "preview" | "acceptance" | "signed_off" | "stopped" | "closed";
-export type JobKind = "build_step" | "preview" | "acceptance" | "export";
+export type JobKind = "build_step" | "preview" | "acceptance" | "export" | "live";
 
 export interface RecordedAnswer {
   answer: Answer;
@@ -134,6 +140,10 @@ export interface JourneyState {
   acceptanceRun: { jobId: string; runId: string | null; summary: string | null; refused: string | null; outcome: RunOutcome | null } | null;
   /** The last export written, by its event. */
   exportEventId: string | null;
+  /** The last `journey.app.started` event, while the app runs (package J3: a live session is bound to it). */
+  appStartedEventId: string | null;
+  /** Package J3: the owner entered the live app since the app last started, so its data may have changed. */
+  usedLiveSinceStart: boolean;
 }
 
 /**
@@ -179,6 +189,8 @@ export function journeyState(project: Project, events: Event[], intake: Intake, 
     appRunning: false,
     acceptanceRun: null,
     exportEventId: null,
+    appStartedEventId: null,
+    usedLiveSinceStart: false,
   };
   let continued = false;
   let stopped = false;
@@ -218,13 +230,20 @@ export function journeyState(project: Project, events: Event[], intake: Intake, 
         // A removal that failed (`removed: false`) leaves the sandbox recorded, so the next start tries again.
         if (p.removed !== false) s.sandbox = null;
         s.appRunning = false;
+        s.appStartedEventId = null;
         if (p.interrupted === true) s.interrupted = true;
         break;
       case EV.appStarted:
         s.appRunning = true;
+        s.appStartedEventId = e.id;
+        s.usedLiveSinceStart = false;
         break;
       case EV.appStopped:
         s.appRunning = false;
+        s.appStartedEventId = null;
+        break;
+      case EV.liveEntered:
+        if (s.appRunning) s.usedLiveSinceStart = true;
         break;
       case EV.exportWritten:
         s.exportEventId = e.id;
@@ -324,7 +343,51 @@ export const JOB_RULES: Record<JobKind, (s: JourneyState) => string | null> = {
           ? "The project is signed off; the checklist is not run again."
           : null,
   export: (s) => (s.signedOff ? null : "The project is not signed off yet. Export is offered only after sign-off."),
+  live: (s) => (!s.planConfirmed ? "The plan is not confirmed yet." : !s.appRunning ? "The app is not running: make the preview first. The live app is offered only while it runs." : scriptedOnlyProblem(s)),
 };
+
+/**
+ * Package J3, section 4.6 ("Scripted only"): why this project's app may not be used live, or null. Its record must
+ * show only the scripted engine's fixed change sets: no model call; every engine event one the scripted engine
+ * writes ("Scripted engine: ..." texts, `scripted.write` calls, finished, failed, blocked), of a step of the plan;
+ * and for every step, its last build job finished, having written exactly the files of that step's fixed change, each
+ * with the content its manifest names (SHA-256). The journey makes no other engine (journey.ts, `scriptedEngineFor`).
+ */
+export function scriptedOnlyProblem(s: JourneyState, changeSetsDir = CHANGE_SETS_DIR): string | null {
+  if (s.events.some((e) => e.kind === "model.call")) return "This project's record holds a model call: only an app built by the scripted engine may be used live.";
+  for (const e of s.events) {
+    if (e.kind !== EV.engineEvent) continue;
+    const t = e.payload.type;
+    const ok =
+      e.step !== null &&
+      s.plan.includes(e.step) &&
+      ((t === "text" && typeof e.payload.text === "string" && e.payload.text.startsWith("Scripted engine: ")) ||
+        (t === "tool_call" && e.payload.tool === "scripted.write") ||
+        t === "finished" ||
+        t === "failed" ||
+        t === "blocked");
+    if (!ok) return `An engine event in this project's record is not one the scripted engine writes (event ${e.id}): only an app built by the scripted engine may be used live.`;
+  }
+  for (const step of s.plan) {
+    const job = s.stepJobs.get(step);
+    if (job?.state !== "finished") return `Step ${step} has not been built: only an app built from every fixed change may be used live.`;
+    const end = s.events.find((e) => e.kind === EV.jobFinished && String(e.payload.job_id) === job.jobId);
+    if (!end) return `Step ${step}'s build has no recorded end.`;
+    const writes = new Map<string, string>();
+    for (const e of s.events) {
+      if (e.kind !== EV.engineEvent || e.step !== step || BigInt(e.id) <= BigInt(job.startedEventId) || BigInt(e.id) >= BigInt(end.id)) continue;
+      if (e.payload.type !== "tool_call") continue;
+      const input = e.payload.input as { path?: unknown; sha256?: unknown } | undefined;
+      if (typeof input?.path !== "string" || typeof input.sha256 !== "string") return `A write of step ${step} in the record names no file or no SHA-256.`;
+      writes.set(input.path, input.sha256);
+    }
+    const manifest = readManifest(changeSetsDir, EXAMPLE, step);
+    const want = new Map(manifest.files.map((f) => [f.path, f.sha256]));
+    const same = writes.size === want.size && [...want].every(([path, digest]) => writes.get(path) === digest);
+    if (!same) return `Step ${step}'s recorded writes are not exactly its fixed change's files and contents: only an app built by the scripted engine may be used live.`;
+  }
+  return null;
+}
 
 /**
  * Which step may be built (final design, section 1, item 6: nothing goes on without "Approve and build the next
