@@ -5,8 +5,8 @@
  * - One guard in front of every route: a visitor who is not signed in gets only the sign-in page (and, before
  *   a password is chosen on the first run, only "Choose your password"). The only routes open without a
  *   session are the sign-in and first-run pages, the language switch and the stylesheet.
- * - No GET changes anything. Every change is a POST, checked by hono's `csrf()` (the request's Origin, or
- *   Sec-Fetch-Site, must be this site).
+ * - No GET changes anything. Every change is a POST of a form (any other body, or method, is refused with 415),
+ *   checked by hono's `csrf()` (the request's Origin, or Sec-Fetch-Site, must be this site).
  * - `secureHeaders()` on every response, with a content-security-policy that allows no script at all, styles
  *   and images from this site only, and forms posted only to it; every page is `no-store`.
  */
@@ -80,6 +80,9 @@ export const CONTENT_SECURITY_POLICY = {
 
 const cookieOpts = { httpOnly: true, sameSite: "Strict" as const, path: "/" };
 
+/** The content types of a form a browser posts: the only bodies the interface accepts. */
+export const FORM_CONTENT_TYPE = /^(application\/x-www-form-urlencoded|multipart\/form-data)\s*(;|$)/i;
+
 export function createWebApp(d: WebDeps): Hono<Env> {
   const app = new Hono<Env>();
   const j = d.journey;
@@ -90,6 +93,12 @@ export function createWebApp(d: WebDeps): Hono<Env> {
     c.header("Cache-Control", "no-store");
   });
   app.use("*", bodyLimit({ maxSize: 64 * 1024, onError: (c) => c.text("Too large.", 413) }));
+  // Every request but a GET or HEAD must be a form, so that csrf() below judges it: csrf() looks only at form
+  // content types, and a JSON body with no Origin would pass it (review of 13 Nov 2026, note 1).
+  app.use("*", async (c, next) => {
+    if (c.req.method !== "GET" && c.req.method !== "HEAD" && !FORM_CONTENT_TYPE.test(c.req.header("content-type") ?? "")) return c.text("Only a form from this site is accepted.", 415);
+    await next();
+  });
   app.use("*", csrf());
 
   // The page's language: ?lang= when given, else the cookie, else English.
@@ -141,10 +150,13 @@ export function createWebApp(d: WebDeps): Hono<Env> {
 
   app.post("/sign-in", async (c) => {
     const lang = c.get("lang");
-    const locked = d.limiter.lockedFor();
-    if (locked > 0) return c.html(signInPage(lang, { message: "locked", lockedSeconds: Math.ceil(locked / 1000) }), 429);
     const body = await c.req.parseBody();
     const password = typeof body.password === "string" ? body.password : "";
+    // The lock-out is read only now, once the body has arrived, with no await between it, the check and
+    // `fail()` (the check is synchronous: scryptSync). Read before the body, every attempt sent at the same
+    // moment would pass it before the first was judged (review of 13 Nov 2026, blocking item 1).
+    const locked = d.limiter.lockedFor();
+    if (locked > 0) return c.html(signInPage(lang, { message: "locked", lockedSeconds: Math.ceil(locked / 1000) }), 429);
     if (!d.password.check(password)) {
       d.limiter.fail();
       const now = d.limiter.lockedFor();

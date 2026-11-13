@@ -152,6 +152,24 @@ describe("J1 interface: the sign-in guard", () => {
     expect(l.lockedFor(5_000)).toBe(400);
   });
 
+  it("the lock-out holds for attempts that arrive at the same moment: at most 5 passwords are checked, and the right one sent among them is refused once locked (review of 13 Nov, blocking item 1)", async () => {
+    const password = new PasswordState("env", digestPassword(PASSWORD), null);
+    let checked = 0;
+    const check = password.check.bind(password);
+    password.check = (p: string) => (checked++, check(p));
+    const limiter = new SignInLimiter(5, 60_000, 60_000);
+    const { app } = makeApp({ password, limiter });
+    // Ten wrong guesses and then the right password, all sent at once: each request's lock-out check would
+    // otherwise run before any body is read, and so before any of the guesses is judged.
+    const sent = [...Array.from({ length: 10 }, (_, i) => post(app, "/sign-in", { password: `wrong-guess-${i}` })), post(app, "/sign-in", { password: PASSWORD })];
+    const res = await Promise.all(sent);
+    expect(checked).toBe(5);
+    expect(res.at(-1)!.status).toBe(429);
+    expect(res.map((r) => r.headers.get("set-cookie"))).toEqual(Array(11).fill(null));
+    expect(res.map((r) => r.status).filter((s) => s === 401)).toHaveLength(4);
+    expect(limiter.lockedFor()).toBeGreaterThan(0);
+  });
+
   it("sign-out ends the session on the server; an expired session is refused", async () => {
     const { app, sessions } = makeApp();
     const cookie = await signIn(app);
@@ -179,6 +197,31 @@ describe("J1 interface: the sign-in guard", () => {
     expect(r3.status).toBe(403);
     expect(r3.headers.get("set-cookie")).toBeNull();
     expect(await projectCount()).toBe(before);
+  });
+
+  it("a POST whose body is not a form is refused (415) before any route, signed in or not, with no Origin: csrf() judges form bodies only (review of 13 Nov, note 1)", async () => {
+    const { app } = makeApp();
+    const cookie = await signIn(app);
+    const id = await journey.createProject({ name: "Not a form (made-up)", cap: "5", brief: "Made-up brief." });
+    const before = await eventCount();
+    const projects = await projectCount();
+    const send = (path: string, type: string | null, body: string, withCookie = true) =>
+      app.request(path, { method: "POST", headers: { ...(type ? { "content-type": type } : {}), ...(withCookie ? { cookie } : {}) }, body });
+    for (const type of ["application/json", "application/x-www-form-urlencoded-not", "text/xml", "application/octet-stream"]) {
+      const r = await send(`/projects/${id}/continue`, type, "{}");
+      expect(r.status, type).toBe(415);
+      const s = await send("/sign-in", type, JSON.stringify({ password: PASSWORD }), false);
+      expect(s.status, type).toBe(415);
+      expect(s.headers.get("set-cookie")).toBeNull();
+      const n = await send("/projects", type, JSON.stringify({ name: "JSON (made-up)", cap: "5", brief: "x" }));
+      expect(n.status, type).toBe(415);
+    }
+    // With no content type at all: refused the same way (csrf() would also refuse it without an Origin, as text/plain).
+    expect((await send(`/projects/${id}/continue`, null, "")).status).toBe(415);
+    expect(await eventCount()).toBe(before);
+    expect(await projectCount()).toBe(projects);
+    // A form from this site still works.
+    expect((await post(app, `/projects/${id}/continue`, {}, { cookie })).status).toBe(303);
   });
 });
 
@@ -629,6 +672,60 @@ describe("J1 interface, part 2: the build, preview, checklist and export screens
     expect(ar).toContain(t("ar", "build.refusal_extra"));
     expect(ar).toContain(REFUSAL_EXTRA.replace(/'/g, "&#39;"));
     expect(t("en", "build.refusal_extra")).toBe(REFUSAL_EXTRA);
+    await go(app, j, `/projects/${id}/close`, cookie);
+  });
+
+  it("step ids such as 01-data are isolated left to right wherever a page shows them, so an Arabic page does not show them as data-01 (review of 13 Nov, note 7)", async () => {
+    const { app, j } = makeJobsApp();
+    const cookie = await signIn(app);
+    const made = await post(app, "/projects", { name: "Step ids (made-up)", cap: "5.00", brief: "Made-up brief." }, { cookie });
+    const id = /\/projects\/(j1-[0-9a-f]{12})\//.exec(made.headers.get("location") ?? "")![1]!;
+    for (const a of ["continue", "answer-rest", "confirm-brief", "confirm-plan"]) await go(app, j, `/projects/${id}/${a}`, cookie);
+    await go(app, j, `/projects/${id}/build`, cookie, { step: "01-data" });
+    const iso = (step: string) => `<bdi dir="ltr">${step}</bdi>`;
+    for (const lang of ["ar", "en"] as const) {
+      const build = await page(app, `/projects/${id}/build?lang=${lang}`, cookie);
+      const titles = [...build.matchAll(/<h2>([\s\S]*?)<span class="badge">/g)].map((m) => m[1]!);
+      expect(titles, lang).toContain(t(lang, "build.step_title", { n: 1, total: 2 }).replace("{step}", iso("01-data")));
+      expect(titles, lang).toContain(t(lang, "build.step_title", { n: 2, total: 2 }).replace("{step}", iso("02-submitter-screen")));
+      expect(await page(app, `/projects/${id}/plan?lang=${lang}`, cookie)).toContain(`<strong>${iso("01-data")}</strong>`);
+      expect(await page(app, `/projects/${id}/cost?lang=${lang}`, cookie)).toContain(`<td>${iso("01-data")}</td>`);
+      expect(await page(app, `/projects/${id}/record?lang=${lang}`, cookie)).toContain(`<td>${iso("01-data")}</td>`);
+      // No step id is shown as a bare text of its own anywhere on these pages.
+      for (const p of ["build", "plan", "cost", "record"]) {
+        const html = await page(app, `/projects/${id}/${p}?lang=${lang}`, cookie);
+        for (const step of ["01-data", "02-submitter-screen"]) expect(html.split(`>${step}<`).length, `${p} ${lang} ${step}`).toBe(html.split(iso(step)).length);
+      }
+    }
+    await go(app, j, `/projects/${id}/close`, cookie);
+  });
+
+  it("a checklist job that failed after its run is shown as failed on the checklist screen, and sign-off is not offered on an earlier passed run (review of 13 Nov, note 4)", async () => {
+    const { app, j } = makeJobsApp();
+    const cookie = await signIn(app);
+    const made = await post(app, "/projects", { name: "Checklist job failed (made-up)", cap: "5.00", brief: "Made-up brief." }, { cookie });
+    const id = /\/projects\/(j1-[0-9a-f]{12})\//.exec(made.headers.get("location") ?? "")![1]!;
+    for (const a of ["continue", "answer-rest", "confirm-brief", "confirm-plan"]) await go(app, j, `/projects/${id}/${a}`, cookie);
+    await go(app, j, `/projects/${id}/build`, cookie, { step: "01-data" });
+    await go(app, j, `/projects/${id}/approve`, cookie, { step: "01-data" });
+    await go(app, j, `/projects/${id}/approve`, cookie, { step: "02-submitter-screen" });
+    await go(app, j, `/projects/${id}/acceptance`, cookie);
+    expect(await page(app, `/projects/${id}/acceptance`, cookie)).toContain(t("en", "acceptance.sign_off_label"));
+    sandboxes.acceptanceOutcome = "did not run";
+    sandboxes.acceptanceFailsAfterRun = true;
+    try {
+      await go(app, j, `/projects/${id}/acceptance`, cookie);
+    } finally {
+      sandboxes.acceptanceOutcome = "passed";
+      sandboxes.acceptanceFailsAfterRun = false;
+    }
+    for (const lang of ["en", "ar"] as const) {
+      const html = await page(app, `/projects/${id}/acceptance?lang=${lang}`, cookie);
+      expect(html, lang).toContain('<p class="warn" lang="en" dir="ltr" data-job-failed>the job stopped with an error (Error)</p>');
+      expect(html, lang).toContain(t(lang, "acceptance.sign_off_not_yet"));
+      expect(html, lang).not.toContain(`action="/projects/${id}/sign-off"`);
+    }
+    expect((await post(app, `/projects/${id}/sign-off`, {}, { cookie })).status).toBe(409);
     await go(app, j, `/projects/${id}/close`, cookie);
   });
 

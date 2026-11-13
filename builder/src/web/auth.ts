@@ -4,14 +4,16 @@
  * Node's own scrypt: it is on the reviewing engineer's list, as known gap 6 says for generated apps.
  *
  * - The password is kept only as a scrypt digest (salt and settings stored with it) and compared with
- *   `timingSafeEqual`. It comes from BUILDER_UI_PASSWORD (automated runs), which `main.ts` deletes from its
- *   own environment once read, or is chosen by the first visitor when BUILDER_UI_FIRST_RUN=1 and none is set
+ *   `timingSafeEqual`. It comes from BUILDER_UI_PASSWORD (automated runs), which `main.ts` deletes from
+ *   `process.env` once read (so no child process inherits it; the process's starting environment, readable in
+ *   /proc/<pid>/environ by the same user or root, still holds it), or is chosen by the first visitor when BUILDER_UI_FIRST_RUN=1 and none is set
  *   yet: its digest is then written to a file in BUILDER_DATA_DIR with mode 0600, and no password passes
  *   through the conversation or the repository.
  * - A session id is 32 random bytes, kept in memory with an expiry on the server; the cookie is HttpOnly,
  *   SameSite=Strict, Path=/. Sessions end when the process ends.
  * - Failed sign-ins are limited for the whole server, not per address (through a tunnel every request may
- *   come from 127.0.0.1): 5 failures, then a lock-out that doubles each time.
+ *   come from 127.0.0.1): 5 failures, then a lock-out that doubles each time. The route reads the lock-out
+ *   after the request's body has arrived, immediately before the check (review of 13 Nov 2026).
  */
 import { randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
 import { closeSync, constants, fstatSync, openSync, readFileSync, statSync, writeSync } from "node:fs";
@@ -67,6 +69,10 @@ export class PasswordState {
     return this.digest !== null;
   }
 
+  /**
+   * Synchronous on purpose (scryptSync): the sign-in route reads the lock-out, checks and records a failure with
+   * no await between them, so attempts that arrive at the same moment are judged one after the other.
+   */
   check(password: string): boolean {
     // With no password set, a sign-in is refused after the same work, so its timing does not say so.
     if (this.digest === null) {

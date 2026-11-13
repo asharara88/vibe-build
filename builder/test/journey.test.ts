@@ -25,6 +25,7 @@ import { diskRefusal, EV, EventQueue, EXPORT_LABEL, Journey, JourneyRefused, JOU
 import { runBudgetedStep } from "../src/orchestrator/steps.js";
 import type { Sandbox } from "../src/sandbox/manager.js";
 import { appendEvent, listEvents } from "../src/store/events.js";
+import { getBudget, listStepHolds, openStepHold } from "../src/store/holds.js";
 import { createProject } from "../src/store/projects.js";
 import { testPool, uniqueId } from "./helpers.js";
 
@@ -316,9 +317,9 @@ describe("J1 journey, part 2: the build, preview, checklist and export jobs (sta
   });
   afterAll(() => sandboxes.removeAll());
 
-  const make = (o: { pool?: pg.Pool; measureFree?: (p: string) => number } = {}) => {
+  const make = (o: { pool?: pg.Pool; measureFree?: (p: string) => number; onFault?: (message: string, detail: unknown) => void } = {}) => {
     const box: { jobs?: JourneyJobs } = {};
-    const j = new Journey({ pool: o.pool ?? pool, dataDir, cleanupProject: (id, rec) => box.jobs!.cleanup(id, rec) });
+    const j = new Journey({ pool: o.pool ?? pool, dataDir, cleanupProject: (id, rec) => box.jobs!.cleanup(id, rec), onFault: o.onFault });
     box.jobs = new JourneyJobs({ journey: j, sandboxes, measureFree: o.measureFree ?? (() => 50 * 1024 ** 3) });
     return { j, jobs: box.jobs };
   };
@@ -525,6 +526,34 @@ describe("J1 journey, part 2: the build, preview, checklist and export jobs (sta
     await j.closeProject(id);
   });
 
+  it("sign-off is judged on the last checklist job: when a later run's job fails after the runner wrote its events, the earlier passed run is not signed off (review of 13 Nov, note 4)", async () => {
+    const { j, jobs } = make();
+    const id = await previewed(j, jobs);
+    await jobs.acceptance(id);
+    await j.waitForJob();
+    expect((await j.state(id)).acceptanceRun?.summary).toBe(PASSED_SUMMARY);
+    // The second run: the runner writes its events ("did not run"), then the job fails.
+    sandboxes.acceptanceOutcome = "did not run";
+    sandboxes.acceptanceFailsAfterRun = true;
+    try {
+      await jobs.acceptance(id);
+      await j.waitForJob();
+    } finally {
+      sandboxes.acceptanceOutcome = "passed";
+      sandboxes.acceptanceFailsAfterRun = false;
+    }
+    const s = await j.state(id);
+    expect(s.jobs.at(-1)).toMatchObject({ kind: "acceptance", state: "failed" });
+    expect((await listEvents(pool, id, "acceptance.run.finished")).at(-1)!.payload.summary).toBe("did not run: the stand-in said so");
+    await expect(j.signOff(id)).rejects.toThrow("The last checklist run did not pass, so there is nothing to sign off.");
+    expect(await listEvents(pool, id, EV.signedOff)).toEqual([]);
+    // A new run that passes can be signed off.
+    await jobs.acceptance(id);
+    await j.waitForJob();
+    await j.signOff(id);
+    await j.closeProject(id);
+  });
+
   it("the export: a .tar.gz of the project's history, with the checklist's tests and the note added in the exported copy only, never in the workspace history; recorded with its SHA-256", async () => {
     const { j, jobs } = make();
     const id = await previewed(j, jobs);
@@ -588,6 +617,65 @@ describe("J1 journey, part 2: the build, preview, checklist and export jobs (sta
     await j.closeProject(id);
   });
 
+  it("the export is refused when any commit of the history held a file that looks like a secret, even one removed by a later commit (review of 13 Nov, note 5)", async () => {
+    const faults: unknown[] = [];
+    const { j, jobs } = make({ onFault: (_m, d) => void faults.push(d) });
+    const id = await previewed(j, jobs);
+    await jobs.acceptance(id);
+    await j.waitForJob();
+    await j.signOff(id);
+    const x = jobs.handle(id)!;
+    writeFileSync(join(x.workspace, ".env"), "MADE_UP=1\n");
+    await git(x.repo, ["add", "-f", ".env"]);
+    await git(x.repo, ["commit", "--quiet", "--no-verify", "-m", "made-up settings file, committed by the test"]);
+    await git(x.repo, ["rm", "--quiet", "--cached", ".env"]);
+    rmSync(join(x.workspace, ".env"));
+    await git(x.repo, ["commit", "--quiet", "--no-verify", "-m", "the made-up settings file removed again, by the test"]);
+    expect((await git(x.repo, ["ls-tree", "-r", "--name-only", "HEAD"])).split("\n")).not.toContain(".env");
+    await jobs.exportProject(id);
+    await j.waitForJob();
+    const s = await j.state(id);
+    expect(s.jobs.at(-1)).toMatchObject({ kind: "export", state: "failed" });
+    expect(faults).toEqual([expect.objectContaining({ project: id, error: "The project's history holds files that look like secrets (.env); the export is refused." })]);
+    expect(await listEvents(pool, id, EV.exportWritten)).toEqual([]);
+    await j.closeProject(id);
+  });
+
+  it("the exported copy holds only what the history reaches: an object no commit reaches (as a reset can leave) is not copied (review of 13 Nov, note 5)", async () => {
+    const { j, jobs } = make();
+    const id = await previewed(j, jobs);
+    await jobs.acceptance(id);
+    await j.waitForJob();
+    await j.signOff(id);
+    const x = jobs.handle(id)!;
+    const loose = join(x.dir, "unreachable.txt");
+    writeFileSync(loose, `MADE_UP_UNREACHABLE=${uniqueId("u")}\n`);
+    const blob = (await git(x.repo, ["hash-object", "-w", loose])).trim();
+    expect((await git(x.repo, ["cat-file", "-t", blob])).trim()).toBe("blob");
+    await jobs.exportProject(id);
+    await j.waitForJob();
+    expect((await j.state(id)).jobs.at(-1)).toMatchObject({ kind: "export", state: "finished" });
+    const f = (await listEvents(pool, id, EV.exportWritten))[0]!.payload.file as { path: string };
+    const out = mkdtempSync(join(tmpdir(), "builder-journey-export-"));
+    try {
+      execFileSync("tar", ["-xzf", f.path, "-C", out]);
+      const env = { PATH: process.env.PATH, HOME: "/nonexistent", GIT_CONFIG_NOSYSTEM: "1", GIT_CONFIG_GLOBAL: "/dev/null" };
+      const has = (sha: string) => {
+        try {
+          execFileSync("git", ["-C", join(out, id), "cat-file", "-e", sha], { env, stdio: "ignore" });
+          return true;
+        } catch {
+          return false;
+        }
+      };
+      expect(has(blob)).toBe(false);
+      expect(has((await git(x.repo, ["rev-parse", "HEAD"])).trim())).toBe(true);
+    } finally {
+      rmSync(out, { recursive: true, force: true });
+    }
+    await j.closeProject(id);
+  });
+
   it("at start, a sandbox left by an interface that stopped is removed and the project marked interrupted; only projects whose id starts j1-", async () => {
     const { j } = make();
     const id = await ready(j);
@@ -609,6 +697,31 @@ describe("J1 journey, part 2: the build, preview, checklist and export jobs (sta
     expect(s.interrupted).toBe(true);
     expect(s.sandbox).toBeNull();
     expect(await fresh.recoverInterrupted()).not.toContain(id);
+  });
+
+  it("at start, the reservation of a step whose job was interrupted is closed, so the cost panel shows no money reserved for a step that is not running (review of 13 Nov, note 3)", async () => {
+    const { j } = make();
+    const id = await ready(j);
+    const other = await ready(j);
+    // As an interface that stopped in the middle of step 1 leaves it: the job started, the step's hold open.
+    await appendEvent(pool, id, EV.jobStarted, { job_id: "job-0000aaaa", kind: "build_step", step: "01-data" }, "01-data");
+    const deadline = new Date(Date.now() + 60 * 60 * 1000);
+    const opened = await openStepHold(pool, { projectId: id, stepId: "01-data", model: "claude-opus-5-5", maxTurns: 4, profile: DEFAULT_PROFILES.standard!, deadline });
+    expect(opened.ok).toBe(true);
+    // Another project's open reservation, with no job left running in its record, is not touched.
+    const kept = await openStepHold(pool, { projectId: other, stepId: "01-data", model: "claude-opus-5-5", maxTurns: 4, profile: DEFAULT_PROFILES.standard!, deadline });
+    expect(kept.ok).toBe(true);
+    expect((await getBudget(pool, id)).stepRoom).toBe(1.5552);
+    const fresh = new Journey({ pool, dataDir, cleanupProject: async () => undefined });
+    expect(await fresh.recoverInterrupted()).toContain(id);
+    expect((await listStepHolds(pool, id)).map((h) => [h.step_id, h.state, h.closed_reason])).toEqual([["01-data", "closed", "job_interrupted"]]);
+    expect((await getBudget(pool, id)).stepRoom).toBe(0);
+    const closed = (await listEvents(pool, id)).filter((e) => e.kind === "step.hold_closed");
+    expect(closed.map((e) => e.payload)).toEqual([expect.objectContaining({ reason: "job_interrupted", released_usd: 1.5552 })]);
+    // The interrupted job's ending comes first, then the reservation's close.
+    const kinds = (await listEvents(pool, id)).map((e) => e.kind);
+    expect(kinds.indexOf(EV.jobInterrupted)).toBeLessThan(kinds.indexOf("step.hold_closed"));
+    expect((await listStepHolds(pool, other)).map((h) => h.state)).toEqual(["open"]);
   });
 });
 

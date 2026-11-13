@@ -9,8 +9,9 @@
  *
  * git and tar run on the machine that hosts the builder; they read and copy files and run none of them. git runs
  * with no hooks, no file-system monitor, and none of the machine's or the user's own settings, as for the
- * project's history (project-repo.ts). The export is refused if the history holds a file that looks like a
- * secret (a settings file, a key or a certificate), or an acceptance folder.
+ * project's history (project-repo.ts). The export is refused if any commit of the history holds a file that looks
+ * like a secret (a settings file, a key or a certificate), or an acceptance folder; the copy holds only the objects
+ * the history reaches.
  */
 import { execFile } from "node:child_process";
 import { chmodSync, copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
@@ -73,9 +74,11 @@ export async function writeExport(i: ExportInput): Promise<ExportResult> {
   checkProjectId(i.projectId);
   const v = verifyVersion(i.store, i.projectId, i.version);
   if (!v.ok || !v.manifest) throw new Error(`The acceptance version ${i.version} does not match its manifest (${v.problems.join("; ")}); the export is refused.`);
-  // What the workspace history holds: never an acceptance folder, never a file that looks like a secret.
+  // What the workspace history holds, in every commit any branch or tag reaches (the exported copy holds all of
+  // them, not only the last): never an acceptance folder, never a file that looks like a secret (review of 13 Nov
+  // 2026, note 5: this read the last commit only).
   const workspaceHead = (await git(i.repo, ["rev-parse", "HEAD"])).trim();
-  const tracked = (await git(i.repo, ["ls-tree", "-r", "--name-only", "HEAD"])).split("\n").filter(Boolean);
+  const tracked = [...new Set((await git(i.repo, ["log", "--all", "--root", "-m", "--no-renames", "--format=", "--name-only"])).split("\n").filter(Boolean))].sort();
   if (tracked.some((f) => f === "acceptance" || f.startsWith("acceptance/"))) throw new Error("The workspace history holds an acceptance folder, which it must never hold; the export is refused.");
   const secretLike = tracked.filter(secretLikePath);
   if (secretLike.length) throw new Error(`The project's history holds files that look like secrets (${secretLike.join(", ")}); the export is refused.`);
@@ -84,7 +87,9 @@ export async function writeExport(i: ExportInput): Promise<ExportResult> {
   const staging = mkdtempSync(join(i.exportsDir, ".staging-"));
   try {
     const top = join(staging, i.projectId);
-    await gitIn(staging, ["clone", "--quiet", "--no-hardlinks", "--", i.repo.gitDir, top]);
+    // --no-local: through git's own transfer, so the copy holds only the objects a branch or tag reaches. A local
+    // clone copies the whole objects folder, objects no commit reaches among them (as a reset can leave).
+    await gitIn(staging, ["clone", "--quiet", "--no-local", "--no-hardlinks", "--", i.repo.gitDir, top]);
     // The copy does not point back at this machine's folder.
     await gitIn(top, ["remote", "remove", "origin"]);
     // The acceptance tests, copied from the store, as the version's manifest names them.

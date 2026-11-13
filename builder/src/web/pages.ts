@@ -146,12 +146,24 @@ ${body}
 }
 
 /** A panel marked Real or Simulated; a simulated panel says who wrote its content. */
-export function panel(lang: Lang, kind: "real" | "sim", title: string, body: Html, o: { simNote?: string } = {}): Html {
+export function panel(lang: Lang, kind: "real" | "sim", title: string | Html, body: Html, o: { simNote?: string } = {}): Html {
   return html`<section class="panel ${kind}" data-panel="${kind === "real" ? "real" : "simulated"}">
 <h2>${title}<span class="badge">${t(lang, kind === "real" ? "label.real" : "label.simulated")}</span></h2>
 ${kind === "sim" ? html`<p class="simnote">${o.simNote ?? t(lang, "simulated.note")}</p>` : ""}
 ${body}
 </section>`;
+}
+
+/**
+ * A step id ("01-data") isolated left to right: on an Arabic page, the right-to-left layout would otherwise show it
+ * as "data-01" (review of 13 Nov 2026, note 7).
+ */
+export const stepId = (step: string): Html => html`<bdi dir="ltr">${step}</bdi>`;
+
+/** A message whose {step} is a step id, isolated left to right. The rest of the message is escaped as any text is. */
+function tStep(lang: Lang, key: string, vars: Record<string, string | number>, step: string): Html {
+  const [before, ...after] = t(lang, key, vars).split("{step}");
+  return html`${before}${after.map((a) => html`${stepId(step)}${a}`)}`;
 }
 
 const usd = (n: number) => `$${n.toFixed(2)}`;
@@ -445,7 +457,7 @@ export function planPage(lang: Lang, s: JourneyState, j: Journey): Html {
   if (!s.briefConfirmed) return projectPage(lang, s, "plan", t(lang, "plan.title"), panel(lang, "sim", t(lang, "plan.title"), html`<p>${t(lang, "plan.not_yet")}</p>`));
   const steps = j.planSteps();
   const body = html`<ol data-steps>${steps.map(
-    (st) => html`<li data-step="${st.step}"><strong>${st.step}</strong><div>${t(lang, "plan.shown")}: <span lang="en" dir="ltr">${st.label}</span></div><div class="note">${t(lang, "plan.files", { n: st.files })}</div></li>`,
+    (st) => html`<li data-step="${st.step}"><strong>${stepId(st.step)}</strong><div>${t(lang, "plan.shown")}: <span lang="en" dir="ltr">${st.label}</span></div><div class="note">${t(lang, "plan.files", { n: st.files })}</div></li>`,
   )}</ol>
 <p class="greyed">${t(lang, "plan.not_built")}</p>
 <p class="greyed">${t(lang, "plan.quality_gate")}</p>
@@ -485,7 +497,7 @@ ${b.spent === 0 && v.modelCalls === 0 ? html`<p class="note" data-zero>${t(lang,
 <p class="note">${t(lang, "cost.read_only")}</p>`;
   const steps = v.stepHolds.length
     ? html`<div class="scroll"><table data-step-holds><thead><tr><th>${t(lang, "col.step")}</th><th>${t(lang, "cost.reserved")}</th><th>${t(lang, "cost.state")}</th></tr></thead>
-<tbody>${v.stepHolds.map((h) => html`<tr><td>${h.step_id}</td><td>${usd4(Number(h.budget_usd))}</td><td>${h.state}${h.closed_reason ? ` (${h.closed_reason})` : ""}</td></tr>`)}</tbody></table></div>
+<tbody>${v.stepHolds.map((h) => html`<tr><td>${stepId(h.step_id)}</td><td>${usd4(Number(h.budget_usd))}</td><td>${h.state}${h.closed_reason ? ` (${h.closed_reason})` : ""}</td></tr>`)}</tbody></table></div>
 <p class="note">${t(lang, "cost.priced", { model: v.pricedModel, date: v.priceTableDate })}</p>`
     : html`<p>${t(lang, "cost.no_steps")}</p>`;
   const freeze = v.freeze ? html`<p class="warn" data-freeze>${t(lang, "cost.frozen", { message: v.freezeMessage ?? "" })}</p>` : html`<p data-no-freeze>${t(lang, "cost.no_freeze")}</p>`;
@@ -521,7 +533,7 @@ export function recordPage(lang: Lang, s: JourneyState): Html {
       html`<p class="note">${t(lang, "record.order")}</p><p class="note">${t(lang, "record.count", { n: events.length })}</p>
 ${closeAction(lang, s)}
 <div class="scroll"><table data-record><thead><tr><th>${t(lang, "col.id")}</th><th>${t(lang, "col.at")}</th><th>${t(lang, "col.kind")}</th><th>${t(lang, "col.step")}</th><th>${t(lang, "col.details")}</th></tr></thead>
-<tbody>${events.map((e) => html`<tr data-event="${e.id}"><td>${e.id}</td><td>${e.at.toISOString()}</td><td>${e.kind}</td><td>${e.step ?? ""}</td><td><pre lang="en" dir="ltr">${JSON.stringify(e.payload, null, 1)}</pre></td></tr>`)}</tbody></table></div>`,
+<tbody>${events.map((e) => html`<tr data-event="${e.id}"><td>${e.id}</td><td>${e.at.toISOString()}</td><td>${e.kind}</td><td>${e.step ? stepId(e.step) : ""}</td><td><pre lang="en" dir="ltr">${JSON.stringify(e.payload, null, 1)}</pre></td></tr>`)}</tbody></table></div>`,
     ),
   );
 }
@@ -646,7 +658,7 @@ export function buildPage(lang: Lang, s: JourneyState, j: Journey): Html {
     return panel(
       lang,
       "sim",
-      t(lang, "build.step_title", { n: i + 1, total: steps.length, step: st.step }),
+      tStep(lang, "build.step_title", { n: i + 1, total: steps.length }, st.step),
       html`<div data-step="${st.step}" data-step-state="${state}" data-approved="${s.approved.has(st.step) ? "yes" : "no"}">
 <p>${t(lang, "plan.shown")}: <span lang="en" dir="ltr">${st.label}</span></p>
 ${lines.length ? lineList(lines) : html`<p class="note">${t(lang, "build.not_built")}</p>`}
@@ -693,11 +705,13 @@ export function acceptancePage(lang: Lang, s: JourneyState, j: Journey): Html {
   const runId = finished ? String(finished.payload.run_id ?? "") : null;
   const items = runId ? s.events.filter((e) => e.kind === "acceptance.item" && e.payload.run_id === runId) : [];
   const canRun = !s.runningJob && !s.interrupted && JOB_RULES.acceptance(s) === null;
+  const lastJob = [...s.jobs].reverse().find((x) => x.kind === "acceptance");
   const runPanel = panel(
     lang,
     "real",
     t(lang, "acceptance.run_title"),
     html`${runningNote(lang, s)}<p>${t(lang, "acceptance.run_intro")}</p>
+${lastJob?.state === "failed" || lastJob?.state === "interrupted" ? html`<p class="warn" lang="en" dir="ltr" data-job-failed>${lastJob.reason ?? ""}</p>` : ""}
 ${canRun ? html`<div class="actions">${postButton(`/projects/${id}/acceptance`, t(lang, "acceptance.run"))}</div>` : ""}
 ${finished ? html`<table data-run="${runId ?? ""}"><tr><th>${t(lang, "acceptance.run_id")}</th><td lang="en" dir="ltr">${runId}</td></tr><tr><th>${t(lang, "acceptance.version")}</th><td>${String(finished.payload.version ?? "")}</td></tr><tr><th>${t(lang, "acceptance.exit")}</th><td>${finished.payload.exit_code === null ? t(lang, "acceptance.no_container") : String(finished.payload.exit_code)}</td></tr><tr><th>${t(lang, "acceptance.summary")}</th><td lang="en" dir="ltr" data-summary>${String(finished.payload.summary ?? "")}</td></tr></table>` : html`<p class="note">${t(lang, "acceptance.not_run")}</p>`}`,
   );

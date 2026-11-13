@@ -9,8 +9,11 @@
  *   folder, or BUILDER_UI_FIRST_RUN=1 to let the first visitor choose it (auth.ts);
  * - one instance per database: a PostgreSQL advisory lock held on a connection of its own, as the gateway's
  *   liveness lock is (store/liveness.ts); a second instance on the same database is refused.
- * Once read, BUILDER_UI_PASSWORD and BUILDER_MODEL_API_KEY are deleted from this process's environment. The
- * interface starts no gateway and calls no model; it listens on 127.0.0.1 only.
+ * Once read, BUILDER_UI_PASSWORD and BUILDER_MODEL_API_KEY are deleted from `process.env`, so no child process
+ * inherits them. The process's starting environment, which the same user or root can read in /proc/<pid>/environ
+ * (of this process and of the npm or tsx process that started it), still holds them: Node cannot change it
+ * (review of 13 Nov 2026, known gap 130). The interface starts no gateway and calls no model; it listens on
+ * 127.0.0.1 only.
  */
 import { serve } from "@hono/node-server";
 import { fileURLToPath } from "node:url";
@@ -26,7 +29,7 @@ import { passwordFromSettings, Sessions, SignInLimiter, type PasswordState } fro
 
 export const UI_HOST = "127.0.0.1";
 export const DEFAULT_UI_PORT = 4020;
-/** The variables taken out of this process's environment at start. */
+/** The variables taken out of `process.env` at start (not out of /proc/<pid>/environ, which Node cannot change). */
 export const SCRUBBED = ["BUILDER_UI_PASSWORD", "BUILDER_MODEL_API_KEY"] as const;
 
 export interface Settings {

@@ -38,6 +38,8 @@ export class StandInSandboxes implements Sandboxes {
   ports: string | null = null;
   /** The acceptance run's outcome: passed (item 1 passed) or did not run. */
   acceptanceOutcome: "passed" | "did not run" = "passed";
+  /** The acceptance job fails after the runner has written its events (as a later fault in the job would). */
+  acceptanceFailsAfterRun = false;
   private dirs: string[] = [];
 
   constructor(private readonly pool: pg.Pool) {}
@@ -109,6 +111,7 @@ export class StandInSandboxes implements Sandboxes {
       await appendEvent(this.pool, input.projectId, "acceptance.item", { ...common, item: 1, file: "item-01.spec.ts", status: passed ? "passed" : "did not run", why: passed ? "ran once and passed, with its screenshot" : "not reached", screenshot: null }),
       await appendEvent(this.pool, input.projectId, "acceptance.run.finished", { ...common, exit_code: passed ? 0 : null, timed_out: false, summary, run_problems: [] }),
     ];
+    if (this.acceptanceFailsAfterRun) throw new Error("stand-in: the job failed after the runner wrote its events");
     return { runId, version: input.version, manifestSha256: null, writtenBy: "stand-in", refused: null, appAnswered: true, exit: passed ? { code: 0, stderrTail: "" } : null, args: null, reading: { items: [], runProblems: [], summary }, output: [], events } as unknown as AcceptanceReport;
   }
 

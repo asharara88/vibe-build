@@ -25,6 +25,7 @@ import { openStore, sha256, STAND_IN_LABEL } from "../acceptance/store.js";
 import { writeStandInVersion } from "../acceptance/stand-in.js";
 import type { AppSpec } from "../spec/app-spec.js";
 import { appendEvent, listEvents, type Event } from "../store/events.js";
+import { closeStepHold, listStepHolds } from "../store/holds.js";
 import { createProject, getProject, listProjects, type Project } from "../store/projects.js";
 import { answerProblem, BUILDER_DIR, loadExampleSpec, loadIntake, sameAnswer, sheetAnswer, type Answer, type Intake } from "./intake.js";
 
@@ -241,6 +242,9 @@ export function journeyState(project: Project, events: Event[], intake: Intake, 
           if (j.state === "finished" && j.kind === "preview") s.previewFinished = true;
           if (j.state === "finished" && j.kind === "acceptance")
             s.acceptanceRun = { jobId: j.jobId, runId: typeof p.run_id === "string" ? p.run_id : null, summary: typeof p.summary === "string" ? p.summary : null, refused: typeof p.refused === "string" ? p.refused : null };
+          // A checklist job that failed or was interrupted is the last run too: sign-off is judged on it, never on
+          // an earlier run that passed (review of 13 Nov 2026, note 4).
+          else if (j.kind === "acceptance") s.acceptanceRun = { jobId: j.jobId, runId: null, summary: null, refused: j.reason ?? `The checklist job was ${j.state}.` };
         }
         break;
       }
@@ -310,8 +314,9 @@ export function approveRefusal(s: JourneyState, step: string): string | null {
 }
 
 /**
- * When the owner may sign off: the last checklist run finished, was not refused before its start, and its
- * summary says the version passed (a run that did not execute is never shown as passed, and is not signed off).
+ * When the owner may sign off: the last checklist job finished (one that failed or was interrupted counts as the
+ * last run, and did not pass), its run was not refused before its start, and its summary says the version passed
+ * (a run that did not execute is never shown as passed, and is not signed off).
  */
 export function signOffRefusal(s: JourneyState): string | null {
   if (s.stage === "stopped" || s.stage === "closed") return "This project is stopped or closed.";
@@ -738,8 +743,8 @@ export class Journey {
   /**
    * At start: a journey project whose last job event is "started", or whose sandbox was made and not removed, was
    * left by an interface that stopped. Its job is marked interrupted, its containers, images and sandbox folder
-   * removed (`cleanupProject`), and the removal recorded; nothing is resumed. Only projects whose id starts "j1-"
-   * are looked at. Returns the projects touched.
+   * removed (`cleanupProject`), and the removal recorded; an interrupted step's reservation is closed; nothing is
+   * resumed. Only projects whose id starts "j1-" are looked at. Returns the projects touched.
    */
   async recoverInterrupted(): Promise<string[]> {
     const touched: string[] = [];
@@ -767,6 +772,18 @@ export class Journey {
           interrupted: true,
           removed,
         });
+      }
+      // The reservation of a step whose job was interrupted is closed (package 1.3's close, as at a step's end):
+      // nothing runs that step any more, so the cost panel must not go on showing its room as reserved (review of
+      // 13 Nov 2026, note 3). Only the open reservations of the interrupted steps, of this project.
+      const steps = new Set(left.filter((j) => j.kind === "build_step" && j.step).map((j) => j.step!));
+      for (const h of await listStepHolds(this.pool, r.id)) {
+        if (h.state !== "open" || !steps.has(h.step_id)) continue;
+        try {
+          await closeStepHold(this.pool, { projectId: r.id, stepHoldId: h.id, reason: "job_interrupted" });
+        } catch (err) {
+          this.o.onFault?.("An interrupted step's reservation could not be closed at start; it is closed at its deadline.", { project: r.id, step_hold: h.id, error: err instanceof Error ? err.message : String(err) });
+        }
       }
       touched.push(r.id);
     }
