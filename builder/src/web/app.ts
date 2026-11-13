@@ -22,17 +22,22 @@ import { listUnreconciled } from "../store/reconcile.js";
 import { PRICE_TABLE_DATE } from "../gateway/prices.js";
 import type { Answer } from "../orchestrator/intake.js";
 import { Journey, JourneyRefused } from "../orchestrator/journey.js";
+import { PRICED_MODEL, type JourneyJobs } from "../orchestrator/journey-jobs.js";
 import { passwordProblem, SESSION_COOKIE, type PasswordState, type Sessions, type SignInLimiter } from "./auth.js";
 import { recordedFile } from "./files.js";
 import {
+  acceptancePage,
   briefPage,
+  buildPage,
   costPage,
   errorPage,
+  exportPage,
   isJourneyId,
   LANGS,
   newProjectPage,
   notFoundPage,
   planPage,
+  previewPage,
   projectsPage,
   proposalPage,
   questionsPage,
@@ -44,11 +49,12 @@ import {
 } from "./pages.js";
 
 export const LANG_COOKIE = "builder_lang";
-/** The model whose prices size a step's reservation in J1 (design section 1, item 6). */
-export const PRICED_MODEL = "claude-opus-5-5";
+export { PRICED_MODEL };
 
 export interface WebDeps {
   journey: Journey;
+  /** The build, preview, acceptance and export jobs. Without it, those actions are refused (the tests of the pages alone). */
+  jobs?: JourneyJobs;
   password: PasswordState;
   sessions: Sessions;
   limiter: SignInLimiter;
@@ -206,13 +212,17 @@ export function createWebApp(d: WebDeps): Hono<Env> {
 
   app.get("/projects/:id", async (c) => {
     const s = await j.state(c.req.param("id"));
-    const screen = { brief: "brief", questions: "questions", brief_review: "proposal", plan_review: "plan", build: "plan", stopped: "brief", closed: "record" }[s.stage];
+    const screen = { brief: "brief", questions: "questions", brief_review: "proposal", plan_review: "plan", build: "build", preview: "preview", acceptance: "acceptance", signed_off: "export", stopped: "brief", closed: "record" }[s.stage];
     return c.redirect(`/projects/${s.project.id}/${screen}`, 303);
   });
   app.get("/projects/:id/brief", async (c) => c.html(briefPage(c.get("lang"), await j.state(c.req.param("id")), j)));
   app.get("/projects/:id/questions", async (c) => c.html(questionsPage(c.get("lang"), await j.state(c.req.param("id")), j)));
   app.get("/projects/:id/proposal", async (c) => c.html(proposalPage(c.get("lang"), await j.state(c.req.param("id")), j)));
   app.get("/projects/:id/plan", async (c) => c.html(planPage(c.get("lang"), await j.state(c.req.param("id")), j)));
+  app.get("/projects/:id/build", async (c) => c.html(buildPage(c.get("lang"), await j.state(c.req.param("id")), j)));
+  app.get("/projects/:id/preview", async (c) => c.html(previewPage(c.get("lang"), await j.state(c.req.param("id")))));
+  app.get("/projects/:id/acceptance", async (c) => c.html(acceptancePage(c.get("lang"), await j.state(c.req.param("id")), j)));
+  app.get("/projects/:id/export", async (c) => c.html(exportPage(c.get("lang"), await j.state(c.req.param("id")))));
   app.get("/projects/:id/record", async (c) => c.html(recordPage(c.get("lang"), await j.state(c.req.param("id")))));
   app.get("/projects/:id/cost", async (c) => {
     const s = await j.state(c.req.param("id"));
@@ -263,6 +273,26 @@ export function createWebApp(d: WebDeps): Hono<Env> {
   act("confirm-brief", async (id) => (await j.confirmBrief(id), `/projects/${id}/plan`));
   act("confirm-plan", async (id) => (await j.confirmPlan(id), `/projects/${id}/plan`));
   act("close", async (id) => (await j.closeProject(id), `/projects/${id}/record`));
+
+  // The jobs (part 2). Each POST starts a job and goes to its screen, which refreshes itself while the job runs.
+  const jobs = (): JourneyJobs => {
+    if (!d.jobs) throw new JourneyRefused("This interface was started without builds.");
+    return d.jobs;
+  };
+  const stepOf = (body: Record<string, string | File | (string | File)[]>): string => {
+    const step = str(body.step);
+    if (!/^[a-z0-9][a-z0-9-]{0,63}$/.test(step)) throw new JourneyRefused("That step is not one of the plan's.");
+    return step;
+  };
+  act("build", async (id, body) => (await jobs().buildStep(id, stepOf(body)), `/projects/${id}/build`));
+  act("approve", async (id, body) => {
+    const r = await jobs().approve(id, stepOf(body));
+    return `/projects/${id}/${r.next === "preview" ? "preview" : "build"}`;
+  });
+  act("preview", async (id) => (await jobs().preview(id), `/projects/${id}/preview`));
+  act("acceptance", async (id) => (await jobs().acceptance(id), `/projects/${id}/acceptance`));
+  act("sign-off", async (id) => (await j.signOff(id), `/projects/${id}/acceptance`));
+  act("export", async (id) => (await jobs().exportProject(id), `/projects/${id}/export`));
 
   return app;
 }

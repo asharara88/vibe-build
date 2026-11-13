@@ -17,7 +17,9 @@ import type { Budget, StepHoldRow } from "../store/holds.js";
 import type { Freeze } from "../store/freezes.js";
 import type { UnreconciledList } from "../store/reconcile.js";
 import { fieldChecklist, MAX_FREE_TEXT, showReason, type Answer, type IntakeQuestion } from "../orchestrator/intake.js";
-import { JOURNEY_PREFIX, MAX_BRIEF, MAX_NAME, type Journey, type JourneyState, type Stage } from "../orchestrator/journey.js";
+import { approveRefusal, buildStepRefusal, DISK_FLOOR_BYTES, EV, EXPORT_LABEL, JOB_RULES, JOURNEY_PREFIX, JOURNEY_STAND_IN_LABEL, MAX_BRIEF, MAX_NAME, SIGN_OFF_LABEL, signOffRefusal, type Journey, type JourneyState, type Stage } from "../orchestrator/journey.js";
+import { REFUSAL_EXTRA } from "../orchestrator/journey-jobs.js";
+import { STAND_IN_NOTE } from "../acceptance/store.js";
 
 export type Lang = "en" | "ar";
 export const LANGS: Lang[] = ["en", "ar"];
@@ -90,6 +92,13 @@ legend{ font-weight: 700; padding: 0 4px }
 .rmark{ display: inline-block; font-size: 11px; font-weight: 700; color: var(--real); border: 1px solid var(--real); border-radius: 8px; padding: 0 6px; margin-inline-start: 6px }
 .later{ display: inline-block; font-size: 11px; color: var(--muted); border: 1px solid var(--line); border-radius: 8px; padding: 0 6px; margin-inline-start: 6px }
 .greyed{ color: var(--muted); background: #f0f1f4; border-radius: 6px; padding: 6px 8px }
+.lines{ font-size: 14px; margin: 6px 0; padding-inline-start: 22px }
+.lines li{ margin: 2px 0 }
+.label{ display: inline-block; font-weight: 700; color: var(--sim); background: var(--sim-bg); border-radius: 6px; padding: 2px 8px }
+figure{ margin: 0 0 14px }
+figure img{ max-width: 100%; height: auto; border: 1px solid var(--line); border-radius: 6px }
+figcaption{ font-size: 13px; color: var(--muted) }
+.shots{ display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px }
 ul,ol{ padding-inline-start: 22px; margin: 4px 0 }
 @media (max-width: 480px){main{ padding: 12px }h1{ font-size: 21px }header.top nav{ margin-inline-start: 0 }}
 `;
@@ -252,19 +261,23 @@ ${panel(
 
 /* ------------------------------------------------------------------ one project */
 
-export type Screen = "brief" | "questions" | "proposal" | "plan" | "cost" | "record";
+export type Screen = "brief" | "questions" | "proposal" | "plan" | "build" | "preview" | "acceptance" | "export" | "cost" | "record";
 
-/** The tabs of a project's screens, those its stage allows. Part 2 adds build, preview, acceptance and export. */
+/** The tabs of a project's screens, those its stage allows. */
 export function tabs(lang: Lang, s: JourneyState, here: Screen): Html {
   const reached: Record<Screen, boolean> = {
     brief: true,
     questions: s.stage !== "brief" || s.answers.size > 0,
     proposal: s.stage !== "brief" && s.nextTurn === null,
     plan: s.briefConfirmed,
+    build: s.planConfirmed,
+    preview: s.previewFinished || s.jobs.some((j) => j.kind === "preview") || (s.plan.length > 0 && s.plan.every((st) => s.approved.has(st))),
+    acceptance: s.previewFinished,
+    export: s.signedOff,
     cost: true,
     record: true,
   };
-  const order: Screen[] = ["brief", "questions", "proposal", "plan", "cost", "record"];
+  const order: Screen[] = ["brief", "questions", "proposal", "plan", "build", "preview", "acceptance", "export", "cost", "record"];
   const id = s.project.id;
   return html`<ul class="tabs">${order
     .filter((k) => reached[k])
@@ -441,7 +454,7 @@ ${
   s.stage === "plan_review"
     ? html`<div class="actions">${postButton(`/projects/${id}/confirm-plan`, t(lang, "plan.confirm"))}${postButton(`/projects/${id}/stop`, t(lang, "brief.stop"), "secondary")}</div>`
     : s.planConfirmed
-      ? html`<p class="ok">${t(lang, "plan.confirmed", { version: s.acceptanceVersion ?? "?" })}</p><p class="note">${t(lang, "plan.build_not_here")}</p>`
+      ? html`<p class="ok">${t(lang, "plan.confirmed", { version: s.acceptanceVersion ?? "?" })}</p><div class="actions"><a href="/projects/${id}/build" data-go="build">${t(lang, "plan.go_build")}</a></div>`
       : ""
 }`;
   return projectPage(lang, s, "plan", t(lang, "plan.title"), panel(lang, "sim", t(lang, "plan.title"), body, { simNote: t(lang, "simulated.note") }));
@@ -506,10 +519,246 @@ export function recordPage(lang: Lang, s: JourneyState): Html {
       "real",
       t(lang, "record.title"),
       html`<p class="note">${t(lang, "record.order")}</p><p class="note">${t(lang, "record.count", { n: events.length })}</p>
+${closeAction(lang, s)}
 <div class="scroll"><table data-record><thead><tr><th>${t(lang, "col.id")}</th><th>${t(lang, "col.at")}</th><th>${t(lang, "col.kind")}</th><th>${t(lang, "col.step")}</th><th>${t(lang, "col.details")}</th></tr></thead>
 <tbody>${events.map((e) => html`<tr data-event="${e.id}"><td>${e.id}</td><td>${e.at.toISOString()}</td><td>${e.kind}</td><td>${e.step ?? ""}</td><td><pre lang="en" dir="ltr">${JSON.stringify(e.payload, null, 1)}</pre></td></tr>`)}</tbody></table></div>`,
     ),
   );
+}
+
+/* ------------------------------------------------------------------ build, preview, acceptance, export (part 2) */
+
+/** "Close project": removes its containers, images and sandbox folder; the record stays. Not while a job runs. */
+function closeAction(lang: Lang, s: JourneyState): Html | string {
+  if (s.stage === "closed") return html`<p class="note" data-closed>${t(lang, "close.done")}</p>`;
+  if (s.runningJob) return "";
+  return html`<div class="actions">${postButton(`/projects/${s.project.id}/close`, t(lang, "close.button"), "secondary")}</div><p class="note">${t(lang, "close.note")}</p>`;
+}
+
+const num = (v: unknown): number => (typeof v === "number" ? v : Number(v));
+
+/** On an Arabic page, the English wording of a label the owner approved is shown under its Arabic, word for word. */
+const englishToo = (lang: Lang, english: string): Html | string => (lang === "ar" ? html`<p class="note" lang="en" dir="ltr">${english}</p>` : "");
+
+/** The lines of one step, from its events in id order: what the job, the reservation and the engine reported. */
+export function stepLines(lang: Lang, s: JourneyState, step: string): Array<{ text: string; en?: boolean }> {
+  const out: Array<{ text: string; en?: boolean }> = [];
+  // A refusal's message is shown once, under the lines; the engine's and the job's copies of it are not repeated.
+  const refusals = new Set(s.events.filter((e) => e.step === step && e.kind === "step.refused").map((e) => String(e.payload.message ?? "")));
+  for (const e of s.events) {
+    if (e.step !== step) continue;
+    const p = e.payload;
+    switch (e.kind) {
+      case EV.sandboxMade:
+        out.push({ text: t(lang, "build.line.sandbox") });
+        break;
+      case EV.jobStarted:
+        if (p.kind === "build_step") out.push({ text: t(lang, "build.line.started") });
+        break;
+      case "step.hold_opened":
+        out.push({ text: t(lang, "build.line.reserved", { usd: usd4(num(p.step_budget_usd)), turns: num(p.turns), model: String(p.model) }) });
+        break;
+      case EV.engineEvent:
+        if (p.type === "text") out.push({ text: String(p.text), en: true });
+        else if (p.type === "tool_call") {
+          const input = (p.input ?? {}) as { path?: unknown; op?: unknown };
+          out.push({ text: t(lang, "build.line.wrote", { path: String(input.path), op: String(input.op) }) });
+        } else if (p.type === "finished") out.push({ text: t(lang, "build.line.engine_finished") });
+        else if ((p.type === "failed" || p.type === "blocked") && !refusals.has(String(p.reason))) out.push({ text: t(lang, "build.line.engine_failed", { reason: String(p.reason) }), en: true });
+        break;
+      case "step.hold_closed":
+        out.push({ text: t(lang, "build.line.released", { usd: usd4(num(p.released_usd)), spent: usd(num(p.spent_in_step_usd)) }) });
+        break;
+      case "step.refused":
+        out.push({ text: t(lang, "build.line.refused") });
+        break;
+      case EV.workspaceReset:
+        out.push({ text: t(lang, "build.line.reset") });
+        break;
+      case EV.jobFinished:
+        out.push({ text: t(lang, "build.line.job_finished") });
+        break;
+      case EV.jobFailed:
+        if (!refusals.has(String(p.reason))) out.push({ text: t(lang, "build.line.job_failed", { reason: String(p.reason) }), en: true });
+        break;
+      case EV.jobInterrupted:
+        out.push({ text: t(lang, "build.line.job_interrupted") });
+        break;
+      case EV.stepApproved:
+        out.push({ text: t(lang, "build.line.approved") });
+        break;
+    }
+  }
+  return out;
+}
+
+const lineList = (lines: Array<{ text: string; en?: boolean }>): Html =>
+  html`<ol class="lines" data-lines>${lines.map((l) => (l.en ? html`<li><span lang="en" dir="ltr">${l.text}</span></li>` : html`<li>${l.text}</li>`))}</ol>`;
+
+function runningNote(lang: Lang, s: JourneyState): Html | string {
+  return s.runningJob ? html`<p class="note" data-job-running="${s.runningJob.kind}">${t(lang, "job.running", { kind: t(lang, `job.kind.${s.runningJob.kind}`) })}</p>` : "";
+}
+
+export function buildPage(lang: Lang, s: JourneyState, j: Journey): Html {
+  const id = s.project.id;
+  if (!s.planConfirmed) return projectPage(lang, s, "build", t(lang, "build.title"), panel(lang, "real", t(lang, "build.title"), html`<p>${t(lang, "build.not_yet")}</p>`));
+  const steps = j.planSteps();
+  const open = !s.runningJob && !s.interrupted && s.stage !== "closed" && s.stage !== "stopped";
+  // The next thing to do: build the first step not approved, or approve it once built.
+  let action: Html | string = "";
+  const next = steps.findIndex((st) => !s.approved.has(st.step));
+  if (open && next >= 0) {
+    const st = steps[next]!;
+    const last = s.stepJobs.get(st.step);
+    if (last?.state === "finished" && !approveRefusal(s, st.step)) {
+      const label = next < steps.length - 1 ? t(lang, "build.approve_next") : t(lang, "build.approve_last");
+      action = html`<form method="post" action="/projects/${id}/approve"><input type="hidden" name="step" value="${st.step}"><button type="submit" data-approve="${st.step}">${label}</button></form>`;
+    } else if (!buildStepRefusal(s, st.step)) {
+      const label = last?.state === "failed" || last?.state === "interrupted" ? t(lang, "build.retry", { n: next + 1 }) : t(lang, "build.start", { n: next + 1 });
+      action = html`<form method="post" action="/projects/${id}/build"><input type="hidden" name="step" value="${st.step}"><button type="submit" data-build="${st.step}">${label}</button></form>`;
+    }
+  } else if (open && next < 0) {
+    action = html`<a href="/projects/${id}/preview" data-go="preview">${t(lang, "build.go_preview")}</a>`;
+  }
+  const head = panel(
+    lang,
+    "real",
+    t(lang, "build.title"),
+    html`${runningNote(lang, s)}<p>${t(lang, "build.intro")}</p>
+<div class="actions">${action}</div>
+<p class="note">${t(lang, "build.no_preview_after_1")}</p>
+<p class="note">${t(lang, "build.disk_note", { gb: (DISK_FLOOR_BYTES / 1024 ** 3).toFixed(1) })}</p>
+<p class="greyed">${t(lang, "plan.quality_gate")}</p>`,
+  );
+  const stepPanels = steps.map((st, i) => {
+    const last = s.stepJobs.get(st.step);
+    const state = last?.state ?? "none";
+    const lines = stepLines(lang, s, st.step);
+    const opened = s.events.filter((e) => e.step === st.step && e.kind === "step.hold_opened").at(-1);
+    const closed = s.events.filter((e) => e.step === st.step && e.kind === "step.hold_closed").at(-1);
+    const refused = s.events.filter((e) => e.step === st.step && e.kind === "step.refused").at(-1);
+    const summary =
+      refused && state === "failed"
+        ? html`<div data-refused><p class="warn" lang="en" dir="ltr">${String(refused.payload.message ?? "")}</p><p class="warn">${t(lang, "build.refusal_extra")}</p>${englishToo(lang, REFUSAL_EXTRA)}</div>`
+        : opened && closed
+          ? html`<p class="ok" data-reserved="${usd4(num(opened.payload.step_budget_usd))}">${t(lang, "build.step_label", { usd: usd4(num(opened.payload.step_budget_usd)), model: String(opened.payload.model), spent: usd(num(closed.payload.spent_in_step_usd)) })}</p>`
+          : "";
+    return panel(
+      lang,
+      "sim",
+      t(lang, "build.step_title", { n: i + 1, total: steps.length, step: st.step }),
+      html`<div data-step="${st.step}" data-step-state="${state}" data-approved="${s.approved.has(st.step) ? "yes" : "no"}">
+<p>${t(lang, "plan.shown")}: <span lang="en" dir="ltr">${st.label}</span></p>
+${lines.length ? lineList(lines) : html`<p class="note">${t(lang, "build.not_built")}</p>`}
+${summary}
+${s.approved.has(st.step) ? html`<p class="ok">${t(lang, "build.approved")}</p>` : ""}
+</div>`,
+      { simNote: t(lang, "build.sim_note") },
+    );
+  });
+  return projectPage(lang, s, "build", t(lang, "build.title"), html`${head}${stepPanels}`, { refreshSeconds: s.runningJob ? 2 : undefined });
+}
+
+export function previewPage(lang: Lang, s: JourneyState): Html {
+  const id = s.project.id;
+  const shots = s.events.filter((e) => e.kind === EV.screenshot);
+  const lines = s.events.filter((e) => e.kind === EV.previewLine).slice(-12);
+  const lastPreview = [...s.jobs].reverse().find((x) => x.kind === "preview");
+  const canStart = !s.runningJob && !s.interrupted && JOB_RULES.preview(s) === null;
+  const status = html`${runningNote(lang, s)}
+${lastPreview?.state === "failed" ? html`<p class="warn">${t(lang, "preview.failed")}</p><p class="warn" lang="en" dir="ltr">${lastPreview.reason ?? ""}</p>` : ""}
+${s.appRunning ? html`<p class="ok" data-app-running>${t(lang, "preview.app_running")}</p>` : s.previewFinished ? html`<p class="note">${t(lang, "preview.app_stopped")}</p>` : ""}
+${canStart ? html`<div class="actions">${postButton(`/projects/${id}/preview`, t(lang, "preview.start"))}</div>` : ""}
+${lines.length ? html`<details${s.runningJob?.kind === "preview" ? html` open` : ""}><summary>${t(lang, "preview.lines")}</summary><ol class="lines">${lines.map((e) => html`<li lang="en" dir="ltr">${String(e.payload.line ?? "")}</li>`)}</ol></details>` : ""}
+<p class="note">${t(lang, "preview.not_live")}</p>`;
+  const gallery = shots.length
+    ? html`<div class="shots" data-shots="${shots.length}">${shots.map(
+        (e) => html`<figure data-shot="${String(e.payload.name ?? "")}"><img src="/projects/${id}/files/${e.id}" alt="${t(lang, "preview.alt", { page: String(e.payload.page ?? "") })}" loading="lazy">
+<figcaption>${t(lang, "preview.caption", { time: String(e.payload.taken_at ?? "").replace("T", " ").slice(0, 19) })}</figcaption></figure>`,
+      )}</div>${s.previewFinished && !s.signedOff ? html`<div class="actions"><a href="/projects/${id}/acceptance" data-go="acceptance">${t(lang, "preview.go_acceptance")}</a></div>` : ""}`
+    : html`<p>${t(lang, "preview.none")}</p>`;
+  return projectPage(
+    lang,
+    s,
+    "preview",
+    t(lang, "preview.title"),
+    html`${panel(lang, "real", t(lang, "preview.title"), status)}${panel(lang, "real", t(lang, "preview.shots"), gallery)}`,
+    { refreshSeconds: s.runningJob ? 2 : undefined },
+  );
+}
+
+export function acceptancePage(lang: Lang, s: JourneyState, j: Journey): Html {
+  const id = s.project.id;
+  const finished = s.events.filter((e) => e.kind === "acceptance.run.finished").at(-1);
+  const runId = finished ? String(finished.payload.run_id ?? "") : null;
+  const items = runId ? s.events.filter((e) => e.kind === "acceptance.item" && e.payload.run_id === runId) : [];
+  const canRun = !s.runningJob && !s.interrupted && JOB_RULES.acceptance(s) === null;
+  const runPanel = panel(
+    lang,
+    "real",
+    t(lang, "acceptance.run_title"),
+    html`${runningNote(lang, s)}<p>${t(lang, "acceptance.run_intro")}</p>
+${canRun ? html`<div class="actions">${postButton(`/projects/${id}/acceptance`, t(lang, "acceptance.run"))}</div>` : ""}
+${finished ? html`<table data-run="${runId ?? ""}"><tr><th>${t(lang, "acceptance.run_id")}</th><td lang="en" dir="ltr">${runId}</td></tr><tr><th>${t(lang, "acceptance.version")}</th><td>${String(finished.payload.version ?? "")}</td></tr><tr><th>${t(lang, "acceptance.exit")}</th><td>${finished.payload.exit_code === null ? t(lang, "acceptance.no_container") : String(finished.payload.exit_code)}</td></tr><tr><th>${t(lang, "acceptance.summary")}</th><td lang="en" dir="ltr" data-summary>${String(finished.payload.summary ?? "")}</td></tr></table>` : html`<p class="note">${t(lang, "acceptance.not_run")}</p>`}`,
+  );
+  const rows = j.spec.acceptance.map((item) => {
+    const ev = items.find((e) => num(e.payload.item) === item.number);
+    const status = ev ? String(ev.payload.status) : "did not run";
+    const shot = ev && ev.payload.screenshot ? html`<figure><img src="/projects/${id}/files/${ev.id}" alt="${t(lang, "acceptance.shot_alt", { n: item.number })}" loading="lazy"><figcaption>${t(lang, "acceptance.shot_caption")}</figcaption></figure>` : "";
+    const why = ev ? html`<span lang="en" dir="ltr">${String(ev.payload.why ?? "")}</span>` : html`${t(lang, "acceptance.no_test")}`;
+    return html`<tr data-item="${item.number}" data-status="${status}"><td>${item.number}</td><td lang="en" dir="ltr">As ${item.as_role}: ${item.does} Sees: ${item.sees}</td><td><strong class="${status === "passed" ? "ok" : "warn"}">${t(lang, `acceptance.status.${status === "passed" ? "passed" : status === "failed" ? "failed" : "did_not_run"}`)}</strong><div class="note">${why}</div>${shot}</td></tr>`;
+  });
+  const results = panel(
+    lang,
+    "sim",
+    t(lang, "acceptance.results"),
+    html`<p><span class="label" data-label>${t(lang, "acceptance.label")}</span></p>${englishToo(lang, JOURNEY_STAND_IN_LABEL)}
+<p class="note" lang="en" dir="ltr" data-stand-in-note>${STAND_IN_NOTE}</p>
+${finished ? html`<p>${t(lang, "acceptance.summary")}: <span lang="en" dir="ltr">${String(finished.payload.summary ?? "")}</span></p>` : ""}
+<div class="scroll"><table data-items><thead><tr><th>#</th><th>${t(lang, "acceptance.item")}</th><th>${t(lang, "acceptance.result")}</th></tr></thead><tbody>${rows}</tbody></table></div>
+<h3>${t(lang, "proposal.assumed")}</h3>
+<ul data-assumed lang="en" dir="ltr">${j.spec.assumed.map((a) => html`<li>${a.about}: ${a.chose} ${a.reason}</li>`)}</ul>`,
+    { simNote: t(lang, "acceptance.sim_note") },
+  );
+  const signed = s.events.filter((e) => e.kind === EV.signedOff).at(-1);
+  const signOff = panel(
+    lang,
+    "real",
+    t(lang, "acceptance.sign_off_title"),
+    signed
+      ? html`<p class="ok" data-signed-off>${t(lang, "acceptance.signed_off", { time: signed.at.toISOString().replace("T", " ").slice(0, 19) })}</p><p><span class="label" data-sign-off-label>${t(lang, "acceptance.sign_off_label")}</span></p>${englishToo(lang, SIGN_OFF_LABEL)}<div class="actions"><a href="/projects/${id}/export" data-go="export">${t(lang, "acceptance.go_export")}</a></div>`
+      : signOffRefusal(s) === null
+        ? html`<p><span class="label" data-sign-off-label>${t(lang, "acceptance.sign_off_label")}</span></p>${englishToo(lang, SIGN_OFF_LABEL)}<div class="actions">${postButton(`/projects/${id}/sign-off`, t(lang, "acceptance.sign_off"))}</div>`
+        : html`<p class="note">${t(lang, "acceptance.sign_off_not_yet")}</p>`,
+  );
+  return projectPage(lang, s, "acceptance", t(lang, "acceptance.title"), html`${runPanel}${results}${signOff}`, { refreshSeconds: s.runningJob ? 2 : undefined });
+}
+
+export function exportPage(lang: Lang, s: JourneyState): Html {
+  const id = s.project.id;
+  if (!s.signedOff) return projectPage(lang, s, "export", t(lang, "export.title"), panel(lang, "real", t(lang, "export.title"), html`<p data-export-not-offered>${t(lang, "export.not_yet")}</p>`));
+  const written = s.exportEventId ? s.events.find((e) => e.id === s.exportEventId) : undefined;
+  const lastExport = [...s.jobs].reverse().find((x) => x.kind === "export");
+  const canExport = !written && !s.runningJob && !s.interrupted && JOB_RULES.export(s) === null && s.stage !== "closed";
+  const file = written ? (written.payload.file as { path?: string; sha256?: string } | undefined) : undefined;
+  const body = html`<p class="warn" data-export-label>${t(lang, "export.label")}</p>
+${englishToo(lang, EXPORT_LABEL)}
+${runningNote(lang, s)}
+${lastExport?.state === "failed" ? html`<p class="warn" lang="en" dir="ltr">${lastExport.reason ?? ""}</p>` : ""}
+${canExport ? html`<p>${t(lang, "export.what")}</p><div class="actions">${postButton(`/projects/${id}/export`, t(lang, "export.make"))}</div>` : ""}
+${
+  written
+    ? html`<table data-export="${written.id}">
+<tr><th>${t(lang, "export.file")}</th><td><a href="/projects/${id}/files/${written.id}" data-download>${(file?.path ?? "").split("/").pop()}</a></td></tr>
+<tr><th>${t(lang, "export.size")}</th><td>${t(lang, "export.bytes", { n: num(written.payload.bytes).toLocaleString("en") })}</td></tr>
+<tr><th>SHA-256</th><td lang="en" dir="ltr"><code>${file?.sha256 ?? ""}</code></td></tr>
+<tr><th>${t(lang, "export.commits")}</th><td>${String(written.payload.commits ?? "")}</td></tr>
+<tr><th>${t(lang, "export.acceptance")}</th><td>${t(lang, "export.acceptance_copy_only", { version: String(written.payload.acceptance_version ?? "") })}</td></tr>
+</table>`
+    : ""
+}
+${closeAction(lang, s)}`;
+  return projectPage(lang, s, "export", t(lang, "export.title"), panel(lang, "real", t(lang, "export.title"), body), { refreshSeconds: s.runningJob ? 2 : undefined });
 }
 
 export function errorPage(lang: Lang, o: { message: string; back: string; signedIn: boolean }): Html {

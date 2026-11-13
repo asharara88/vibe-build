@@ -9,8 +9,9 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import type pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { openStore, sha256 } from "../src/acceptance/store.js";
-import { Journey } from "../src/orchestrator/journey.js";
+import { openStore, sha256, STAND_IN_NOTE } from "../src/acceptance/store.js";
+import { EXPORT_LABEL, Journey } from "../src/orchestrator/journey.js";
+import { JourneyJobs, REFUSAL_EXTRA } from "../src/orchestrator/journey-jobs.js";
 import { appendEvent } from "../src/store/events.js";
 import { createProject } from "../src/store/projects.js";
 import { createWebApp, PUBLIC_PATHS } from "../src/web/app.js";
@@ -19,6 +20,7 @@ import { journeyFolder } from "../src/web/files.js";
 import { holdInstanceLock, readSettings, SCRUBBED } from "../src/web/main.js";
 import { messageKeys, t } from "../src/web/pages.js";
 import { testPool, TEST_DB_URL, uniqueId } from "./helpers.js";
+import { PASSED_SUMMARY, StandInSandboxes } from "./journey-stand-ins.js";
 
 const builderDir = resolve(import.meta.dirname, "..");
 const ORIGIN = "http://localhost";
@@ -491,5 +493,154 @@ describe("J1 interface: languages", () => {
       const raw = (l: "en" | "ar") => JSON.parse(readFileSync(join(builderDir, "src", "web", "messages", `${l}.json`), "utf8"))[k] as string;
       expect(ph(raw("ar")), k).toEqual(ph(raw("en")));
     }
+  });
+});
+
+describe("J1 interface, part 2: the build, preview, checklist and export screens (stand-in sandbox, no container)", () => {
+  let sandboxes: StandInSandboxes;
+  beforeAll(() => {
+    sandboxes = new StandInSandboxes(pool);
+  });
+  afterAll(() => sandboxes.removeAll());
+
+  function makeJobsApp() {
+    const box: { jobs?: JourneyJobs } = {};
+    const j = new Journey({ pool, dataDir, cleanupProject: (id, rec) => box.jobs!.cleanup(id, rec) });
+    box.jobs = new JourneyJobs({ journey: j, sandboxes, measureFree: () => 50 * 1024 ** 3 });
+    const app = createWebApp({ journey: j, jobs: box.jobs, password: new PasswordState("env", digestPassword(PASSWORD), null), sessions: new Sessions(), limiter: new SignInLimiter(), dataDir });
+    return { app, j };
+  }
+  const page = async (app: App, path: string, cookie: string) => {
+    const r = await get(app, path, cookie);
+    expect(r.status, path).toBe(200);
+    return r.text();
+  };
+  /** Every GET route of the project, in both languages, writes nothing. */
+  const noGetWrites = async (app: App, id: string, cookie: string) => {
+    const events = await eventCount();
+    for (const r of routes(app, id).filter((x) => x.method === "GET")) {
+      for (const q of ["", "?lang=ar"]) await (await get(app, `${r.path}${q}`, cookie)).arrayBuffer();
+    }
+    expect(await eventCount()).toBe(events);
+  };
+  const go = async (app: App, j: Journey, path: string, cookie: string, data: Record<string, string> = {}) => {
+    const r = await post(app, path, data, { cookie });
+    expect(r.status, `${path}: ${r.status === 303 ? "" : await r.clone().text()}`).toBe(303);
+    await j.waitForJob();
+    return r.headers.get("location");
+  };
+
+  it("the whole journey through the screens: each step built and approved, the preview's screenshots, the checklist with its labels, sign-off, the export as an attachment; no GET writes at any stage", async () => {
+    const { app, j } = makeJobsApp();
+    const cookie = await signIn(app);
+    const made = await post(app, "/projects", { name: "Leave requests (made-up)", cap: "5.00", brief: "I need an app where staff can request leave and managers approve it" }, { cookie });
+    const id = /\/projects\/(j1-[0-9a-f]{12})\//.exec(made.headers.get("location") ?? "")![1]!;
+    for (const a of ["continue", "answer-rest", "confirm-brief", "confirm-plan"]) await go(app, j, `/projects/${id}/${a}`, cookie);
+    expect((await get(app, `/projects/${id}`, cookie)).headers.get("location")).toBe(`/projects/${id}/build`);
+    let html = await page(app, `/projects/${id}/build`, cookie);
+    expect(html).toContain('data-build="01-data"');
+    expect(html).toContain(t("en", "build.no_preview_after_1"));
+    expect(html).toContain("a floor assumed, not measured");
+    await noGetWrites(app, id, cookie);
+
+    expect(await go(app, j, `/projects/${id}/build`, cookie, { step: "01-data" })).toBe(`/projects/${id}/build`);
+    html = await page(app, `/projects/${id}/build`, cookie);
+    expect(html).toContain('data-step="01-data" data-step-state="finished" data-approved="no"');
+    expect(html).toContain("Scripted: fixed change, no model call. Reserved while it ran: $1.5552, sized at claude-opus-5-5&#39;s prices, released. Spent: $0.00.");
+    expect(html).toContain('data-approve="01-data"');
+    expect(html).toContain(t("en", "build.approve_next"));
+    await noGetWrites(app, id, cookie);
+    // While a job runs, the page refreshes itself every 2 seconds (no script).
+    expect(await go(app, j, `/projects/${id}/approve`, cookie, { step: "01-data" })).toBe(`/projects/${id}/build`);
+    html = await page(app, `/projects/${id}/build`, cookie);
+    expect(html).toContain("Reserved while it ran: $3.1104");
+    expect(html).toContain(t("en", "build.approve_last"));
+    expect(html).not.toContain('http-equiv="refresh"');
+
+    expect(await go(app, j, `/projects/${id}/approve`, cookie, { step: "02-submitter-screen" })).toBe(`/projects/${id}/preview`);
+    html = await page(app, `/projects/${id}/preview`, cookie);
+    expect(html).toContain('data-shots="4"');
+    expect(html.match(/<img src="\/projects\/j1-[0-9a-f]{12}\/files\/\d+"/g)).toHaveLength(4);
+    expect(html).toMatch(/Screenshot of the running app at \d{4}-\d\d-\d\d \d\d:\d\d:\d\d UTC\. Not live\. Sample data\./);
+    const img = /<img src="(\/projects\/[^"]+)"/.exec(html)![1]!;
+    const shot = await get(app, img, cookie);
+    expect(shot.headers.get("content-type")).toBe("image/png");
+    await noGetWrites(app, id, cookie);
+
+    html = await page(app, `/projects/${id}/acceptance`, cookie);
+    expect(html).toContain(t("en", "acceptance.run"));
+    expect(html).toContain(t("en", "acceptance.sign_off_not_yet"));
+    expect((await post(app, `/projects/${id}/sign-off`, {}, { cookie })).status).toBe(409);
+    expect((await post(app, `/projects/${id}/export`, {}, { cookie })).status).toBe(409);
+    expect(await page(app, `/projects/${id}/export`, cookie)).toContain(t("en", "export.not_yet"));
+    await go(app, j, `/projects/${id}/acceptance`, cookie);
+    html = await page(app, `/projects/${id}/acceptance`, cookie);
+    expect(html).toContain('<span class="label" data-label>stand-in test, not independent acceptance</span>');
+    expect(html).toContain(STAND_IN_NOTE.replace(/'/g, "&#39;"));
+    expect(html).toContain('<tr data-item="1" data-status="passed">');
+    for (const n of [2, 3, 4, 5, 6]) {
+      const row = new RegExp(`<tr data-item="${n}" data-status="did not run">[\\s\\S]*?</tr>`).exec(html)?.[0] ?? "";
+      expect(row, `item ${n}`).toContain(t("en", "acceptance.no_test"));
+      expect(row, `item ${n}`).not.toContain(t("en", "acceptance.status.passed"));
+    }
+    expect(html).toContain(PASSED_SUMMARY.replace(/'/g, "&#39;"));
+    expect(html).toContain(t("en", "acceptance.sign_off_label"));
+    await noGetWrites(app, id, cookie);
+    await go(app, j, `/projects/${id}/sign-off`, cookie);
+    html = await page(app, `/projects/${id}/acceptance`, cookie);
+    expect(html).toContain("data-signed-off");
+    expect((await get(app, `/projects/${id}`, cookie)).headers.get("location")).toBe(`/projects/${id}/export`);
+    const ar = await page(app, `/projects/${id}/acceptance?lang=ar`, cookie);
+    expect(ar).toContain(t("ar", "acceptance.label"));
+    expect(ar).toContain("stand-in test, not independent acceptance");
+    expect(ar).toContain("Sign-off on a simulated build, checked by a stand-in test of item 1 only: not acceptance");
+
+    html = await page(app, `/projects/${id}/export`, cookie);
+    expect(html).toContain(t("en", "export.label").replace(/'/g, "&#39;"));
+    expect(t("en", "export.label")).toBe(EXPORT_LABEL);
+    await go(app, j, `/projects/${id}/export`, cookie);
+    html = await page(app, `/projects/${id}/export`, cookie);
+    const link = /<a href="(\/projects\/j1-[0-9a-f]{12}\/files\/\d+)" data-download>/.exec(html)![1]!;
+    const file = await get(app, link, cookie);
+    expect(file.status).toBe(200);
+    expect(file.headers.get("content-type")).toBe("application/gzip");
+    expect(file.headers.get("content-disposition")).toBe(`attachment; filename="${id}-export.tar.gz"`);
+    expect(Buffer.from(await file.arrayBuffer()).subarray(0, 2).equals(Buffer.from([0x1f, 0x8b]))).toBe(true);
+    await noGetWrites(app, id, cookie);
+    await go(app, j, `/projects/${id}/close`, cookie);
+    expect(sandboxes.destroyed).toContain(id);
+    expect(await page(app, `/projects/${id}/record`, cookie)).toContain("data-closed");
+  });
+
+  it("a project capped at $1.00: the build screen shows step 1 refused with package 1.3's message and the sentence under it, in both languages", async () => {
+    const { app, j } = makeJobsApp();
+    const cookie = await signIn(app);
+    const made = await post(app, "/projects", { name: "Leave requests, $1 cap (made-up)", cap: "1.00", brief: "Made-up brief." }, { cookie });
+    const id = /\/projects\/(j1-[0-9a-f]{12})\//.exec(made.headers.get("location") ?? "")![1]!;
+    for (const a of ["continue", "answer-rest", "confirm-brief", "confirm-plan"]) await go(app, j, `/projects/${id}/${a}`, cookie);
+    await go(app, j, `/projects/${id}/build`, cookie, { step: "01-data" });
+    const html = await page(app, `/projects/${id}/build`, cookie);
+    expect(html).toContain("data-refused");
+    expect(html).toMatch(/This step needs up to \$1\.56 to finish \(4 turns\); this project has \$1\.00 left of its budget of \$1\.00/);
+    expect(html).toContain(REFUSAL_EXTRA.replace(/'/g, "&#39;"));
+    expect(html).toContain('data-build="01-data"');
+    expect(html).toContain(t("en", "build.retry", { n: 1 }));
+    const ar = await page(app, `/projects/${id}/build?lang=ar`, cookie);
+    expect(ar).toContain(t("ar", "build.refusal_extra"));
+    expect(ar).toContain(REFUSAL_EXTRA.replace(/'/g, "&#39;"));
+    expect(t("en", "build.refusal_extra")).toBe(REFUSAL_EXTRA);
+    await go(app, j, `/projects/${id}/close`, cookie);
+  });
+
+  it("a step name that is not the plan's is refused, and the routes without a jobs runner refuse the jobs", async () => {
+    const { app, j } = makeJobsApp();
+    const cookie = await signIn(app);
+    const id = await j.createProject({ name: "Bad step (made-up)", cap: "5", brief: "Made-up brief." });
+    for (const step of ["03-wrong-status", "../01-data", ""]) expect((await post(app, `/projects/${id}/build`, { step }, { cookie })).status, step).toBe(409);
+    const { app: plain } = makeApp();
+    const c2 = await signIn(plain);
+    const r = await post(plain, `/projects/${id}/build`, { step: "01-data" }, { cookie: c2 });
+    expect(r.status).toBe(409);
+    expect(await r.text()).toContain("This interface was started without builds.");
   });
 });

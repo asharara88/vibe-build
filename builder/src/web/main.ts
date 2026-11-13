@@ -18,7 +18,9 @@ import type pg from "pg";
 import { dataDirFromSetting, openStore } from "../acceptance/store.js";
 import { createClient, createPool } from "../store/db.js";
 import { migrate } from "../store/migrate.js";
+import { example1Sandboxes } from "../orchestrator/example-1-adapter.js";
 import { Journey } from "../orchestrator/journey.js";
+import { JourneyJobs } from "../orchestrator/journey-jobs.js";
 import { createWebApp } from "./app.js";
 import { passwordFromSettings, Sessions, SignInLimiter, type PasswordState } from "./auth.js";
 
@@ -88,10 +90,13 @@ export async function main(env: NodeJS.ProcessEnv = process.env): Promise<void> 
   const pool = createPool(s.databaseUrl);
   await migrate(pool);
   const fault = (m: string, d: unknown) => console.error(`[interface fault] ${m}`, d);
-  const journey = new Journey({ pool, dataDir: s.dataDir, onFault: fault });
+  // The jobs remove a project's sandbox when it is closed, or found at start from an interface that stopped.
+  let jobs: JourneyJobs | null = null;
+  const journey = new Journey({ pool, dataDir: s.dataDir, onFault: fault, cleanupProject: (id, rec) => jobs?.cleanup(id, rec) ?? Promise.resolve() });
+  jobs = new JourneyJobs({ journey, sandboxes: example1Sandboxes(), onFault: fault });
   const touched = await journey.recoverInterrupted();
-  console.log(`Projects with a job left running at start, marked interrupted: ${touched.length}.`);
-  const app = createWebApp({ journey, password: s.password, sessions: new Sessions(), limiter: new SignInLimiter(), dataDir: s.dataDir, onFault: fault });
+  console.log(`Projects with a job or a sandbox left by an interface that stopped, marked interrupted and removed at start: ${touched.length}.`);
+  const app = createWebApp({ journey, jobs, password: s.password, sessions: new Sessions(), limiter: new SignInLimiter(), dataDir: s.dataDir, onFault: fault });
   const server = serve({ fetch: app.fetch, port: s.port, hostname: UI_HOST }, (info) => {
     console.log(`Interface listening on http://${info.address}:${info.port} (password from: ${s.password.source}).`);
   });

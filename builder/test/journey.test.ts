@@ -1,19 +1,27 @@
 /**
  * Package J1: the journey (src/orchestrator/journey.ts), the parts that need no container: the confirmations
  * before any build, the order of events, recovery of journey projects only, and the closed real-model gate
- * (what the interface imports, what is left in its environment, and the only engine it makes). The build,
- * preview, acceptance and export jobs are J1's part 2.
+ * (what the interface imports, what is left in its environment, and the only engine it makes). Part 2: the build,
+ * preview, checklist and export jobs, with a stand-in for example 1's sandboxes (test/journey-stand-ins.ts): a real
+ * workspace and history, no container.
  */
-import { mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import type pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { openStore } from "../src/acceptance/store.js";
+import { openStore, sha256 } from "../src/acceptance/store.js";
+import { git, workspaceChanges } from "../src/engine/project-repo.js";
+import { checkJourneyId, recordedSandboxRefusal } from "../src/orchestrator/example-1-adapter.js";
+import { secretLikePath } from "../src/orchestrator/export.js";
+import { APP_SHOTS, JourneyJobs, REFUSAL_EXTRA } from "../src/orchestrator/journey-jobs.js";
+import { journeyFolder } from "../src/web/files.js";
+import { PASSED_SUMMARY, PNG_1X1, slowPoolFor, StandInSandboxes } from "./journey-stand-ins.js";
 import type { BuildEngine } from "../src/engine/interface.js";
 import { ScriptedEngine } from "../src/engine/scripted.js";
 import { DEFAULT_PROFILES } from "../src/gateway/hold.js";
-import { diskRefusal, EV, EventQueue, Journey, JourneyRefused, JOURNEY_STAND_IN_LABEL, orderedEngine, scriptedEngineFor, engineEventHandler } from "../src/orchestrator/journey.js";
+import { diskRefusal, EV, EventQueue, EXPORT_LABEL, Journey, JourneyRefused, JOURNEY_STAND_IN_LABEL, orderedEngine, scriptedEngineFor, engineEventHandler, SIGN_OFF_LABEL } from "../src/orchestrator/journey.js";
 import { runBudgetedStep } from "../src/orchestrator/steps.js";
 import type { Sandbox } from "../src/sandbox/manager.js";
 import { appendEvent, listEvents } from "../src/store/events.js";
@@ -110,12 +118,17 @@ describe("J1 journey: nothing is built before both confirmations, nothing export
     }
     let release!: () => void;
     const gate = new Promise<void>((r) => (release = r));
-    await journey.startJob(a, "build_step", async ({ queue }) => {
-      queue.push("journey.test_line", { n: 1 });
-      await gate;
-      throw new Error("made-up failure");
-    });
-    await expect(journey.startJob(b, "build_step", noop)).rejects.toThrow(/One job runs at a time/);
+    await journey.startJob(
+      a,
+      "build_step",
+      async ({ queue }) => {
+        queue.push("journey.test_line", { n: 1 });
+        await gate;
+        throw new Error("made-up failure");
+      },
+      { step: "01-data" },
+    );
+    await expect(journey.startJob(b, "build_step", noop, { step: "01-data" })).rejects.toThrow(/One job runs at a time/);
     release();
     await journey.waitForJob();
     const kinds = (await listEvents(pool, a)).map((e) => e.kind);
@@ -148,7 +161,7 @@ describe("J1 journey: nothing is built before both confirmations, nothing export
     let release!: () => void;
     const gate = new Promise<void>((r) => (release = r));
     const body = async () => (await gate, {});
-    const results = await Promise.allSettled(ids.map((id) => j.startJob(id, "build_step", body)));
+    const results = await Promise.allSettled(ids.map((id) => j.startJob(id, "build_step", body, { step: "01-data" })));
     release();
     await j.waitForJob();
     expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
@@ -261,13 +274,23 @@ describe("J1 journey: the real-model gate stays closed", () => {
     expect([...graph].filter((f) => f.includes("/src/gateway/")).map((f) => f.split("/").pop()).sort()).toEqual(["cost.ts", "hold.ts", "prices.ts"]);
   });
 
-  it("the only engine the journey makes is the scripted engine; no other engine is named in the interface or the journey", () => {
+  it("the only engine the journey makes is the scripted engine; no other engine is named in the interface, the journey or its jobs", () => {
     const files = [...readdirSync(join(builderDir, "src", "web")).filter((f) => f.endsWith(".ts")).map((f) => join(builderDir, "src", "web", f)), join(builderDir, "src", "orchestrator", "journey.ts")];
     for (const f of files) {
       const src = readFileSync(f, "utf8");
       for (const m of src.matchAll(/new\s+(\w*Engine)\s*\(/g)) expect(m[1], f).toBe("ScriptedEngine");
       for (const m of src.matchAll(/from\s+["']\.\.\/engine\/([\w-]+)\.js["']/g)) expect(["scripted", "interface"], f).toContain(m[1]);
     }
+    // Part 2's modules: the same two rules; from the engine's folder they may also read project-repo.ts, the
+    // project's history helper (git, resetToLastCommit), which is not an engine.
+    const part2 = ["journey-jobs.ts", "export.ts", "example-1-adapter.ts"].map((f) => join(builderDir, "src", "orchestrator", f));
+    part2.push(join(builderDir, "scripts", "example-1-sandbox.ts"));
+    for (const f of part2) {
+      const src = readFileSync(f, "utf8");
+      for (const m of src.matchAll(/new\s+(\w*Engine)\s*\(/g)) expect(m[1], f).toBe("ScriptedEngine");
+      for (const m of src.matchAll(/from\s+["'](?:\.\.\/)+(?:src\/)?engine\/([\w-]+)\.js["']/g)) expect(["scripted", "interface", "project-repo"], f).toContain(m[1]);
+    }
+    expect(readFileSync(part2[0]!, "utf8")).toMatch(/scriptedEngineFor\(/);
     const fake = { dir: "/nowhere", composeFile: "/nowhere/compose.yaml", projectName: "builder_j1-unit" } as Sandbox;
     const engine = scriptedEngineFor({ sandbox: fake, workspace: "/nowhere/w", gitDir: "/nowhere/g", changeSetsDir: join(builderDir, "scripted"), example: "example-1" }, new EventQueue(pool, "unused"));
     expect(engine.name).toBe("scripted");
@@ -283,3 +306,336 @@ describe("J1 journey: the disk check before a build", () => {
   });
 });
 
+
+/* ---------------------------------------------------------------- part 2: the jobs, with a stand-in sandbox (no container) */
+
+describe("J1 journey, part 2: the build, preview, checklist and export jobs (stand-in sandbox, no container, no model)", () => {
+  let sandboxes: StandInSandboxes;
+  beforeAll(() => {
+    sandboxes = new StandInSandboxes(pool);
+  });
+  afterAll(() => sandboxes.removeAll());
+
+  const make = (o: { pool?: pg.Pool; measureFree?: (p: string) => number } = {}) => {
+    const box: { jobs?: JourneyJobs } = {};
+    const j = new Journey({ pool: o.pool ?? pool, dataDir, cleanupProject: (id, rec) => box.jobs!.cleanup(id, rec) });
+    box.jobs = new JourneyJobs({ journey: j, sandboxes, measureFree: o.measureFree ?? (() => 50 * 1024 ** 3) });
+    return { j, jobs: box.jobs };
+  };
+  /** A project with its brief and plan confirmed. */
+  const ready = async (j: Journey, cap = "5") => {
+    const id = await j.createProject({ name: "Leave requests (made-up)", cap, brief: "I need an app where staff can request leave and managers approve it" });
+    await j.continueWithExample(id);
+    await j.answerRestFromSheet(id);
+    await j.confirmBrief(id);
+    await j.confirmPlan(id);
+    return id;
+  };
+  const stepEvents = async (id: string, step: string) => (await listEvents(pool, id)).filter((e) => e.step === step);
+
+  it("step 1 runs through the step hold: its sandbox made, $1.5552 reserved and released, the engine's events in order and step.hold_closed after the last of them; step 2 only after step 1 is approved", async () => {
+    // Every engine event's write is held 150 ms: written without waiting, they would land after step.hold_closed.
+    const { j, jobs } = make({ pool: slowPoolFor(pool, EV.engineEvent, 150) });
+    const id = await ready(j);
+    await expect(jobs.buildStep(id, "02-submitter-screen")).rejects.toThrow("Step 01-data must be built and approved first.");
+    await expect(jobs.approve(id, "01-data")).rejects.toThrow("This step is not built yet. A step is approved only once it has run to the end.");
+    await jobs.buildStep(id, "01-data");
+    await j.waitForJob();
+    const kinds = (await stepEvents(id, "01-data")).map((e) => e.kind);
+    expect(kinds).toEqual([EV.jobStarted, EV.sandboxMade, "step.hold_opened", ...Array(7).fill(EV.engineEvent), "step.hold_closed", EV.jobFinished]);
+    const ev = await stepEvents(id, "01-data");
+    expect(ev.filter((e) => e.kind === EV.engineEvent).map((e) => e.payload.type)).toEqual(["text", "text", "tool_call", "tool_call", "tool_call", "tool_call", "finished"]);
+    expect(ev.find((e) => e.kind === "step.hold_opened")!.payload).toMatchObject({ step_budget_usd: 1.5552, turns: 4, model: "claude-opus-5-5" });
+    expect(ev.find((e) => e.kind === "step.hold_closed")!.payload).toMatchObject({ released_usd: 1.5552, spent_in_step_usd: 0, calls_drawn: 0 });
+    expect(JSON.stringify(ev.map((e) => e.payload))).not.toMatch(/bpt_/);
+    await expect(jobs.buildStep(id, "01-data")).rejects.toThrow("This step is already built.");
+    await expect(jobs.preview(id)).rejects.toThrow(/Every step must be built and approved/);
+    const next = await jobs.approve(id, "01-data");
+    expect(next.next).toBe("build_step");
+    await j.waitForJob();
+    const two = await stepEvents(id, "02-submitter-screen");
+    expect(two.find((e) => e.kind === "step.hold_opened")!.payload).toMatchObject({ step_budget_usd: 3.1104, turns: 8 });
+    expect(two.at(-2)!.kind).toBe("step.hold_closed");
+    expect(two.at(-1)!.kind).toBe(EV.jobFinished);
+    expect((await j.state(id)).stage).toBe("build");
+    expect(sandboxes.runnerCalls.filter((c) => c.container.startsWith(`builder_${id}`)).map((c) => c.step)).toEqual(["01-data", "02-submitter-screen"]);
+  });
+
+  it("a project capped at $1.00: step 1 is refused before the engine is made, with package 1.3's message; no container is asked for; the job fails with that message", async () => {
+    const { j, jobs } = make();
+    const id = await ready(j, "1");
+    const before = sandboxes.runnerCalls.length;
+    await jobs.buildStep(id, "01-data");
+    await j.waitForJob();
+    const s = await j.state(id);
+    expect(s.stepJobs.get("01-data")).toMatchObject({ state: "failed" });
+    expect(s.stepJobs.get("01-data")!.reason).toMatch(/^This step needs up to \$1\.56 to finish \(4 turns\); this project has \$1\.00 left of its budget of \$1\.00 .*The step was not started\. A cap of at least \$1\.56 would let it start now\.$/);
+    const kinds = (await stepEvents(id, "01-data")).map((e) => e.kind);
+    expect(kinds).toContain("step.refused");
+    expect(kinds).not.toContain("step.hold_opened");
+    expect(sandboxes.runnerCalls.length).toBe(before);
+    expect(REFUSAL_EXTRA).toBe("Scripted steps spend $0; this is a reservation sized from a real model's price. To go on, ask Claude Code to change the cap (a recorded change), or start a new project.");
+  });
+
+  it("a step that fails leaves nothing behind: the workspace is put back to its last commit, and the step can be tried again", async () => {
+    const { j, jobs } = make();
+    const id = await ready(j);
+    sandboxes.extraFile = "made-up-extra.txt";
+    await jobs.buildStep(id, "01-data");
+    await j.waitForJob();
+    const s = await j.state(id);
+    expect(s.stepJobs.get("01-data")).toMatchObject({ state: "failed", reason: "files changed that are not in the fixed change: made-up-extra.txt" });
+    expect((await stepEvents(id, "01-data")).map((e) => e.kind)).toContain(EV.workspaceReset);
+    const x = jobs.handle(id)!;
+    expect(existsSync(join(x.workspace, "made-up-extra.txt"))).toBe(false);
+    expect(existsSync(join(x.workspace, "src", "db", "app-schema.ts"))).toBe(false);
+    const left = await workspaceChanges(x.repo);
+    expect([...left.changed, ...left.ignoredNew, ...left.ignoredChanged]).toEqual([]);
+    await jobs.buildStep(id, "01-data");
+    await j.waitForJob();
+    expect((await j.state(id)).stepJobs.get("01-data")).toMatchObject({ state: "finished" });
+  });
+
+  it("the disk check: below the floor, measured at the time, the build is refused before anything is made", async () => {
+    const { j, jobs } = make({ measureFree: () => 1.6 * 1024 ** 3 });
+    const id = await ready(j);
+    const made = sandboxes.made.length;
+    await jobs.buildStep(id, "01-data");
+    await j.waitForJob();
+    expect((await j.state(id)).stepJobs.get("01-data")).toMatchObject({
+      state: "failed",
+      reason: "This machine has 1.6 GB free; a build needs at least 4.0 GB (a floor assumed, not measured). The build was not started.",
+    });
+    expect(sandboxes.made.length).toBe(made);
+    expect((await listEvents(pool, id)).map((e) => e.kind)).not.toContain("step.hold_opened");
+  });
+
+  /** Both steps built and approved, the preview made. */
+  const previewed = async (j: Journey, jobs: JourneyJobs) => {
+    const id = await ready(j);
+    await jobs.buildStep(id, "01-data");
+    await j.waitForJob();
+    await jobs.approve(id, "01-data");
+    await j.waitForJob();
+    const r = await jobs.approve(id, "02-submitter-screen");
+    expect(r.next).toBe("preview");
+    await j.waitForJob();
+    return id;
+  };
+
+  it("the preview: after the last approval the app is started once and photographed; each screenshot is recorded with its file and SHA-256, inside the project's shots folder", async () => {
+    const { j, jobs } = make();
+    const id = await previewed(j, jobs);
+    const s = await j.state(id);
+    expect(s.stage).toBe("acceptance");
+    expect(s.appRunning).toBe(true);
+    const shots = await listEvents(pool, id, EV.screenshot);
+    expect(shots.map((e) => e.payload.name)).toEqual(APP_SHOTS.map((x) => x.name));
+    for (const e of shots) {
+      const f = e.payload.file as { path: string; sha256: string };
+      expect(f.path.startsWith(journeyFolder(dataDir, id, "shots") + "/")).toBe(true);
+      expect(sha256(readFileSync(f.path))).toBe(f.sha256);
+      expect(e.payload.caption).toMatch(/^Screenshot of the running app at \d{4}-\d\d-\d\d \d\d:\d\d:\d\d UTC\. Not live\. Sample data\.$/);
+      expect(e.payload.live).toBe(false);
+    }
+    // The camera's own folder, and the password file in it, are gone.
+    expect(existsSync(join(dataDir, "journey", id, "camera-runs")) ? readdirSync(join(dataDir, "journey", id, "camera-runs")) : []).toEqual([]);
+    await expect(jobs.preview(id)).rejects.toThrow("The preview is already made.");
+  });
+
+  it("a camera file that is not a PNG is not recorded: the preview fails and its app is stopped", async () => {
+    const { j, jobs } = make();
+    const id = await ready(j);
+    await jobs.buildStep(id, "01-data");
+    await j.waitForJob();
+    await jobs.approve(id, "01-data");
+    await j.waitForJob();
+    sandboxes.cameraWrites = (outDir) => {
+      for (const s of APP_SHOTS) writeFileSync(join(outDir, `${s.name}.png`), s.name === "app-home-ar" ? "<html>not a picture</html>" : PNG_1X1);
+    };
+    try {
+      await jobs.approve(id, "02-submitter-screen");
+      await j.waitForJob();
+    } finally {
+      sandboxes.cameraWrites = (outDir) => {
+        for (const s of APP_SHOTS) writeFileSync(join(outDir, `${s.name}.png`), PNG_1X1);
+      };
+    }
+    const s = await j.state(id);
+    expect(s.jobs.at(-1)).toMatchObject({ kind: "preview", state: "failed", reason: "The camera's app-home-ar.png is not a PNG image." });
+    expect(s.previewFinished).toBe(false);
+    expect(s.appRunning).toBe(false);
+    expect((await listEvents(pool, id)).map((e) => e.kind).slice(-2)).toEqual([EV.appStopped, EV.jobFailed]);
+    expect((await listEvents(pool, id, EV.screenshot)).map((e) => e.payload.name)).toEqual(["app-home-en", "app-my-requests-en"]);
+    expect(sandboxes.stoppedApps).toContain(id);
+    await expect(jobs.acceptance(id)).rejects.toThrow("The app is not running: make the preview first.");
+  });
+
+  it("one project's app at a time: another project's preview is refused while one app runs", async () => {
+    const { j, jobs } = make();
+    const a = await previewed(j, jobs);
+    const b = await ready(j);
+    await jobs.buildStep(b, "01-data");
+    await j.waitForJob();
+    await jobs.approve(b, "01-data");
+    await j.waitForJob();
+    await jobs.approve(b, "02-submitter-screen");
+    await j.waitForJob();
+    expect((await j.state(b)).jobs.at(-1)).toMatchObject({ kind: "preview", state: "failed", reason: "Another project's app is running. One project's app runs at a time: close that project first." });
+    await j.closeProject(a);
+    // A port already in use: the app is not started.
+    sandboxes.ports = "Something already listens on 127.0.0.1 port 3161; the app is not started.";
+    try {
+      await jobs.preview(b);
+      await j.waitForJob();
+    } finally {
+      sandboxes.ports = null;
+    }
+    expect((await j.state(b)).jobs.at(-1)).toMatchObject({ kind: "preview", state: "failed", reason: "Something already listens on 127.0.0.1 port 3161; the app is not started." });
+    expect(sandboxes.started.filter((p) => p === b)).toEqual([]);
+    expect(sandboxes.destroyed).toContain(a);
+    expect((await listEvents(pool, a, EV.sandboxRemoved)).map((e) => e.payload.interrupted)).toEqual([false]);
+    await jobs.preview(b);
+    await j.waitForJob();
+    expect((await j.state(b)).previewFinished).toBe(true);
+    await j.closeProject(b);
+  });
+
+  it("the checklist, sign-off and export in order: no checklist before the preview, no sign-off before a passed run, no export before sign-off", async () => {
+    const { j, jobs } = make();
+    const early = await ready(j);
+    await expect(jobs.acceptance(early)).rejects.toThrow("The app is not running: make the preview first.");
+    await expect(j.signOff(early)).rejects.toThrow("The checklist has not been run yet.");
+    await expect(jobs.exportProject(early)).rejects.toThrow(/not signed off/);
+    const id = await previewed(j, jobs);
+    sandboxes.acceptanceOutcome = "did not run";
+    await jobs.acceptance(id);
+    await j.waitForJob();
+    sandboxes.acceptanceOutcome = "passed";
+    await expect(j.signOff(id)).rejects.toThrow("The last checklist run did not pass, so there is nothing to sign off.");
+    await expect(jobs.exportProject(id)).rejects.toThrow(/not signed off/);
+    await jobs.acceptance(id);
+    await j.waitForJob();
+    await j.signOff(id);
+    const signed = (await listEvents(pool, id, EV.signedOff))[0]!;
+    expect(signed.payload).toMatchObject({ label: SIGN_OFF_LABEL, acceptance_summary: PASSED_SUMMARY, acceptance_label: JOURNEY_STAND_IN_LABEL });
+    expect(SIGN_OFF_LABEL).toBe("Sign-off on a simulated build, checked by a stand-in test of item 1 only: not acceptance");
+    expect((await j.state(id)).stage).toBe("signed_off");
+    await expect(jobs.acceptance(id)).rejects.toThrow("The project is signed off; the checklist is not run again.");
+    await j.closeProject(id);
+  });
+
+  it("the export: a .tar.gz of the project's history, with the checklist's tests and the note added in the exported copy only, never in the workspace history; recorded with its SHA-256", async () => {
+    const { j, jobs } = make();
+    const id = await previewed(j, jobs);
+    await jobs.acceptance(id);
+    await j.waitForJob();
+    await j.signOff(id);
+    await jobs.exportProject(id);
+    await j.waitForJob();
+    const s = await j.state(id);
+    expect(s.jobs.at(-1)).toMatchObject({ kind: "export", state: "finished" });
+    const ev = (await listEvents(pool, id, EV.exportWritten))[0]!;
+    const f = ev.payload.file as { path: string; sha256: string };
+    expect(f.path).toBe(join(journeyFolder(dataDir, id, "exports"), `${id}-export.tar.gz`));
+    expect(sha256(readFileSync(f.path))).toBe(f.sha256);
+    expect(statSync(f.path).mode & 0o777).toBe(0o600);
+    expect(ev.payload).toMatchObject({ acceptance_version: "v001", acceptance_in_exported_copy_only: true, label: EXPORT_LABEL, commits: 4 });
+    const listing = execFileSync("tar", ["-tzf", f.path], { encoding: "utf8" }).split("\n");
+    for (const p of [`${id}/acceptance/v001/item-01.spec.ts`, `${id}/acceptance/v001/manifest.json`, `${id}/acceptance/README.txt`, `${id}/EXPORT-NOTE.txt`, `${id}/.git/HEAD`, `${id}/src/db/app-schema.ts`]) expect(listing, p).toContain(p);
+    expect(listing.filter((p) => /certs\/|\.crt$|secrets\//.test(p))).toEqual([]);
+    // The workspace history is untouched: no acceptance folder in it, and its last commit is the step's.
+    const x = jobs.handle(id)!;
+    expect((await git(x.repo, ["ls-tree", "-r", "--name-only", "HEAD"])).split("\n").filter((p) => p.startsWith("acceptance"))).toEqual([]);
+    expect((await git(x.repo, ["rev-parse", "HEAD"])).trim()).toBe(ev.payload.workspace_head);
+    expect((await git(x.repo, ["log", "-1", "--format=%s"])).trim()).toBe("[scripted] example-1 02-submitter-screen");
+    // The copy: its last commit adds the tests; it points nowhere.
+    const out = mkdtempSync(join(tmpdir(), "builder-journey-export-"));
+    try {
+      execFileSync("tar", ["-xzf", f.path, "-C", out]);
+      const copy = join(out, id);
+      const gitIn = (args: string[]) => execFileSync("git", ["-c", "core.hooksPath=/dev/null", "-C", copy, ...args], { encoding: "utf8", env: { PATH: process.env.PATH, HOME: "/nonexistent", GIT_CONFIG_NOSYSTEM: "1", GIT_CONFIG_GLOBAL: "/dev/null" } });
+      expect(gitIn(["remote"]).trim()).toBe("");
+      expect(gitIn(["log", "-1", "--format=%an <%ae>"]).trim()).toBe("Builder export <export@example.invalid>");
+      expect(gitIn(["show", "--name-only", "--format=", "HEAD"]).trim().split("\n").sort()).toEqual(["EXPORT-NOTE.txt", "acceptance/README.txt", "acceptance/v001/item-01.spec.ts", "acceptance/v001/manifest.json"]);
+      expect(readFileSync(join(copy, "acceptance", "README.txt"), "utf8")).toContain(`Label: ${JOURNEY_STAND_IN_LABEL}.`);
+      expect(readFileSync(join(copy, "EXPORT-NOTE.txt"), "utf8").split("\n")[0]).toBe(EXPORT_LABEL);
+    } finally {
+      rmSync(out, { recursive: true, force: true });
+    }
+    await j.closeProject(id);
+  });
+
+  it("the export is refused when the project's history holds a file that looks like a secret", async () => {
+    const { j, jobs } = make();
+    const id = await previewed(j, jobs);
+    await jobs.acceptance(id);
+    await j.waitForJob();
+    await j.signOff(id);
+    const x = jobs.handle(id)!;
+    writeFileSync(join(x.workspace, ".env"), "MADE_UP=1\n");
+    await git(x.repo, ["add", "-f", ".env"]);
+    await git(x.repo, ["commit", "--quiet", "--no-verify", "-m", "made-up settings file, committed by the test"]);
+    await jobs.exportProject(id);
+    await j.waitForJob();
+    expect((await j.state(id)).jobs.at(-1)).toMatchObject({ kind: "export", state: "failed" });
+    expect(await listEvents(pool, id, EV.exportWritten)).toEqual([]);
+    expect(existsSync(join(journeyFolder(dataDir, id, "exports"), `${id}-export.tar.gz`))).toBe(false);
+    expect(secretLikePath(".env")).toBe(true);
+    expect(secretLikePath(".env.example")).toBe(false);
+    expect(secretLikePath("certs/session-ca.crt")).toBe(true);
+    expect(secretLikePath("src/db/app-schema.ts")).toBe(false);
+    await j.closeProject(id);
+  });
+
+  it("at start, a sandbox left by an interface that stopped is removed and the project marked interrupted; only projects whose id starts j1-", async () => {
+    const { j } = make();
+    const id = await ready(j);
+    const other = uniqueId("p_recover_sandbox");
+    await createProject(pool, { id: other, name: "Not a journey project (made-up)", capUsd: 5 });
+    const rec = { dir: "/made-up/builder-acceptance-left", app_port: 3161, db_port: 5591 };
+    await appendEvent(pool, id, EV.sandboxMade, rec, "01-data");
+    await appendEvent(pool, other, EV.sandboxMade, rec, "01-data");
+    const cleaned: Array<[string, unknown]> = [];
+    const fresh = new Journey({ pool, dataDir, cleanupProject: async (p, r) => void cleaned.push([p, r]) });
+    const touched = await fresh.recoverInterrupted();
+    expect(touched).toContain(id);
+    expect(touched).not.toContain(other);
+    expect(cleaned.find(([p]) => p === id)?.[1]).toEqual({ dir: rec.dir, appPort: 3161, dbPort: 5591 });
+    expect(cleaned.map(([p]) => p).every((p) => p.startsWith("j1-"))).toBe(true);
+    expect((await listEvents(pool, id, EV.sandboxRemoved)).map((e) => e.payload)).toEqual([expect.objectContaining({ interrupted: true, removed: true })]);
+    expect(await listEvents(pool, other, EV.sandboxRemoved)).toEqual([]);
+    const s = await fresh.state(id);
+    expect(s.interrupted).toBe(true);
+    expect(s.sandbox).toBeNull();
+    expect(await fresh.recoverInterrupted()).not.toContain(id);
+  });
+});
+
+describe("J1 journey, part 2: the adapter removes only journey sandboxes", () => {
+  it("a project id that is not j1- and 12 hexadecimal characters is refused; a recorded folder is removed only if it is makeExample1's and its compose file names this project", () => {
+    expect(() => checkJourneyId("p_other_project")).toThrow(/not a journey project's id/);
+    expect(() => checkJourneyId("j1-../../x")).toThrow(/not a journey project's id/);
+    expect(() => checkJourneyId("j1-0123456789ab")).not.toThrow();
+    const base = mkdtempSync(join(tmpdir(), "builder-journey-adapter-"));
+    try {
+      const id = "j1-0123456789ab";
+      const good = join(base, "builder-acceptance-abc123");
+      mkdirSync(good);
+      writeFileSync(join(good, "compose.yaml"), `name: "builder_${id}"\nservices: {}\n`);
+      expect(recordedSandboxRefusal(id, good)).toBeNull();
+      expect(recordedSandboxRefusal("j1-ffffffffffff", good)).toBe("the recorded folder's compose file names another project");
+      const wrongName = join(base, "my-own-folder");
+      mkdirSync(wrongName);
+      writeFileSync(join(wrongName, "compose.yaml"), `name: "builder_${id}"\n`);
+      expect(recordedSandboxRefusal(id, wrongName)).toBe("the recorded folder is not one makeExample1 makes");
+      expect(recordedSandboxRefusal(id, "relative/builder-acceptance-x")).toBe("the recorded folder is not an absolute, plain path");
+      expect(recordedSandboxRefusal(id, `${good}/../builder-acceptance-abc123`)).toBe("the recorded folder is not an absolute, plain path");
+      const empty = join(base, "builder-acceptance-empty");
+      mkdirSync(empty);
+      expect(recordedSandboxRefusal(id, empty)).toBe("the recorded folder holds no compose file");
+    } finally {
+      rmSync(base, { recursive: true, force: true });
+    }
+  });
+});

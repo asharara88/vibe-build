@@ -6,8 +6,9 @@
  * here has an id starting "j1-", and nothing here touches a project without that prefix.
  *
  * Stages: brief entered → continued as example 1 (or stopped) → the 20 questions answered → brief confirmed →
- * plan confirmed → build (the build, preview, acceptance and export jobs are package J1's part 2). Nothing is
- * built before both confirmations, and nothing is exported before sign-off (`JOB_RULES`).
+ * plan confirmed → build (each step built, then approved) → preview → acceptance → signed off (then the export).
+ * Nothing is built before both confirmations, a step only after the one before it is approved, and nothing is
+ * exported before sign-off (`JOB_RULES`, `buildStepRefusal`). The jobs' bodies are in journey-jobs.ts.
  *
  * SIMULATED: the analyst. The questions are fixed (intake.ts), the brief is never read or given to the engine,
  * and every project continues as test example 1. REAL: the store, the event log, the budget and step holds
@@ -35,7 +36,7 @@ export const JOURNEY_STAND_IN_LABEL = "stand-in test, not independent acceptance
 export const MAX_BRIEF = 2_000;
 export const MAX_NAME = 100;
 
-/** The events this module writes. Part 2 writes `step_approved`, `signed_off` and its jobs' own events. */
+/** The events the journey writes (this module and journey-jobs.ts). */
 export const EV = {
   briefEntered: "intake.brief_entered",
   continued: "intake.continued",
@@ -51,9 +52,30 @@ export const EV = {
   jobFailed: "journey.job.failed",
   jobInterrupted: "journey.job.interrupted",
   engineEvent: "engine.event",
+  /** The project's sandbox folder and ports (example-1-adapter.ts): files only, no container yet. */
+  sandboxMade: "journey.sandbox.made",
+  /** The sandbox's containers, images and folder removed: closed, or found at start from an interface that stopped. */
+  sandboxRemoved: "journey.sandbox.removed",
+  /** After a failed step: the workspace put back to its last commit (project-repo.ts, resetToLastCommit). */
+  workspaceReset: "journey.workspace.reset",
+  /** A line of the preview job (images built, tables made, app started). */
+  previewLine: "journey.preview.line",
+  appStarted: "journey.app.started",
+  /** The app's containers and images removed after a preview that failed once the app had started. */
+  appStopped: "journey.app.stopped",
+  /** A screenshot of the running app, taken by the app camera: `file` {path, sha256} (files.ts serves it). */
+  screenshot: "journey.screenshot",
+  /** The export archive: `file` {path, sha256} (files.ts serves it as an attachment). */
+  exportWritten: "journey.export.written",
 } as const;
 
-export type Stage = "brief" | "questions" | "brief_review" | "plan_review" | "build" | "stopped" | "closed";
+/** The label a sign-off carries (final design, section 1, item 8). */
+export const SIGN_OFF_LABEL = "Sign-off on a simulated build, checked by a stand-in test of item 1 only: not acceptance";
+/** The label the export carries (final design, section 1, item 9). */
+export const EXPORT_LABEL =
+  "Internal only, not for customers. Not yet shown to start without the builder (package 3.2): its tables are made by the builder's tools container, and it has no notices file.";
+
+export type Stage = "brief" | "questions" | "brief_review" | "plan_review" | "build" | "preview" | "acceptance" | "signed_off" | "stopped" | "closed";
 export type JobKind = "build_step" | "preview" | "acceptance" | "export";
 
 export interface RecordedAnswer {
@@ -87,9 +109,35 @@ export interface JourneyState {
   jobs: JobRecord[];
   /** A job whose last event is "started": running now, or left so by an interface that stopped. */
   runningJob: JobRecord | null;
-  /** A job was marked interrupted: the screen offers "Close project" or "New project", no resume. */
+  /** A job was marked interrupted, or the sandbox was removed at start: the screen offers "Close project" or "New project", no resume. */
   interrupted: boolean;
+  /** The plan's steps, in order (the scripted change sets of example 1). */
+  plan: string[];
+  /** Each step's last build job. */
+  stepJobs: Map<string, JobRecord>;
+  /** The steps the owner approved ("Approve and build the next step"). */
+  approved: Set<string>;
+  /** The sandbox made for this project and not removed since. */
+  sandbox: SandboxRecord | null;
+  /** A preview job finished: the app was built, started and photographed. */
+  previewFinished: boolean;
+  /** The app was started and its sandbox not removed since. */
+  appRunning: boolean;
+  /** The last acceptance job that finished, with what it reported. */
+  acceptanceRun: { jobId: string; runId: string | null; summary: string | null; refused: string | null } | null;
+  /** The last export written, by its event. */
+  exportEventId: string | null;
 }
+
+/** Where a project's sandbox is, as `journey.sandbox.made` records it. */
+export interface SandboxRecord {
+  dir: string;
+  appPort: number;
+  dbPort: number;
+}
+
+/** The plan's steps: the scripted change sets of example 1, in order. */
+export const PLAN_STEPS: readonly string[] = listSteps(CHANGE_SETS_DIR, EXAMPLE);
 
 /** A refusal the screens show as it is: the action was not taken and nothing was written. */
 export class JourneyRefused extends Error {
@@ -100,7 +148,7 @@ export class JourneyRefused extends Error {
 }
 
 /** Work out a project's state from its events, in id order. */
-export function journeyState(project: Project, events: Event[], intake: Intake): JourneyState {
+export function journeyState(project: Project, events: Event[], intake: Intake, plan: readonly string[] = PLAN_STEPS): JourneyState {
   const s: JourneyState = {
     project,
     events,
@@ -115,6 +163,14 @@ export function journeyState(project: Project, events: Event[], intake: Intake):
     jobs: [],
     runningJob: null,
     interrupted: false,
+    plan: [...plan],
+    stepJobs: new Map(),
+    approved: new Set(),
+    sandbox: null,
+    previewFinished: false,
+    appRunning: false,
+    acceptanceRun: null,
+    exportEventId: null,
   };
   let continued = false;
   let stopped = false;
@@ -144,12 +200,36 @@ export function journeyState(project: Project, events: Event[], intake: Intake):
       case EV.signedOff:
         s.signedOff = true;
         break;
+      case EV.stepApproved:
+        if (typeof p.step === "string") s.approved.add(p.step);
+        break;
+      case EV.sandboxMade:
+        s.sandbox = typeof p.dir === "string" ? { dir: p.dir, appPort: Number(p.app_port), dbPort: Number(p.db_port) } : null;
+        break;
+      case EV.sandboxRemoved:
+        // A removal that failed (`removed: false`) leaves the sandbox recorded, so the next start tries again.
+        if (p.removed !== false) s.sandbox = null;
+        s.appRunning = false;
+        if (p.interrupted === true) s.interrupted = true;
+        break;
+      case EV.appStarted:
+        s.appRunning = true;
+        break;
+      case EV.appStopped:
+        s.appRunning = false;
+        break;
+      case EV.exportWritten:
+        s.exportEventId = e.id;
+        break;
       case EV.closed:
         closed = true;
         break;
-      case EV.jobStarted:
-        s.jobs.push({ jobId: String(p.job_id), kind: p.kind as JobKind, step: typeof p.step === "string" ? p.step : null, state: "running", startedEventId: e.id, reason: null });
+      case EV.jobStarted: {
+        const job: JobRecord = { jobId: String(p.job_id), kind: p.kind as JobKind, step: typeof p.step === "string" ? p.step : null, state: "running", startedEventId: e.id, reason: null };
+        s.jobs.push(job);
+        if (job.kind === "build_step" && job.step) s.stepJobs.set(job.step, job);
         break;
+      }
       case EV.jobFinished:
       case EV.jobFailed:
       case EV.jobInterrupted: {
@@ -158,6 +238,9 @@ export function journeyState(project: Project, events: Event[], intake: Intake):
           j.state = e.kind === EV.jobFinished ? "finished" : e.kind === EV.jobFailed ? "failed" : "interrupted";
           j.reason = typeof p.reason === "string" ? p.reason : null;
           if (j.state === "interrupted") s.interrupted = true;
+          if (j.state === "finished" && j.kind === "preview") s.previewFinished = true;
+          if (j.state === "finished" && j.kind === "acceptance")
+            s.acceptanceRun = { jobId: j.jobId, runId: typeof p.run_id === "string" ? p.run_id : null, summary: typeof p.summary === "string" ? p.summary : null, refused: typeof p.refused === "string" ? p.refused : null };
         }
         break;
       }
@@ -168,7 +251,7 @@ export function journeyState(project: Project, events: Event[], intake: Intake):
   if (s.nextTurn === -1) s.nextTurn = null;
   if (closed) s.stage = "closed";
   else if (stopped) s.stage = "stopped";
-  else if (s.planConfirmed) s.stage = "build";
+  else if (s.planConfirmed) s.stage = s.signedOff ? "signed_off" : s.previewFinished ? "acceptance" : s.plan.length > 0 && s.plan.every((st) => s.approved.has(st)) ? "preview" : "build";
   else if (s.briefConfirmed) s.stage = "plan_review";
   else if (continued && s.nextTurn === null) s.stage = "brief_review";
   else if (continued) s.stage = "questions";
@@ -182,10 +265,63 @@ export function journeyState(project: Project, events: Event[], intake: Intake):
  */
 export const JOB_RULES: Record<JobKind, (s: JourneyState) => string | null> = {
   build_step: (s) => (!s.briefConfirmed ? "The brief is not confirmed yet. Nothing is built until you confirm it." : !s.planConfirmed ? "The plan is not confirmed yet. Nothing is built until you confirm it." : null),
-  preview: (s) => (s.planConfirmed ? null : "The plan is not confirmed yet."),
-  acceptance: (s) => (s.planConfirmed && s.acceptanceVersion ? null : "The plan is not confirmed yet, so the checklist's tests are not fixed."),
+  preview: (s) =>
+    !s.planConfirmed
+      ? "The plan is not confirmed yet."
+      : s.plan.some((st) => !s.approved.has(st))
+        ? "Every step must be built and approved before the app is started for the preview."
+        : s.previewFinished
+          ? "The preview is already made."
+          : null,
+  acceptance: (s) =>
+    !(s.planConfirmed && s.acceptanceVersion)
+      ? "The plan is not confirmed yet, so the checklist's tests are not fixed."
+      : !s.appRunning
+        ? "The app is not running: make the preview first."
+        : s.signedOff
+          ? "The project is signed off; the checklist is not run again."
+          : null,
   export: (s) => (s.signedOff ? null : "The project is not signed off yet. Export is offered only after sign-off."),
 };
+
+/**
+ * Which step may be built (final design, section 1, item 6: nothing goes on without "Approve and build the next
+ * step"): a step of the plan, every step before it approved, and the step itself not built already. A step whose
+ * last job failed may be built again. Returns why not, or null.
+ */
+export function buildStepRefusal(s: JourneyState, step: string | undefined): string | null {
+  if (!step || !s.plan.includes(step)) return "That step is not one of the plan's.";
+  for (const earlier of s.plan.slice(0, s.plan.indexOf(step))) {
+    if (!s.approved.has(earlier)) return `Step ${earlier} must be built and approved first.`;
+  }
+  const last = s.stepJobs.get(step);
+  if (last?.state === "finished") return "This step is already built.";
+  return null;
+}
+
+/** When a step may be approved: its last build job finished, and it is not approved yet. */
+export function approveRefusal(s: JourneyState, step: string): string | null {
+  if (s.stage === "stopped" || s.stage === "closed") return "This project is stopped or closed.";
+  if (!s.plan.includes(step)) return "That step is not one of the plan's.";
+  if (s.approved.has(step)) return "This step is already approved.";
+  if (s.stepJobs.get(step)?.state !== "finished") return "This step is not built yet. A step is approved only once it has run to the end.";
+  if (s.runningJob) return "A job of this project is running; wait for it to end.";
+  return null;
+}
+
+/**
+ * When the owner may sign off: the last checklist run finished, was not refused before its start, and its
+ * summary says the version passed (a run that did not execute is never shown as passed, and is not signed off).
+ */
+export function signOffRefusal(s: JourneyState): string | null {
+  if (s.stage === "stopped" || s.stage === "closed") return "This project is stopped or closed.";
+  if (s.signedOff) return "This project is already signed off.";
+  if (s.runningJob) return "A job of this project is running; wait for it to end.";
+  const r = s.acceptanceRun;
+  if (!r) return "The checklist has not been run yet.";
+  if (r.refused || !(r.summary ?? "").startsWith("version passed")) return "The last checklist run did not pass, so there is nothing to sign off.";
+  return null;
+}
 
 /* ------------------------------------------------------------------ the event queue */
 
@@ -287,8 +423,12 @@ export interface JourneyOptions {
   /** BUILDER_DATA_DIR: the acceptance store and the journey's own files live under it. */
   dataDir: string;
   intake?: Intake;
-  /** Called when a project is closed, or found with a job left running at start: removes its containers (part 2). */
-  cleanupProject?: (projectId: string) => Promise<void>;
+  /**
+   * Called when a project is closed, or found at start with a job left running or a sandbox left by an interface
+   * that stopped: removes its containers, images and sandbox folder (journey-jobs.ts, through the adapter).
+   * `recorded` is the sandbox as its event recorded it, for when this process holds no handle to it.
+   */
+  cleanupProject?: (projectId: string, recorded: SandboxRecord | null) => Promise<void>;
   /** Called when a job's body throws or the interface stops part-way, before it is recorded failed. */
   onFault?: (message: string, detail: unknown) => void;
 }
@@ -491,8 +631,37 @@ export class Journey {
       const s = await this.load(projectId);
       if (s.stage === "closed") return;
       if (this.running?.projectId === projectId) throw new JourneyRefused("A job is running for this project; wait for it to end.");
-      await this.o.cleanupProject?.(projectId);
+      await this.o.cleanupProject?.(projectId, s.sandbox);
+      if (s.sandbox) await appendEvent(this.pool, projectId, EV.sandboxRemoved, { reason: "The project was closed.", interrupted: false });
       await appendEvent(this.pool, projectId, EV.closed, { at_stage: s.stage });
+    });
+  }
+
+  /** "Approve and build the next step": the step's approval is recorded (the next job is started by journey-jobs.ts). */
+  approveStep(projectId: string, step: string): Promise<void> {
+    return this.withLock(projectId, async () => {
+      const s = await this.load(projectId);
+      const why = approveRefusal(s, step);
+      if (why) throw new JourneyRefused(why);
+      const last = s.stepJobs.get(step)!;
+      await appendEvent(this.pool, projectId, EV.stepApproved, { step, job_id: last.jobId }, step);
+    });
+  }
+
+  /** "Sign off", labelled as the design says: on a simulated build, checked by a stand-in test of item 1 only. */
+  signOff(projectId: string): Promise<void> {
+    return this.withLock(projectId, async () => {
+      const s = await this.load(projectId);
+      if (this.running?.projectId === projectId) throw new JourneyRefused("A job is running for this project; wait for it to end.");
+      const why = signOffRefusal(s);
+      if (why) throw new JourneyRefused(why);
+      await appendEvent(this.pool, projectId, EV.signedOff, {
+        label: SIGN_OFF_LABEL,
+        acceptance_job: s.acceptanceRun!.jobId,
+        acceptance_run: s.acceptanceRun!.runId,
+        acceptance_summary: s.acceptanceRun!.summary,
+        acceptance_label: JOURNEY_STAND_IN_LABEL,
+      });
     });
   }
 
@@ -519,7 +688,7 @@ export class Journey {
       const s = await this.load(projectId);
       if (s.stage === "stopped" || s.stage === "closed") throw new JourneyRefused("This project is stopped or closed.");
       if (s.interrupted) throw new JourneyRefused("A job of this project was interrupted. Close the project, or start a new one.");
-      const why = JOB_RULES[kind](s);
+      const why = JOB_RULES[kind](s) ?? (kind === "build_step" ? buildStepRefusal(s, o.step) : null);
       if (why) throw new JourneyRefused(why);
       if (this.running) throw new JourneyRefused("Another job is running. One job runs at a time.");
       const jobId = `job-${randomBytes(4).toString("hex")}`;
@@ -567,9 +736,10 @@ export class Journey {
   }
 
   /**
-   * At start: a journey project whose last job event is "started" was left by an interface that stopped. Its job
-   * is marked interrupted and its containers removed (`cleanupProject`); nothing is resumed. Only projects whose
-   * id starts "j1-" are looked at. Returns the projects touched.
+   * At start: a journey project whose last job event is "started", or whose sandbox was made and not removed, was
+   * left by an interface that stopped. Its job is marked interrupted, its containers, images and sandbox folder
+   * removed (`cleanupProject`), and the removal recorded; nothing is resumed. Only projects whose id starts "j1-"
+   * are looked at. Returns the projects touched.
    */
   async recoverInterrupted(): Promise<string[]> {
     const touched: string[] = [];
@@ -579,14 +749,24 @@ export class Journey {
       const { spent_usd: _spent, ...project } = r;
       const s = journeyState(project, await listEvents(this.pool, r.id), this.intake);
       const left = s.jobs.filter((j) => j.state === "running");
-      if (left.length === 0) continue;
+      const leftSandbox = s.stage !== "closed" ? s.sandbox : null;
+      if (left.length === 0 && !leftSandbox) continue;
       for (const j of left) {
         await appendEvent(this.pool, r.id, EV.jobInterrupted, { job_id: j.jobId, kind: j.kind, reason: "The interface stopped while this job ran. It is not resumed." }, j.step);
       }
+      let removed = true;
       try {
-        await this.o.cleanupProject?.(r.id);
+        await this.o.cleanupProject?.(r.id, leftSandbox);
       } catch (err) {
+        removed = false;
         this.o.onFault?.("A project's containers could not be removed after an interruption.", { project: r.id, error: err instanceof Error ? err.message : String(err) });
+      }
+      if (leftSandbox) {
+        await appendEvent(this.pool, r.id, EV.sandboxRemoved, {
+          reason: "Found at start: made by an interface that has since stopped. It is not resumed.",
+          interrupted: true,
+          removed,
+        });
       }
       touched.push(r.id);
     }
