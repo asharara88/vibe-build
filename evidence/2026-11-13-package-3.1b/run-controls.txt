@@ -148,7 +148,7 @@ $ npx vitest run test/browser-fetch.test.ts   (in the copy's builder/)
  Test Files  1 failed (1)
       Tests  1 failed | 16 passed (17)
  FAIL  test/browser-fetch.test.ts > fetching the approved browser zip (stand-in server, made-up bytes) > never replaces what is at the zip's place: another file, a link or a folder is refused, left as it was, and the server is not asked
-AssertionError: expected [Function] to throw error matching /is another file .* it is not replaced/ but got 'Something appeared at /tmp/claude-0/-…'
+AssertionError: expected [Function] to throw error matching /is another file .* it is not replaced/ but got 'Something appeared at <scratch>…'
 exit code: 1
 
 === C8. A cache folder reached through a link: both refusals removed ===
@@ -167,7 +167,7 @@ $ npx vitest run test/browser-fetch.test.ts   (in the copy's builder/)
  Test Files  1 failed (1)
       Tests  1 failed | 16 passed (17)
  FAIL  test/browser-fetch.test.ts > fetching the approved browser zip (stand-in server, made-up bytes) > the cache folder: a relative path, a folder inside the repository, and a folder reached through a link are refused
-AssertionError: expected [Function] to throw error matching /reached through a link, which is not …/ but got 'The cache folder /tmp/claude-0/-home-…'
+AssertionError: expected [Function] to throw error matching /reached through a link, which is not …/ but got 'The cache folder <scratch>…'
 exit code: 1
 
 === C9. An answer other than 200: the refusal removed ===
