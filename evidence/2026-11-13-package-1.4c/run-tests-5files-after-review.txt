@@ -1,0 +1,7 @@
+Package 1.4c after its review: the five budget test files the review ran (gateway, failures, reconcile, step hold, overrun), from builder/, at 0842aaf, on builder_test_f14c, 2026-11-13T12:26:32Z
+ RUN  v5.1.0 <scratchpad>/wt-14c/builder
+ Test Files  5 passed (5)
+      Tests  166 passed (166)
+   Start at  12:26:32
+   Duration  21.90s (tests 98%, import 2%)
+Exit code: 0

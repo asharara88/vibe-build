@@ -9,7 +9,8 @@
  * - `listJournal` shows each unreadable line (its number, length, fingerprint and text) and, to help, the
  *   candidates: open holds kept because the gateway that opened them was found gone, which no freeze names.
  * - `setAsideLine` records, in ONE transaction under the project's lock, a freeze of the named hold's project
- *   naming that hold (so the owner's reconciliation of the hold, store/reconcile.ts, clears it), a
+ *   naming that hold (of kind 'journal_line_set_aside' since 1.4b was brought up to date with 1.4c, migration 012;
+ *   the owner's reconciliation of the hold, store/reconcile.ts, clears it), a
  *   `journal_set_asides` row, and the events `gateway.journal_line_set_aside` and `project.frozen`; then moves the
  *   line from the journal file into the folder's set-aside file (forced to disk), and marks the row moved. With no
  *   hold (a line the operator has shown concerns no open hold) it records the row alone, as no project's event.
@@ -579,10 +580,12 @@ async function setAsideLocked(
         throw new RecoveryRefused("cost_already_recorded", `A model.call event already records a cost for hold ${holdId}; it could not be reconciled, so a freeze naming it could not be cleared. ${NOTHING_CHANGED}`);
       }
       const amount = Number(h.amount_usd);
+      // Its own kind since 1.4b was brought up to date with 1.4c (migration 012): the database checks it names its
+      // hold and the hold's amount, has no bill, and carries the set-aside's id and the line's fingerprint.
       const freeze = (
         await c.query<Freeze>(
-          `insert into project_freezes(project_id, hold_id, journal_id, gateway, reason, ended_at, hold_amount_usd, record)
-           values ($1, $2, $3, $4, $5, clock_timestamp(), $6, $7) returning *`,
+          `insert into project_freezes(project_id, kind, hold_id, journal_id, gateway, reason, ended_at, hold_amount_usd, record)
+           values ($1, 'journal_line_set_aside', $2, $3, $4, $5, clock_timestamp(), $6, $7) returning *`,
           [
             projectId,
             h.id,
@@ -629,7 +632,7 @@ async function setAsideLocked(
         c,
         projectId,
         "project.frozen",
-        { freeze_id: Number(freeze.id), journal_id: freeze.journal_id, hold_id: Number(h.id), hold_state: h.state, hold_amount_usd: amount, ended_at: null, reason: SET_ASIDE_FREEZE_REASON, set_aside_id: setAsideId },
+        { freeze_id: Number(freeze.id), kind: freeze.kind, journal_id: freeze.journal_id, hold_id: Number(h.id), hold_state: h.state, hold_amount_usd: amount, ended_at: null, reason: SET_ASIDE_FREEZE_REASON, set_aside_id: setAsideId },
         h.step,
       );
       await write("record: commit"); // lost now: the transaction is rolled back, and nothing of it is written

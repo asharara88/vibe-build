@@ -4,17 +4,18 @@
 
 ## State
 
-1. **Tested:** 0.1 to 0.5, 0.6a (development profile only), 1.1, **1.2**, **1.2b**, **1.3**, **1.4** and **1.5** (stand-in only), 2.1 and W4. R1: merged, not tested. Progress: plan section 10.
-2. **Built, not tested: 3.1**, the acceptance runner, with a **stand-in test** (question 12), merged; **1.4b**.
-3. **Budget cap:** a call goes ahead only if spend plus money set aside plus its hold fits the cap; a step starts only if its whole budget fits (1.3). With 1.4, a call whose cost cannot be recorded freezes its project; a killed gateway's holds stay counted. With 1.5, you close a kept hold only by recording its actual cost and evidence; that clears its freeze. A hold is a reservation from an estimate plus a margin, not a proven ceiling.
+1. **Tested:** 0.1 to 0.5, 0.6a (development profile only), 1.1, 1.2, 1.2b, 1.3, 1.4 and 1.5 (stand-in only), 2.1 and W4. R1: merged, not tested. Progress: plan section 10.
+2. **Built, not tested:** 3.1, the acceptance runner (stand-in test; merged, #29); **1.4c** (merged, #35); **1.4b** (this pull request, #33).
+3. **Budget cap:** a call goes ahead only if spend, money set aside and its hold fit the cap; a step, only if its whole budget fits (1.3). An unrecorded call ending freezes its project (1.4); a kept hold closes only when you record its cost and evidence (1.5). 1.4c: a bill above its hold is charged in full and freezes its project until you record it; so does a cut-off call already above it. Stand-in only; the first such bill is not stopped. Holds are estimates with a margin, not proven ceilings.
 4. **Isolation:** on the development profile, project containers can reach the machine's services and the builder's database (gaps 60 and 70) until 0.6c; no model-written code runs before it.
-5. **Licences and real models:** approved for internal development and testing only (questions 11 and 15); images pinned by digest, checked in `npm test`. No real model called; the gate stays closed until 0.6c and the key.
+5. **Licences and real models:** approved for internal development and testing only (questions 11 and 15); images pinned by digest, checked in `npm test`. The gate stays closed until 0.6c and the key.
 
 ## Next
 
-1. **1.4b's pull request**, its review's blocking item fixed: an unreadable journal line stops every project on its gateway until an operator sets it aside naming a hold, whose project stays frozen until reconciled, or none. Shown by tests: `evidence/2026-11-13-package-1.4b/`.
-2. **The third outside review (13 Nov):** the live acceptance test to fail, not skip, without the browser or Docker (3.1b); question 17: you chose (a), freeze after an overrun (1.4c, next).
-3. **0.6c**: you chose private networks (a); its assumptions measured first.
+1. **1.4b (#33)**, up to date with 1.4c: an unreadable journal line stops its gateway until an operator sets it aside, freezing the named hold's project until reconciled. Rechecked after the merge (`evidence/2026-11-13-package-1.4b/`).
+2. **1.4c:** wording and a new action yours to confirm.
+3. **3.1b** (third outside review): live acceptance tests to fail, not skip, without the browser or Docker; being built.
+4. **0.6c**: you chose private networks (a); its assumptions measured first.
 
 ## What blocks it
 
@@ -26,4 +27,4 @@
 
 ## Money
 
-Model spend through the builder: **$0.00** (no real call made). The hosted prototype agent outside the repository is paused by you (13 Nov). No paid service is in use.
+Model spend through the builder: **$0.00** (no real call made). The hosted prototype agent outside the repository is paused by you. No paid service is in use.

@@ -1,0 +1,6 @@
+Package 1.4c after its review: npm run typecheck, from builder/, 2026-11-13T12:22:23Z; head 0784859 plus the fix's uncommitted files (the same files as the full run)
+
+> builder@0.0.1 typecheck
+> tsc --noEmit
+
+Exit code: 0

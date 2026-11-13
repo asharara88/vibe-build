@@ -61,3 +61,40 @@ create trigger journal_set_asides_no_delete before delete on journal_set_asides
 drop trigger if exists journal_set_asides_no_truncate on journal_set_asides;
 create trigger journal_set_asides_no_truncate before truncate on journal_set_asides
   for each statement execute function journal_set_asides_kept();
+
+-- Brought up to date with package 1.4c (13 Nov 2026). On 1.4b's branch this migration was 010; 1.4c's migrations
+-- 010 and 011 gave each freeze a kind, so the freeze a set-aside writes is now a kind of its own:
+--
+--   'journal_line_set_aside'  package 1.4b: an operator set aside a journal line that could not be read, naming an
+--                             open hold kept at its full amount that the line may stand for. Written in the same
+--                             transaction as its journal_set_asides row and its events. It has no bill: what the call
+--                             cost is not known. Its hold stays open, so the owner's reconciliation of that hold
+--                             clears it, as it clears 'unrecorded_ending'.
+--
+-- Such a freeze names its hold and the hold's amount, has no bill, its journal_id is 'set-aside:' and the set-aside's
+-- id (so one per line set aside: journal_id is unique, migration 009), and its record carries that id and the line's
+-- fingerprint. Two lines may be set aside naming the same hold, so the index of one freeze per hold and kind
+-- (migration 010) leaves this kind out, as it leaves out 'unrecorded_ending'; migration 010's check of a bill above
+-- the hold's amount does not apply to it. Every check of migrations 010 and 011 is kept as it was for their kinds.
+-- A set-aside freeze written before this (only on a database that ran 1.4b's migration before 1.4c's) has the kind
+-- 'unrecorded_ending' that migration 010 gave it, and keeps it: a freeze is never rewritten (migration 009).
+
+alter table project_freezes drop constraint if exists project_freezes_kind_known;
+alter table project_freezes add constraint project_freezes_kind_known
+  check (kind in ('unrecorded_ending', 'bill_above_hold', 'late_answer_above_hold', 'kept_above_hold', 'journal_line_set_aside'));
+alter table project_freezes drop constraint if exists project_freezes_overrun_figures;
+alter table project_freezes add constraint project_freezes_overrun_figures
+  check (kind in ('unrecorded_ending', 'journal_line_set_aside')
+         or (hold_id is not null and hold_amount_usd is not null and bill_usd is not null
+             and bill_usd <> 'NaN'::numeric and hold_amount_usd <> 'NaN'::numeric and bill_usd > hold_amount_usd));
+-- Every part is tested for null first: a check whose result is null passes.
+alter table project_freezes drop constraint if exists project_freezes_set_aside_line;
+alter table project_freezes add constraint project_freezes_set_aside_line
+  check (kind <> 'journal_line_set_aside'
+         or (hold_id is not null and hold_amount_usd is not null and hold_amount_usd <> 'NaN'::numeric and bill_usd is null
+             and journal_id is not null and (record->>'set_aside_id') is not null
+             and journal_id = 'set-aside:' || (record->>'set_aside_id')
+             and (record->>'fingerprint') is not null and (record->>'fingerprint') ~ '^[0-9a-f]{64}$'));
+drop index if exists project_freezes_one_overrun_per_hold;
+create unique index project_freezes_one_overrun_per_hold
+  on project_freezes(hold_id, kind) where kind not in ('unrecorded_ending', 'journal_line_set_aside');

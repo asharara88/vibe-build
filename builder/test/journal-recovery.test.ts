@@ -27,6 +27,7 @@ import { LISTED_BYTES, listJournal, RecoveryRefused, setAsideLine } from "../src
 import { createClient } from "../src/store/db.js";
 import { listEvents } from "../src/store/events.js";
 import { activeFreeze, listFreezes, SET_ASIDE_FREEZE_REASON, type UnrecordedEnding } from "../src/store/freezes.js";
+import { listUnreconciled, ReconcileRefused, reconcileHold, recordOverrun } from "../src/store/reconcile.js";
 import { keepHold, listHolds, openHold, OWNER_GONE, settleHold } from "../src/store/holds.js";
 import { gatewayLockKeySql, holdLivenessLock, type Liveness } from "../src/store/liveness.js";
 import { createProject, issueProjectToken } from "../src/store/projects.js";
@@ -868,5 +869,78 @@ describe("the third outside review, item 1: an unreadable journal line keeps the
     const listed = await recover(["--list", "--dir", dir]);
     expect(listed.code).toBe(0);
     expect(listed.out).toContain(`(the line is ${long.length} bytes long; only its start is shown)`);
+  }, 60_000);
+
+  it("(m) brought up to date with 1.4c: a set-aside's freeze is of kind 'journal_line_set_aside' (two lines may name one hold); the database refuses one with no hold, no fingerprint or a bill; it is refused with its own message, listed as freezing its project, refused by the record of a bill above its hold, and cleared by its hold's reconciliation", async () => {
+    const dir = await newDir();
+    const journal = await FaultJournal.open(dir);
+    const p = await newProject(5);
+    const kept = await storeHold(p.id);
+    await keepHold(pool, { projectId: p.id, holdId: kept, step: null, reason: "the provider's answer broke off part-way", seen: {} });
+    const notJson = Buffer.from("made-up garbage, line one of (m)");
+    const torn = Buffer.from(`{"journal_id":"j_made_up_m","gateway":"gw_made_up","project_id":"${p.id}","hold_id":"${kept}","st`);
+    await writeFile(journal.file, Buffer.concat([notJson, Buffer.from("\n"), torn]));
+    // Two lines set aside, each naming the same hold: a freeze for each, as on 1.4b's branch.
+    const first = await setAsideLine(pool, TEST_DB_URL, { dir, line: 1, fingerprint: fingerprintOf(notJson), hold: kept, by: WHO.by, reason: WHO.reason });
+    const second = await setAsideLine(pool, TEST_DB_URL, { dir, line: 1, fingerprint: fingerprintOf(torn), hold: kept, by: WHO.by, reason: WHO.reason });
+    const freezes = await listFreezes(pool, p.id);
+    expect(freezes.map((f) => [f.kind, f.hold_id, f.journal_id, f.bill_usd, f.record["fingerprint"], f.cleared_at])).toEqual([
+      ["journal_line_set_aside", kept, `set-aside:${first.setAsideId}`, null, fingerprintOf(notJson), null],
+      ["journal_line_set_aside", kept, `set-aside:${second.setAsideId}`, null, fingerprintOf(torn), null],
+    ]);
+    expect((await listEvents(pool, p.id, "project.frozen")).map((e) => [e.payload["kind"], e.payload["freeze_id"]])).toEqual(freezes.map((f) => ["journal_line_set_aside", Number(f.id)]));
+    // Its own refusal message, and the gateway's refusal event names its kind.
+    const app = createGateway({ pool, modelApiKey: MADE_UP_KEY, upstreamUrl: standUrl, profiles: DEFAULT_PROFILES, gatewayId: uniqueId("gw_14b_m"), journal: await FaultJournal.open(await newDir()), onFault: () => undefined });
+    const url = await new Promise<string>((resolve) => servers.push(serve({ fetch: app.fetch, port: 0, hostname: "127.0.0.1" }, (i) => resolve(`http://127.0.0.1:${i.port}`))));
+    const sent = { messages: stand.messages, counts: stand.counts };
+    const refused = await outcome(await callAt(url, p.token, body(p.id)));
+    expect(refused).toMatchObject({ status: 402, type: "project_frozen" });
+    expect(refused.message).toContain(`a line of the gateway's journal that could not be read was set aside at ${freezes[0]!.frozen_at.toISOString()} as possibly the record of a call on its hold ${kept}`);
+    expect({ messages: stand.messages, counts: stand.counts }).toEqual(sent);
+    expect((await listEvents(pool, p.id, "gateway.refused")).map((e) => [e.payload["freeze_kind"], e.payload["freeze_id"]])).toEqual([["journal_line_set_aside", Number(freezes[0]!.id)]]);
+    // Listed as freezing its project, each freeze with its kind.
+    const listed = (await listUnreconciled(pool, { projectId: p.id })).holds;
+    expect(listed.map((h) => [h.holdId, h.kinds.includes("froze its project"), h.freezes.map((f) => f.kind)])).toEqual([[kept, true, ["journal_line_set_aside", "journal_line_set_aside"]]]);
+    const script = await runScript("reconcile.ts", ["--list", "--project", p.id]);
+    expect(script.code).toBe(0);
+    for (const f of freezes) {
+      expect(script.out).toContain(`    froze its project: freeze ${f.id} (an unreadable journal line set aside as ${f.journal_id!.slice("set-aside:".length)}), set aside ${f.ended_at.toISOString()}; not cleared; cost as read (none)`);
+    }
+    // The database refuses such a freeze with no hold, with no fingerprint, or with a bill (what the call cost is not known).
+    const insert = (hold: string | null, record: Record<string, unknown>, billUsd: string | null) =>
+      pool.query(
+        `insert into project_freezes(project_id, kind, hold_id, journal_id, gateway, reason, ended_at, hold_amount_usd, bill_usd, record)
+         values ($1, 'journal_line_set_aside', $2, $3, 'gw_made_up', 'test (made up)', now(), $4, $5, $6)`,
+        [p.id, hold, `set-aside:${String(record["set_aside_id"])}`, HOLD_USD, billUsd, JSON.stringify(record)],
+      ).then(
+        () => null,
+        (e: unknown) => e,
+      );
+    const fp = "a".repeat(64);
+    for (const [hold, record, billUsd] of [
+      [null, { set_aside_id: "sa_made_up_m1", fingerprint: fp }, null],
+      [kept, { set_aside_id: "sa_made_up_m2" }, null],
+      [kept, { set_aside_id: "sa_made_up_m3", fingerprint: "not a fingerprint" }, null],
+      [kept, { set_aside_id: "sa_made_up_m4", fingerprint: fp }, "0.012284"],
+    ] as const) {
+      expect(await insert(hold, record, billUsd)).toMatchObject({ code: "23514", constraint: "project_freezes_set_aside_line" });
+    }
+    expect(await listFreezes(pool, p.id)).toHaveLength(2);
+    // The record of a bill above its hold refuses it, naming what froze the project; nothing changes.
+    const overrun = await recordOverrun(pool, { projectId: p.id, holdId: kept, evidence: "made up", askedBy: "the owner (made up)", recordedBy: "the test", reason: "package 1.4b test (m)" }).then(
+      () => null,
+      (e: unknown) => e,
+    );
+    expect(overrun).toBeInstanceOf(ReconcileRefused);
+    expect(overrun).toMatchObject({ code: "no_overrun_freeze" });
+    expect((overrun as Error).message).toContain("an unreadable line of the gateway's journal was set aside naming it");
+    expect((await listFreezes(pool, p.id)).filter((f) => f.cleared_at === null)).toHaveLength(2);
+    // The hold's reconciliation clears both; the project's next call is forwarded and settled.
+    const rec = await reconcileHold(pool, { projectId: p.id, holdId: kept, actualUsd: BILL_MICRO / 1e6, evidence: "Usage record (made up for the test)", askedBy: "the owner (made up)", recordedBy: "the test", reason: "package 1.4b test (m)" });
+    expect({ cleared: rec.freezesCleared, stillFrozen: rec.projectStillFrozen }).toEqual({ cleared: freezes.map((f) => f.id), stillFrozen: false });
+    expect(await activeFreeze(pool, p.id)).toBeNull();
+    expect((await callAt(url, p.token, body(p.id))).status).toBe(200);
+    expect((await kinds(p.id)).slice(-3)).toEqual(["hold.opened", "model.call", "hold.settled"]);
+    await invariantsHold(p.id);
   }, 60_000);
 });
