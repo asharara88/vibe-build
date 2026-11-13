@@ -14,7 +14,9 @@
 //            "machineAddresses": ["a.b.c.d", ...]  every address the machine holds, read there (group M),
 //            "egressHost": "egress"                where the project's egress proxy is (default 127.0.0.1),
 //            "gatewayVia": "egress:4010"           the door's gateway port (attempt W1),
-//            "peers": ["db:5432", "app:3131", ...] the project's own services by name (group P)}
+//            "peers": ["db:5432", "app:3131", ...] the project's own services by name (group P),
+//            and, from package J3, optional:
+//            "sockets": ["/psock/c.sock"]          Unix sockets mounted into the container (group U)}
 // The session proxy is given as host and port only; anything that looks like a user name or a password
 // is refused, so the probe can never print one. `bridgeGateway` (the gateway address of Docker's default
 // network) and `machineListeners` (the machine's listening TCP sockets, with their addresses) are read on
@@ -54,6 +56,7 @@ export const GROUPS = {
   M: "Toward every address the machine holds, on every port listening on the machine",
   P: "The project's own services, by name",
   W: "The model gateway, through the door's gateway port",
+  U: "Through a Unix socket mounted into the container",
 };
 
 const HOST_PORT = /^([a-zA-Z0-9.-]{1,253}|\[[0-9a-fA-F:]{2,39}\]):(\d{1,5})$/;
@@ -132,8 +135,16 @@ export function parseSettings(text) {
     if (!m || Number(m[2]) < 1 || Number(m[2]) > 65535) throw new Error('"peers" must be a list of "name:port" texts.');
     peers.push({ host: m[1], port: Number(m[2]) });
   }
+  const sockets = [];
+  const givenSockets = raw.sockets ?? [];
+  if (!Array.isArray(givenSockets) || givenSockets.length > 4) throw new Error('"sockets" must be a list of at most 4 socket paths.');
+  for (const item of givenSockets) {
+    if (typeof item !== "string" || !/^\/psock\/[a-z0-9-]{1,40}\.sock$/.test(item)) throw new Error('"sockets" must be a list of "/psock/<name>.sock" paths.');
+    sockets.push(item);
+  }
   return {
     sessionProxy,
+    sockets,
     machineAddresses,
     egressHost,
     gatewayVia,
@@ -373,6 +384,10 @@ export function planAttempts(s, extraListeners = []) {
   for (const p of s.peers)
     add(`P${p.host}:${p.port}`, "P", "project", `the project's ${p.host} service, by its name`, `${p.host}:${p.port}`, "TCP connection, opened and closed; nothing sent", { type: "tcp", host: p.host, port: p.port });
 
+  // U (package J3): each Unix socket mounted into the container, asked for a page.
+  for (const [i, path] of (s.sockets ?? []).entries())
+    add(`U${i + 1}`, "U", "host", "a Unix socket mounted into the container (the live camera's)", path, "HTTP GET / over the socket, no proxy", { type: "unix-http", path });
+
   if (s.sessionProxy) {
     const sp = s.sessionProxy;
     const via = `CONNECT through the cloud session's proxy (${hostPort(sp.host, sp.port)})`;
@@ -513,6 +528,19 @@ function httpAttempt(op, ms, secure, sessionCert) {
   });
 }
 
+/** An HTTP GET / over a Unix socket (package J3, group U). */
+function unixHttpAttempt(op, ms) {
+  return withLimit(ms, (finish, cleanup, atLimit) => {
+    const req = http.request({ socketPath: op.path, path: "/", method: "GET", agent: false, headers: { host: "socket", "user-agent": "isolation-probe", connection: "close" } }, (res) =>
+      readAnswer(res, finish, cleanup, atLimit, ms),
+    );
+    cleanup(() => req.destroy());
+    req.on("socket", () => openedThenSilent(atLimit, ms, "the socket opened; no HTTP status came"));
+    req.on("error", (e) => finish({ result: classifyError(codeOf(e)), code: codeOf(e), detail: "" }));
+    req.end();
+  });
+}
+
 function httpViaProxyAttempt(op, ms) {
   return withLimit(ms, (finish, cleanup, atLimit) => {
     const url = new URL(op.url);
@@ -641,6 +669,8 @@ export async function runAttempt(a, s, sessionCert) {
       return lookupAttempt(a.op, ms);
     case "resolve":
       return resolveAttempt(a.op, ms);
+    case "unix-http":
+      return unixHttpAttempt(a.op, ms);
     default:
       return { result: "error", code: "UNKNOWN_ATTEMPT", detail: a.op.type };
   }

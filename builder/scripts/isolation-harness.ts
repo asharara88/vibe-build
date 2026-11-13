@@ -68,6 +68,16 @@ export async function freePort(): Promise<number> {
   return port;
 }
 
+/** What the preview front's stand-in puts in its `server` header (package J3). */
+export const FRONT_STAND_IN = "preview-front-stand-in";
+
+/** Package J3: a stand-in for the preview front on 127.0.0.1:`port` (4041, the automated run's), so that it is listening while the machine's listeners are read for group M. */
+export async function startFrontStandIn(port: number): Promise<{ port: number; close: () => Promise<void> }> {
+  const server = http.createServer((_req, res) => res.writeHead(200, { server: FRONT_STAND_IN, "content-type": "text/plain" }).end("stand-in preview front"));
+  await new Promise<void>((r) => server.listen(port, "127.0.0.1", r));
+  return { port, close: () => new Promise((r) => server.close(() => r())) };
+}
+
 /** A stand-in gateway on 127.0.0.1, on a port the system chooses. */
 export async function startGatewayStandIn(): Promise<{ port: number; close: () => Promise<void> }> {
   const server = http.createServer((_req, res) => res.writeHead(200, { server: GATEWAY_STAND_IN, "content-type": "text/plain" }).end("stand-in gateway"));
@@ -128,12 +138,12 @@ export async function devProbeSettings(sb: Sandbox, ctx: ProjectProbeContext): P
 }
 
 /** The probe in a fresh one-off container of a project service, through the sandbox manager. */
-export async function probeService(sb: Sandbox, service: string, label: string, settings: string): Promise<string[]> {
+export async function probeService(sb: Sandbox, service: string, label: string, settings: string, extraVolumes: string[] = []): Promise<string[]> {
   const lines: string[] = [];
   const r = sandbox.runStreaming(sb, service, ["node", PROBE_MOUNT, settings], {
     container: `${sb.projectName}-isolation-${label}`,
     onLine: (l) => lines.push(l),
-    volumes: [`${PROBE_FILE}:${PROBE_MOUNT}:ro`],
+    volumes: [`${PROBE_FILE}:${PROBE_MOUNT}:ro`, ...extraVolumes],
     timeoutMs: 600_000,
   });
   const end = await r.done;

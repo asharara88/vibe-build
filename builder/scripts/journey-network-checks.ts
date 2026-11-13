@@ -29,3 +29,21 @@ export function networkChecks(seen: Map<string, { networks: string; ports: strin
   ];
 }
 
+
+/**
+ * Package J3: the checks on the live preview's containers in Docker's list: the live camera (the project's own
+ * `acceptance` service, with the camera socket's folder mounted) and every stream (a `check` container, named
+ * `<project>-live-<8 hex>`) on the project's front network alone, none publishing a port.
+ */
+export function liveNetworkChecks(seen: Map<string, { networks: string; ports: string }>): Array<{ name: string; ok: boolean; detail: string }> {
+  const rows = [...seen.entries()].map(([name, v]) => ({ name, ...v }));
+  const project = (name: string) => /^(builder_j1-[0-9a-f]{12})-/.exec(name)?.[1] ?? "?";
+  const frontOnly = (r: { name: string; networks: string }) => r.networks === `${project(r.name)}_front`;
+  const list = (rs: typeof rows) => rs.map((r) => `${r.name} [${r.networks}]${r.ports ? ` ports ${r.ports}` : ""}`).join("; ");
+  const liveCameras = rows.filter((r) => /^builder_j1-[0-9a-f]{12}-live-camera-[0-9a-f]{6}$/.test(r.name));
+  const streams = rows.filter((r) => /^builder_j1-[0-9a-f]{12}-live-[0-9a-f]{8}$/.test(r.name));
+  return [
+    { name: "the live camera ran on the project's front network alone", ok: liveCameras.length > 0 && liveCameras.every(frontOnly), detail: list(liveCameras) || "not seen" },
+    { name: "every stream to the app (a check container) seen was on the project's front network alone, publishing no port", ok: streams.length > 0 && streams.every((r) => frontOnly(r) && !r.ports.includes("->")), detail: `${streams.length} seen: ${list(streams.slice(0, 6))}${streams.length > 6 ? "; ..." : ""}` },
+  ];
+}
