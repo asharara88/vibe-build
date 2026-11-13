@@ -1,0 +1,26 @@
+M6, 2026-11-13T18:56:41.439Z: the preview front's process (pid 17704), started as the interface starts it, on 127.0.0.1:4041.
+  Its user (real, effective, saved, file system): 1990, 1990, 1990, 1990; its group: 1990, 1990, 1990, 1990; supplementary groups: none; effective capabilities: 0000000000000000.
+  The names in its environment (its starting environment, /proc/17704/environ; values not read): BUILDER_PREVIEW_PORT, BUILDER_PREVIEW_PUMP, NODE_CHANNEL_FD, NODE_CHANNEL_SERIALIZATION_MODE. NODE_CHANNEL_FD and NODE_CHANNEL_SERIALIZATION_MODE are Node's own, for the fork channel.
+  Its open files (/proc/17704/fd; socket and pipe numbers dropped): 0 -> /dev/null; 1 -> /dev/null; 10 -> anon_inode; 11 -> anon_inode; 12 -> anon_inode; 13 -> pipe; 14 -> pipe; 15 -> anon_inode; 16 -> anon_inode; 17 -> anon_inode; 18 -> pipe; 19 -> pipe; 2 -> socket; 20 -> anon_inode; 21 -> /dev/null; 22 -> socket; 3 -> socket; 4 -> anon_inode; 5 -> anon_inode; 6 -> pipe; 7 -> pipe; 8 -> pipe; 9 -> pipe.
+  Its working folder: /tmp/bpv-<random> (the interface's short folder: root's, mode 711; the front's two files, mode 444).
+
+As the front's user, each of these is tried:
+  PASS: Docker's socket: refused (EACCES).
+  PASS: a data folder like the interface's (root's, mode 700): list it: refused (EACCES).
+  PASS: a file in it: refused (EACCES).
+  PASS: a door socket folder like 0.6c's (user 1000, mode 750): its socket: refused (EACCES).
+  PASS: PostgreSQL's socket: a sign-in as root (peer authentication): connected; the server refused the sign-in: "Peer authentication failed for user "root"".
+  PASS: PostgreSQL over TCP on 127.0.0.1:5432: a sign-in as root: the server asks for a password (method 10).
+  PASS: PostgreSQL over TCP on 127.0.0.1:5432: a sign-in as postgres: the server asks for a password (method 10).
+  PASS: the builder's own files (the interface's source): refused (EACCES).
+  PASS: the builder's package file: refused (EACCES).
+
+Every port listening on 127.0.0.1 (and on every address), tried as the front's user (gap 149: these it can reach):
+  127.0.0.1:2024: connected
+  127.0.0.1:4020: connected (the owner's interface: its sign-in still asks for the password)
+  127.0.0.1:4041: connected (the front itself)
+  127.0.0.1:5432: connected (PostgreSQL over TCP)
+  127.0.0.1:35237: connected
+  127.0.0.1:40405: connected
+
+RESULT: every check passed.

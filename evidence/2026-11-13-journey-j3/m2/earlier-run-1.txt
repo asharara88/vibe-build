@@ -1,0 +1,40 @@
+lock wait start 18:21:20
+Lock held at 18:21:20 UTC
+M2, 2026-11-13T18:21:20.663Z: streams through short-lived check containers, sandbox builder_p_j3m2_d2a6a3 (development profile), app stand-in on app:3171.
+Before: stream containers of this project [].
+App stand-in started and healthy (db, app).
+The docker arguments of a stream: docker compose -f <compose file> --profile tools --profile engine --profile acceptance --profile check run --rm --no-deps -T --name builder_p_j3m2_d2a6a3-live-2252a8bd check node -e const s=require('net').connect(Number(process.argv[2]),process.argv[1]);s.on('connect',()=>{process.stdin.pipe(s);s.pipe(process.stdout)});s.on('error',()=>process.exit(1));s.on('close',()=>process.exit(0));process.stdout.on('error',()=>process.exit(0)) app 3171
+
+== 1. One stream, straight ==
+  run 1: cold (a new stream: container started) first byte 359 ms, whole page 364 ms; warm (the same stream, a second request) first byte 2 ms, whole page 126 ms; bytes 244 then 216
+  run 2: cold (a new stream: container started) first byte 365 ms, whole page 366 ms; warm (the same stream, a second request) first byte 1 ms, whole page 131 ms; bytes 244 then 216
+  run 3: cold (a new stream: container started) first byte 373 ms, whole page 377 ms; warm (the same stream, a second request) first byte 1 ms, whole page 107 ms; bytes 244 then 216
+  2 MB answer: HTTP 200, 2097152 bytes in 499 ms (first byte 356 ms); SHA-256 15d80ba308304e391a817479e20a3922787105dfdff12e2251e83d80f8c32195; expected 15d80ba308304e391a817479e20a3922787105dfdff12e2251e83d80f8c32195: the same
+  POST body of every byte value (65536 bytes, 0x10 0x11 included 256 times): the app received SHA-256 7daca2095d0438260fa849183dfc67faa459fdf4936e1bc91eec6b281b27e4c2; echoed back 7daca2095d0438260fa849183dfc67faa459fdf4936e1bc91eec6b281b27e4c2; sent 7daca2095d0438260fa849183dfc67faa459fdf4936e1bc91eec6b281b27e4c2: the same both ways
+  After step 1: stream containers left 0, docker compose clients left 0 (checked 31 ms after the last stream).
+
+== 2. Through the preview front and the pump socket ==
+  Entered with the pass: HTTP 303. Front's user: uid 1990 (no name in /etc/passwd).
+  Through the front: cold 352 ms (HTTP 200), warm 6 ms (HTTP 200); streams opened so far 1.
+  2 MB through the front: HTTP 200, 2097152 bytes, 37 ms, SHA-256 the same.
+  Six requests at once: HTTP 200 30 ms, HTTP 200 554 ms, HTTP 200 651 ms, HTTP 200 588 ms, HTTP 200 590 ms, HTTP 200 643 ms; all in 652 ms; streams opened so far 6, open now 6.
+  A client left after 109358 bytes of the 2 MB answer.
+  A page that never ends (HTTP 200): its client left after 3 s.
+  After step 2 and the session's end: stream containers left 1, docker compose clients left 2 (20342 ms).
+
+== 3. The interface killed (SIGKILL) with streams open ==
+  With three pages that never end open: stream containers 4, docker compose clients 8.
+  The interface (pid 13518) killed with SIGKILL.
+  After: stream containers left 4 (builder_p_j3m2_d2a6a3-live-1be99d9c, builder_p_j3m2_d2a6a3-live-88054cb5, builder_p_j3m2_d2a6a3-live-5c75eeeb, builder_p_j3m2_d2a6a3-live-c2659477), docker compose clients left 8, checked 30110 ms after the kill; the front (pid 13536) STILL RUNNING.
+
+== 4. compose run against exec (time to a first byte, a new connection each) ==
+  run 1: compose run first byte 406 ms (whole 510 ms); exec into the running app first byte 145 ms. (Exec is measured only: it runs inside a container the app controls, which the design does not use.)
+  run 2: compose run first byte 354 ms (whole 463 ms); exec into the running app first byte 165 ms. (Exec is measured only: it runs inside a container the app controls, which the design does not use.)
+  run 3: compose run first byte 357 ms (whole 494 ms); exec into the running app first byte 179 ms. (Exec is measured only: it runs inside a container the app controls, which the design does not use.)
+
+Removed: the sandbox, its images and its folder. Stream containers left: 1; compose clients left: 2.
+RESULT: NOT every check passed.
+exit 137
+Lock released at 18:34:09 UTC
+
+[exited with code 0]

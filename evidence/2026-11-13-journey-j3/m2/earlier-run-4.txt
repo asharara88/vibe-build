@@ -1,0 +1,54 @@
+M2, 2026-11-13T18:43:21.655Z: streams through short-lived check containers, sandbox builder_p_j3m2_ca8216 (development profile), app stand-in on app:3171.
+Before: stream containers of this project [].
+App stand-in started and healthy (db, app).
+The docker arguments of a stream: docker compose -f <compose file> --profile tools --profile engine --profile acceptance --profile check run --rm --no-deps -T --name builder_p_j3m2_ca8216-live-3942bae9 check node -e const s=require('net').connect(Number(process.argv[2]),process.argv[1]);s.on('connect',()=>{process.stdin.pipe(s);s.pipe(process.stdout)});s.on('error',()=>process.exit(1));s.on('close',()=>process.exit(0));process.stdout.on('error',()=>process.exit(0));process.stdin.on('end',()=>setTimeout(()=>process.exit(0),2000));s.setTimeout(70000,()=>process.exit(0)) app 3171
+
+== 1. One stream, straight ==
+  run 1: cold (a new stream: container started) first byte 369 ms, whole page 372 ms; warm (the same stream, a second request) first byte 2 ms, whole page 114 ms; bytes 244 then 216
+  run 2: cold (a new stream: container started) first byte 377 ms, whole page 377 ms; warm (the same stream, a second request) first byte 1 ms, whole page 128 ms; bytes 244 then 216
+  run 3: cold (a new stream: container started) first byte 398 ms, whole page 399 ms; warm (the same stream, a second request) first byte 1 ms, whole page 128 ms; bytes 244 then 216
+  2 MB answer: HTTP 200, 2044146 bytes in 599 ms (first byte 441 ms); SHA-256 03ffaf772beff2469262de506dc28df7ae20c5db6ac774c3aa68f042d68c10ee; expected 15d80ba308304e391a817479e20a3922787105dfdff12e2251e83d80f8c32195: DIFFERENT
+  POST body of every byte value (65536 bytes, 0x10 0x11 included 256 times): the app received SHA-256 7daca2095d0438260fa849183dfc67faa459fdf4936e1bc91eec6b281b27e4c2; echoed back 7daca2095d0438260fa849183dfc67faa459fdf4936e1bc91eec6b281b27e4c2; sent 7daca2095d0438260fa849183dfc67faa459fdf4936e1bc91eec6b281b27e4c2: the same both ways
+  After step 1: stream containers left 0, docker compose clients left 0 (checked 34 ms after the last stream).
+
+== 2. Through the preview front and the pump socket ==
+  Entered with the pass: HTTP 303. Front's user: uid 1990 (no name in /etc/passwd).
+  Through the front: cold 361 ms (HTTP 200), warm 5 ms (HTTP 200); streams opened so far 1.
+  2 MB through the front: HTTP 200, 2097152 bytes, 35 ms, SHA-256 the same.
+  Six requests at once: HTTP 200 34 ms, HTTP 200 661 ms, HTTP 200 621 ms, HTTP 200 659 ms, HTTP 200 663 ms, HTTP 200 677 ms; all in 678 ms; streams opened so far 6, open now 6.
+  A client left after 127918 bytes of the 2 MB answer.
+  A page that never ends (HTTP 200): its client left after 3 s.
+  After step 2 and the session's end: stream containers left 0, docker compose clients left 0 (29 ms after the session ended).
+  Each stream's life (ms from the run's start):
+    12445 opened <project>-live-4016dfb7
+    12855 opened <project>-live-c0c05b61
+    12857 opened <project>-live-054e95a2
+    12861 opened <project>-live-adae7c8d
+    12879 opened <project>-live-4936aac7
+    12883 opened <project>-live-2163eb26
+    13538 kill asked <project>-live-2163eb26
+    13716 ended <project>-live-2163eb26 code 0
+    16556 kill asked <project>-live-4016dfb7
+    16559 kill asked <project>-live-c0c05b61
+    16561 kill asked <project>-live-054e95a2
+    16565 kill asked <project>-live-adae7c8d
+    16569 kill asked <project>-live-4936aac7
+    16749 ended <project>-live-054e95a2 code 0
+    16783 ended <project>-live-4936aac7 code 0
+    16866 ended <project>-live-4016dfb7 code 137
+    16906 ended <project>-live-c0c05b61 code 0
+    16952 ended <project>-live-adae7c8d code 0
+
+== 3. The interface killed (SIGKILL) with streams open ==
+  With three pages that never end open: stream containers 3, docker compose clients 6.
+  The interface (pid 2115) killed with SIGKILL.
+  The killed interface's short folder in /tmp is left (it could not remove it): bpv-qrklyw. The next interface to start removes such a folder, once nothing listens on its pump socket (preview.ts, removeStaleFolders); removed here by the same function: bpv-qrklyw.
+  After: stream containers left 0 (none), docker compose clients left 0, checked 625 ms after the kill; the front (pid 2122) gone.
+
+== 4. compose run against exec (time to a first byte, a new connection each) ==
+  run 1: compose run first byte 400 ms (whole 527 ms); exec into the running app first byte 160 ms. (Exec is measured only: it runs inside a container the app controls, which the design does not use.)
+  run 2: compose run first byte 357 ms (whole 486 ms); exec into the running app first byte 170 ms. (Exec is measured only: it runs inside a container the app controls, which the design does not use.)
+  run 3: compose run first byte 439 ms (whole 563 ms); exec into the running app first byte 165 ms. (Exec is measured only: it runs inside a container the app controls, which the design does not use.)
+
+Removed: the sandbox, its images and its folder. Stream containers left: 0; compose clients left: 0.
+RESULT: NOT every check passed.

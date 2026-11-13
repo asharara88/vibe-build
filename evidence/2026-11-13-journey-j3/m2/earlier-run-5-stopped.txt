@@ -1,0 +1,10 @@
+M2, 2026-11-13T18:46:27.362Z: streams through short-lived check containers, sandbox builder_p_j3m2_e081d5 (development profile), app stand-in on app:3171.
+Before: stream containers of this project [].
+App stand-in started and healthy (db, app).
+The docker arguments of a stream: docker compose -f <compose file> --profile tools --profile engine --profile acceptance --profile check run --rm --no-deps -T --name builder_p_j3m2_e081d5-live-52195dfd check node -e let up=false,appGone=false,inGone=false;const bye=(c)=>process.stdout.write('',()=>process.exit(c));const s=require('net').connect(Number(process.argv[2]),process.argv[1]);s.on('connect',()=>{up=true;process.stdin.pipe(s);s.pipe(process.stdout,{end:false})});s.on('error',()=>{if(!up)process.exit(1)});s.on('close',()=>{appGone=true;if(inGone)bye(0);else setTimeout(()=>process.exit(0),70000)});process.stdin.on('end',()=>{inGone=true;if(appGone)bye(0);else setTimeout(()=>process.exit(0),2000)});process.stdout.on('error',()=>process.exit(0));s.setTimeout(70000,()=>process.exit(0)) app 3171
+
+== 1. One stream, straight ==
+  run 1: cold (a new stream: container started) first byte 336 ms, whole page 336 ms; warm (the same stream, a second request) first byte 2 ms, whole page 70142 ms; bytes 244 then 216
+  run 2: cold (a new stream: container started) first byte 308 ms, whole page 312 ms; warm (the same stream, a second request) first byte 1 ms, whole page 70150 ms; bytes 244 then 216
+  run 3: cold (a new stream: container started) first byte 310 ms, whole page 313 ms; warm (the same stream, a second request) first byte 1 ms, whole page 70174 ms; bytes 244 then 216
+  2 MB answer, try 1 of 5 (the app closes the connection after it): HTTP 200, 2097152 bytes in 379 ms (first byte 346 ms; the stream ended at 70524 ms); SHA-256 15d80ba308304e391a817479e20a3922787105dfdff12e2251e83d80f8c32195; expected 15d80ba308304e391a817479e20a3922787105dfdff12e2251e83d80f8c32195: the same
