@@ -135,7 +135,7 @@ try {
   log(`  Added, compared with the approved list of 109 (docs/licences/raw/ubuntu-runner-packages.tsv): ${img.problems.length === 0 ? "exactly the approved packages at the approved versions; no package of the base image changed" : "DIFFERENT: " + img.problems.join("; ")}.`);
   for (const [k, v] of Object.entries(img.facts)) log(`  ${k}: ${v}`);
   writeFileSync(join(outDir, "runner-packages.txt"), [`Runner image ${img.image} ${img.imageId}, read ${new Date().toISOString()}`, `Base: ${RUNNER_BASE_IMAGES.ubuntu}`, "", `Whole image (${img.packages.length}):`, ...img.packages, "", `Of the base image (${img.basePackages.length}):`, ...img.basePackages, "", `Added (${img.added.length}):`, ...img.added, "", `Problems: ${img.problems.length ? img.problems.join("; ") : "none"}`].join("\n") + "\n");
-  writeFileSync(join(outDir, "runner-image-build.log"), img.buildLog);
+  writeFileSync(join(outDir, "runner-image-build.txt"), img.buildLog);
   if (img.problems.length) throw new Error("the runner image is not as approved");
 
   log("");

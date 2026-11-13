@@ -4,6 +4,7 @@
  * rule, the label, the change sets and the runner's own files. The live tests are in
  * test/acceptance-live.test.ts.
  */
+import { execFileSync } from "node:child_process";
 import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, relative, resolve } from "node:path";
@@ -527,6 +528,42 @@ describe("the runner image's own files", () => {
     const cache2 = mkdtempSync(join(scratch, "cache-"));
     symlinkSync(join(cache, "chrome-headless-shell-linux64.zip"), join(cache2, "chrome-headless-shell-linux64.zip"));
     await expect(checkedBrowserZip({ BUILDER_BROWSER_CACHE: cache2 })).rejects.toThrow(/not a plain file/);
+  });
+});
+
+// ---------------------------------------------------------------------------------------------------
+// The evidence (review of 13 Nov 2026, blocking item): a check cited as passed must have its output in the
+// repository. Two build logs were named `*.log`, which the repository's .gitignore leaves out, so they were
+// cited but never committed.
+
+const EVIDENCE_DIR = join("evidence", "2026-11-13-package-3.1");
+/** True when git would leave this path (relative to the repository) out, tracked or not. */
+const gitIgnores = (path: string): boolean => {
+  try {
+    execFileSync("git", ["check-ignore", "-q", "--no-index", "--", path], { cwd: REPO_ROOT, stdio: "ignore" });
+    return true; // exit 0: ignored
+  } catch (err) {
+    if ((err as { status?: number }).status === 1) return false; // exit 1: not ignored
+    throw err;
+  }
+};
+const gitTracks = (path: string): boolean => execFileSync("git", ["ls-files", "--", path], { cwd: REPO_ROOT, encoding: "utf8" }).trim() !== "";
+
+describe("package 3.1's evidence is in the repository, not left out by .gitignore", () => {
+  it("no file the demonstration writes into its evidence folder has a name git ignores", () => {
+    const src = readFileSync(join(builderDir, "scripts", "demo-acceptance.ts"), "utf8");
+    const names = [...src.matchAll(/join\(outDir, ((?:"[^"]+"(?:, )?)+)\)/g)].map((m) => [...m[1]!.matchAll(/"([^"]+)"/g)].map((n) => n[1]).join("/"));
+    expect(names).toEqual(expect.arrayContaining(["runner-packages.txt", "attempts-table.md", "events.json", "mounts.json", "probe-engine-network.jsonl"]));
+    expect(names.filter((n) => n.startsWith("runner-image-build."))).toHaveLength(1);
+    expect(names.filter((n) => gitIgnores(join(EVIDENCE_DIR, n)))).toEqual([]);
+  });
+
+  it("every file the evidence summary lists under 'Files here' is tracked by git", () => {
+    const summary = readFileSync(join(REPO_ROOT, EVIDENCE_DIR, "acceptance.md"), "utf8");
+    const section = summary.split(/^## Files here$/m)[1]?.split(/^## /m)[0] ?? "";
+    const listed = [...section.matchAll(/`([^`]+)`/g)].map((m) => m[1]!).filter((n) => /^[A-Za-z0-9][A-Za-z0-9._-]*(\/[A-Za-z0-9._-]+)*(\.(txt|md|json|jsonl|png)|\/)$/.test(n));
+    expect(listed).toEqual(expect.arrayContaining(["run-demo.txt", "runner-image-build.txt", "runner-image-first-build.txt", "screens/"]));
+    expect(listed.filter((n) => !gitTracks(join(EVIDENCE_DIR, n)))).toEqual([]);
   });
 });
 
