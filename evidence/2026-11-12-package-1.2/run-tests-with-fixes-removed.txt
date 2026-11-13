@@ -1185,3 +1185,218 @@ Restored with `git checkout -- builder/src/gateway/app.ts`; `git diff --exit-cod
 ====================================================================================================
 Controls 15 to 20 whose test failed with the fix removed: 6 of 6.
 Tracked files changed after the last control: none
+
+====================================================================================================
+====================================================================================================
+Controls 21 and 22, added 13 Nov 2026 after the second re-read of that day's fixes
+
+Commit: b725039. Run on the development machine (a cloud session), on the host, against the stand-in provider and the test database builder_test_pkg12.
+Control 21: the two removals a re-reader showed no test caught, each now run against the test of cache writes that
+the answer does not split, which since commit 775fe9f also sends three streams. Control 22: the new test of proof row B6, in which
+the first gateway runs as a process of its own (test/b6-gateway-process.ts); (a) is the removal asked for (the start-up scan),
+(b) is control 8's change applied to the new test.
+The method is the same as above: one change at a time, by an exact text change shown as git shows it; the test run with
+`npx vitest run test/gateway.test.ts -t <the test>` (it is expected to FAIL); the file restored with `git checkout --`; and
+`git diff --exit-code` run to show that nothing is left changed. No control was committed.
+Tracked files changed before the first control: none
+
+====================================================================================================
+Control 21 (a) (of 21 and 22): the stream path of unsplit cache writes (finding 1 of the second re-read)
+Safeguard removed: A stream's split of its cache writes is never recorded (the reviewer's first removal)
+File: builder/src/gateway/app.ts
+
+The change, as `git diff` shows it:
+diff --git a/builder/src/gateway/app.ts b/builder/src/gateway/app.ts
+index aba69c9..27f3929 100644
+--- a/builder/src/gateway/app.ts
++++ b/builder/src/gateway/app.ts
+@@ -513,7 +513,7 @@ export function createGateway(opts: GatewayOptions) {
+           if (USAGE_COUNTS.some((f) => r.usage[f] < usage[f]) || (usage.speed === "fast" && r.usage.speed !== "fast")) sawUnreadable = true;
+           usage = r.usage;
+           if (r.part && statesSpeed(r.part)) speedStated = true;
+-          if (r.part && itemisedCacheWrites(r.part) !== null) itemised = itemisedCacheWrites(r.part);
++          // CONTROL: a stream's split of its cache writes is never recorded
+           if (r.model) servedModel = r.model;
+           if (r.kind === "message_start") {
+             if (sawInput) sawUnreadable = true; // a second start: which one is the bill is not known
+
+$ cd builder && npx vitest run test/gateway.test.ts -t 'cache writes the answer does not split' --reporter=verbose   (skipped tests left out below)
+
+ RUN  v5.1.0 /home/user/vibe-build/builder
+
+ × test/gateway.test.ts > holds: found by the review of 13 Nov 2026, and kept fixed > cache writes the answer does not split into five-minute and one-hour are priced at the one-hour rate, unless the request asks for no one-hour cache anywhere 187ms
+   → expected 0.015 to be less than 5e-7
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 85 skipped (86)
+   Start at  04:49:36
+   Duration  508ms (tests 57%, transform 22%, import 20%, worker 1%)
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/gateway.test.ts > holds: found by the review of 13 Nov 2026, and kept fixed > cache writes the answer does not split into five-minute and one-hour are priced at the one-hour rate, unless the request asks for no one-hour cache anywhere
+AssertionError: expected 0.015 to be less than 5e-7
+ ❯ near test/gateway.test.ts:298:64
+    296| }
+    297| const kinds = async (id: string) => (await listEvents(pool, id)).map((…
+    298| const near = (a: number, b: number) => expect(Math.abs(a - b)).toBeLes…
+       |                                                                ^
+    299|
+    300| describe("model gateway: key and metering", () => {
+ ❯ test/gateway.test.ts:1544:7
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+exit code: 1  (FAILED, as expected)
+Restored with `git checkout -- builder/src/gateway/app.ts`; `git diff --exit-code`: exit code 0 (clean)
+
+====================================================================================================
+Control 21 (b) (of 21 and 22): the stream path of unsplit cache writes (finding 1 of the second re-read)
+Safeguard removed: A stream's cache writes are all taken as split, which puts the five-minute pricing back on streams only (the reviewer's second removal)
+File: builder/src/gateway/app.ts
+
+The change, as `git diff` shows it:
+diff --git a/builder/src/gateway/app.ts b/builder/src/gateway/app.ts
+index aba69c9..0bd2f52 100644
+--- a/builder/src/gateway/app.ts
++++ b/builder/src/gateway/app.ts
+@@ -548,7 +548,7 @@ export function createGateway(opts: GatewayOptions) {
+               else if (!sawStop) await keep("the stream ended without the provider's end-of-message marker, so its figures may be partial", usage, res.status, servedModel);
+               else if (sawInput && sawOutput && !sawUnreadable && usage.input_tokens + usage.cache_creation_input_tokens + usage.cache_read_input_tokens > 0) {
+                 if (fastHeld && !speedStated) await keep(`the stream ended without usage figures that could be read: ${SPEED_NOT_STATED}`, usage, res.status, servedModel);
+-                else await settle(usage, res.status, servedModel, {}, itemised);
++                else await settle(usage, res.status, servedModel, {}, usage.cache_creation_input_tokens); // CONTROL: every write taken as split
+               } else await keep("the stream ended without usage figures that could be read", usage, res.status, servedModel);
+               ctrl.close();
+               return;
+
+$ cd builder && npx vitest run test/gateway.test.ts -t 'cache writes the answer does not split' --reporter=verbose   (skipped tests left out below)
+
+ RUN  v5.1.0 /home/user/vibe-build/builder
+
+ × test/gateway.test.ts > holds: found by the review of 13 Nov 2026, and kept fixed > cache writes the answer does not split into five-minute and one-hour are priced at the one-hour rate, unless the request asks for no one-hour cache anywhere 152ms
+   → expected 0.015 to be less than 5e-7
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 85 skipped (86)
+   Start at  04:49:37
+   Duration  444ms (tests 54%, transform 25%, import 20%, worker 1%)
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/gateway.test.ts > holds: found by the review of 13 Nov 2026, and kept fixed > cache writes the answer does not split into five-minute and one-hour are priced at the one-hour rate, unless the request asks for no one-hour cache anywhere
+AssertionError: expected 0.015 to be less than 5e-7
+ ❯ near test/gateway.test.ts:298:64
+    296| }
+    297| const kinds = async (id: string) => (await listEvents(pool, id)).map((…
+    298| const near = (a: number, b: number) => expect(Math.abs(a - b)).toBeLes…
+       |                                                                ^
+    299|
+    300| describe("model gateway: key and metering", () => {
+ ❯ test/gateway.test.ts:1544:7
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+exit code: 1  (FAILED, as expected)
+Restored with `git checkout -- builder/src/gateway/app.ts`; `git diff --exit-code`: exit code 0 (clean)
+
+====================================================================================================
+Control 22 (a) (of 21 and 22): proof row B6 with the first gateway as a process of its own
+Safeguard removed: A gateway that starts does not look for open holds (the start-up scan removed)
+File: builder/src/gateway/app.ts
+
+The change, as `git diff` shows it:
+diff --git a/builder/src/gateway/app.ts b/builder/src/gateway/app.ts
+index aba69c9..c588fad 100644
+--- a/builder/src/gateway/app.ts
++++ b/builder/src/gateway/app.ts
+@@ -715,7 +715,7 @@ export const readUsageFromFrame = (frame: string, acc: Usage): Usage => readFram
+  * Nothing here releases money. Returns a function that stops the timer.
+  */
+ export async function startHoldKeeper(pool: pg.Pool, gatewayId: string, everyMs = 30_000): Promise<{ found: number; expiredAtStart: number; stop: () => void }> {
+-  const r = await recoverHolds(pool, gatewayId);
++  const r = { found: [], expired: [] }; // CONTROL: no look for open holds at start-up
+   const timer = setInterval(() => {
+     expireHolds(pool).catch((err) => console.error("[gateway fault] holds past their deadline could not be marked", errorSummary(err)));
+   }, everyMs);
+
+$ cd builder && npx vitest run test/gateway.test.ts -t 'a gateway process that stops cleanly' --reporter=verbose   (skipped tests left out below)
+
+ RUN  v5.1.0 /home/user/vibe-build/builder
+
+ × test/gateway.test.ts > holds: proof rows B1 to B6 of the design note > B6: a gateway process that stops cleanly with a call in flight leaves its hold open; a gateway started afterwards finds it, keeps it at its full amount and still counts it 651ms
+   → expected 0 to be greater than or equal to 1
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 85 skipped (86)
+   Start at  04:49:38
+   Duration  959ms (tests 79%, transform 12%, import 8%, worker 1%)
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/gateway.test.ts > holds: proof rows B1 to B6 of the design note > B6: a gateway process that stops cleanly with a call in flight leaves its hold open; a gateway started afterwards finds it, keeps it at its full amount and still counts it
+AssertionError: expected 0 to be greater than or equal to 1
+ ❯ test/gateway.test.ts:720:26
+    718|     const keeper = await startHoldKeeper(pool, "gw_test_b6_after");
+    719|     keeper.stop();
+    720|     expect(keeper.found).toBeGreaterThanOrEqual(1);
+       |                          ^
+    721|     const found = await listEvents(pool, id, "hold.found_at_startup");
+    722|     expect(found).toHaveLength(1);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+exit code: 1  (FAILED, as expected)
+Restored with `git checkout -- builder/src/gateway/app.ts`; `git diff --exit-code`: exit code 0 (clean)
+
+====================================================================================================
+Control 22 (b) (of 21 and 22): proof row B6 with the first gateway as a process of its own
+Safeguard removed: A gateway that starts closes, at nothing, every hold another gateway left open (control 8's change)
+File: builder/src/store/holds.ts
+
+The change, as `git diff` shows it:
+diff --git a/builder/src/store/holds.ts b/builder/src/store/holds.ts
+index 5a4bd59..2f139c2 100644
+--- a/builder/src/store/holds.ts
++++ b/builder/src/store/holds.ts
+@@ -270,6 +270,7 @@ export async function expireHolds(pool: pg.Pool, now: Date = new Date()): Promis
+  */
+ export async function recoverHolds(pool: pg.Pool, gateway: string, now: Date = new Date()): Promise<{ found: Hold[]; newlyNoted: number; expired: Hold[] }> {
+   const expired = await expireHolds(pool, now);
++  await pool.query("update holds set state = 'settled', closed_at = now(), actual_usd = 0 where state = 'open' and gateway <> $1", [gateway]); // CONTROL
+   const r = await pool.query<Hold>("select * from holds where state = 'open' and gateway <> $1 order by project_id, id", [gateway]);
+   let newlyNoted = 0;
+   for (const h of r.rows) {
+
+$ cd builder && npx vitest run test/gateway.test.ts -t 'a gateway process that stops cleanly' --reporter=verbose   (skipped tests left out below)
+
+ RUN  v5.1.0 /home/user/vibe-build/builder
+
+ × test/gateway.test.ts > holds: proof rows B1 to B6 of the design note > B6: a gateway process that stops cleanly with a call in flight leaves its hold open; a gateway started afterwards finds it, keeps it at its full amount and still counts it 624ms
+   → expected 0 to be greater than or equal to 1
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 85 skipped (86)
+   Start at  04:49:39
+   Duration  872ms (tests 84%, transform 9%, import 7%)
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/gateway.test.ts > holds: proof rows B1 to B6 of the design note > B6: a gateway process that stops cleanly with a call in flight leaves its hold open; a gateway started afterwards finds it, keeps it at its full amount and still counts it
+AssertionError: expected 0 to be greater than or equal to 1
+ ❯ test/gateway.test.ts:720:26
+    718|     const keeper = await startHoldKeeper(pool, "gw_test_b6_after");
+    719|     keeper.stop();
+    720|     expect(keeper.found).toBeGreaterThanOrEqual(1);
+       |                          ^
+    721|     const found = await listEvents(pool, id, "hold.found_at_startup");
+    722|     expect(found).toHaveLength(1);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+exit code: 1  (FAILED, as expected)
+Restored with `git checkout -- builder/src/store/holds.ts`; `git diff --exit-code`: exit code 0 (clean)
+
+====================================================================================================
+Controls 21 and 22 (four changes) whose test failed with the safeguard removed: 4 of 4.
+Tracked files changed after the last control: none
