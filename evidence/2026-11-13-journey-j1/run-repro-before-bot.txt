@@ -1,0 +1,169 @@
+J1, 13 Nov 2026, the review bot's two findings on defb9c4: the new tests exactly as committed in 0f9563d, run with builder/src/ exactly as at defb9c4, on a copy (git archive; the evidence left out; node_modules linked). Expected: the three reproductions (two of finding 1, one of finding 2) FAIL on their assertions; the four tests of the fix's parts FAIL because what they call does not exist yet.
+Development machine (a cloud session). Test database builder_test_botj1 over the local socket (peer authentication, no password); the real-interface test makes a database of its own next to it and drops it. Stand-in sandboxes and a made-up docker program, no container, no model; made-up data only. 2026-11-13 17:20:56 UTC.
+The copy's builder/src/ compared with defb9c4's (diff -r): identical
+The copy's builder/test/ compared with 0f9563d's (diff -r): identical
+$ flock <scratchpad>/live-tests.lock npx vitest run test/journey.test.ts test/web.test.ts -t 'review bot on defb9c4'
+
+ RUN  v5.1.0 <scratchpad>/botj1-ctl/before-copy/builder
+
+ ❯ test/web.test.ts (36 tests | 4 failed | 32 skipped) 24858ms
+   ❯ J1 interface: the instance lock lost while the interface serves (review bot on defb9c4) (4)
+     × a job is running when PostgreSQL ends the lock's connection, and a second interface on the same database then takes the lock and runs its recovery: the first accepts no more work (every request a plain 503), and its job is stopped and changes nothing more in the sandbox (review bot on defb9c4) 3820ms
+     × before any job starts, the lock is asked of the database: once PostgreSQL has ended its connection, the job is refused and nothing is written, even with nothing else told of the loss; a lock released on purpose reports no loss (review bot on defb9c4, the fix's parts) 5ms
+     × what the interface does once its lock is lost: a line saying why, its running job stopped first (or, if it has not ended in time, left for the next start), then its server closed and exit code 1 (review bot on defb9c4, the fix's parts) 2ms
+     × the real interface (src/web/main.ts, as npm run web starts it, on a database of its own): when PostgreSQL ends its lock's connection, it accepts no more work and exits with code 1 and a line saying why; a second interface on the same database then starts and runs its recovery (review bot on defb9c4) 21001ms
+ ❯ test/journey.test.ts (43 tests | 3 failed | 40 skipped) 12625ms
+   ❯ J1 journey, part 2: the build, preview, checklist and export jobs (stand-in sandbox, no container, no model) (22)
+     × a preview that failed part-way can be tried again: each attempt writes its screenshots in a folder of its own, and no file an earlier event names is overwritten (review bot on defb9c4) 368ms
+     × halted while a step's engine runs (the interface lost its instance lock): the engine's container is killed at once, the workspace is not reset, the job is recorded interrupted, and no job or action starts after it (review bot on defb9c4, the fix's parts) 119ms
+   ❯ J1 journey after the review bot on defb9c4: the app camera's container is killed when its job is told to stop (1)
+     × the adapter's app camera, given a signal that is then aborted (the interface lost its instance lock), kills its container by name at once (a made-up docker program; no container) (review bot on defb9c4, the fix's parts) 12063ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 7 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/journey.test.ts > J1 journey, part 2: the build, preview, checklist and export jobs (stand-in sandbox, no container, no model) > a preview that failed part-way can be tried again: each attempt writes its screenshots in a folder of its own, and no file an earlier event names is overwritten (review bot on defb9c4)
+AssertionError: the faults reported: A preview job failed. {"project":"j1-9abfc7df4b75","job":"job-4197c205","error":"The camera's app-home-ar.png is not a PNG image."} | A preview job failed. {"project":"j1-9abfc7df4b75","job":"job-8245db58","error":"EEXIST: file already exists, open '<scratchpad>/botj1-tmp/builder-journey-fOYNPt/journey/j1-9abfc7df4b75/shots/01-app-home-en.png'"}: expected { jobId: 'job-8245db58', …(5) } to match object { kind: 'preview', state: 'finished' }
+(4 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+    "kind": "preview",
+-   "state": "finished",
++   "state": "failed",
+  }
+
+ ❯ test/journey.test.ts:514:73
+    512|     }
+    513|     const s = await j.state(id);
+    514|     expect(s.jobs.at(-1), `the faults reported: ${faults.join(" | ")}`…
+       |                                                                         ^
+    515|     expect(s.previewFinished).toBe(true);
+    516|     expect(s.appRunning).toBe(true);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/7]⎯
+
+ FAIL  test/journey.test.ts > J1 journey, part 2: the build, preview, checklist and export jobs (stand-in sandbox, no container, no model) > halted while a step's engine runs (the interface lost its instance lock): the engine's container is killed at once, the workspace is not reset, the job is recorded interrupted, and no job or action starts after it (review bot on defb9c4, the fix's parts)
+TypeError: j.halt is not a function
+ ❯ test/journey.test.ts:558:15
+    556|       await started;
+    557|       expect(j.runningJob()?.projectId).toBe(id);
+    558|       await j.halt(why);
+       |               ^
+    559|     } finally {
+    560|       sandboxes.engineHold = null;
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/7]⎯
+
+ FAIL  test/journey.test.ts > J1 journey after the review bot on defb9c4: the app camera's container is killed when its job is told to stop > the adapter's app camera, given a signal that is then aborted (the interface lost its instance lock), kills its container by name at once (a made-up docker program; no container) (review bot on defb9c4, the fix's parts)
+AssertionError: expected 'not ended' not to be 'not ended' // Object.is equality
+ ❯ test/journey.test.ts:1352:23
+    1350|         await running;
+    1351|       }
+    1352|       expect(end).not.toBe("not ended");
+       |                       ^
+    1353|       expect((end as { code: number | null }).code).not.toBe(0);
+    1354|       expect(Date.now() - t0).toBeLessThan(12_000);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/7]⎯
+
+ FAIL  test/web.test.ts > J1 interface: the instance lock lost while the interface serves (review bot on defb9c4) > a job is running when PostgreSQL ends the lock's connection, and a second interface on the same database then takes the lock and runs its recovery: the first accepts no more work (every request a plain 503), and its job is stopped and changes nothing more in the sandbox (review bot on defb9c4)
+AssertionError: expected { 'GET /projects': 200, …(9) } to deeply equal { 'GET /projects': 503, …(9) }
+
+- Expected
++ Received
+
+  {
+-   "GET /projects": 503,
+-   "GET /sign-in": 503,
+-   "GET /static/app.css": 503,
+-   "GET the project's preview": 503,
+-   "POST /projects (a new project)": 503,
++   "GET /projects": 200,
++   "GET /sign-in": 200,
++   "GET /static/app.css": 200,
++   "GET the project's preview": 200,
++   "POST /projects (a new project)": 303,
+    "app stopped by the first after the loss": 0,
+-   "camera stopped by the halt": 1,
+-   "projects made after the loss": 0,
+-   "screenshots recorded by the first's job": 0,
+-   "the first's job written finished or failed": 0,
++   "camera stopped by the halt": 0,
++   "projects made after the loss": 1,
++   "screenshots recorded by the first's job": 4,
++   "the first's job written finished or failed": 1,
+  }
+
+ ❯ test/web.test.ts:1077:25
+    1075|         "camera stopped by the halt": sb1.cameraAborted,
+    1076|       };
+    1077|       expect(afterLoss).toEqual({
+       |                         ^
+    1078|         "GET /projects": 503,
+    1079|         "POST /projects (a new project)": 503,
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/7]⎯
+
+ FAIL  test/web.test.ts > J1 interface: the instance lock lost while the interface serves (review bot on defb9c4) > before any job starts, the lock is asked of the database: once PostgreSQL has ended its connection, the job is refused and nothing is written, even with nothing else told of the loss; a lock released on purpose reports no loss (review bot on defb9c4, the fix's parts)
+TypeError: quiet.check is not a function
+ ❯ test/web.test.ts:1107:24
+    1105|     const quietSeen: string[] = [];
+    1106|     const quiet = await holdInstanceLock(TEST_DB_URL, { onLost: (why) …
+    1107|     expect(await quiet.check()).toBeNull();
+       |                        ^
+    1108|     await quiet.release();
+    1109|     await sleep(100);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/7]⎯
+
+ FAIL  test/web.test.ts > J1 interface: the instance lock lost while the interface serves (review bot on defb9c4) > what the interface does once its lock is lost: a line saying why, its running job stopped first (or, if it has not ended in time, left for the next start), then its server closed and exit code 1 (review bot on defb9c4, the fix's parts)
+TypeError: stopAfterLockLost is not a function
+ ❯ test/web.test.ts:1148:11
+    1146|     const log0: string[] = [];
+    1147|     const calls0: string[] = [];
+    1148|     await stopAfterLockLost(LOCK_LOST, { journey: j0, closeServer: () …
+       |           ^
+    1149|     expect(log0).toEqual([`[interface stopped] ${LOCK_LOST} No job was…
+    1150|     expect(calls0).toEqual(["server closed", "exit 1"]);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/7]⎯
+
+ FAIL  test/web.test.ts > J1 interface: the instance lock lost while the interface serves (review bot on defb9c4) > the real interface (src/web/main.ts, as npm run web starts it, on a database of its own): when PostgreSQL ends its lock's connection, it accepts no more work and exits with code 1 and a line saying why; a second interface on the same database then starts and runs its recovery (review bot on defb9c4)
+AssertionError: expected { …(5) } to deeply equal { …(5) }
+
+- Expected
++ Received
+
+  {
+-   "GET /projects after the loss": "503 or not answered",
+-   "POST /projects after the loss": "503 or not answered",
+-   "its line saying why": true,
+-   "projects in the database": 1,
+-   "the first interface's exit code": 1,
++   "GET /projects after the loss": 200,
++   "POST /projects after the loss": 303,
++   "its line saying why": false,
++   "projects in the database": 2,
++   "the first interface's exit code": "still running",
+  }
+
+ ❯ test/web.test.ts:1271:10
+    1269|         "the first interface's exit code": code,
+    1270|         "its line saying why": /\[interface stopped\] The builder lost…
+    1271|       }).toEqual({
+       |          ^
+    1272|         "GET /projects after the loss": "503 or not answered",
+    1273|         "POST /projects after the loss": "503 or not answered",
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/7]⎯
+
+
+ Test Files  2 failed (2)
+      Tests  7 failed | 72 skipped (79)
+   Start at  17:20:57
+   Duration  38.53s (tests 98%, transform 1%, import 1%)
+
+vitest exit code: 1
+Databases named builder_test_botj1* left: builder_test_botj1; interface processes left (pgrep -f src/web/main.ts): 0

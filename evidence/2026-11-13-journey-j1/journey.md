@@ -483,3 +483,67 @@ On a copy of `9c2da4d` (the evidence left out), no container (`docker compose co
 ### Not reviewed yet
 
 No reviewer has read these fixes.
+
+## After the review bot on defb9c4
+
+*13 Nov 2026.* The review bot read `defb9c4` and reported two findings. Each was checked against the code, found to hold, reproduced first by a test that fails at `defb9c4`, then fixed. Code and tests: commit `0f9563d`; these records: the commit after it. Every output named here is in this folder.
+
+### What the owner can now do
+
+- If the builder's own interface loses its hold on its database (PostgreSQL restarted, or its connection cut), it stops instead of carrying on: every page then says, plainly, that it lost its lock and must be restarted; the job it was running is stopped and shown as interrupted; and it exits. Starting it again cleans up what that job left, as after any stop.
+- If a preview fails part-way (one of the app camera's screenshots unusable), "Make the preview" can be tried again and now succeeds; the preview screen shows the new attempt's four screenshots.
+
+### The two findings
+
+| Finding | Checked against the code | Reproduced at `defb9c4` | Fixed |
+| --- | --- | --- | --- |
+| 1 (P1), `builder/src/web/main.ts` ~:71: the interface ignored the loss of its instance lock's connection | Held: `holdInstanceLock` gave the connection an error handler that did nothing and no end handler, and nothing else asked about the lock; PostgreSQL releases a session's advisory lock when the session ends | `web.test.ts:1016` (in-process, wired as `main.ts` wires it, with a preview job running): after `pg_terminate_backend` ended the lock's session and a second interface took the lock and ran its recovery (marking the job interrupted and removing the sandbox), the first went on answering (GET 200, a new project made with POST 303) and its job went on: 4 screenshots recorded and "finished" written after the second interface's recovery. `web.test.ts:1196` (the real `src/web/main.ts` started as a process, on a database of its own): after the loss it answered GET 200 and POST 303, made a second project, and was still running 15 s later | `holdInstanceLock` (`main.ts:98`) tracks the connection's `error` and `end` (`:109`), and `check()` (`:121`) asks the database (`pg_locks`, on the lock's own connection) whether the lock is still held; `stopAfterLockLost` (`:155`, wired at `:211`) logs `[interface stopped] …`, halts the journey, waits for its job (at most 60 s, chosen, not measured), closes the server and exits with code 1; every request gets a plain 503 while the lock is lost (`app.ts:103`); `Journey.halt` (`journey.ts:752`) refuses every further action (`:528`, `:570`) and job (`:781`), aborts the running job's signal, and records its end as interrupted (`:807`); the lock is asked before every job starts (`:779`); each job stops at its next step (`journey-jobs.ts`, `stillOwned`), the engine's container is killed at once (`:141`), the app camera's too (`example-1-adapter.ts:224`), and a halted job changes nothing more in its sandbox: no workspace reset (`journey-jobs.ts:152`), no app stopped (`:201`) |
+| 2 (P2), `builder/src/orchestrator/journey-jobs.ts` ~:228: a preview retried after a failure part-way always failed | Held: the screenshots went to fixed names in one folder with `flag: "wx"`, and the files an earlier failed attempt had copied stayed | `journey.test.ts:479`: the third camera file not a PNG, then a retry with four valid ones: at `defb9c4` the retry's job failed with `EEXIST: file already exists, open '…/shots/01-app-home-en.png'` | Each attempt copies into a folder of its own, `shots/<job id>/`, made new (`journey-jobs.ts:251`); the file names and `wx` are kept, so nothing an earlier event names is overwritten; the event also records the job (`:261`). The file server is unchanged: it serves only a file an event names, inside the project's shots folder, with its recorded SHA-256 (the test fetches both attempts' files through it). Also changed, so the retry shows right: the preview screen shows the latest preview job's screenshots only (`pages.ts:700`); before, it showed every screenshot event, so after a retry it would have shown the failed attempt's two as well |
+
+The reproductions' outputs: `run-repro-before-bot.txt` (the tests exactly as committed in `0f9563d`, with `builder/src/` exactly as at `defb9c4`) and `run-repro-after-bot.txt` (on `0f9563d`). Four more tests show the fix's parts: the check before a job, with nothing else told of the loss, and a lock released on purpose not reported as lost (`web.test.ts:1104`); what the interface does once the lock is lost, with no job, with a job that stops, and with one that has not ended in time (`:1143`); a step's engine killed and its workspace left as it is (`journey.test.ts:547`); the adapter's app camera killed by name when its signal is aborted, with a made-up docker program and no container (`:1312`). At `defb9c4` these four fail because what they call does not exist yet.
+
+### The controls
+
+On a copy of `0f9563d` (the evidence left out); scripts in `controls-bot-scripts/`, output in `run-controls-bot.txt`. Baseline first: the seven tests passed on the copy unchanged. Each part removed in turn, its guarding tests run, the file restored; afterwards the copy was the same as a fresh one of `0f9563d`.
+
+| Control | What was removed or changed | Result |
+| --- | --- | --- |
+| J1-C92 | The lock connection's `error` and `end` no longer tracked (as at `defb9c4`) | Both reproductions of finding 1 failed: the in-process one (GET 200) and the real interface (its summary of what happened after the loss differed; the output shows only that) |
+| J1-C93 | The 503 once the lock is lost | The in-process reproduction failed (GET 200) |
+| J1-C94 | The halt does not abort the running job's signal | Three failed: the in-process reproduction (its camera not stopped; the job went on, recorded 4 screenshots and was written finished), the stop test (the job never ended: the server closed and the exit came without it), the engine test (timed out: the step never ended) |
+| J1-C95 | The lock not asked before a job starts | The check test failed: the job started |
+| J1-C96 | A halted step's engine container not killed | The engine test failed (timed out: the step never ended) |
+| J1-C97 | The adapter does not kill the app camera's container on the signal | The camera test failed: the made-up run had not ended after 12 s |
+| J1-C98 | A halted preview stops its app all the same | The in-process reproduction failed: the first interface stopped the app after the loss (its event and the stand-in's record) |
+| J1-C99 | A halted step puts its workspace back all the same | The engine test failed: `journey.workspace.reset` written |
+| J1-C100 | A halted job recorded failed, not interrupted | The engine test and the stop test failed |
+| J1-C101 | The project's actions not refused once halted | The engine test failed: a step asked for after the halt was refused for another reason (the project's interrupted job), not for the halt |
+| J1-C102 | A lock released on purpose reported as lost | The check test failed |
+| J1-C103 | The real interface's handler for the loss does nothing | The real-interface reproduction failed (its summary differed; the output shows only that) |
+| J1-C104 | The screenshots back in the project's one shots folder (as at `defb9c4`) | The retry reproduction failed: `EEXIST` |
+| J1-C105 | The preview screen shows every attempt's screenshots | The retry reproduction failed: the screen did not show exactly the retry's four |
+
+14 of 14 as expected. What J1-C94 and J1-C98 changed in the in-process reproduction's summary was seen by running that test once more under each, with the whole difference shown (not kept; the copy was the same as a fresh one afterwards). The output's line counting leftover `sleep 30` processes first counted this session's own monitoring loop (which also sleeps 30 s); a correction line under it counts again without that loop: none left. The script's line was corrected afterwards to count that way (`controls-bot-scripts/controls-bot.sh`).
+
+### What was run, and the results
+
+| Check | Result | Output |
+| --- | --- | --- |
+| The new tests with `builder/src/` as at `defb9c4` | 7 of 7 failed, as expected: the three reproductions on their assertions (above), the four tests of the fix's parts because what they call does not exist (`TypeError`) | `run-repro-before-bot.txt` |
+| The new tests on `0f9563d` | 7 of 7 passed | `run-repro-after-bot.txt` |
+| The controls | 14 of 14 as expected (J1-C92 to J1-C105) | `run-controls-bot.txt` (scripts: `controls-bot-scripts/`) |
+| `npm run typecheck` | Passed, exit code 0, on `0f9563d` | `run-typecheck-bot.txt` |
+| The whole suite, live tests included, under the shared lock, with the approved zip, a fresh database of its own | **607 of 607** in 26 files (600 before, and the 7 new), none skipped, exit code 0 (lock held 17:10:42 to 17:20:48 UTC); no container before or after, no interface process and no extra database left. The typecheck and the licence check, which start no container, ran during it; the controls before it, the run before the fix after it | `run-tests-full-bot.txt` (wrapper: `controls-bot-scripts/full-suite.sh`) |
+| `npm run check:licences` | Passed, exit code 0 (the builder and the runner); no dependency added (no change to either `package.json` or lock file since `defb9c4`) | `run-licences-bot.txt` |
+
+### Checked and assumed
+
+- **Checked:** each finding against the code before any change; each reproduction failing at `defb9c4` for the reason the bot gave, and passing on `0f9563d`; each part of the fix by a test that fails without it (the controls above); the real interface as a process: after the loss, no request accepted, exit code 1 and its line, then a second interface on the same database started, ran its recovery and stopped cleanly on a signal (exit code 0).
+- **Not shown by a run:** a real PostgreSQL restart (the session was ended with `pg_terminate_backend`, which ends the connection as a restart does for the client: assumed the same, not tried); the kills with real containers (shown with the stand-in sandboxes and a made-up docker program; the engine's own `stop()` is package 2.1's, tested there); a job whose operation cannot be stopped from here (the app's image build, a checklist run) running past the loss with real Docker. The automated run (54 checks) and 0.6c's isolation run were not run again: they were last run on `f5618c9`.
+- **Assumed, not measured:** the 60 s the interface waits for its job once the lock is lost.
+- **Left as they are, recorded:** gap 139 (what still runs to its end after the loss; a connection that stops answering without ending; not tried with a real restart) and gap 138 (a failed attempt's screenshot folder is kept).
+- **Not touched:** the owner's own interface on 127.0.0.1:4020, its folder, its database `builder_owner_j1` and its lock. These tests used `builder_test_botj1`, and the real-interface test a database of its own (`builder_test_botj1_lk_…`), made and dropped by the test; both interface instance locks it took were on that database.
+
+### Not reviewed yet
+
+No reviewer has read these fixes.
