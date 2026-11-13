@@ -28,7 +28,7 @@ export interface ProfileLimits {
    * The largest prompt, in tokens as the provider counts them, that one call of a step may send
    * (package 1.3). A step's budget is worked out from it, and a step call whose hold is above one
    * turn's share is refused. Only the orchestrator's side reads it; the gateway does not.
-   * NOT MEASURED: set small until package 2.2 shows what the engine sends (known gap 67).
+   * NOT MEASURED: set small until package 2.2 shows what the engine sends (known gap 81).
    */
   stepPromptTokens?: number;
 }

@@ -441,7 +441,7 @@ export async function listHolds(pool: pg.Pool, projectId: string): Promise<Hold[
  * room (a call outside those limits is refused, `step_call_outside_limits`), unless a call costs more
  * than its hold. It does not cover a turn that makes more than one call, a real prompt larger than the
  * step's prompt limit (such a call is refused, so the step stops), or a bill above a hold (known gaps
- * 41, 67, 68). Like every hold, the budget is a reservation from the provider's estimate plus an
+ * 41, 81, 82). Like every hold, the budget is a reservation from the provider's estimate plus an
  * assumed margin, not a proven ceiling.
  */
 

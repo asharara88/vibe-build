@@ -2,7 +2,7 @@
  * Demonstration of package 1.3, the pre-step check and the step hold (design note 5.5; proof row B7),
  * against a stand-in provider and a stand-in engine: no real key, no real provider, nothing spent.
  * The engine is a stand-in written for this demonstration: it calls the gateway with the step's token.
- * No engine in the builder takes a token yet (known gap 69).
+ * No engine in the builder takes a token yet (known gap 83).
  *
  *   1. A step is refused at a cap of $0.02, and the message is shown.
  *   2. The cap is raised to $0.03 with scripts/change-cap.ts, which writes cap.changed.
