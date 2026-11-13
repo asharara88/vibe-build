@@ -62,9 +62,23 @@ async function photo(nn, screen, kinds = ["en"]) {
   if (kinds.some((k) => k !== "en")) await page.goto(here);
 }
 
-/** Where the walk stopped, photographed as it is, so that the evidence shows why. */
-async function stopped(nn, screen) {
+/**
+ * Where the walk stopped, photographed as it is, so that the evidence shows why; then the screens that can still be
+ * read (the cost panel and the record, under the numbers they have in the whole walk), and sign-out.
+ */
+async function stopped(nn, screen, id) {
   await photo(nn, `${screen}-stopped`, ["en", "ar"]);
+  if (!id) return;
+  await page.goto(`${BASE}/projects/${id}/cost`);
+  check("cost, after the stop: $0.00 spent, no freeze, an empty unreconciled list", (await text("td[data-spent]")) === "$0.00" && (await has("[data-no-freeze]")) && (await has("[data-unreconciled-empty]")), await text("table[data-cost]"));
+  await photo(18, "cost", ["en", "ar", "phone"]);
+  await page.goto(`${BASE}/projects/${id}/record`);
+  const ids = await page.$$eval("tr[data-event]", (rows) => rows.map((r) => Number(r.getAttribute("data-event"))));
+  check("the record, after the stop: every event, in id order", ids.length > 20 && ids.every((v, i) => i === 0 || v > ids[i - 1]), `${ids.length} events`);
+  say({ kind: "record", project: id, events: ids.length });
+  await photo(21, "record", ["en"]);
+  await clickAndLoad('form[action="/sign-out"] button');
+  check("signed out", path() === "/sign-in", path());
 }
 
 /** Reload until a selector is there (a running job's page refreshes itself; this does not rely on it). */
@@ -165,14 +179,14 @@ async function run() {
   await photo(11, "build", ["en"]);
   await clickAndLoad('button[data-build="01-data"]');
   const one = await waitFor('[data-step="01-data"][data-step-state="finished"]', 600_000, '[data-step="01-data"][data-step-state="failed"]');
-  if (!check("step 1 built", one, await text('[data-step="01-data"]'))) return stopped(12, "build-step-1");
+  if (!check("step 1 built", one, await text('[data-step="01-data"]'))) return stopped(12, "build-step-1", id);
   const r1 = await text('[data-step="01-data"] [data-reserved]');
   check("step 1: $1.5552 reserved while it ran, released, $0.00 spent", r1.includes("Reserved while it ran: $1.5552") && r1.includes("released") && r1.includes("Spent: $0.00."), r1);
   check("step 1's live lines: one line per file written (4)", (await page.locator('[data-step="01-data"] ol[data-lines] li', { hasText: "Wrote " }).count()) === 4);
   await photo(12, "build-step-1", ["en"]);
   await clickAndLoad('button[data-approve="01-data"]');
   const two = await waitFor('[data-step="02-submitter-screen"][data-step-state="finished"]', 600_000, '[data-step="02-submitter-screen"][data-step-state="failed"]');
-  if (!check("step 1 approved; step 2 built", two && (await has('[data-step="01-data"][data-approved="yes"]')), await text('[data-step="02-submitter-screen"]'))) return stopped(13, "build-step-2");
+  if (!check("step 1 approved; step 2 built", two && (await has('[data-step="01-data"][data-approved="yes"]')), await text('[data-step="02-submitter-screen"]'))) return stopped(13, "build-step-2", id);
   const r2 = await text('[data-step="02-submitter-screen"] [data-reserved]');
   check("step 2: $3.1104 reserved while it ran, released, $0.00 spent", r2.includes("Reserved while it ran: $3.1104") && r2.includes("released") && r2.includes("Spent: $0.00."), r2);
   await photo(13, "build-step-2", ["en", "ar", "phone"]);
@@ -181,7 +195,7 @@ async function run() {
 
   // 8. The preview: screenshots of the running app, taken by the app camera.
   const shots = await waitFor("[data-shots]", 1_800_000, "main p.warn");
-  if (!check("the preview's screenshots are there", shots, await text("main"))) return stopped(14, "preview");
+  if (!check("the preview's screenshots are there", shots, await text("main"))) return stopped(14, "preview", id);
   const loaded = await page.$$eval("[data-shots] img", (imgs) => imgs.map((i) => i.complete && i.naturalWidth > 0));
   check("four screenshots of the running app, each loaded", loaded.length === 4 && loaded.every(Boolean), JSON.stringify(loaded));
   check("each is captioned 'Not live. Sample data.'", (await page.locator("figcaption", { hasText: "Not live. Sample data." }).count()) === 4);
@@ -192,7 +206,7 @@ async function run() {
   await photo(15, "checklist-before-run", ["en"]);
   await clickAndLoad(`form[action="/projects/${id}/acceptance"] button`);
   const ran = await waitFor("table[data-run]", 900_000);
-  if (!check("the checklist ran", ran, await text("main"))) return stopped(16, "checklist");
+  if (!check("the checklist ran", ran, await text("main"))) return stopped(16, "checklist", id);
   check("item 1 passed", await has('tr[data-item="1"][data-status="passed"]'));
   let notRun = 0;
   for (const n of [2, 3, 4, 5, 6]) if (await has(`tr[data-item="${n}"][data-status="did not run"]`)) notRun++;
@@ -221,7 +235,7 @@ async function run() {
   await photo(19, "export-before", ["en"]);
   await clickAndLoad(`form[action="/projects/${id}/export"] button`);
   const exported = await waitFor("a[data-download]", 600_000);
-  if (!check("the export is written", exported, await text("main"))) return stopped(20, "export");
+  if (!check("the export is written", exported, await text("main"))) return stopped(20, "export", id);
   await photo(20, "export", ["en"]);
   const shown = await text("table[data-export] code");
   const [download] = await Promise.all([page.waitForEvent("download"), page.locator("a[data-download]").click()]);
