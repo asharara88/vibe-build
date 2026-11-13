@@ -1,0 +1,39 @@
+Package J3, own check after the review bot on af80dc9: the whole suite, live tests included, on 34ff56c (builder/ tree 1035be8), working tree of builder/: 0 changed files. Database builder_test_ownj3, fresh. TMPDIR <scratchpad>/ownj3-tmp. Command: flock <scratchpad>/live-tests.lock npx vitest run (BUILDER_BROWSER_CACHE=<scratchpad>/p31-cache).
+Free disk before: /dev/vda        252G   30G  9.2G  77% /
+Containers on this machine before (docker ps -a, count): 0
+Waiting for the shared lock from 22:24:13 UTC.
+Lock held from 22:24:13 UTC.
+
+ RUN  v5.1.0 <scratchpad>/wt-j3/builder
+
+{"at":"2026-11-13T22:39:42.684Z","method":"CONNECT","host":"registry.example.test","port":443,"decision":"allowed"}
+(node:27245) Warning: Closing file descriptor 25 on garbage collection
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:27245) [DEP0137] DeprecationWarning: Closing a FileHandle object on garbage collection is deprecated. Please close FileHandle objects explicitly using FileHandle.prototype.close(). In the future, an error will be thrown if a file descriptor is closed during garbage collection.
+(node:27245) Warning: Closing file descriptor 24 on garbage collection
+(node:27245) Warning: Closing file descriptor 26 on garbage collection
+(node:27245) Warning: Closing file descriptor 27 on garbage collection
+(node:27245) Warning: Closing file descriptor 28 on garbage collection
+(node:27245) Warning: Closing file descriptor 29 on garbage collection
+(node:27245) Warning: Closing file descriptor 24 on garbage collection
+(node:27245) Warning: Closing file descriptor 25 on garbage collection
+(node:27245) Warning: Closing file descriptor 26 on garbage collection
+(node:27245) Warning: Closing file descriptor 28 on garbage collection
+(node:27245) Warning: Closing file descriptor 25 on garbage collection
+(node:27245) Warning: Closing file descriptor 26 on garbage collection
+(node:27245) Warning: Closing file descriptor 27 on garbage collection
+(node:27245) Warning: Closing file descriptor 28 on garbage collection
+(node:27245) Warning: Closing file descriptor 25 on garbage collection
+(node:27245) Warning: Closing file descriptor 26 on garbage collection
+(node:27245) Warning: Closing file descriptor 27 on garbage collection
+
+ Test Files  29 passed (29)
+      Tests  692 passed (692)
+   Start at  22:24:14
+   Duration  956.32s (tests 100%)
+
+vitest exit code: 0
+Lock released at 22:40:10 UTC.
+Containers on this machine after (docker ps -a, count): 0
+Short folders of previews left in /tmp: 0
+Free disk after: /dev/vda        252G   30G  9.1G  77% /

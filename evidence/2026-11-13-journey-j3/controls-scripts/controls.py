@@ -43,7 +43,8 @@ CONTROLS = [
  ("J3-C18", "the checklist does not end the live session first", "src/orchestrator/journey-jobs.ts",
   [('      const closed = (await this.live?.closeFor(projectId, "checklist")) ?? false;', "      const closed = false;")], "test/journey.test.ts", "the checklist ends the live session first"),
  ("J3-C19", "the builder's sign-out does not end the live session", "src/web/app.ts",
-  [('    await d.preview?.signedOut(c.get("session") ?? undefined);\n', "")], "test/web.test.ts", "Open the live app and Show are POSTs only"),
+  # The line as it stands after the own check after the review bot on af80dc9 (it closes the live session of every value ended).
+  [("    for (const v of ended) await d.preview?.signedOut(v);\n", "")], "test/web.test.ts", "Open the live app and Show are POSTs only"),
  ("J3-C20", "the pass written into the record", "src/orchestrator/journey-jobs.ts",
   [("            pass_recorded: false,", "            pass_recorded: r.shown,")], "test/journey.test.ts", "records live_opened without the pass"),
  ("J3-C21", "a refused POST still sent to the app", "src/web/preview-front.ts",
@@ -71,7 +72,8 @@ CONTROLS = [
   # The line as it stands after the review bot on af80dc9 (it also passes the sign-in session's validity, kept here).
   [("    const r = await jobs().openLive(id, session, d.sessions.expiresAt(session), () => d.sessions.valid(session));", "    const r = await jobs().openLive(id, session, null, () => d.sessions.valid(session));")], "test/web.test.ts", "a live session ends no later than the builder sign-in session"),
  ("J3-C32", "a new sign-in in the same browser does not end the live session of the sign-in it replaces", "src/web/app.ts",
-  [('      await d.preview?.signedOut(v, "signed_in_again");\n', "")], "test/web.test.ts", "a live session ends no later than the builder sign-in session"),
+  # The line as it stands after the own check after the review bot on af80dc9.
+  [('    for (const v of replaced) await d.preview?.signedOut(v, "signed_in_again");\n', "")], "test/web.test.ts", "a live session ends no later than the builder sign-in session"),
  ("J3-C33", "the front started again with no limit", "src/web/preview.ts",
   [("        if (!this.stopping && this.restarts >= MAX_FRONT_RESTARTS) {", "        if (false) {")], "test/preview.test.ts", "a front that stops is started again at most"),
  ("J3-C34", "a stale camera folder of the runner's user left behind (root)", "src/web/preview.ts",
@@ -95,6 +97,13 @@ CONTROLS = [
   [("    if (!res.destroyed) res.destroy();\n", "")], "test/preview.test.ts", "an answer the app cuts short after its headers"),
  ("J3-C43", "the idle timer not cleared when an answer is cut short or the browser's response closes", "src/web/preview-rules.ts",
   [("    idle.clear();\n    if (!res.destroyed) res.destroy();", "    if (!res.destroyed) res.destroy();"), ('  res.on("close", () => {\n    idle.clear();\n', '  res.on("close", () => {\n')], "test/preview.test.ts", "relayAnswer, the front's own"),
+ # Own check after the review bot on af80dc9 (added 13 Nov 2026).
+ ("J3-C44", "sign-out back to the old order: the live session closed (awaited) before the sign-in sessions are ended", "src/web/app.ts",
+  [("    for (const v of ended) d.sessions.end(v);\n    for (const v of ended) await d.preview?.signedOut(v);\n", "    for (const v of ended) await d.preview?.signedOut(v);\n    for (const v of ended) d.sessions.end(v);\n")], "test/web.test.ts", "a sign-out whose close of its live session is held"),
+ ("J3-C45", "a new sign-in back to the old order: each replaced sign-in's live session closed (awaited) before that sign-in session is ended", "src/web/app.ts",
+  [('    for (const v of replaced) d.sessions.end(v);\n    for (const v of replaced) await d.preview?.signedOut(v, "signed_in_again");\n', '    for (const v of replaced) {\n      await d.preview?.signedOut(v, "signed_in_again");\n      d.sessions.end(v);\n    }\n')], "test/web.test.ts", "a new sign-in in the same browser whose close of the replaced"),
+ ("J3-C46", "sign-out closes only the live session of the request's first valid sign-in value again, not of every value it ends", "src/web/app.ts",
+  [("    for (const v of ended) await d.preview?.signedOut(v);\n", '    await d.preview?.signedOut(c.get("session") ?? undefined);\n')], "test/web.test.ts", "a sign-out from a browser that sends two valid values"),
 ]
 
 def run(cmd):

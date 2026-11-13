@@ -1,0 +1,28 @@
+J3, own check after the review bot on af80dc9: the new tests, 2026-11-13T22:21:37Z. Command (from builder/, database builder_test_ownj3, TMPDIR <scratchpad>/ownj3-tmp): flock <scratchpad>/live-tests.lock npx vitest run test/web.test.ts -t "own check after the review bot on af80dc9" --reporter=verbose; only the tests run, the failures' first lines, and the summary are kept below.
+
+1. BEFORE the fix: builder/src as at 5c639cc (git checkout 5c639cc -- src; builder/ at 5c639cc equals 4e41340's: git diff 4e41340 5c639cc --stat -- builder: '' (empty: none)), the tests as committed in 34ff56c. Expected: the three new tests fail (a pass shown and a live session left open under a sign-in being ended; a live session left open under the second cookie value), the control passes.
+   builder/src differs from 5c639cc's: 0 lines of diff (0: none); from HEAD's:  1 file changed, 8 insertions(+), 14 deletions(-)
+ × test/web.test.ts > J3 interface: the live app's screens (stand-in sandbox, the real front) > a sign-out whose close of its live session is held: Open the live app asked for meanwhile from another tab under the same sign-in shows no pass and opens nothing; afterwards no live session is open and the sign-in session is ended (own check after the review bot on af80dc9) 543ms
+ × test/web.test.ts > J3 interface: the live app's screens (stand-in sandbox, the real front) > a new sign-in in the same browser whose close of the replaced sign-in's live session is held: Open the live app asked for meanwhile under the replaced sign-in shows no pass and opens nothing; afterwards no live session is open (own check after the review bot on af80dc9) 554ms
+ ✓ test/web.test.ts > J3 interface: the live app's screens (stand-in sandbox, the real front) > control: with the same held close, Open the live app asked for meanwhile under another valid sign-in session is not refused: its pass is shown and its live session stays open after the sign-out (own check after the review bot on af80dc9) 602ms
+ × test/web.test.ts > J3 interface: the live app's screens (stand-in sandbox, the real front) > a sign-out from a browser that sends two valid values of the sign-in cookie ends both, and closes the live session opened under the second value too, not only one opened under the first (own check after the review bot on af80dc9) 764ms
+AssertionError: a pass was shown under a sign-in session that was signing out: expected '9ZY3-MQG2' to be undefined
+AssertionError: a live session is open after its sign-in session signed out: expected { projectId: 'j1-7fafa9f5a9e2', …(9) } to be null
+AssertionError: expected 200 to be 303 // Object.is equality
+AssertionError: a pass was shown under a sign-in session that a new sign-in was ending: expected 'G4KK-7KNM' to be undefined
+AssertionError: a live session is open after its sign-in session was replaced: expected { projectId: 'j1-c81fff8042e0', …(9) } to be null
+AssertionError: expected 200 to be 303 // Object.is equality
+AssertionError: a live session is open under a sign-in value the sign-out ended: expected { projectId: 'j1-3a953016881f', …(9) } to be null
+ Test Files  1 failed (1)
+      Tests  3 failed | 1 passed | 42 skipped (46)
+
+2. AFTER the fix: the same command on 34ff56c (git diff 5c639cc --stat -- src:  1 file changed, 14 insertions(+), 8 deletions(-)).
+   builder/src differs from HEAD's: 0 lines of diff (0: none)
+ ✓ test/web.test.ts > J3 interface: the live app's screens (stand-in sandbox, the real front) > a sign-out whose close of its live session is held: Open the live app asked for meanwhile from another tab under the same sign-in shows no pass and opens nothing; afterwards no live session is open and the sign-in session is ended (own check after the review bot on af80dc9) 584ms
+ ✓ test/web.test.ts > J3 interface: the live app's screens (stand-in sandbox, the real front) > a new sign-in in the same browser whose close of the replaced sign-in's live session is held: Open the live app asked for meanwhile under the replaced sign-in shows no pass and opens nothing; afterwards no live session is open (own check after the review bot on af80dc9) 615ms
+ ✓ test/web.test.ts > J3 interface: the live app's screens (stand-in sandbox, the real front) > control: with the same held close, Open the live app asked for meanwhile under another valid sign-in session is not refused: its pass is shown and its live session stays open after the sign-out (own check after the review bot on af80dc9) 607ms
+ ✓ test/web.test.ts > J3 interface: the live app's screens (stand-in sandbox, the real front) > a sign-out from a browser that sends two valid values of the sign-in cookie ends both, and closes the live session opened under the second value too, not only one opened under the first (own check after the review bot on af80dc9) 633ms
+ Test Files  1 passed (1)
+      Tests  4 passed | 42 skipped (46)
+
+Working tree of builder/ after (git status --porcelain, count): 0

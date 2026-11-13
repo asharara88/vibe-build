@@ -10,14 +10,14 @@
 
 ## The review
 
-Nothing blocking; nine notes, six fixed (among them the switch above, and a live session ending with the builder sign-in that opened it); gaps 148, 149 corrected, 159 to 161 added (161, the live app after sign-off, is your choice). The review bot then found two: a sign-out in another tab while the live app was opening still gave a pass; an answer the app cut short stayed open 60 seconds. Both fixed. Each fix: a test that failed before, and a control.
+Nothing blocking; nine notes, six fixed (among them the switch above, and a live session ending with its sign-in); gaps 148, 149 corrected, 159 to 161 added (161, the live app after sign-off, is your choice). The review bot found two, my own check a third: a sign-out in another tab while the live app was opening, or closing, still gave a pass; an answer the app cut short stayed open 60 seconds. All fixed, each with a test that failed before and a control.
 
 ## State
 
 1. **Tested:** 0.1 to 0.5, 0.6a (development profile), 1.1, 1.2, 1.2b, 1.3, 1.4, 1.5 (stand-in only), 2.1, W4.
 2. **Built, not tested:** 3.1, 1.4c, 3.1b, 1.4b, 0.6c, J1 (merged), J3 (pull request #38).
-3. **Checked after the review bot:** on `4e41340`, the whole suite, 688 of 688 (live tests included), typecheck and licence check passed; 43 of 43 controls failed with their safeguard removed. Not repeated: 0.6c's isolation run (nothing it covers changed). **Assumed:** your phone's browser behaves as Chromium did (M1).
-4. **Your 4020 interface:** stopped at 19:24 UTC (the session's two-hour limit); restarted from the merged code once J3 merges, live preview off.
+3. **Checked after the review bot:** on `34ff56c`, the whole suite, 692 of 692 (live tests included), typecheck and licence check passed; 46 of 46 controls failed with their safeguard removed. Not repeated: 0.6c's isolation run (nothing it covers changed). **Assumed:** your phone's browser behaves as Chromium did (M1).
+4. **Your 4020 interface:** stopped at 19:24 UTC (the session's limit); restarted from the merged code once J3 merges, live preview off.
 
 ## Next
 
