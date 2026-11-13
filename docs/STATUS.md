@@ -4,26 +4,27 @@
 
 ## State
 
-1. **Tested:** 0.1 to 0.5, 0.6a (development profile only), 1.1, **1.2** and **1.2b** (against a stand-in provider only), 2.1 and W4. **1.3 is built, not tested:** its adversarial review has not run. R1 is merged, not tested. Progress: build plan section 10.
-2. **Budget cap:** a call is let through only if spend plus money set aside plus this call's hold fits the cap. With 1.3, a step is refused before it starts unless its whole budget fits; its calls draw from that reservation, and the unused part is released at its end. A hold is a reservation from an estimate plus a margin, not a proven ceiling. Nothing yet stops a project after a fault (1.4).
-3. **Isolation:** on the development profile, project containers can reach the machine's services, including the builder's own database (known gap 60). The fix is package 0.6c. No code a model wrote runs before it.
-4. **Licences:** the two sandbox images and the 119 Ubuntu packages are approved for internal development and testing only (13 Nov). The browser and the runner's two base images: an approval request is being prepared.
-5. **Real models:** none called yet. The real-model gate stays closed until 1.4, 0.6c and the key.
+1. **Tested:** 0.1 to 0.5, 0.6a (development profile only), 1.1, **1.2** and **1.2b** (stand-in provider only), 2.1 and W4. **Built, not tested:** 1.3 and **1.4** (no adversarial review yet). R1 is merged, not tested. Progress: plan section 10.
+2. **Budget cap:** a call goes ahead only if spend plus money set aside plus its hold fits the cap; with 1.3, a step starts only if its whole budget fits. With 1.4: a finished call that cannot be recorded stops the gateway until it is, then freezes that project until you record its cost (1.5, not built); a gateway killed mid-call leaves its money held, marked for you. A hold is a reservation from an estimate plus a margin, not a proven ceiling.
+3. **Isolation:** on the development profile, project containers can reach the machine's services, the builder's database included (gap 60). Package 0.6c fixes it; no model-written code runs until then.
+4. **Licences:** the two sandbox images and 119 Ubuntu packages are approved for internal development and testing (13 Nov). The browser and the runner's base images: a request is being prepared.
+5. **Real models:** none called yet. The real-model gate stays closed until 1.4 is tested, 0.6c and the key.
 
 ## Next
 
-1. **1.3's adversarial review**, then its pull request. Evidence: `evidence/2026-11-13-package-1.3/step-hold.md`.
-2. **Pin the approved images** by digest, with a check, and fix a sandbox test that asks the database once whether it is ready instead of waiting.
-3. **1.4 and 1.5**, the rest of the budget controls. 0.6c's design is drafted alongside.
+1. **Adversarial reviews of 1.3 and 1.4**, then their pull requests. Evidence: `evidence/2026-11-13-package-1.3/` and `-1.4/`.
+2. **Pin the approved images** by digest, with a check; fix a sandbox test that does not wait for the database.
+3. **1.5**, your recorded close of a held call, which also unfreezes a project. 0.6c's design is drafted alongside.
 4. **3.1**, the acceptance runner, once the browser and runner images are approved.
 
 ## What blocks it
 
-- 3.1: your approval of the browser and the runner's two base images (request coming).
+- 3.1: your approval of the browser and runner images (request coming).
 - 0.6c: its design read by an engineer or by you (question 7).
-- 2.3, the first real-model run: 1.4, 0.6c and the key.
-- Nothing waits on question 16 (what 1.3 is checked against); 1.3 was built to its recommended option.
+- 2.3, the first real-model run: 1.4 tested, 0.6c and the key.
+- Proof row B10 rests on a design no engineer has reviewed (known gap 35; question 7).
+- Questions 16 and 17 block nothing: each was built to its stated option.
 
 ## Money
 
-Model spend through the builder: **$0.00** (no real call made). The separate hosted prototype agent outside the repository is paused by you (13 Nov). No paid service is in use.
+Model spend through the builder: **$0.00** (no real call made). The hosted prototype agent outside the repository is paused by you (13 Nov). No paid service is in use.

@@ -8,6 +8,10 @@ None open right now. The approval request for the browser and the runner's two b
 
 ## Not blocking yet
 
+**17. Should a bill above its hold also freeze the project?** Built to (b); the build does not wait on your answer.
+(a) **Yes.** Recommended: after such a bill, a project with budget left makes no further call until you record it. It does not stop the first such bill. It needs the freeze written in the same step as the settle, and package 1.5 able to clear it.
+(b) No: a fault message only, as now (known gaps 41 and 79).
+
 **16. What is package 1.3 checked against?** Built to (a); the build does not wait on your answer.
 (a) **Proof row B7 in full: a step refused before it starts, and a step that starts has its calls drawn from its reserved budget, the unused part released at its end.** Recommended: a running step cannot be starved by other spending or by a cap lowering.
 Its cost: while a step runs, its whole reservation stops the cap being lowered, there is no command to stop a running step, and a cap raise does not top up a running step.
@@ -43,16 +47,16 @@ Claude Code's readings and work, recorded as such, not as your decisions. Detail
 
 - Proof rows B7 to B14 assigned to packages 1.3 to 1.5 (B7's extra over 1.3's wording is now question 16; 1.5 is taken after 1.4).
 - The message a refused step shows, reworded from design note 5.5 for a step (package 1.3; the note of 13 Nov there).
-- Building known gap 35's proposal if no engineer is named by then.
+- Known gap 35's proposal built in package 1.4 with no engineer named: proof row B10 rests on a design no engineer has reviewed.
+- The messages of package 1.4: a frozen project's refusal, and the two 503 refusals (the gateway stopped after a fault; its database not usable). Wording Claude Code's.
 - What "absent from what a customer receives" means for a development package an exported app lists (gap 39).
 - Two suggested Arabic wording changes (`docs/arabic-wording-list.md`).
 - R1: the type check, build and demonstration standing in for "existing tests pass"; option (a) for L11; merging pull request #10 with two "Done means" unmet (gap 46).
 - How the hold's known limits are handled in package 1.2 (`docs/DECISIONS.md`, 12 Nov).
-- Whether a bill above its hold should also stop the project's later calls (package 1.4 builds the stop).
 - "Worst-case holds" read as the provider's estimate plus an assumed margin and the most output allowed, not a proven ceiling (gap 41).
 - Package 2.1 marked tested on the reading recorded in `docs/DECISIONS.md` (12 Nov).
 - A correction to `CLAUDE.md` line 64 (your file); the proposed wording is in the old status file, item (x).
 - Where hard rule 2 stops: programs of the machine (git, PostgreSQL, Docker, the operating system) are not counted as the builder's dependencies.
 - Gap 60: the boundary is fixed (package 0.6c) before code from the builder's own model calls runs; "fixed" means 0.6a's probe shows each such container reaching only what design note 2.5 allows.
 - A caller who leaves before the call is forwarded has its hold released (package 1.2; design note 5.5, step 3).
-- A hold kept after an error answer is not marked unreconciled, unlike design note 5.5's table (gap 62).
+- Every kept hold is now marked unreconciled, as design note 5.5 says, including after an error answer (package 1.4; this changes how 1.2 behaved for proof row B19).
