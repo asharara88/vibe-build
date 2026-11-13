@@ -13,7 +13,8 @@
  *   It reads no model key and no project token, and it does not run migrations.
  * - The change goes through `changeCap` (builder/src/store/holds.ts): one transaction under the
  *   project's lock, the cap and its `cap.changed` event together. A lowering below what the project has
- *   already spent plus its open holds is refused, with the lowest figure allowed now.
+ *   already spent plus its open holds (since package 1.3, with the room reserved for running steps) is
+ *   refused, with the lowest figure allowed now.
  *
  * Exit codes: 0 changed; 1 the arguments were wrong (nothing was sent to the database); 2 refused by the
  * store (nothing changed, nothing written); 3 the change could not be completed: if the connection broke
@@ -72,6 +73,7 @@ try {
   console.log(`  new cap:     $${r.newCapUsd.toFixed(4)}`);
   console.log(`  spent:       $${r.spentUsd.toFixed(6)}`);
   console.log(`  open holds:  $${r.openHoldsUsd.toFixed(6)} (${r.openHolds} open hold(s))`);
+  console.log(`  reserved:    $${r.stepRoomUsd.toFixed(6)} for ${r.openSteps} running step(s) (package 1.3; counted with open holds)`);
   console.log(`  asked by:    ${r.askedBy}`);
   console.log(`  changed by:  ${r.changedBy}`);
   console.log(`  reason:      ${r.reason}`);

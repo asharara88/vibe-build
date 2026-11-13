@@ -12,6 +12,11 @@ None open right now. Question 15, the browser and the runner's two base images, 
 (a) **Change the script to fetch only the two approved images, by digest, each with a time limit** (a change to your environment, approved on a card). Recommended: new sessions then start with the approved versions.
 (b) Leave it; the builder will pin its own images (status, Next, item 2).
 
+**16. What is package 1.3 checked against?** Built to (a); the build does not wait on your answer.
+(a) **Proof row B7 in full: a step refused before it starts, and a step that starts has its calls drawn from its reserved budget, the unused part released at its end.** Recommended: a running step cannot be starved by other spending or by a cap lowering.
+Its cost: while a step runs, its whole reservation stops the cap being lowered, there is no command to stop a running step, and a cap raise does not top up a running step.
+(b) The plan's wording only: the refusal before the step starts. The drawing and release would be extras, and B7's drawing part would move to 2.2, when a real engine carries the step's token.
+
 **4. Make the repository private?** It is public today, and two outside reviewers have noted it.
 (a) **Yes, now** (you change it in GitHub's settings; then Claude Code checks this session can still reach it). Recommended: nothing in it is meant for the public.
 (b) Leave it public.
@@ -40,7 +45,8 @@ None open right now. Question 15, the browser and the runner's two base images, 
 
 Claude Code's readings and work, recorded as such, not as your decisions. Detail: `docs/log/2026-11-13-status-before-rewrite.md`, "Yours to confirm".
 
-- Proof rows B7 to B14 assigned to packages 1.3 to 1.5 (B7 asks more than 1.3's wording; 1.5 is taken after 1.4).
+- Proof rows B7 to B14 assigned to packages 1.3 to 1.5 (B7's extra over 1.3's wording is now question 16; 1.5 is taken after 1.4).
+- The message a refused step shows, reworded from design note 5.5 for a step (package 1.3; the note of 13 Nov there).
 - Building known gap 35's proposal if no engineer is named by then.
 - What "absent from what a customer receives" means for a development package an exported app lists (gap 39).
 - Two suggested Arabic wording changes (`docs/arabic-wording-list.md`).

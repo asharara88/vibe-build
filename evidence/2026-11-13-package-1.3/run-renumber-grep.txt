@@ -1,0 +1,139 @@
+Package 1.3, 13 Nov 2026: its known gaps renumbered after merging the integration branch at 8a0ee2a. Read at commit aea350e.
+Files read: the 29 files this branch added or changed since 18bf3fa (git diff --name-only 18bf3fa 4fd2845); the run outputs (run-*.txt) are read separately in section 4.
+
+Old to new: 67->81, 68->82, 69->83, 70->84, 71->85, 72->86, 73->87, 74->88, 75->89, 76->90.
+
+== 1. The renumbered rows, and the integration branch's 66 to 69 before them
+$ grep -noE "^\| (6[6-9]|7[0-9]|8[0-9]|90) \| \*\*[^*]{0,50}" docs/KNOWN-GAPS.md
+82:| 66 | **Package 1.2b's review notes, left open under the o
+83:| 67 | **Docker in cloud development sessions starts withou
+84:| 68 | **The approved-images check reads text; it does not 
+85:| 69 | **The sandbox's database health check can pass befor
+86:| 81 | **A step's prompt limit is not measured.
+87:| 82 | **One engine turn is assumed to be one model call.
+88:| 83 | **No real engine carries a step's token yet.
+89:| 84 | **Calls made without a step's token are still labell
+90:| 85 | **A running step's reservation blocks a cap lowering
+91:| 86 | **More than one step can hold a budget in one projec
+92:| 87 | **No test covers the cap check on a step's own call
+93:| 88 | **Closing steps past their deadline is tested in onl
+94:| 89 | **No test covers giving an unsent step call's hold b
+95:| 90 | **The 402 `step_budget_reached` message rounds the r
+
+== 2. Every gap number from 67 to 90 named in those files (a script joins the wrapped comment at holds.ts:443-444)
+$ python3 refs.py   # "gap N", "gaps N, M", "gaps N to M", "Numbered N", "becomes N"
+builder/scripts/demo-step-hold.ts:5: gap 83
+builder/src/gateway/hold.ts:31: gap 81
+builder/src/orchestrator/steps.ts:14: gap 83
+docs/BUILD-PLAN.md:286: gaps 81 to 86
+docs/BUILD-PLAN.md:286: gaps 87 to 90 and 85
+docs/DECISIONS.md:107: gap 67
+docs/DECISIONS.md:108: gap 67
+docs/KNOWN-GAPS.md:35: gap 84
+docs/KNOWN-GAPS.md:80: gap 85
+docs/KNOWN-GAPS.md:82: becomes 67
+docs/KNOWN-GAPS.md:84: Numbered 67
+docs/KNOWN-GAPS.md:86: Numbered 67
+docs/KNOWN-GAPS.md:87: Numbered 68
+docs/KNOWN-GAPS.md:88: Numbered 69
+docs/KNOWN-GAPS.md:89: Numbered 70
+docs/KNOWN-GAPS.md:90: Numbered 71
+docs/KNOWN-GAPS.md:90: gap 83
+docs/KNOWN-GAPS.md:91: Numbered 72
+docs/KNOWN-GAPS.md:92: Numbered 73
+docs/KNOWN-GAPS.md:93: Numbered 74
+docs/KNOWN-GAPS.md:94: Numbered 75
+docs/KNOWN-GAPS.md:95: Numbered 76
+docs/QUESTIONS.md:11: gap 67
+docs/QUESTIONS.md:63: gap 68
+docs/design/stage-1.md:408: gaps 41, 81, 82
+evidence/2026-11-13-package-1.3/step-hold.md:17: gap 88
+evidence/2026-11-13-package-1.3/step-hold.md:33: gap 86
+evidence/2026-11-13-package-1.3/step-hold.md:52: gaps 87 to 89, and
+evidence/2026-11-13-package-1.3/step-hold.md:52: gap 85
+evidence/2026-11-13-package-1.3/step-hold.md:52: gap 90
+evidence/2026-11-13-package-1.3/step-hold.md:58: gap 83
+evidence/2026-11-13-package-1.3/step-hold.md:59: gap 81
+evidence/2026-11-13-package-1.3/step-hold.md:59: gap 82
+evidence/2026-11-13-package-1.3/step-hold.md:61: gap 85
+evidence/2026-11-13-package-1.3/step-hold.md:62: gaps 85 and 87 to 90
+$ grep -n -A1 "(known gaps$" builder/src/store/holds.ts
+443: * step's prompt limit (such a call is refused, so the step stops), or a bill above a hold (known gaps
+444- * 41, 81, 82). Like every hold, the budget is a reservation from the provider's estimate plus an
+$ grep -n "renumbered 81 to 90" docs/STATUS.md
+15:renumbered 81 to 90 (the review's notes: 85, 87 to 90)
+
+== 3. The mentions of 67 to 76 left in section 2, and why each stays
+docs/DECISIONS.md:107, :108; docs/QUESTIONS.md:11, :63; docs/KNOWN-GAPS.md:82 ("becomes 67", in row 66, written by package 1.2b before this branch), :83 to :85 (rows 67 to 69), :84 ("Numbered 67"): the integration branch's own gaps 67 and 68. Each line is the same as on origin/claude/stage-1:
+  docs/DECISIONS.md:107 identical
+  docs/DECISIONS.md:108 identical
+  docs/QUESTIONS.md:11 identical
+  docs/QUESTIONS.md:63 identical
+  docs/KNOWN-GAPS.md:83 identical
+  docs/KNOWN-GAPS.md:84 identical
+  docs/KNOWN-GAPS.md:85 identical
+  docs/KNOWN-GAPS.md:82 (row 66) identical to this branch's row 66 at 4fd2845 (the integration branch did not change row 66 after 18bf3fa)
+docs/KNOWN-GAPS.md:86 to :95, "Numbered 67" to "Numbered 76": the note on each renumbered row giving its former number, added in this merge.
+
+== 4. The run outputs and the tests name no gap
+$ grep -ciE "gap" evidence/2026-11-13-package-1.3/run-*.txt builder/test/step-hold.test.ts
+evidence/2026-11-13-package-1.3/run-controls-1.txt:0
+evidence/2026-11-13-package-1.3/run-controls-2.txt:0
+evidence/2026-11-13-package-1.3/run-demo-step-hold.txt:0
+evidence/2026-11-13-package-1.3/run-licences-after-review.txt:0
+evidence/2026-11-13-package-1.3/run-licences.txt:0
+evidence/2026-11-13-package-1.3/run-tests-full-after-review.txt:0
+evidence/2026-11-13-package-1.3/run-tests-full.txt:0
+evidence/2026-11-13-package-1.3/run-tests-not-live.txt:0
+evidence/2026-11-13-package-1.3/run-tests-step-hold.txt:0
+evidence/2026-11-13-package-1.3/run-typecheck-after-review.txt:0
+evidence/2026-11-13-package-1.3/run-typecheck.txt:0
+builder/test/step-hold.test.ts:0
+
+== 5. No other line of the integration branch was changed by the merge, except this branch's own updates
+$ git diff origin/claude/stage-1 HEAD -U0 -- docs | grep -E "^-" (each removed line cut to 100 characters)
+--- a/docs/BUILD-PLAN.md
+-| 1.3 to 1.5 | Not started. 1.3 waits for 1.2b (1.2 is tested); 1.4 for 1.3; 1.5's dependency, 1.2,
+--- a/docs/DECISIONS.md
+--- a/docs/KNOWN-GAPS.md
+-| 18 | **The step label on each model call relies on the engine sending an `x-builder-step` header.
+-| 64 | **Nothing in the builder can change a project's cap, and no package in the plan adds a way.*
+-| 66 | **Package 1.2b's review notes, left open under the owner's rule of 13 Nov (at most two round
+--- a/docs/QUESTIONS.md
+-- Proof rows B7 to B14 assigned to packages 1.3 to 1.5 (B7 asks more than 1.3's wording; 1.5 is tak
+--- a/docs/STATUS.md
+-1. **Tested:** 0.1 to 0.5, 0.6a (development profile only), 1.1, **1.2** and **1.2b** (the budget h
+-2. **Budget cap:** a call is let through only if spend plus money set aside plus this call's hold f
+-3. **Isolation:** on the development profile, project containers can reach the machine's services, 
+-1. **1.2b is done:** a project's cap can be changed by a recorded command, never below what is spen
+-2. **The approved images are pinned** by digest, with a check that fails on any other, and the sand
+-3. **1.3 and 1.4**, the pre-step check and the failure tests with the stop after a fault: being bui
+--- a/docs/design/stage-1.md
+(Rows 18, 64 and 66, the plan's 1.3 row and the confirm-list line on B7 are this branch's updates of 13 Nov; STATUS was rewritten from both sides.)
+
+Not changed: the commit messages of 4bd46f7 and 4374b78, which name the former numbers ("known gaps 67 to 72", "known gaps 73 to 76").
+
+== The script of section 2 (refs.py), as run: it lists each "gap(s)", "Numbered" or "becomes" followed by numbers, expands "N to M", and prints the match when any number is from 67 to 90
+```
+import re, sys, subprocess
+root = sys.argv[1]
+files = [l.strip() for l in open(sys.argv[2]) if l.strip() and not l.startswith('evidence/2026-11-13-package-1.3/run-')]
+# also scan run outputs, separately reported
+runs = [l.strip() for l in open(sys.argv[2]) if l.startswith('evidence/2026-11-13-package-1.3/run-')]
+# a "gap reference": 'gap'/'gaps'/'Numbered'/'becomes' followed by a list of numbers, joined by , and to / ;
+pat = re.compile(r'(?i)\b(gaps?|numbered|becomes)\b((?:\s*(?:\d+|,|and|to|known gaps?)\s*)+)')
+for f in files + runs:
+    try: text = open(root + '/' + f).read()
+    except FileNotFoundError: continue
+    # join wrapped comment lines: track line numbers
+    for m in pat.finditer(text):
+        nums = [int(x) for x in re.findall(r'\d+', m.group(2))]
+        span = ' '.join(m.group(0).split())
+        # expand "a to b"
+        rng = re.findall(r'(\d+)\s+to\s+(\d+)', m.group(2))
+        allnums = set(nums)
+        for a, b in rng: allnums |= set(range(int(a), int(b) + 1))
+        if any(67 <= n <= 90 for n in allnums):
+            line = text.count('\n', 0, m.start()) + 1
+            print(f"{f}:{line}: {span}")
+```

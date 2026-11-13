@@ -1824,6 +1824,9 @@ describe("the cap change: proof rows B20 to B22 of the design note (package 1.2b
       spent_usd: 0,
       open_holds_usd: 0,
       open_holds: 0,
+      // Package 1.3: the room reserved for running steps, and how many, at the moment of the change.
+      step_room_usd: 0,
+      open_steps: 0,
     });
     expect(Number.isNaN(Date.parse(change.changedAt))).toBe(false);
     // Spent and open holds are what they were; only the cap moved.
