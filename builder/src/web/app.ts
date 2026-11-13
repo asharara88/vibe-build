@@ -1,0 +1,307 @@
+/**
+ * The builder's own web interface (package J1): routes, the sign-in guard, csrf, secure headers and the
+ * content-security-policy. Pages call only the orchestrator (`Journey`); only it changes a project's state.
+ *
+ * - One guard in front of every route: a visitor who is not signed in gets only the sign-in page (and, before
+ *   a password is chosen on the first run, only "Choose your password"). The only routes open without a
+ *   session are the sign-in and first-run pages, the language switch and the stylesheet.
+ * - No GET changes anything. Every change is a POST, checked by hono's `csrf()` (the request's Origin, or
+ *   Sec-Fetch-Site, must be this site).
+ * - `secureHeaders()` on every response, with a content-security-policy that allows no script at all, styles
+ *   and images from this site only, and forms posted only to it; every page is `no-store`.
+ */
+import { Hono, type Context } from "hono";
+import { bodyLimit } from "hono/body-limit";
+import { deleteCookie, getCookie, setCookie } from "hono/cookie";
+import { csrf } from "hono/csrf";
+import { HTTPException } from "hono/http-exception";
+import { secureHeaders } from "hono/secure-headers";
+import { activeFreeze, frozenMessage } from "../store/freezes.js";
+import { getBudget, listStepHolds } from "../store/holds.js";
+import { listUnreconciled } from "../store/reconcile.js";
+import { PRICE_TABLE_DATE } from "../gateway/prices.js";
+import type { Answer } from "../orchestrator/intake.js";
+import { Journey, JourneyRefused } from "../orchestrator/journey.js";
+import { passwordProblem, SESSION_COOKIE, type PasswordState, type Sessions, type SignInLimiter } from "./auth.js";
+import { recordedFile } from "./files.js";
+import {
+  briefPage,
+  costPage,
+  errorPage,
+  isJourneyId,
+  LANGS,
+  newProjectPage,
+  notFoundPage,
+  planPage,
+  projectsPage,
+  proposalPage,
+  questionsPage,
+  recordPage,
+  setupPage,
+  signInPage,
+  STYLESHEET,
+  type Lang,
+} from "./pages.js";
+
+export const LANG_COOKIE = "builder_lang";
+/** The model whose prices size a step's reservation in J1 (design section 1, item 6). */
+export const PRICED_MODEL = "claude-opus-5-5";
+
+export interface WebDeps {
+  journey: Journey;
+  password: PasswordState;
+  sessions: Sessions;
+  limiter: SignInLimiter;
+  /** The data folder, resolved: files are served only from inside it. */
+  dataDir: string;
+  onFault?: (message: string, detail: unknown) => void;
+}
+
+type Env = { Variables: { lang: Lang; signedIn: boolean } };
+
+/** Paths a visitor with no session may reach. Everything else is behind the guard. */
+export const PUBLIC_PATHS = new Set(["/sign-in", "/setup", "/language", "/static/app.css"]);
+
+export const CONTENT_SECURITY_POLICY = {
+  defaultSrc: ["'none'"],
+  scriptSrc: ["'none'"],
+  styleSrc: ["'self'"],
+  imgSrc: ["'self'"],
+  formAction: ["'self'"],
+  baseUri: ["'none'"],
+  frameAncestors: ["'self'"],
+};
+
+const cookieOpts = { httpOnly: true, sameSite: "Strict" as const, path: "/" };
+
+export function createWebApp(d: WebDeps): Hono<Env> {
+  const app = new Hono<Env>();
+  const j = d.journey;
+
+  app.use("*", secureHeaders({ contentSecurityPolicy: CONTENT_SECURITY_POLICY }));
+  app.use("*", async (c, next) => {
+    await next();
+    c.header("Cache-Control", "no-store");
+  });
+  app.use("*", bodyLimit({ maxSize: 64 * 1024, onError: (c) => c.text("Too large.", 413) }));
+  app.use("*", csrf());
+
+  // The page's language: ?lang= when given, else the cookie, else English.
+  app.use("*", async (c, next) => {
+    const q = c.req.query("lang");
+    const ck = getCookie(c, LANG_COOKIE);
+    c.set("lang", (LANGS as string[]).includes(q ?? "") ? (q as Lang) : (LANGS as string[]).includes(ck ?? "") ? (ck as Lang) : "en");
+    c.set("signedIn", d.sessions.valid(getCookie(c, SESSION_COOKIE)));
+    await next();
+  });
+
+  // The guard, in front of every route.
+  app.use("*", async (c, next) => {
+    const path = c.req.path;
+    if (!d.password.isSet) {
+      if (path === "/setup" || path === "/language" || path === "/static/app.css") return next();
+      return c.redirect("/setup", 303);
+    }
+    if (PUBLIC_PATHS.has(path)) return next();
+    if (c.get("signedIn")) return next();
+    return c.redirect("/sign-in", 303);
+  });
+
+  app.onError((err, c) => {
+    const lang = c.get("lang") ?? "en";
+    if (err instanceof HTTPException) return err.getResponse();
+    if (err instanceof JourneyRefused) return c.html(errorPage(lang, { message: err.message, back: backFrom(c), signedIn: true }), 409);
+    d.onFault?.("A request to the interface failed.", { path: c.req.path, error: err instanceof Error ? err.message : String(err) });
+    return c.html(errorPage(lang, { message: "Something went wrong. The project's record shows what was written.", back: "/projects", signedIn: c.get("signedIn") ?? false }), 500);
+  });
+  app.notFound((c) => c.html(notFoundPage(c.get("lang") ?? "en", c.get("signedIn") ?? false), 404));
+
+  /* ---------------------------------------------------------------- open without a session */
+
+  app.get("/static/app.css", (c) => c.body(STYLESHEET, 200, { "Content-Type": "text/css; charset=utf-8" }));
+
+  app.post("/language", async (c) => {
+    const body = await c.req.parseBody();
+    const lang = typeof body.lang === "string" && (LANGS as string[]).includes(body.lang) ? body.lang : "en";
+    setCookie(c, LANG_COOKIE, lang, { ...cookieOpts, maxAge: 60 * 60 * 24 * 365 });
+    return c.redirect(localPath(body.back), 303);
+  });
+
+  app.get("/sign-in", (c) => {
+    if (c.get("signedIn")) return c.redirect("/projects", 303);
+    const m = c.req.query("m");
+    return c.html(signInPage(c.get("lang"), { message: m === "signed_out" || m === "setup_done" ? m : undefined }));
+  });
+
+  app.post("/sign-in", async (c) => {
+    const lang = c.get("lang");
+    const locked = d.limiter.lockedFor();
+    if (locked > 0) return c.html(signInPage(lang, { message: "locked", lockedSeconds: Math.ceil(locked / 1000) }), 429);
+    const body = await c.req.parseBody();
+    const password = typeof body.password === "string" ? body.password : "";
+    if (!d.password.check(password)) {
+      d.limiter.fail();
+      const now = d.limiter.lockedFor();
+      return c.html(now > 0 ? signInPage(lang, { message: "locked", lockedSeconds: Math.ceil(now / 1000) }) : signInPage(lang, { message: "wrong" }), now > 0 ? 429 : 401);
+    }
+    d.limiter.succeed();
+    d.sessions.end(getCookie(c, SESSION_COOKIE));
+    setCookie(c, SESSION_COOKIE, d.sessions.create(), cookieOpts);
+    return c.redirect("/projects", 303);
+  });
+
+  app.get("/setup", (c) => {
+    if (d.password.isSet) return c.redirect("/sign-in", 303);
+    return c.html(setupPage(c.get("lang")));
+  });
+
+  app.post("/setup", async (c) => {
+    const lang = c.get("lang");
+    if (d.password.isSet) return c.html(setupPage(lang, { message: "already" }), 409);
+    const body = await c.req.parseBody();
+    const password = typeof body.password === "string" ? body.password : "";
+    const again = typeof body.again === "string" ? body.again : "";
+    if (password !== again) return c.html(setupPage(lang, { message: "mismatch" }), 400);
+    if (passwordProblem(password)) return c.html(setupPage(lang, { message: "too_short" }), 400);
+    if (!d.password.choose(password)) return c.html(setupPage(lang, { message: "already" }), 409);
+    return c.redirect("/sign-in?m=setup_done", 303);
+  });
+
+  /* ---------------------------------------------------------------- behind the guard */
+
+  app.post("/sign-out", (c) => {
+    d.sessions.end(getCookie(c, SESSION_COOKIE));
+    deleteCookie(c, SESSION_COOKIE, { path: "/" });
+    return c.redirect("/sign-in?m=signed_out", 303);
+  });
+
+  app.get("/", (c) => c.redirect("/projects", 303));
+
+  app.get("/projects", async (c) => c.html(projectsPage(c.get("lang"), await j.list(), await j.otherProjectCount())));
+
+  app.get("/projects/new", (c) => c.html(newProjectPage(c.get("lang"))));
+
+  app.post("/projects", async (c) => {
+    const body = await c.req.parseBody();
+    const input = { name: str(body.name), cap: str(body.cap), brief: str(body.brief) };
+    try {
+      const id = await j.createProject(input);
+      return c.redirect(`/projects/${id}/brief`, 303);
+    } catch (err) {
+      if (err instanceof JourneyRefused) return c.html(newProjectPage(c.get("lang"), { error: err.message, ...input }), 400);
+      throw err;
+    }
+  });
+
+  // One project. Its id must be one the journey made; anything else is "not found".
+  app.use("/projects/:id/*", async (c, next) => {
+    if (!isJourneyId(c.req.param("id") ?? "")) return c.html(notFoundPage(c.get("lang"), true), 404);
+    return next();
+  });
+  app.use("/projects/:id", async (c, next) => {
+    const id = c.req.param("id") ?? "";
+    if (id !== "new" && !isJourneyId(id)) return c.html(notFoundPage(c.get("lang"), true), 404);
+    return next();
+  });
+
+  app.get("/projects/:id", async (c) => {
+    const s = await j.state(c.req.param("id"));
+    const screen = { brief: "brief", questions: "questions", brief_review: "proposal", plan_review: "plan", build: "plan", stopped: "brief", closed: "record" }[s.stage];
+    return c.redirect(`/projects/${s.project.id}/${screen}`, 303);
+  });
+  app.get("/projects/:id/brief", async (c) => c.html(briefPage(c.get("lang"), await j.state(c.req.param("id")), j)));
+  app.get("/projects/:id/questions", async (c) => c.html(questionsPage(c.get("lang"), await j.state(c.req.param("id")), j)));
+  app.get("/projects/:id/proposal", async (c) => c.html(proposalPage(c.get("lang"), await j.state(c.req.param("id")), j)));
+  app.get("/projects/:id/plan", async (c) => c.html(planPage(c.get("lang"), await j.state(c.req.param("id")), j)));
+  app.get("/projects/:id/record", async (c) => c.html(recordPage(c.get("lang"), await j.state(c.req.param("id")))));
+  app.get("/projects/:id/cost", async (c) => {
+    const s = await j.state(c.req.param("id"));
+    const id = s.project.id;
+    const freeze = await activeFreeze(j.pool, id);
+    return c.html(
+      costPage(c.get("lang"), s, {
+        budget: await getBudget(j.pool, id),
+        stepHolds: await listStepHolds(j.pool, id),
+        freeze,
+        freezeMessage: freeze ? frozenMessage(freeze, "step") : null,
+        unreconciled: await listUnreconciled(j.pool, { projectId: id }),
+        modelCalls: s.events.filter((e) => e.kind === "model.call").length,
+        pricedModel: PRICED_MODEL,
+        priceTableDate: PRICE_TABLE_DATE,
+      }),
+    );
+  });
+  app.get("/projects/:id/files/:eventId", async (c) => {
+    const f = await recordedFile(j.pool, d.dataDir, c.req.param("id"), c.req.param("eventId"));
+    if (!f.ok) return c.html(notFoundPage(c.get("lang"), true), 404);
+    const headers: Record<string, string> = { "Content-Type": f.media, "X-Content-Type-Options": "nosniff" };
+    if (f.media !== "image/png") headers["Content-Disposition"] = `attachment; filename="${f.name.replace(/[^A-Za-z0-9._-]/g, "_")}"`;
+    return c.body(new Uint8Array(f.body), 200, headers);
+  });
+
+  const act = (path: string, fn: (id: string, body: Record<string, string | File | (string | File)[]>) => Promise<string>) =>
+    app.post(`/projects/:id/${path}`, async (c) => {
+      const id = c.req.param("id");
+      const body = await c.req.parseBody({ all: true });
+      return c.redirect(await fn(id, body), 303);
+    });
+
+  act("continue", async (id) => (await j.continueWithExample(id), `/projects/${id}/questions`));
+  act("stop", async (id) => (await j.stop(id), `/projects/${id}/brief`));
+  act("answers", async (id, body) => {
+    const turn = Number(str(body.turn));
+    if (!Number.isInteger(turn) || turn < 0 || turn >= j.intake.turns.length) throw new JourneyRefused("That turn is not one of the questions'.");
+    const answers: Record<string, Answer> = {};
+    for (const qid of j.intake.turns[turn]!) {
+      const a = answerFromForm(j, qid, body);
+      if (a) answers[qid] = a;
+    }
+    await j.answerTurn(id, turn, answers);
+    return `/projects/${id}/questions`;
+  });
+  act("answer-rest", async (id) => (await j.answerRestFromSheet(id), `/projects/${id}/questions`));
+  act("confirm-brief", async (id) => (await j.confirmBrief(id), `/projects/${id}/plan`));
+  act("confirm-plan", async (id) => (await j.confirmPlan(id), `/projects/${id}/plan`));
+  act("close", async (id) => (await j.closeProject(id), `/projects/${id}/record`));
+
+  return app;
+}
+
+/** The answer a turn's form gives for one question, or undefined when it gives none. */
+export function answerFromForm(j: Journey, qid: string, body: Record<string, string | File | (string | File)[]>): Answer | undefined {
+  const q = j.question(qid);
+  const one = (k: string): string | undefined => {
+    const v = body[k];
+    const s = Array.isArray(v) ? v[0] : v;
+    return typeof s === "string" ? s : undefined;
+  };
+  if (q.kind === "choice") {
+    const v = one(`a_${qid}`);
+    if (v === undefined) return undefined;
+    if (v === "else") return { something_else: one(`else_${qid}`) ?? "" };
+    return /^\d{1,2}$/.test(v) ? { option: Number(v) } : { option: -1 };
+  }
+  if (q.kind === "checklist") {
+    const raw = body[`f_${qid}`];
+    const fields = (Array.isArray(raw) ? raw : raw === undefined ? [] : [raw]).filter((x): x is string => typeof x === "string");
+    const other = one(`else_${qid}`)?.trim();
+    if (fields.length === 0 && !other) return undefined;
+    return other ? { fields, something_else: other } : { fields };
+  }
+  const v = one(`t_${qid}`);
+  return v === undefined ? undefined : { open_text: v };
+}
+
+const str = (v: unknown): string => (typeof v === "string" ? v : Array.isArray(v) && typeof v[0] === "string" ? v[0] : "");
+
+/** A path on this site to go back to: a plain absolute path, never another site. */
+export function localPath(v: unknown): string {
+  const s = typeof v === "string" ? v : "";
+  return /^\/(?!\/)[A-Za-z0-9/_-]{0,200}$/.test(s) ? s : "/projects";
+}
+
+function backFrom(c: Context<Env>): string {
+  const m = /^\/projects\/(j1-[0-9a-f]{12})\//.exec(c.req.path);
+  return m ? `/projects/${m[1]}` : "/projects";
+}
+
