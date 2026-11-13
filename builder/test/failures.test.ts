@@ -663,6 +663,8 @@ describe("package 1.4: failure tests, proof rows B8 to B13 (against a stand-in p
       expect((await callAt(k2.url, q.token, body(q.id))).status).toBe(200);
       expect({ messages: stand.messages, counts: stand.counts }).toEqual({ messages: before.messages + 1, counts: before.counts + 1 });
       expect(k2.out).toContain("journal lines replayed at start-up: 1; all recorded: true");
+      // ... and before it began listening: the replay's line comes before the "listening" line (review of 1.4).
+      expect(k2.out.indexOf("journal lines replayed at start-up: 1; all recorded: true")).toBeLessThan(k2.out.findIndex((l) => / listening on /.test(l)));
       // The line survived the kill: it is now in the done file, and none is left waiting.
       const journal = await FaultJournal.open(journalDir);
       expect((await journal.pending()).records).toHaveLength(0);
@@ -874,6 +876,8 @@ describe("package 1.4: failure tests, proof rows B8 to B13 (against a stand-in p
     expect(rules(checkTrace([opened(1, 1, 0.01), called(2, 1, 0.001), settled(3, 1, 0.01, 0.001)], [{ pinnedAt: 1, billMicro: 6000 }], micro(1)))).toEqual(["2: below what was owed"]);
     // A settled call above its hold, and the hold.exceeded event that goes with it.
     expect(rules(checkTrace([opened(1, 1, 0.01), called(2, 1, 0.02), settled(3, 1, 0.01, 0.02), ev(4, "hold.exceeded", {})], [], micro(1)))).toEqual(["a settled call above its hold", "hold.exceeded written"]);
+    // A cap change with no new cap cannot be read: it is flagged, and rule (1) still applies after it.
+    expect(rules(checkTrace([ev(1, "cap.changed", {}), opened(2, 1, 0.01), opened(3, 2, 0.01)], [], micro(0.015)))).toEqual(["an event the replay cannot read", "1: above the cap"]);
     // A billing point where the view showed too little.
     expect(rules(await checkProjectWith([{ spentMicro: 0, openMicro: 0, roomMicro: 0, capMicro: 1, owedMicro: 5 }]))).toEqual(["2: below what was owed"]);
     // A hold row changed by hand, with no event: the replay no longer matches the budget view.

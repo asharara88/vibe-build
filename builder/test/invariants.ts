@@ -142,7 +142,9 @@ export function checkTrace(events: TraceEvent[], bills: Bill[], initialCapMicro:
         rooms.set(String(p["step_hold_id"]), 0);
         break;
       case "cap.changed":
-        cap = micro(num(p["new_cap_usd"]) ?? Number.NaN);
+        // No readable new cap: flagged, and the cap kept, rather than a NaN cap that would switch rule (1) off (review of 1.4).
+        if (num(p["new_cap_usd"]) === null) bad(e, "no new cap");
+        else cap = micro(num(p["new_cap_usd"])!);
         break;
       default:
         // hold.kept, hold.expired, hold.found_at_startup, hold.unreconciled, gateway.*, project.frozen,
