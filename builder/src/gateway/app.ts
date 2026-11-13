@@ -101,6 +101,13 @@ const WITHHELD_BODY = JSON.stringify({ type: "error", error: { type: "api_error"
 /** Why a call whose hold allowed for fast mode is not settled when its usage leaves the speed out. */
 const SPEED_NOT_STATED = "the hold allowed for fast mode, and the usage does not state the speed that served the call";
 const MINUTE = 60_000;
+/**
+ * The gateway's own time limits for a call. As built, a plain call does not reach its 10 minutes:
+ * Node's fetch, which forwards it with its default settings, gives up after 300 seconds without the
+ * answer's headers (undici's headersTimeout) and after 300 seconds between pieces of the body
+ * (bodyTimeout). A streamed call is cut by the same 300 seconds if its headers or the next piece of
+ * it do not come, and by the 60 minutes here overall. Known gap 63; docs/SOURCES.md, 13 Nov 2026.
+ */
 const DEFAULT_TIME_LIMIT = { plain: 10 * MINUTE, stream: 60 * MINUTE };
 /** Design note 5.5, step 4: ten minutes for a plain call, thirty for a streamed one. */
 const DEFAULT_DEADLINE_MARGIN = { plain: 10 * MINUTE, stream: 30 * MINUTE };
