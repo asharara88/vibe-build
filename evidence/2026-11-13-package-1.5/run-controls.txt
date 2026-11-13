@@ -151,3 +151,18 @@ Controls of package 1.5, run at ca7f226 by <scratchpad>/p15-tools/controls.sh (e
     RESULT: the test FAILED, as it should (exit 1)
 === controls that failed as they should: 16; that did not: 0
 ?? ../evidence/2026-11-13-package-1.5/
+
+---
+
+Control X17 of package 1.5 (after its review), run at 026d405 by controls.sh in this folder with ONLY=X17 (it removes one safeguard with perl, runs the named test of test/reconcile.test.ts on builder_test_pkg15 under the lock, expects it to FAIL, then restores the file with git checkout)
+=== X17: showing C1 control characters (U+0080 to U+009F) as spaces in the script's output (added after 1.5's review)
+    file: scripts/reconcile.ts; test: C1 ones included
+    -const line = (s: unknown) => String(s).replace(/[\u0000-\u001f\u007f-\u009f]+/g, " ");
+    +const line = (s: unknown) => String(s).replace(/[\u0000-\u001f\u007f]+/g, " ");
+    |      × 1.5, after its review: the script prints an owner's words with their control characters, C1 ones included, as spaces; the event log keeps them as given 499ms
+    | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+    | AssertionError: expected 'Database: builder_test_pkg15 (its nam…' to contain 'evidence:      Usage record (made up)…'
+    |       Tests  1 failed | 8 skipped (9)
+    RESULT: the test FAILED, as it should (exit 1)
+=== controls that failed as they should: 1; that did not: 0
+ M ../evidence/2026-11-13-package-1.5/controls.sh

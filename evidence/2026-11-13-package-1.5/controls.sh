@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Package 1.5 controls: each removes one safeguard, runs the named test, expects it to FAIL, then restores the file from git.
 # Kept as evidence. SCRATCHPAD is the session's scratch folder; run from builder/ as: SCRATCHPAD=<folder> bash <this file> "$PWD"
+# ONLY=<id> (for example ONLY=X17) runs that one control alone.
 set -uo pipefail
 cd "$1"
 export TMPDIR=${SCRATCHPAD}/p15-tmp
@@ -10,6 +11,7 @@ R=src/store/reconcile.ts
 pass=0; fail=0
 control() { # id, test pattern, file, perl substitution, what is removed[, second file, its substitution]
   local id="$1" pat="$2" file="$3" sub="$4" what="$5" file2="${6:-}" sub2="${7:-}"
+  if [ -n "${ONLY:-}" ] && [ "$ONLY" != "$id" ]; then return; fi
   echo "=== $id: $what"
   echo "    file: $file${file2:+ and $file2}; test: $pat"
   local before; before=$(sha1sum "$file")
@@ -43,5 +45,6 @@ control X13 'B14 \(6\)' $R 's/const step = await returnToStepIn\(c, hold, actual
 control X14 'B14 \(6\)' $R "s/deadline_at <= \\\$1\)\";/deadline_at <= \\\$1 - interval '100 years')\";/" "listing a hold past its deadline that the sweep has not marked"
 control X15 'B14 \(7\)' scripts/reconcile.ts 's/console\.log\(`Database: \$\{db\.rows\[0\]!\.name\}/console.log(`Database: \${process.env.BUILDER_DATABASE_URL} \${db.rows[0]!.name}/' "printing the database's name only"
 control X16 'still written' $R 's/"the provider answered with a server error",/"the provider answered with a server error (renamed)",/' "the kinds table matching what the gateway writes"
+control X17 'C1 ones included' scripts/reconcile.ts 's/\[\\u0000-\\u001f\\u007f-\\u009f\]\+/[\\u0000-\\u001f\\u007f]+/' "showing C1 control characters (U+0080 to U+009F) as spaces in the script's output (added after 1.5's review)"
 echo "=== controls that failed as they should: $pass; that did not: $fail"
 git status --short

@@ -5,7 +5,7 @@
 | Date | 13 November 2026 |
 | Done means | "The list shown with one example of each kind, and one reconciliation recorded with its evidence" (build plan, package 1.5); proof row B14 of design note 7.2 |
 | Run on | The development machine (a cloud session), on the host: the builder's store, gateway and scripts, PostgreSQL databases made for this package (`builder_test_pkg15` for the tests, `builder_demo_pkg15`, made empty, for the demonstration) and a **stand-in provider**. No model was called; the key is made up; nothing was spent; every name, figure and usage record is made up |
-| State | **Built, not tested.** B14 ran and passed against a stand-in; each new test failed with its safeguard removed (16 controls). No review yet: the plan asks for an adversarial one (the cap) |
+| State | **Built; tested at the commit its pull request merges**, as for 1.3 and 1.4. B14 ran and passed against a stand-in; each new test failed with its safeguard removed (17 controls). One adversarial review, 13 Nov 2026: nothing blocking; its ten notes and what was done with each are below. The fix after it is shown by a test, not reviewed |
 
 A **reconciliation** is the owner's recorded action that closes a kept hold at the call's actual cost. A **control** is a test run with one safeguard removed, to show the test notices.
 
@@ -13,11 +13,11 @@ A **reconciliation** is the owner's recorded action that closes a kept hold at t
 
 - **The list**, `listUnreconciled` (`builder/src/store/reconcile.ts:202-220`): every open hold that is kept, unreconciled, expired, or past its deadline though not yet marked (`:195`), with its kinds and what is known of it: amount, reason, model, gateway, deadline, what the gateway saw, late answers with their cost as read, freezes (`describe`, `:129-192`). The kind is read from the reason the gateway wrote (`reasonKind`, `:68-75`). Freezes whose hold is not open are listed apart.
 - **The reconciliation**, `reconcileHold` (`:309-423`). Figure and texts checked first (`:278-297`). Then one transaction under the project's lock (`:319`): holds past their deadline marked (`:323`); refused unless the hold is in this project, open, kept, and has no cost already recorded (`:325-344`); `model.call` with the actual cost (`:349-355`), the hold closed at it (`:356`), the unused part back to a running step (`:357`), the hold's freezes cleared (`:358-361`), `hold.reconciled` with the evidence, who asked, who recorded it, the reason and the budget before and after (`:366-391`), `hold.exceeded` when above the hold (`:392`), `project.freeze_cleared` per freeze (`:393-402`). Each refusal has its own code (`:225-236`) and writes nothing.
-- **The script**, `builder/scripts/reconcile.ts`: `--list [--project]`, or `--hold --actual --evidence --asked-by --by --reason`. Database name only (`:110`), control characters stripped (`:83`), exit 0 / 1 misuse / 2 refused / 3 not completed.
+- **The script**, `builder/scripts/reconcile.ts`: `--list [--project]`, or `--hold --actual --evidence --asked-by --by --reason`. Database name only (`:110`), control characters printed as spaces, C1 ones included since the review (`:83`; the fields it misses are gap 103), exit 0 / 1 misuse / 2 refused / 3 not completed.
 - **The controls** are run by `controls.sh` in this folder.
-- **The demonstration**, `builder/scripts/demo-reconcile.ts`. **The tests**, `builder/test/reconcile.test.ts:258-512`. The invariant checker reads `hold.reconciled` as a settlement (`builder/test/invariants.ts:118-120`). Four helpers and one constant of `holds.ts` exported, its lines unchanged.
+- **The demonstration**, `builder/scripts/demo-reconcile.ts`. **The tests**, `builder/test/reconcile.test.ts:258-524`. The invariant checker reads `hold.reconciled` as a settlement (`builder/test/invariants.ts:118-120`). Four helpers and one constant of `holds.ts` exported, its lines unchanged.
 
-## B14, test by test (`run-tests-reconcile.txt`: 8 passed; controls in `run-controls.txt`: 16 of 16 failed as they should)
+## B14, test by test (`run-tests-reconcile.txt`: 9 passed; controls in `run-controls.txt`: 17 of 17 failed as they should)
 
 | Test | Shows | Controls |
 | --- | --- | --- |
@@ -28,13 +28,29 @@ A **reconciliation** is the owner's recorded action that closes a kept hold at t
 | B14 (5) | Two at once: one recorded, one refused, the cost charged once | X10 both locks |
 | B14 (6) | Two freezes: frozen until both reconciled; an unmarked past-deadline hold listed and marked first; a step's room gets the unused part; a freeze with a closed hold listed apart | X11, X12, X13, X14 |
 | B14 (7) | The script lists, records (exit 0), refuses (2), rejects misuse (1); no address, key or token printed | X15 |
+| 1.5, after its review | The script prints made-up evidence holding C0 and C1 control characters (ESC, the one-character CSI U+009B, U+0085) as spaces; the event log keeps the evidence as given | X17 |
 | 1.5 | Every reason in the kinds table is still written by the gateway or store | X16 |
 
 **Control X10, first run:** with only the project's lock removed, B14 (5) still passed; the hold's own row lock serialises two reconciliations. It fails with both removed (known gap 102).
 
-## Checks, at `ca7f226`
+## Checks, at `043f38a` (the code as at `026d405`)
 
-Type check: passed (`run-typecheck.txt`). Whole suite, live tests included, on `builder_test_pkg15` under the lock: 13 files, 303 tests passed (`run-tests-full.txt`). Licence check: passed (`run-licences.txt`). No new dependency.
+Type check: passed (`run-typecheck.txt`). Whole suite, live tests included, on `builder_test_pkg15` under the lock: 13 files, 304 tests passed (`run-tests-full.txt`). Licence check: passed (`run-licences.txt`). No new dependency. The demonstration (`run-demo.txt`) was run at `ca7f226` and not again: the one change since is in what the script prints.
+
+## The adversarial review (one round, 13 Nov 2026, of `ca7f226`)
+
+Blocking: none. Its ten notes, and what was done:
+
+1. Every way a kept hold can close was probed; only a reconciliation closes one. *No change.*
+2. Odd figures are each refused with their own code; -0 is stored as 0; $99,999,999.999999 is taken against a $1 cap; no undo. *Gap 99 extended* (no undo; a warning on a figure that differs from a cost already read, not built).
+3. A late settle against a reconciliation (20 runs): the reconciliation won, the settle was refused, and the gateway would freeze the project on a settled hold. *Gap 100 extended* with a call's ending still waiting in a journal.
+4. The 30-second pass against an admission (20 runs): no deadlock; the opposite order not shown. *No change*: gap 102 stands.
+5. Freezes with other costs left behave as designed; a journal line naming another project's hold is stored with no hold and is not cleared by reconciling that hold. *Gap 100 extended.*
+6. Step holds: closed step, nothing back to its room; above the hold, the room goes to 0 and the overrun is recorded. *No change*: the same function as a settlement (`returnToStepIn`).
+7. A freeze from a failed keep is labelled only "froze its project". *Gap 101 extended.*
+8. The script's strip missed C1 controls, and some fields are printed without it. *C1: fixed* (`scripts/reconcile.ts:83`; test "1.5, after its review"; control X17). *The fields: gap 103.*
+9. Deadlines are judged by the script's machine's clock. *Gap 104.*
+10. The full suite, the licence check and the demonstration were not run again by the review. *Suite and licence check run again above.*
 
 ## What it is and is not
 
