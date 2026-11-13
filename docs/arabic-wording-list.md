@@ -129,3 +129,292 @@ Part of this sentence is not in the message files, so the table above does not s
 ## Record
 
 Generated on 2026-11-12 by `docs/tools/arabic-wording-list.py`. Keys compared one by one: 44 English, 44 Arabic, 0 missing in either direction. Empty messages in either language: 0. Messages whose Arabic is identical to the English: 1 (`app.english`; the language's own name is shown in its own language on purpose, so a reader who cannot read Arabic can find the switch).
+
+## The builder's own interface (package J1, 13 November 2026)
+
+Added with package J1, part 1: the messages of the builder's own screens (`builder/src/web/messages/en.json` and `ar.json`), and the Arabic of the 20 questions of test example 1 (`builder/src/orchestrator/intake/example-1.json`; the English is the question bank, `docs/spec/B2-question-bank.md`, word for word). The Arabic is Claude Code's; no reader of Arabic has checked it (known gap 134). Generated from those files on 13 November 2026; regenerate after any change to them.
+
+Count: English messages 154, Arabic messages 154; missing from Arabic 0, missing from English 0 (a test, `builder/test/web.test.ts`, checks that the two files have the same keys). Identical in both languages: 3 (`app.name`, `lang.en`, `lang.ar`: the product's name, and each language's own name, so a reader who cannot read Arabic can find the switch).
+
+| Key | English | Arabic |
+| --- | --- | --- |
+| `app.name` | Vibe Build | Vibe Build |
+| `app.tagline` | The builder | المُنشئ |
+| `mode.line` | Scripted mode: no AI model is connected. The real-model gate is closed. | الوضع المُبرمَج مسبقاً: لا يوجد نموذج ذكاء اصطناعي متصل. بوابة النموذج الحقيقي مغلقة. |
+| `label.real` | Real | حقيقي |
+| `label.simulated` | Simulated | محاكاة |
+| `simulated.note` | Fixed content written in advance by Claude Code (the AI assistant building this project); no model call by the builder. | محتوى ثابت كتبه مسبقاً Claude Code (مساعد الذكاء الاصطناعي الذي يبني هذا المشروع)؛ لا يستدعي المُنشئ أي نموذج. |
+| `nav.projects` | Projects | المشاريع |
+| `nav.sign_out` | Sign out | تسجيل الخروج |
+| `nav.language` | Language | اللغة |
+| `lang.en` | English | English |
+| `lang.ar` | العربية | العربية |
+| `sign_in.title` | Sign in | تسجيل الدخول |
+| `sign_in.password` | Password | كلمة المرور |
+| `sign_in.submit` | Sign in | تسجيل الدخول |
+| `sign_in.footnote` | Single-user sign-in for a prototype. Not single sign-on, not hardened. | تسجيل دخول لمستخدم واحد في نموذج أولي. ليس تسجيل دخول موحّداً، وليس مُحصَّناً. |
+| `sign_in.wrong` | That password is not right. | كلمة المرور غير صحيحة. |
+| `sign_in.locked` | Too many wrong passwords. Sign-in is locked for {seconds} seconds. | محاولات خاطئة كثيرة. تسجيل الدخول مقفل لمدة {seconds} ثانية. |
+| `sign_in.signed_out` | You are signed out. | تم تسجيل خروجك. |
+| `setup.title` | Choose your password | اختر كلمة المرور |
+| `setup.intro` | This interface has no password yet. The first person to reach this page sets it. Use 12 characters or more. | لا توجد كلمة مرور لهذه الواجهة بعد. أول من يصل إلى هذه الصفحة يحددها. استخدم 12 حرفاً أو أكثر. |
+| `setup.password` | Password | كلمة المرور |
+| `setup.again` | The same password again | كلمة المرور نفسها مرة أخرى |
+| `setup.submit` | Set the password | تعيين كلمة المرور |
+| `setup.mismatch` | The two passwords are not the same. | كلمتا المرور غير متطابقتين. |
+| `setup.too_short` | The password must be 12 characters or more. | يجب أن تكون كلمة المرور 12 حرفاً أو أكثر. |
+| `setup.already` | The password is already set. Sign in. | كلمة المرور معيّنة بالفعل. سجّل الدخول. |
+| `setup.done` | Password set. Sign in with it. | تم تعيين كلمة المرور. سجّل الدخول بها. |
+| `projects.title` | Projects | المشاريع |
+| `projects.new` | New project | مشروع جديد |
+| `projects.none` | No projects yet. | لا توجد مشاريع بعد. |
+| `projects.others` | Projects made outside this interface are not shown: {n}. | المشاريع التي أُنشئت خارج هذه الواجهة لا تظهر هنا: {n}. |
+| `projects.open` | Open | فتح |
+| `projects.record` | Record | السجل |
+| `col.name` | Name | الاسم |
+| `col.stage` | Stage | المرحلة |
+| `col.cap` | Cap | السقف |
+| `col.spent` | Spent | المصروف |
+| `col.id` | No. | الرقم |
+| `col.at` | Time (UTC) | الوقت (UTC) |
+| `col.kind` | Kind | النوع |
+| `col.step` | Step | الخطوة |
+| `col.details` | Details | التفاصيل |
+| `stage.brief` | Brief entered | تم إدخال الطلب |
+| `stage.questions` | Answering questions | الإجابة عن الأسئلة |
+| `stage.brief_review` | Brief to confirm | الملخص بانتظار التأكيد |
+| `stage.plan_review` | Plan to confirm | الخطة بانتظار التأكيد |
+| `stage.build` | Building | البناء |
+| `stage.stopped` | Stopped | متوقف |
+| `stage.closed` | Closed | مغلق |
+| `tab.brief` | Brief | الطلب |
+| `tab.questions` | Questions | الأسئلة |
+| `tab.proposal` | Proposed app | التطبيق المقترح |
+| `tab.plan` | Build steps | خطوات البناء |
+| `tab.cost` | Cost | التكلفة |
+| `tab.record` | Record | السجل |
+| `new.title` | New project | مشروع جديد |
+| `new.name` | Project name | اسم المشروع |
+| `new.cap` | Cap (US$) | السقف (بالدولار الأمريكي) |
+| `new.cap_help` | The most this project may spend on model calls. Scripted steps spend $0, but each step must fit its reservation. | أقصى ما يمكن أن ينفقه هذا المشروع على استدعاءات النموذج. الخطوات المُبرمَجة مسبقاً لا تنفق شيئاً، لكن كل خطوة يجب أن تتسع لحجزها. |
+| `new.brief` | What do you need? | ماذا تحتاج؟ |
+| `new.made_up` | Made-up data only. No customer or personal details. | بيانات مُختلَقة فقط. لا تفاصيل عملاء ولا تفاصيل شخصية. |
+| `new.brief_limit` | At most 2,000 characters. | 2,000 حرف كحد أقصى. |
+| `new.submit` | Create project | إنشاء المشروع |
+| `brief.title` | Your brief | طلبك |
+| `brief.yours` | What you wrote | ما كتبته |
+| `brief.restatement` | The request in one sentence | الطلب في جملة واحدة |
+| `brief.simulated_analyst` | Simulated analyst: fixed questions for test example 1 (leave requests). It does not read your brief; every brief continues as example 1. A real analyst needs the model key (milestone 2). | محلل محاكى: أسئلة ثابتة لمثال الاختبار 1 (طلبات الإجازة). لا يقرأ طلبك؛ كل طلب يستمر كالمثال 1. يحتاج المحلل الحقيقي إلى مفتاح النموذج (المرحلة 2). |
+| `brief.continue` | Continue with example 1 | المتابعة بالمثال 1 |
+| `brief.stop` | Stop | إيقاف |
+| `brief.stopped` | This project is stopped. Nothing more happens to it. | هذا المشروع متوقف. لن يحدث له شيء آخر. |
+| `brief.continued` | Continued as example 1. | تمت المتابعة كالمثال 1. |
+| `questions.title` | Questions | الأسئلة |
+| `questions.turn` | Turn {n} of {total} | الدور {n} من {total} |
+| `questions.analyst` | Analyst (simulated) | المحلل (محاكاة) |
+| `questions.you` | You | أنت |
+| `questions.something_else` | Something else | شيء آخر |
+| `questions.something_else_help` | Type it here. It is logged as a sign that an option is missing. | اكتبه هنا. يُسجَّل كإشارة إلى أن خياراً ناقص. |
+| `questions.recommended` | Recommended: {text}. Reason: {reason} | موصى به: {text}. السبب: {reason} |
+| `questions.r_mark` | R | موصى به |
+| `questions.their_call` | Their call: only you can answer this, so nothing is recommended. | قرارك: أنت وحدك من يستطيع الإجابة عن هذا، لذا لا توجد توصية. |
+| `questions.recorded_verbatim` | Recorded word for word; nothing is recommended. | يُسجَّل حرفياً كما كُتب؛ لا توجد توصية. |
+| `questions.available_later` | available later | متاح لاحقاً |
+| `questions.fields_note` | The fields are the app spec's, in English. | الحقول هي حقول مواصفات التطبيق، بالإنجليزية. |
+| `questions.one_line` | One line | سطر واحد |
+| `questions.submit` | Send these answers | إرسال هذه الإجابات |
+| `questions.scripted_customer` | Answer the rest from example 1's answer sheet (scripted customer) | الإجابة عن البقية من ورقة إجابات المثال 1 (عميل مُبرمَج مسبقاً) |
+| `questions.differs` | Recorded. The scripted build always builds example 1's answers. | تم التسجيل. البناء المُبرمَج مسبقاً يبني دائماً إجابات المثال 1. |
+| `questions.by_sheet` | Answered by the scripted customer, from example 1's answer sheet. | أجاب عنه العميل المُبرمَج مسبقاً، من ورقة إجابات المثال 1. |
+| `questions.all_answered` | Every question is answered. | تمت الإجابة عن كل الأسئلة. |
+| `questions.see_proposal` | See the proposed app | عرض التطبيق المقترح |
+| `questions.not_yet` | The questions start once you continue with example 1. | تبدأ الأسئلة بعد أن تتابع بالمثال 1. |
+| `proposal.title` | Proposed app | التطبيق المقترح |
+| `proposal.in_english` | The app spec of example 1 is written in English; its content is shown as written. | مواصفات تطبيق المثال 1 مكتوبة بالإنجليزية؛ يُعرض محتواها كما كُتب. |
+| `proposal.replaces` | Replaces | يحلّ محل |
+| `proposal.who_pain` | Who feels the pain | من يعاني من المشكلة |
+| `proposal.sign_in` | Sign-in | تسجيل الدخول |
+| `proposal.sees` | sees | يرى |
+| `proposal.starting_data` | Starting data | البيانات الأولية |
+| `proposal.trigger` | Trigger | المُحفِّز |
+| `proposal.steps` | Steps | الخطوات |
+| `proposal.result` | Result | النتيجة |
+| `proposal.tells` | Tells | يُبلِغ |
+| `proposal.if_broken` | If broken | عند الخرق |
+| `proposal.their_call` | their call | قرارك |
+| `proposal.must_never` | Must never happen | يجب ألا يحدث أبداً |
+| `proposal.checklist` | Checklist | قائمة التحقق |
+| `proposal.signs_off` | Signs off | يعتمد التسليم |
+| `proposal.later` | Later | لاحقاً |
+| `proposal.assumed` | Chosen on your behalf (assumed) | اختير نيابةً عنك (مفترض) |
+| `proposal.confirm_sentence` | Confirm this brief, or tell me what to change. Nothing is built until you confirm. | أكّد هذا الملخص، أو أخبرني بما يجب تغييره. لا يُبنى شيء قبل أن تؤكد. |
+| `proposal.no_change` | Changing the brief is not available in scripted mode: the build is always example 1. | تغيير الملخص غير متاح في الوضع المُبرمَج مسبقاً: البناء دائماً هو المثال 1. |
+| `proposal.confirm` | Confirm brief | تأكيد الملخص |
+| `proposal.confirmed` | Brief confirmed. | تم تأكيد الملخص. |
+| `proposal.not_yet` | The proposed app is shown once every question is answered. | يُعرض التطبيق المقترح بعد الإجابة عن كل الأسئلة. |
+| `plan.title` | Build steps | خطوات البناء |
+| `plan.shown` | What you will be shown | ما سيُعرض عليك |
+| `plan.files` | Files the fixed change writes: {n} | الملفات التي يكتبها التغيير الثابت: {n} |
+| `plan.not_built` | Not built in scripted mode: team queue, HR table, approve, reject, withdraw, balance. Checklist items 2 to 6 cannot pass. | لا يُبنى في الوضع المُبرمَج مسبقاً: قائمة الفريق، جدول الموارد البشرية، الموافقة، الرفض، السحب، الرصيد. لا يمكن أن تنجح بنود قائمة التحقق من 2 إلى 6. |
+| `plan.quality_gate` | Quality gate after each step: not done (milestone 1). | بوابة الجودة بعد كل خطوة: لم تُنفَّذ (المرحلة 1). |
+| `plan.tests_fixed` | Confirming the plan fixes the checklist's tests. They are stand-in tests, not independent acceptance. | تأكيد الخطة يثبّت اختبارات قائمة التحقق. إنها اختبارات بديلة، وليست قبولاً مستقلاً. |
+| `plan.confirm` | Confirm plan | تأكيد الخطة |
+| `plan.confirmed` | Plan confirmed. Tests fixed as version {version}: stand-in test, not independent acceptance. | تم تأكيد الخطة. ثُبّتت الاختبارات كنسخة {version}: اختبار بديل، وليس قبولاً مستقلاً. |
+| `plan.not_yet` | The build steps are shown once the brief is confirmed. | تُعرض خطوات البناء بعد تأكيد الملخص. |
+| `plan.build_not_here` | The build screen is not in this version of the interface yet. | شاشة البناء ليست في هذه النسخة من الواجهة بعد. |
+| `record.title` | Record | السجل |
+| `record.order` | Every event of this project, in the order it was written (event number), not by clock time. | كل أحداث هذا المشروع، بترتيب كتابتها (رقم الحدث)، لا بحسب وقت الساعة. |
+| `record.count` | Events: {n} | الأحداث: {n} |
+| `cost.title` | Cost | التكلفة |
+| `cost.read_only` | Read-only. Changing the cap is a recorded change Claude Code makes when you ask. | للقراءة فقط. تغيير السقف تغيير مُسجَّل يجريه Claude Code عندما تطلب. |
+| `cost.cap` | Cap | السقف |
+| `cost.spent` | Spent | المصروف |
+| `cost.held` | Held for calls in progress or awaiting reconciliation | محجوز لاستدعاءات جارية أو بانتظار التسوية |
+| `cost.step_room` | Reserved for running steps | محجوز لخطوات جارية |
+| `cost.left` | Left | المتبقي |
+| `cost.zero` | Spent: $0.00. No model was called. This is not the cost of a real build. | المصروف: 0.00 دولار. لم يُستدعَ أي نموذج. هذه ليست تكلفة بناء حقيقي. |
+| `cost.steps` | Step reservations | حجوزات الخطوات |
+| `cost.reserved` | Reserved | المحجوز |
+| `cost.state` | State | الحالة |
+| `cost.no_steps` | No step has been reserved yet. | لم يُحجز لأي خطوة بعد. |
+| `cost.freeze` | Freeze | التجميد |
+| `cost.no_freeze` | No freeze. | لا يوجد تجميد. |
+| `cost.frozen` | This project is frozen: {message} | هذا المشروع مجمّد: {message} |
+| `cost.unreconciled` | Unreconciled holds | حجوزات غير مسوّاة |
+| `cost.unreconciled_none` | The unreconciled list is empty. | قائمة الحجوزات غير المسوّاة فارغة. |
+| `cost.amount` | Amount | المبلغ |
+| `cost.reason` | Why kept | سبب الإبقاء |
+| `cost.priced` | Step reservations are sized at {model}'s prices, from the price table of {date}. | حجوزات الخطوات محسوبة بأسعار {model}، من جدول أسعار {date}. |
+| `interrupted.message` | A job of this project was interrupted when the interface stopped. It is not resumed. Close the project, or start a new one. | توقفت مهمة لهذا المشروع عندما توقفت الواجهة. لن تُستأنف. أغلق المشروع، أو ابدأ مشروعاً جديداً. |
+| `interrupted.close` | Close project | إغلاق المشروع |
+| `error.title` | Not done | لم يُنفَّذ |
+| `error.english_only` | The reason is given in English. | السبب مكتوب بالإنجليزية. |
+| `error.back` | Back | رجوع |
+| `error.not_found` | Not found. | غير موجود. |
+| `error.server` | Something went wrong. The project's record shows what was written. | حدث خطأ. يُظهر سجل المشروع ما كُتب. |
+
+### The 20 questions of example 1
+
+Sections, questions, options and recommendations as the questions screen shows them. In English, "(H)" is shown as "(not yet measured)".
+
+| Question | English | Arabic |
+| --- | --- | --- |
+| section `purpose` | Purpose | الغرض |
+| section `users` | Users and roles | المستخدمون والأدوار |
+| section `data` | Data | البيانات |
+| section `screens` | Screens | الشاشات |
+| section `actions` | Core actions | الإجراءات الأساسية |
+| section `rules` | Rules | القواعد |
+| section `done` | Done means | متى يُعدّ مكتملاً |
+| `q01` | What does this replace? | ما الذي سيحلّ هذا التطبيق محلّه؟ |
+| `q01` option 1 | Email or chat threads | سلاسل البريد الإلكتروني أو المحادثات |
+| `q01` option 2 | A spreadsheet | جدول بيانات |
+| `q01` option 3 | A paper or PDF form | نموذج ورقي أو بصيغة PDF |
+| `q01` option 4 | Nothing, it is new | لا شيء، إنه جديد |
+| `q02` | Who feels the pain today? | من يعاني من المشكلة اليوم؟ |
+| `q02` option 1 | The people who submit | من يقدّمون الطلبات |
+| `q02` option 2 | The people who approve | من يوافقون عليها |
+| `q02` option 3 | The person who reports on it | من يُعدّ التقارير عنها |
+| `q02` option 4 | All three | الثلاثة جميعاً |
+| `q03` | How many kinds of user? | كم نوعاً من المستخدمين؟ |
+| `q03` option 1 | One (everyone does the same thing) | نوع واحد (الجميع يفعلون الشيء نفسه) |
+| `q03` option 2 | Two (someone submits, someone approves) | نوعان (شخص يقدّم وآخر يوافق) |
+| `q03` option 3 | Three (plus an admin who sees everything) | ثلاثة (إضافةً إلى مسؤول يرى كل شيء) |
+| `q03` option 4 | More | أكثر |
+| `q03` recommended | Two or three | نوعان أو ثلاثة |
+| `q03` reason | builds reliably (not yet measured); more roles rarely needed for version one | يُبنى بشكل موثوق (لم يُقَس بعد)؛ نادراً ما تحتاج النسخة الأولى إلى أدوار أكثر |
+| `q04` | Who can see other people's records? | من يستطيع رؤية سجلات الآخرين؟ |
+| `q04` option 1 | Only their own | سجلاته فقط |
+| `q04` option 2 | Their team's | سجلات فريقه |
+| `q04` option 3 | Everyone's, for admins only | سجلات الجميع، للمسؤولين فقط |
+| `q04` option 4 | Everyone's, for all | سجلات الجميع، للجميع |
+| `q04` recommended | Own, team for managers, all for admin | سجلاته، وسجلات الفريق للمديرين، وكل السجلات للمسؤول |
+| `q04` reason | satisfies rule 5 | يحقق القاعدة 5 |
+| `q05` | How do users sign in? | كيف يسجّل المستخدمون الدخول؟ |
+| `q05` option 1 | Company email (SSO) | بريد الشركة (تسجيل دخول موحّد) |
+| `q05` option 2 | Email and password | البريد الإلكتروني وكلمة المرور |
+| `q05` option 3 | A shared link, no login | رابط مشترك، دون تسجيل دخول |
+| `q05` recommended | Company email | بريد الشركة |
+| `q05` reason | satisfies rule 5; rule 7. See B7 for Stage 1 | يحقق القاعدة 5؛ القاعدة 7. انظر B7 للمرحلة الأولى |
+| `q06` | Where does the starting data come from? | من أين تأتي البيانات الأولية؟ |
+| `q06` option 1 | Typed in by users | يُدخلها المستخدمون يدوياً |
+| `q06` option 2 | Uploaded once from a spreadsheet | تُرفع مرة واحدة من جدول بيانات |
+| `q06` option 3 | Synced from a spreadsheet on a schedule | تُزامَن من جدول بيانات وفق جدول زمني |
+| `q06` option 4 | Connected to another system | تُربط بنظام آخر |
+| `q06` recommended | Uploaded once, or synced if it changes weekly | تُرفع مرة واحدة، أو تُزامَن إن كانت تتغير أسبوعياً |
+| `q06` reason | builds reliably (not yet measured); live connections go to Later | يُبنى بشكل موثوق (لم يُقَس بعد)؛ الاتصالات المباشرة تُنقل إلى قائمة «لاحقاً» |
+| `q07` | For each record, which fields matter? | لكل سجل، ما الحقول المهمة؟ |
+| `q07` options | Shown as a checklist from the example's typical fields; customer ticks and adds | تُعرض كقائمة اختيار من الحقول المعتادة للمثال؛ يختار العميل ويضيف |
+| `q08` | Does any field hold personal or sensitive data? | هل يحتوي أي حقل على بيانات شخصية أو حساسة؟ |
+| `q08` option 1 | No | لا |
+| `q08` option 2 | Yes, contact details | نعم، بيانات الاتصال |
+| `q08` option 3 | Yes, salary, ID or health | نعم، الراتب أو الهوية أو الصحة |
+| `q08` note | If yes: adds rule 5 and 7 checks and flags hosting inside the country as required | إن كانت الإجابة نعم: تُضاف فحوص القاعدتين 5 و7، ويُعلَّم أن الاستضافة داخل الدولة مطلوبة |
+| `q09` | What does a submitter need to see? | ماذا يحتاج مقدّم الطلب أن يرى؟ |
+| `q09` option 1 | My items and their status | عناصري وحالتها |
+| `q09` option 2 | Plus a form to add one | إضافةً إلى نموذج لإضافة عنصر |
+| `q09` option 3 | Plus history | إضافةً إلى السجل التاريخي |
+| `q09` recommended | My items plus form | عناصري إضافةً إلى النموذج |
+| `q09` reason | builds reliably (not yet measured) | يُبنى بشكل موثوق (لم يُقَس بعد) |
+| `q10` | What does an approver need to see? | ماذا يحتاج المعتمِد أن يرى؟ |
+| `q10` option 1 | A queue of items waiting for me | قائمة بالعناصر التي تنتظرني |
+| `q10` option 2 | Plus my team's history | إضافةً إلى السجل التاريخي لفريقي |
+| `q10` option 3 | Plus totals | إضافةً إلى المجاميع |
+| `q10` recommended | Queue plus history | القائمة إضافةً إلى السجل التاريخي |
+| `q10` reason | builds reliably (not yet measured) | يُبنى بشكل موثوق (لم يُقَس بعد) |
+| `q11` | What does the admin or reporter need? | ماذا يحتاج المسؤول أو معدّ التقارير؟ |
+| `q11` option 1 | Everything in a table with filters | كل شيء في جدول مع عوامل تصفية |
+| `q11` option 2 | Plus charts | إضافةً إلى رسوم بيانية |
+| `q11` option 3 | Plus export | إضافةً إلى التصدير |
+| `q11` recommended | Table with filters and export | جدول مع عوامل تصفية وتصدير |
+| `q11` reason | satisfies rule 9; charts to Later unless the purpose is a dashboard | يحقق القاعدة 9؛ الرسوم البيانية إلى قائمة «لاحقاً» ما لم يكن الغرض لوحة معلومات |
+| `q12` | When someone submits, who is told? | عندما يقدّم أحدهم طلباً، من يُبلَّغ؟ |
+| `q12` option 1 | Nobody | لا أحد |
+| `q12` option 2 | The approver by email | المعتمِد بالبريد الإلكتروني |
+| `q12` option 3 | The approver in the app only | المعتمِد داخل التطبيق فقط |
+| `q12` option 4 | Both | كلاهما |
+| `q12` recommended | Approver by email and in app | المعتمِد بالبريد الإلكتروني وداخل التطبيق |
+| `q12` reason | builds reliably (not yet measured) | يُبنى بشكل موثوق (لم يُقَس بعد) |
+| `q13` | When something is approved or rejected, what changes? | عند الموافقة على شيء أو رفضه، ما الذي يتغير؟ |
+| `q13` option 1 | Only the status | الحالة فقط |
+| `q13` option 2 | Status plus a balance or count | الحالة إضافةً إلى رصيد أو عدد |
+| `q13` option 3 | Status plus a notification | الحالة إضافةً إلى إشعار |
+| `q13` option 4 | All | كل ما سبق |
+| `q14` | Can a submitter edit or withdraw after submitting? | هل يستطيع مقدّم الطلب تعديله أو سحبه بعد تقديمه؟ |
+| `q14` option 1 | No | لا |
+| `q14` option 2 | Yes, until it is approved | نعم، إلى أن تتم الموافقة عليه |
+| `q14` option 3 | Yes, any time | نعم، في أي وقت |
+| `q14` recommended | Until approved | إلى أن تتم الموافقة |
+| `q14` reason | satisfies rule 6 | يحقق القاعدة 6 |
+| `q15` | Who approves? | من يوافق؟ |
+| `q15` option 1 | Direct manager | المدير المباشر |
+| `q15` option 2 | A named person | شخص محدد بالاسم |
+| `q15` option 3 | Manager then a second person | المدير ثم شخص ثانٍ |
+| `q15` option 4 | Nobody | لا أحد |
+| `q16` | Is there a limit or threshold? | هل يوجد حد أو سقف؟ |
+| `q16` option 1 | No | لا |
+| `q16` option 2 | Yes, a number per person | نعم، عدد لكل شخص |
+| `q16` option 3 | Yes, a number per period | نعم، عدد لكل فترة |
+| `q16` option 4 | Yes, an amount that changes the approver | نعم، مبلغ يغيّر المعتمِد |
+| `q17` | What happens if a rule is broken? | ماذا يحدث إذا خُرقت قاعدة؟ |
+| `q17` option 1 | Block it and say why | يُمنع مع بيان السبب |
+| `q17` option 2 | Allow it and flag it | يُسمح به مع وضع علامة عليه |
+| `q17` option 3 | Send it to a second approver | يُرسل إلى معتمِد ثانٍ |
+| `q17` recommended | Block and say why | المنع مع بيان السبب |
+| `q17` reason | satisfies rule 1 | يحقق القاعدة 1 |
+| `q18` | What must never happen? | ما الذي يجب ألا يحدث أبداً؟ |
+| `q18` options | Open text, one line | نص مفتوح، سطر واحد |
+| `q19` | How will you know it works? | كيف ستعرف أنه يعمل؟ |
+| `q19` option 1 | I will walk one real case through it end to end | سأمرّر حالة حقيقية واحدة عبره من البداية إلى النهاية |
+| `q19` option 2 | The numbers match my spreadsheet | تتطابق الأرقام مع جدول بياناتي |
+| `q19` option 3 | My team uses it for a week without asking me | يستخدمه فريقي أسبوعاً دون أن يسألني |
+| `q19` recommended | One real case end to end, written as steps | حالة حقيقية واحدة من البداية إلى النهاية، مكتوبة كخطوات |
+| `q19` reason | it becomes the acceptance test directly | تصبح هي اختبار القبول مباشرةً |
+| `q20` | Who signs off? | من يعتمد التسليم؟ |
+| `q20` option 1 | Me | أنا |
+| `q20` option 2 | Me and the approver | أنا والمعتمِد |
+| `q20` option 3 | Me, the approver and one submitter | أنا والمعتمِد ومقدّم طلب واحد |
+| `q20` recommended | Me, the approver and one submitter | أنا والمعتمِد ومقدّم طلب واحد |
+| `q20` reason | each role tests their own screen | كل دور يختبر شاشته |
+
+Rows in this table: 117 (7 sections, 20 questions, their options, and each recommendation with its reason).

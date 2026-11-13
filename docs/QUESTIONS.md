@@ -68,3 +68,7 @@ Claude Code's readings and work, recorded as such, not as your decisions. Detail
 - Package 3.1: where the approved browser zip is not on the machine, the live acceptance tests are skipped (reported as skipped), not failed (gap 73).
 - Package 3.1: the runner's trace is kept without its screencast, so no frames of the screen are recorded; read as what "no video recorded" asks (`docs/DECISIONS.md`, 13 Nov, after the review).
 - Package 3.1: a line for `CLAUDE.md`'s Commands: "in `builder/runner/`, run `npm ci --ignore-scripts` once before `npm run check:licences`" (gap 77). Say yes and Claude Code adds it.
+- Package J1: on a first run, the first visitor to reach the interface chooses its password (12 characters or more; only its digest is kept, mode 0600); only this machine and the session's preview can reach it, and a project container can too until 0.6c (gap 131).
+- Package J1: the builder's own sign-in is written by hand with Node's scrypt, for one user, until an engineer reads it (gap 130).
+- Package J1: the question bank shown word for word, its three inconsistencies as written (gap 133); where B2's mapping for example 1 is silent, the answer sheet follows the app spec.
+- Package J1: the builder's own screens in English and Arabic, wording Claude Code's (`docs/arabic-wording-list.md`; gap 134).
