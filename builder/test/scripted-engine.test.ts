@@ -26,7 +26,7 @@ import {
   TEMPLATE_PROTECTED_PATHS,
   type EngineRunner,
 } from "../src/engine/scripted.js";
-import { composeDocument, createSandbox, dockerEnv, engineEmptyDir, sandbox, type Sandbox, type SandboxSpec, type StreamingEnd } from "../src/sandbox/manager.js";
+import { composeDocument, createSandbox, DEFAULT_IMAGES, dockerEnv, engineEmptyDir, sandbox, type Sandbox, type SandboxSpec, type StreamingEnd } from "../src/sandbox/manager.js";
 
 const run = promisify(execFile);
 const builderDir = resolve(import.meta.dirname, "..");
@@ -189,7 +189,7 @@ describe("scripted engine: the engine service in the compose file", () => {
       }) as { services: Record<string, Service> };
       const engine = doc.services.engine!;
       expect(engine).toEqual({
-        image: "node:22-alpine",
+        image: DEFAULT_IMAGES.node,
         profiles: ["engine"],
         cap_drop: ["ALL"],
         security_opt: ["no-new-privileges:true"],
@@ -615,7 +615,7 @@ describe("scripted engine: the class, against a stand-in runner (no container, n
 });
 
 // ---------------------------------------------------------------------------------------------------
-// Live: the applier in the engine container (development profile). Needs Docker and node:22-alpine.
+// Live: the applier in the engine container (development profile). Needs Docker and the approved Node image (DEFAULT_IMAGES.node).
 // ---------------------------------------------------------------------------------------------------
 
 describe("scripted engine: live, in the engine container (development profile)", () => {
@@ -923,7 +923,7 @@ describe("scripted engine: live, in the engine container (development profile)",
     expect(copy).toEqual({ code: 1, lines: [refusal] });
     const noWorkspace = await run(
       "docker",
-      ["run", "--rm", "--network", "none", "--user", "node", "--read-only", "--cap-drop", "ALL", "-v", `${sets}:/engine:ro`, "node:22-alpine", "node", "/engine/apply.mjs", "--example", "example-1", "--step", "01-data", "--protected", "[]"],
+      ["run", "--rm", "--network", "none", "--user", "node", "--read-only", "--cap-drop", "ALL", "-v", `${sets}:/engine:ro`, DEFAULT_IMAGES.node, "node", "/engine/apply.mjs", "--example", "example-1", "--step", "01-data", "--protected", "[]"],
       { env: dockerEnv(sb) },
     ).then(
       (r) => ({ code: 0, out: r.stdout.trim() }),

@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { promisify } from "node:util";
 import { afterAll, describe, expect, it, onTestFinished } from "vitest";
-import { composeDocument, createSandbox, dockerEnv, sandbox, toYaml, type SandboxSpec } from "../src/sandbox/manager.js";
+import { composeDocument, createSandbox, DEFAULT_IMAGES, dockerEnv, sandbox, toYaml, type SandboxSpec } from "../src/sandbox/manager.js";
 
 const run = promisify(execFile);
 const builderDir = resolve(import.meta.dirname, "..");
@@ -303,7 +303,7 @@ describe("sandbox manager: live, the tools container (package 0.5)", () => {
       "sample-only-password",
       { AUTH_SECRET: "made-up-secret", APP_SAMPLE_PASSWORD: "made-up-sample" },
     );
-    const built = spawnSync("docker", ["build", "-t", sb.appBuild!.toolsImage, "-"], { input: "FROM node:22-alpine\nENTRYPOINT []\n", env: dockerEnv(sb) });
+    const built = spawnSync("docker", ["build", "-t", sb.appBuild!.toolsImage, "-"], { input: `FROM ${DEFAULT_IMAGES.node}\nENTRYPOINT []\n`, env: dockerEnv(sb) });
     expect(built.status, built.stderr?.toString()).toBe(0);
 
     // The control: the same command through Compose with the user's configuration does get the proxies.
