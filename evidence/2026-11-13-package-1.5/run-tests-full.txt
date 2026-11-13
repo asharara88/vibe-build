@@ -1,0 +1,13 @@
+$ git rev-parse --short HEAD
+ca7f226
+$ BUILDER_TEST_DATABASE_URL=postgres:///builder_test_pkg15?host=/var/run/postgresql TMPDIR=<scratchpad>/p15-tmp flock <scratchpad>/live-tests.lock npx vitest run
+
+ RUN  v5.1.0 /tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/wt-15/builder
+
+
+ Test Files  13 passed (13)
+      Tests  303 passed (303)
+   Start at  09:16:40
+   Duration  130.39s (tests 99%, transform 1%)
+
+exit code: 0

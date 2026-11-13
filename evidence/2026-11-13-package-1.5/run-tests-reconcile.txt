@@ -1,0 +1,21 @@
+$ git rev-parse --short HEAD
+ca7f226
+$ BUILDER_TEST_DATABASE_URL=postgres:///builder_test_pkg15?host=/var/run/postgresql flock <scratchpad>/live-tests.lock npx vitest run test/reconcile.test.ts --reporter=verbose
+
+ RUN  v5.1.0 /tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/wt-15/builder
+
+ ✓ test/reconcile.test.ts > package 1.5: the unreconciled list and the owner's reconciliation, proof row B14 (against a stand-in provider) > B14 (1): the list shows one hold of each kind with what is known of it (an error answer, an interrupted call and an unreadable answer made through the gateway; an expired hold; a hold whose gateway was found gone; a late answer written down; the call whose ending could not be recorded, which froze its project); a call in flight and a settled call are not on it 183ms
+ ✓ test/reconcile.test.ts > package 1.5: the unreconciled list and the owner's reconciliation, proof row B14 (against a stand-in provider) > B14 (2): one reconciliation recorded with its evidence: the hold is closed at the stated actual cost, which is then what is charged, its freeze is cleared in the same step, and the frozen project of B10 runs again 44ms
+ ✓ test/reconcile.test.ts > package 1.5: the unreconciled list and the owner's reconciliation, proof row B14 (against a stand-in provider) > B14 (3): the budget equation after a reconciliation: below the hold, the difference goes back to the budget; above it, the actual cost is charged in full, hold.exceeded says so, and a call that no longer fits is refused 18ms
+ ✓ test/reconcile.test.ts > package 1.5: the unreconciled list and the owner's reconciliation, proof row B14 (against a stand-in provider) > B14 (4): a reconciliation that cannot be recorded is refused with its own reason, and changes and writes nothing 40ms
+ ✓ test/reconcile.test.ts > package 1.5: the unreconciled list and the owner's reconciliation, proof row B14 (against a stand-in provider) > B14 (5): two reconciliations of the same hold at once are judged one after the other under the project's lock: one is recorded, the other refused, and the cost is charged once 19ms
+ ✓ test/reconcile.test.ts > package 1.5: the unreconciled list and the owner's reconciliation, proof row B14 (against a stand-in provider) > B14 (6): a project frozen by two calls stays frozen until both are reconciled; a hold past its deadline not yet marked is reconciled after being marked; a kept call of a running step gives back to the step what it did not cost; a freeze whose hold is not open is listed apart 48ms
+ ✓ test/reconcile.test.ts > package 1.5: the unreconciled list and the owner's reconciliation, proof row B14 (against a stand-in provider) > B14 (7): the script lists and records: --list prints the list; a reconciliation is recorded (exit 0) and printed; a refusal exits 2 and a misuse 1; neither the database's address nor a key is printed 1426ms
+ ✓ test/reconcile.test.ts > package 1.5: the unreconciled list and the owner's reconciliation, proof row B14 (against a stand-in provider) > 1.5: each reason the kinds table names is still written by the gateway or the store 2ms
+
+ Test Files  1 passed (1)
+      Tests  8 passed (8)
+   Start at  09:19:52
+   Duration  2.02s (tests 94%, import 4%, transform 2%)
+
+exit code: 0

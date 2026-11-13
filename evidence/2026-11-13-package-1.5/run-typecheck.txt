@@ -1,0 +1,8 @@
+$ git rev-parse --short HEAD
+ca7f226
+$ npm run typecheck
+
+> builder@0.0.1 typecheck
+> tsc --noEmit
+
+exit code: 0
