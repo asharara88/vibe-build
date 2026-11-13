@@ -77,8 +77,11 @@ export interface Sandboxes {
    * app is ever loaded on the machine's network. Asked just before the camera starts.
    */
   cameraNetworkProblem(x: ProjectSandbox): Promise<string | null>;
-  /** Run the app camera in the project's `acceptance` service. */
-  appCamera(x: ProjectSandbox, a: { outDir: string; secretFile: string; onLine: (line: string) => void }): Promise<StreamingEnd>;
+  /**
+   * Run the app camera in the project's `acceptance` service. Once `signal` is aborted (the interface lost its instance
+   * lock: review bot on defb9c4), its container is killed by name at once.
+   */
+  appCamera(x: ProjectSandbox, a: { outDir: string; secretFile: string; onLine: (line: string) => void; signal?: AbortSignal }): Promise<StreamingEnd>;
   /** One acceptance run (package 3.1's `runAcceptance`). */
   runAcceptance(input: AcceptanceRunInput): Promise<AcceptanceReport>;
   /** Stop and remove the project's containers and images; keep its folder (a preview that failed). */
@@ -217,7 +220,14 @@ export function example1Sandboxes(o: { runnerImage?: string; buildProxyPort?: nu
         onLine: a.onLine,
         timeoutMs: APP_CAMERA_TIMEOUT_MS,
       });
-      return r.done;
+      const kill = () => void r.kill();
+      if (a.signal?.aborted) kill();
+      else a.signal?.addEventListener("abort", kill, { once: true });
+      try {
+        return await r.done;
+      } finally {
+        a.signal?.removeEventListener("abort", kill);
+      }
     },
     runAcceptance: (input) => runAcceptance(input),
     async stopApp(x) {

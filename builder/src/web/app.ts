@@ -9,6 +9,7 @@
  *   checked by hono's `csrf()` (the request's Origin, or Sec-Fetch-Site, must be this site).
  * - `secureHeaders()` on every response, with a content-security-policy that allows no script at all, styles
  *   and images from this site only, and forms posted only to it; every page is `no-store`.
+ * - Once the interface has lost its instance lock (`unavailable`, review bot on defb9c4), every request gets a plain 503.
  */
 import { Hono, type Context } from "hono";
 import { bodyLimit } from "hono/body-limit";
@@ -61,6 +62,11 @@ export interface WebDeps {
   /** The data folder, resolved: files are served only from inside it. */
   dataDir: string;
   onFault?: (message: string, detail: unknown) => void;
+  /**
+   * Why the interface serves nothing now, or null (review bot on defb9c4: main.ts gives the instance lock's loss).
+   * While it gives a reason, every request, open or behind the guard, is answered with that reason, plain, and 503.
+   */
+  unavailable?: () => string | null;
 }
 
 type Env = { Variables: { lang: Lang; signedIn: boolean } };
@@ -91,6 +97,12 @@ export function createWebApp(d: WebDeps): Hono<Env> {
   app.use("*", async (c, next) => {
     await next();
     c.header("Cache-Control", "no-store");
+  });
+  // After the review bot on defb9c4: an interface that has lost its instance lock accepts nothing more.
+  app.use("*", async (c, next) => {
+    const why = d.unavailable?.() ?? null;
+    if (why !== null) return c.text(why, 503);
+    await next();
   });
   app.use("*", bodyLimit({ maxSize: 64 * 1024, onError: (c) => c.text("Too large.", 413) }));
   // Every request but a GET or HEAD must be a form, so that csrf() below judges it: csrf() looks only at form

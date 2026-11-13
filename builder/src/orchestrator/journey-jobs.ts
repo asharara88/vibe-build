@@ -23,6 +23,13 @@
  *   gateway mode (`Sandboxes.cameraNetworkProblem`), with the same result.
  * - The handles of this process's sandboxes are kept in memory. A sandbox left by an interface that stopped is
  *   not resumed: it is removed at the next start (journey.ts, `recoverInterrupted`).
+ * - After the review bot on defb9c4: when the journey is halted (the interface lost its instance lock), the job's
+ *   signal is aborted. The engine's container and the app camera's are killed at once; every job checks the signal
+ *   before each further step (`stillOwned`); and a halted job changes nothing more in its sandbox (no workspace reset,
+ *   no app stopped): the next start's recovery removes the sandbox. An operation already running that cannot be
+ *   stopped from here (the app's image build and start, a checklist run, the export's archive) runs to its own end.
+ * - After the review bot on defb9c4: each preview attempt copies its screenshots into a folder of its own, named by
+ *   its job (`shots/<job id>/`), so that a retry never meets, or overwrites, a file an earlier event names.
  */
 import { chmodSync, chownSync, closeSync, constants, fstatSync, mkdirSync, openSync, readSync, rmSync, writeFileSync } from "node:fs";
 import { randomBytes } from "node:crypto";
@@ -36,7 +43,7 @@ import { appendEvent } from "../store/events.js";
 import { journeyFolder } from "../web/files.js";
 import type { ProjectSandbox, Sandboxes } from "./example-1-adapter.js";
 import { writeExport } from "./export.js";
-import { CHANGE_SETS_DIR, diskRefusal, DISK_FLOOR_BYTES, engineEventHandler, EV, EXAMPLE, EXPORT_LABEL, freeBytes, Journey, JourneyRefused, JOURNEY_STAND_IN_LABEL, scriptedEngineFor, type SandboxRecord } from "./journey.js";
+import { CHANGE_SETS_DIR, diskRefusal, DISK_FLOOR_BYTES, engineEventHandler, EV, EXAMPLE, EXPORT_LABEL, freeBytes, Journey, JourneyRefused, JOURNEY_STAND_IN_LABEL, scriptedEngineFor, stillOwned, type SandboxRecord } from "./journey.js";
 import { runBudgetedStep } from "./steps.js";
 
 /** The model whose prices size a step's reservation in J1 (final design, section 1, item 6). */
@@ -104,15 +111,18 @@ export class JourneyJobs {
     return this.j.startJob(
       projectId,
       "build_step",
-      async ({ queue, state }) => {
+      async ({ queue, state, signal }) => {
         this.disk();
         let x = this.handles.get(projectId);
         if (!x) {
           if (state.sandbox) throw new JourneyRefused("This project's sandbox was made by an interface that has since stopped. It is not resumed. Close the project, or start a new one.");
+          stillOwned(signal);
           x = await this.o.sandboxes.make(projectId);
           this.handles.set(projectId, x);
+          // Recorded even if the journey was halted meanwhile, so that the next start finds the sandbox and removes it.
           await appendEvent(this.j.pool, projectId, EV.sandboxMade, { dir: x.dir, app_url: x.appUrl, build_proxy_port: x.buildProxyPort, compose_project: x.sb.projectName, containers: 0 }, step);
         }
+        stillOwned(signal);
         const sandboxNow = x;
         const files = readManifest(CHANGE_SETS_DIR, EXAMPLE, step).files.length;
         const r = await runBudgetedStep({
@@ -121,11 +131,16 @@ export class JourneyJobs {
           model: PRICED_MODEL,
           gatewayUrl: NO_GATEWAY,
           // The step's token is not passed on: the scripted engine takes none and calls no model.
-          engineFor: () =>
-            scriptedEngineFor(
+          engineFor: () => {
+            stillOwned(signal);
+            const engine = scriptedEngineFor(
               { sandbox: sandboxNow.sb, workspace: sandboxNow.workspace, gitDir: sandboxNow.repo.gitDir, changeSetsDir: sandboxNow.changeSets, example: EXAMPLE, runner: this.o.sandboxes.engineRunner(sandboxNow) },
               queue,
-            ),
+            );
+            // Halted: the engine's container is killed at once, and the step ends "stopped" with nothing committed.
+            signal.addEventListener("abort", () => void engine.stop(), { once: true });
+            return engine;
+          },
           step: { projectId, stepId: step, instruction: STEP_INSTRUCTION, protectedPaths: [...TEMPLATE_PROTECTED_PATHS], maxTurns: files },
           onEvent: engineEventHandler(queue, step),
           stepTimeLimitMs: this.o.stepTimeLimitMs ?? STEP_TIME_LIMIT_MS,
@@ -133,6 +148,8 @@ export class JourneyJobs {
         });
         await queue.drain();
         if (!r.ok) {
+          // Halted: the workspace is not touched; the next start removes the sandbox.
+          stillOwned(signal);
           // A failed step leaves nothing behind in the workspace: it is put back to its last commit.
           const reset = await resetToLastCommit(sandboxNow.repo);
           await appendEvent(this.j.pool, projectId, EV.workspaceReset, { removed_ignored: reset.removedIgnored, removed_not_allowed: reset.removedNotAllowed, unrestorable: reset.unrestorable }, step);
@@ -155,7 +172,7 @@ export class JourneyJobs {
 
   /** The preview (final design, section 1, item 7): build the app once, start it, photograph it in English and Arabic. */
   preview(projectId: string): Promise<{ jobId: string }> {
-    return this.j.startJob(projectId, "preview", async ({ queue }) => {
+    return this.j.startJob(projectId, "preview", async ({ queue, jobId, signal }) => {
       this.disk();
       const x = this.held(projectId);
       for (const [other, h] of this.handles) {
@@ -166,19 +183,23 @@ export class JourneyJobs {
       // Package 3.1b: the camera's runner image is checked first, so that no app is built for a camera that cannot run.
       const imageProblem = await this.o.sandboxes.cameraImageProblem(x);
       if (imageProblem) throw new JourneyRefused(`The app camera cannot start, so the app was not built: ${imageProblem}.`);
+      stillOwned(signal);
       let recordedStarted = false;
       try {
         x.appStarted = true;
         await this.o.sandboxes.buildAndStart(x, (line) => queue.push(EV.previewLine, { line: line.trim() }));
         await queue.drain();
+        stillOwned(signal);
         await appendEvent(this.j.pool, projectId, EV.appStarted, { app_url: x.appUrl, reached_from: APP_REACHED_FROM, live_view: false });
         recordedStarted = true;
-        const shots = await this.appShots(projectId, x, (line) => queue.push(EV.previewLine, { line: `app camera: ${line.slice(0, 300)}` }));
+        const shots = await this.appShots(projectId, x, (line) => queue.push(EV.previewLine, { line: `app camera: ${line.slice(0, 300)}` }), { jobId, signal });
         await queue.drain();
         return { screenshots: shots };
       } catch (err) {
-        // A preview that failed leaves no container or image behind: the next try starts from the images' build.
         await queue.settled();
+        // Halted: nothing more is changed in the sandbox; its app is left for the next start's recovery to remove.
+        if (signal.aborted) throw err;
+        // A preview that failed leaves no container or image behind: the next try starts from the images' build.
         await this.o.sandboxes.stopApp(x).catch((e: unknown) => this.o.onFault?.("The app could not be stopped after a failed preview.", { project: projectId, error: e instanceof Error ? e.message : String(e) }));
         if (recordedStarted) await appendEvent(this.j.pool, projectId, EV.appStopped, { reason: "The preview failed; its containers and images were removed." });
         throw err;
@@ -188,10 +209,13 @@ export class JourneyJobs {
 
   /**
    * The app camera, in the project's `acceptance` service. Its folder is fresh, and only the files named in
-   * APP_SHOTS are read from it: each a plain file, not too large, starting as a PNG does, copied into the
-   * project's shots folder and recorded with its SHA-256. Returns how many were recorded.
+   * APP_SHOTS are read from it: each a plain file, not too large, starting as a PNG does, copied into this
+   * attempt's own folder inside the project's shots folder (`shots/<job id>/`, made new: review bot on defb9c4) and
+   * recorded with its SHA-256. Returns how many were recorded. The camera's container is killed when `signal` is aborted.
    */
-  async appShots(projectId: string, x: ProjectSandbox, onLine: (line: string) => void): Promise<number> {
+  async appShots(projectId: string, x: ProjectSandbox, onLine: (line: string) => void, attempt: { jobId: string; signal?: AbortSignal }): Promise<number> {
+    if (!/^job-[0-9a-f]{8}$/.test(attempt.jobId)) throw new Error(`"${attempt.jobId}" is not a job's id; no screenshot is recorded under it.`);
+    const signal = attempt.signal ?? new AbortController().signal;
     const runDir = join(this.j.dataDir, "journey", projectId, "camera-runs", `run-${randomBytes(6).toString("hex")}`);
     const outDir = join(runDir, "out");
     const secretDir = join(runDir, "secret");
@@ -205,6 +229,7 @@ export class JourneyJobs {
       // Package 0.6c: the camera's browser loads the app's pages, so its service must be on the project's front network alone, a private one.
       const networkProblem = await this.o.sandboxes.cameraNetworkProblem(x);
       if (networkProblem) throw new JourneyRefused(`The app camera did not start: ${networkProblem}. No screenshot was recorded.`);
+      stillOwned(signal);
       writeFileSync(secretFile, x.samplePassword, { mode: 0o400 });
       if (process.getuid?.() === 0) {
         chownSync(outDir, RUNNER_UID, RUNNER_UID);
@@ -214,12 +239,17 @@ export class JourneyJobs {
         chmodSync(outDir, 0o777);
         chmodSync(secretFile, 0o444);
       }
-      const end = await this.o.sandboxes.appCamera(x, { outDir, secretFile, onLine });
+      const end = await this.o.sandboxes.appCamera(x, { outDir, secretFile, onLine, signal });
       rmSync(secretFile, { force: true });
+      stillOwned(signal);
       // Its own lines (in the preview's lines) say what went wrong; its error output is not copied into the record.
       if (end.code !== 0) throw new JourneyRefused(`The app camera ended with exit code ${end.code ?? "none"}${end.timedOut ? " (past its time limit)" : ""}; no screenshot was recorded from it.`);
-      const shotsDir = journeyFolder(this.j.dataDir, projectId, "shots");
-      mkdirSync(shotsDir, { recursive: true, mode: 0o700 });
+      // This attempt's own folder, made new (never one an earlier attempt made): an earlier attempt that failed
+      // part-way leaves files its events name, and those are never overwritten (review bot on defb9c4).
+      const shotsRoot = journeyFolder(this.j.dataDir, projectId, "shots");
+      mkdirSync(shotsRoot, { recursive: true, mode: 0o700 });
+      const shotsDir = join(shotsRoot, attempt.jobId);
+      mkdirSync(shotsDir, { mode: 0o700 });
       const at = new Date();
       let n = 0;
       for (const [i, shot] of APP_SHOTS.entries()) {
@@ -228,6 +258,7 @@ export class JourneyJobs {
         writeFileSync(dest, body, { mode: 0o600, flag: "wx" });
         await appendEvent(this.j.pool, projectId, EV.screenshot, {
           file: { path: dest, sha256: sha256(body) },
+          job_id: attempt.jobId,
           name: shot.name,
           page: shot.page,
           lang: shot.lang,
@@ -246,9 +277,10 @@ export class JourneyJobs {
 
   /** "Run the checklist" (final design, section 1, item 8): package 3.1's runner, against the running app. */
   acceptance(projectId: string): Promise<{ jobId: string }> {
-    return this.j.startJob(projectId, "acceptance", async ({ state }) => {
+    return this.j.startJob(projectId, "acceptance", async ({ state, signal }) => {
       const x = this.held(projectId);
       const store = openStore(this.j.dataDir, { refuse: [x.dir] });
+      stillOwned(signal);
       const r = await this.o.sandboxes.runAcceptance({
         pool: this.j.pool,
         sandbox: x.sb,
@@ -265,9 +297,10 @@ export class JourneyJobs {
 
   /** The export (final design, section 1, item 9), only after sign-off (`JOB_RULES.export`). */
   exportProject(projectId: string): Promise<{ jobId: string }> {
-    return this.j.startJob(projectId, "export", async ({ state }) => {
+    return this.j.startJob(projectId, "export", async ({ state, signal }) => {
       const x = this.held(projectId);
       const store = openStore(this.j.dataDir, { refuse: [x.dir] });
+      stillOwned(signal);
       const out = await writeExport({ repo: x.repo, store, projectId, version: state.acceptanceVersion!, exportsDir: journeyFolder(this.j.dataDir, projectId, "exports") });
       await appendEvent(this.j.pool, projectId, EV.exportWritten, {
         file: { path: out.path, sha256: out.sha256 },

@@ -9,6 +9,12 @@
  *   folder, or BUILDER_UI_FIRST_RUN=1 to let the first visitor choose it (auth.ts);
  * - one instance per database: a PostgreSQL advisory lock held on a connection of its own, as the gateway's
  *   liveness lock is (store/liveness.ts); a second instance on the same database is refused.
+ * After the review bot on defb9c4: PostgreSQL releases that lock when the connection's session ends (terminated, or
+ * the server restarted), and a second interface could then start and run its recovery against this one's jobs. So
+ * the connection's end, or an error on it, stops this interface (`stopAfterLockLost`): every request is answered
+ * with a plain 503 from then on, its journey is halted (no action or job starts; the running job is stopped and
+ * changes nothing more in its sandbox), and the process exits with code 1 and one line saying why. The lock is also
+ * asked of the database, on its own connection, just before every job starts (`InstanceLock.check`).
  * Once read, BUILDER_UI_PASSWORD and BUILDER_MODEL_API_KEY are deleted from `process.env`, so no child process
  * inherits them. The process's starting environment, which the same user or root can read in /proc/<pid>/environ
  * (of this process and of the npm or tsx process that started it), still holds them: Node cannot change it
@@ -65,17 +71,111 @@ export function readSettings(env: NodeJS.ProcessEnv = process.env): Settings {
 /** The instance lock's key: one interface per database. */
 const INSTANCE_LOCK_SQL = "('x' || substr(md5('builder-web-interface'), 1, 16))::bit(64)::bigint";
 
-/** Take the instance lock on a connection of its own and keep it. Throws if another instance holds it. */
-export async function holdInstanceLock(url: string): Promise<{ release: () => Promise<void> }> {
+/** What the interface answers every request with, and logs, once it has lost its instance lock (review bot on defb9c4). */
+export const LOCK_LOST =
+  "The builder lost its instance lock on the database (the lock's own connection to PostgreSQL ended), so another interface could now start on the same database. This interface accepts no more work and must be restarted.";
+
+/** How long the interface, once it has lost its lock, waits for its running job to end before it exits all the same. Chosen, not measured. */
+export const LOCK_LOST_WAIT_MS = 60_000;
+
+export interface InstanceLock {
+  /** Why the lock is no longer held (its connection ended, or failed), or null while it is held. */
+  lost(): string | null;
+  /**
+   * The same, asked of the database: the lock's own connection must answer, and PostgreSQL must list the lock as
+   * granted to that connection's session (`pg_locks`). A loss found here is reported as one noticed by the connection.
+   */
+  check(): Promise<string | null>;
+  /** End the lock's connection on purpose (the interface stopping): not reported as a loss. */
+  release(): Promise<void>;
+}
+
+/**
+ * Take the instance lock on a connection of its own and keep it. Throws if another instance holds it. After the
+ * review bot on defb9c4: the connection's end, or an error on it, means the lock is gone (PostgreSQL releases a
+ * session's locks when the session ends); `onLost` is called once, with LOCK_LOST, unless the lock was released on purpose.
+ */
+export async function holdInstanceLock(url: string, o: { onLost?: (why: string) => void } = {}): Promise<InstanceLock> {
   const c: pg.Client = createClient(url);
-  c.on("error", () => undefined);
+  let held = false;
+  let released = false;
+  let lostWhy: string | null = null;
+  const lose = () => {
+    if (!held || released || lostWhy !== null) return;
+    lostWhy = LOCK_LOST;
+    o.onLost?.(lostWhy);
+  };
+  // Neither ends the process; an error's message, which can name the database's address, is not kept.
+  c.on("error", lose);
+  c.on("end", lose);
   await c.connect();
   const r = await c.query<{ got: boolean }>(`select pg_try_advisory_lock(${INSTANCE_LOCK_SQL}) as got`);
   if (!r.rows[0]!.got) {
+    released = true;
     await c.end().catch(() => undefined);
     throw new Error("Another interface is running on this database (its instance lock is held). This one does not start.");
   }
-  return { release: () => c.end().catch(() => undefined) };
+  held = true;
+  return {
+    lost: () => lostWhy,
+    async check() {
+      if (lostWhy !== null) return lostWhy;
+      if (released) return "The interface is stopping: its instance lock was released. Nothing more starts.";
+      try {
+        // A lock on a 64-bit key is listed with its high half as classid, its low half as objid and objsubid 1
+        // (PostgreSQL documentation, pg_locks), as journal-recovery.ts reads it.
+        const q = await c.query<{ held: boolean }>(
+          `select exists (
+             select 1 from pg_locks l
+              where l.locktype = 'advisory' and l.granted and l.objsubid = 1 and l.pid = pg_backend_pid()
+                and l.database = (select oid from pg_database where datname = current_database())
+                and ((l.classid::bigint << 32) | l.objid::bigint) = ${INSTANCE_LOCK_SQL}
+           ) as held`,
+        );
+        if (!q.rows[0]!.held) lose();
+      } catch {
+        lose();
+      }
+      return lostWhy;
+    },
+    release: async () => {
+      released = true;
+      await c.end().catch(() => undefined);
+    },
+  };
+}
+
+/**
+ * What the interface does once it has lost its instance lock (review bot on defb9c4). Every request is already
+ * answered with a plain 503 (`createWebApp`'s `unavailable`). The journey is halted: no action or job starts from
+ * now on, and the running job, if any, is stopped (the engine's or the app camera's container killed; otherwise at
+ * its next step), changes nothing more in its sandbox, and is recorded as interrupted. The interface waits for that
+ * job to end, for at most `waitMs`, then closes its server and exits with code 1, saying why in one line.
+ */
+export async function stopAfterLockLost(
+  why: string,
+  o: { journey: Journey; closeServer: () => void; log: (line: string) => void; exit: (code: number) => void; waitMs?: number },
+): Promise<void> {
+  const waitMs = o.waitMs ?? LOCK_LOST_WAIT_MS;
+  const job = o.journey.runningJob();
+  o.log(`[interface stopped] ${why} ${job ? `Its running job (${job.jobId}, project ${job.projectId}) is being stopped first.` : "No job was running."}`);
+  let timer: NodeJS.Timeout | undefined;
+  const ended = await Promise.race([
+    o.journey.halt(why).then(() => true),
+    new Promise<false>((r) => {
+      timer = setTimeout(() => r(false), waitMs);
+    }),
+  ]);
+  clearTimeout(timer);
+  if (job) {
+    o.log(
+      ended
+        ? `[interface stopped] The job ${job.jobId} has ended; its record says how. It is not resumed.`
+        : `[interface stopped] The job ${job.jobId} had not ended after ${Math.round(waitMs / 1000)} s; the interface exits all the same. The next start records it as interrupted and removes the project's sandbox.`,
+    );
+  }
+  o.closeServer();
+  o.exit(1);
 }
 
 export async function main(env: NodeJS.ProcessEnv = process.env): Promise<void> {
@@ -86,7 +186,12 @@ export async function main(env: NodeJS.ProcessEnv = process.env): Promise<void> 
     console.error(err instanceof Error ? err.message : String(err));
     process.exit(1);
   }
-  const lock = await holdInstanceLock(s.databaseUrl).catch((err: unknown) => {
+  // After the review bot on defb9c4: until the interface serves, a lost lock ends the process at once.
+  let onLockLost: (why: string) => void = (why) => {
+    console.error(`[interface stopped] ${why}`);
+    process.exit(1);
+  };
+  const lock = await holdInstanceLock(s.databaseUrl, { onLost: (why) => onLockLost(why) }).catch((err: unknown) => {
     console.error(err instanceof Error ? err.message : String(err));
     process.exit(1);
   });
@@ -95,14 +200,18 @@ export async function main(env: NodeJS.ProcessEnv = process.env): Promise<void> 
   const fault = (m: string, d: unknown) => console.error(`[interface fault] ${m}`, d);
   // The jobs remove a project's sandbox when it is closed, or found at start from an interface that stopped.
   let jobs: JourneyJobs | null = null;
-  const journey = new Journey({ pool, dataDir: s.dataDir, onFault: fault, cleanupProject: (id, rec) => jobs?.cleanup(id, rec) ?? Promise.resolve() });
+  const journey = new Journey({ pool, dataDir: s.dataDir, onFault: fault, cleanupProject: (id, rec) => jobs?.cleanup(id, rec) ?? Promise.resolve(), ownership: () => lock.check() });
   jobs = new JourneyJobs({ journey, sandboxes: example1Sandboxes(), onFault: fault });
   const touched = await journey.recoverInterrupted();
   console.log(`Projects with a job or a sandbox left by an interface that stopped, marked interrupted and removed at start: ${touched.length}.`);
-  const app = createWebApp({ journey, jobs, password: s.password, sessions: new Sessions(), limiter: new SignInLimiter(), dataDir: s.dataDir, onFault: fault });
+  const app = createWebApp({ journey, jobs, password: s.password, sessions: new Sessions(), limiter: new SignInLimiter(), dataDir: s.dataDir, onFault: fault, unavailable: () => lock.lost() });
   const server = serve({ fetch: app.fetch, port: s.port, hostname: UI_HOST }, (info) => {
     console.log(`Interface listening on http://${info.address}:${info.port} (password from: ${s.password.source}).`);
   });
+  onLockLost = (why) =>
+    void stopAfterLockLost(why, { journey, closeServer: () => server.close(), log: (line) => console.error(line), exit: (code) => process.exit(code) });
+  const lostAlready = lock.lost();
+  if (lostAlready) onLockLost(lostAlready);
   const stop = () => {
     server.close();
     void lock.release().then(() => pool.end()).then(() => process.exit(0));

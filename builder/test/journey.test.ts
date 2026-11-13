@@ -18,7 +18,8 @@ import { git, workspaceChanges } from "../src/engine/project-repo.js";
 import { buildPortRefusal, cameraImageProblem, cameraNetworkProblem, checkJourneyId, example1Sandboxes, frontOnlyProblem, J1_APP_PORT, recordedSandboxRefusal, type ProjectSandbox } from "../src/orchestrator/example-1-adapter.js";
 import { secretLikePath } from "../src/orchestrator/export.js";
 import { APP_SHOTS, JourneyJobs, REFUSAL_EXTRA } from "../src/orchestrator/journey-jobs.js";
-import { journeyFolder } from "../src/web/files.js";
+import { journeyFolder, recordedFile } from "../src/web/files.js";
+import { previewPage } from "../src/web/pages.js";
 import { PASSED_SUMMARY, PNG_1X1, slowPoolFor, StandInSandboxes } from "./journey-stand-ins.js";
 import type { BuildEngine } from "../src/engine/interface.js";
 import { ScriptedEngine } from "../src/engine/scripted.js";
@@ -473,6 +474,112 @@ describe("J1 journey, part 2: the build, preview, checklist and export jobs (sta
     expect((await listEvents(pool, id, EV.screenshot)).map((e) => e.payload.name)).toEqual(["app-home-en", "app-my-requests-en"]);
     expect(sandboxes.stoppedApps).toContain(id);
     await expect(jobs.acceptance(id)).rejects.toThrow("The app is not running: make the preview first.");
+  });
+
+  it("a preview that failed part-way can be tried again: each attempt writes its screenshots in a folder of its own, and no file an earlier event names is overwritten (review bot on defb9c4)", async () => {
+    const faults: string[] = [];
+    const { j, jobs } = make({ onFault: (m, d) => void faults.push(`${m} ${JSON.stringify(d)}`) });
+    const id = await ready(j);
+    await jobs.buildStep(id, "01-data");
+    await j.waitForJob();
+    await jobs.approve(id, "01-data");
+    await j.waitForJob();
+    const allPng = (body: Buffer) => (outDir: string) => {
+      for (const s of APP_SHOTS) writeFileSync(join(outDir, `${s.name}.png`), body);
+    };
+    // The first attempt: the third screenshot is not a PNG, so the preview fails after the first two were copied and recorded.
+    sandboxes.cameraWrites = (outDir) => {
+      for (const s of APP_SHOTS) writeFileSync(join(outDir, `${s.name}.png`), s.name === "app-home-ar" ? "<html>not a picture</html>" : PNG_1X1);
+    };
+    try {
+      await jobs.approve(id, "02-submitter-screen");
+      await j.waitForJob();
+    } finally {
+      sandboxes.cameraWrites = allPng(PNG_1X1);
+    }
+    const first = await listEvents(pool, id, EV.screenshot);
+    expect(first.map((e) => e.payload.name)).toEqual(["app-home-en", "app-my-requests-en"]);
+    expect((await j.state(id)).jobs.at(-1)).toMatchObject({ kind: "preview", state: "failed", reason: "The camera's app-home-ar.png is not a PNG image." });
+    const kept = first.map((e) => ({ id: e.id, ...(e.payload.file as { path: string; sha256: string }) }));
+    // The retry, with four valid screenshots whose bytes differ from the first attempt's (so an overwrite would show).
+    const retryPng = Buffer.concat([PNG_1X1, Buffer.from("made-up bytes of the retry")]);
+    sandboxes.cameraWrites = allPng(retryPng);
+    try {
+      await jobs.preview(id);
+      await j.waitForJob();
+    } finally {
+      sandboxes.cameraWrites = allPng(PNG_1X1);
+    }
+    const s = await j.state(id);
+    expect(s.jobs.at(-1), `the faults reported: ${faults.join(" | ")}`).toMatchObject({ kind: "preview", state: "finished" });
+    expect(s.previewFinished).toBe(true);
+    expect(s.appRunning).toBe(true);
+    const all = await listEvents(pool, id, EV.screenshot);
+    const retry = all.slice(first.length);
+    expect(retry.map((e) => e.payload.name)).toEqual(APP_SHOTS.map((x) => x.name));
+    const shotsDir = journeyFolder(dataDir, id, "shots");
+    const folderOf = (path: string) => dirname(path);
+    const retryFolder = folderOf((retry[0]!.payload.file as { path: string }).path);
+    for (const e of retry) {
+      const f = e.payload.file as { path: string; sha256: string };
+      expect(folderOf(f.path)).toBe(retryFolder);
+      expect(f.path.startsWith(shotsDir + "/")).toBe(true);
+      expect(f.sha256).toBe(sha256(retryPng));
+      const served = await recordedFile(pool, dataDir, id, e.id);
+      expect(served.ok && sha256(served.body)).toBe(f.sha256);
+    }
+    // The first attempt's files are where its events say, unchanged, in a folder of their own, and still served.
+    for (const k of kept) {
+      expect(folderOf(k.path)).not.toBe(retryFolder);
+      expect(k.path.startsWith(shotsDir + "/")).toBe(true);
+      expect(sha256(readFileSync(k.path))).toBe(k.sha256);
+      expect(k.sha256).toBe(sha256(PNG_1X1));
+      const served = await recordedFile(pool, dataDir, id, k.id);
+      expect(served.ok && sha256(served.body)).toBe(k.sha256);
+    }
+    // The preview screen shows the retry's four screenshots, not the failed attempt's two as well.
+    const page = String(await previewPage("en", s));
+    expect(page).toContain('data-shots="4"');
+    for (const e of retry) expect(page).toContain(`/projects/${id}/files/${e.id}"`);
+    for (const k of kept) expect(page).not.toContain(`/projects/${id}/files/${k.id}"`);
+  });
+
+  it("halted while a step's engine runs (the interface lost its instance lock): the engine's container is killed at once, the workspace is not reset, the job is recorded interrupted, and no job or action starts after it (review bot on defb9c4, the fix's parts)", async () => {
+    const { j, jobs } = make();
+    const id = await ready(j);
+    let engineStarted!: () => void;
+    const started = new Promise<void>((r) => (engineStarted = r));
+    sandboxes.engineHold = { started: () => engineStarted() };
+    const why = "Made-up reason for the test: the interface lost its instance lock.";
+    try {
+      await jobs.buildStep(id, "01-data");
+      await started;
+      expect(j.runningJob()?.projectId).toBe(id);
+      await j.halt(why);
+    } finally {
+      sandboxes.engineHold = null;
+    }
+    expect(j.runningJob()).toBeNull();
+    expect(j.halted()).toBe(why);
+    expect(sandboxes.killedRunners.filter((c) => c.startsWith(`builder_${id}-engine-01-data-`))).toHaveLength(1);
+    const s = await j.state(id);
+    expect(s.stepJobs.get("01-data")).toMatchObject({ state: "interrupted" });
+    expect(s.stepJobs.get("01-data")!.reason).toContain(why);
+    expect(s.interrupted).toBe(true);
+    const kinds = (await stepEvents(id, "01-data")).map((e) => e.kind);
+    expect(kinds).not.toContain(EV.workspaceReset);
+    expect(kinds).not.toContain(EV.jobFinished);
+    expect(kinds).not.toContain(EV.jobFailed);
+    expect(kinds).toContain("step.hold_closed");
+    expect(kinds.at(-1)).toBe(EV.jobInterrupted);
+    // Nothing starts after the halt, and the sandbox is left for the next start's recovery.
+    const before = (await listEvents(pool, id)).length;
+    await expect(jobs.buildStep(id, "01-data")).rejects.toThrow(why);
+    await expect(j.closeProject(id)).rejects.toThrow(why);
+    await expect(j.createProject({ name: "After the halt (made-up)", cap: "5", brief: "Made-up brief." })).rejects.toThrow(why);
+    expect((await listEvents(pool, id)).length).toBe(before);
+    expect(sandboxes.destroyed).not.toContain(id);
+    expect(existsSync(jobs.handle(id)!.dir)).toBe(true);
   });
 
   it("one project's app at a time: another project's preview is refused while one app runs", async () => {
@@ -1197,6 +1304,62 @@ describe("J1 journey, brought up to date with 3.1b: both cameras check the runne
         rmSync(d.bin, { recursive: true, force: true });
         rmSync(evidence, { recursive: true, force: true });
       }
+    }
+  });
+});
+
+describe("J1 journey after the review bot on defb9c4: the app camera's container is killed when its job is told to stop", () => {
+  it("the adapter's app camera, given a signal that is then aborted (the interface lost its instance lock), kills its container by name at once (a made-up docker program; no container) (review bot on defb9c4, the fix's parts)", async () => {
+    const bin = mkdtempSync(join(tmpdir(), "builder-journey-standin-docker-"));
+    const sbDir = mkdtempSync(join(tmpdir(), "builder-journey-camera-kill-"));
+    const outDir = join(sbDir, "out");
+    mkdirSync(outDir);
+    const secretFile = join(sbDir, "sample-password");
+    writeFileSync(secretFile, "made-up-sample-password", { mode: 0o400 });
+    // `compose ... run` writes its process id and sleeps; `kill <name>` ends that process, as Docker ends a killed container's run.
+    const script = [
+      "#!/bin/sh",
+      'here="$(dirname "$0")"',
+      'echo "$*" >> "$here/calls"',
+      'if [ "$1" = "compose" ]; then echo $$ > "$here/pid"; exec sleep 30; fi',
+      'if [ "$1" = "kill" ]; then kill "$(cat "$here/pid")"; exit 0; fi',
+      "exit 0",
+      "",
+    ].join("\n");
+    writeFileSync(join(bin, "docker"), script, { mode: 0o755 });
+    const calls = () => (existsSync(join(bin, "calls")) ? readFileSync(join(bin, "calls"), "utf8").trim().split("\n") : []);
+    const savedPath = process.env.PATH;
+    const projectId = "j1-0123456789ab";
+    const x = { projectId, sb: { dir: sbDir, composeFile: join(sbDir, "compose.yaml"), projectName: `builder_${projectId}` } } as unknown as ProjectSandbox;
+    try {
+      process.env.PATH = `${bin}:${savedPath ?? ""}`;
+      const ac = new AbortController();
+      const t0 = Date.now();
+      const running = example1Sandboxes().appCamera(x, { outDir, secretFile, onLine: () => undefined, signal: ac.signal });
+      for (let i = 0; i < 100 && !existsSync(join(bin, "pid")); i++) await new Promise((r) => setTimeout(r, 50));
+      expect(existsSync(join(bin, "pid"))).toBe(true);
+      ac.abort("made-up: the interface lost its instance lock");
+      // Not ended within 12 s (the made-up run sleeps 30 s unless killed): the test ends that process itself, then fails.
+      const end = await Promise.race([running, new Promise<"not ended">((r) => setTimeout(() => r("not ended"), 12_000))]);
+      if (end === "not ended") {
+        try {
+          process.kill(Number(readFileSync(join(bin, "pid"), "utf8").trim()));
+        } catch {
+          /* already gone */
+        }
+        await running;
+      }
+      expect(end).not.toBe("not ended");
+      expect((end as { code: number | null }).code).not.toBe(0);
+      expect(Date.now() - t0).toBeLessThan(12_000);
+      const run = calls().find((c) => c.startsWith("compose "))!;
+      const name = /--name (\S+)/.exec(run)![1]!;
+      expect(name.startsWith(`builder_${projectId}-app-camera-`)).toBe(true);
+      expect(calls()).toContain(`kill ${name}`);
+    } finally {
+      process.env.PATH = savedPath;
+      rmSync(bin, { recursive: true, force: true });
+      rmSync(sbDir, { recursive: true, force: true });
     }
   });
 });

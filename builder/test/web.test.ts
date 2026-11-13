@@ -3,23 +3,27 @@
  * no container. The database is the test database (BUILDER_TEST_DATABASE_URL); the data folder is a fresh
  * temporary folder outside the repository.
  */
-import { execFileSync, spawnSync } from "node:child_process";
+import { execFileSync, spawn, spawnSync, type ChildProcess } from "node:child_process";
+import { randomBytes } from "node:crypto";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
+import http from "node:http";
+import net from "node:net";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import type pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { openStore, sha256, STAND_IN_NOTE } from "../src/acceptance/store.js";
-import { EXPORT_LABEL, Journey } from "../src/orchestrator/journey.js";
+import { EV, EXPORT_LABEL, Journey } from "../src/orchestrator/journey.js";
 import { JourneyJobs, REFUSAL_EXTRA } from "../src/orchestrator/journey-jobs.js";
-import { appendEvent } from "../src/store/events.js";
+import { createPool } from "../src/store/db.js";
+import { appendEvent, listEvents } from "../src/store/events.js";
 import { frozenMessage, listFreezes, recordFreeze, SET_ASIDE_FREEZE_REASON } from "../src/store/freezes.js";
 import { keepHold, openHold, settleHold } from "../src/store/holds.js";
 import { createProject } from "../src/store/projects.js";
 import { createWebApp, PUBLIC_PATHS } from "../src/web/app.js";
 import { PASSWORD_FILE, PasswordState, passwordFromSettings, Sessions, SignInLimiter, digestPassword } from "../src/web/auth.js";
 import { journeyFolder } from "../src/web/files.js";
-import { holdInstanceLock, readSettings, SCRUBBED } from "../src/web/main.js";
+import { holdInstanceLock, LOCK_LOST, readSettings, SCRUBBED, stopAfterLockLost } from "../src/web/main.js";
 import { messageKeys, t } from "../src/web/pages.js";
 import { testPool, TEST_DB_URL, uniqueId } from "./helpers.js";
 import { PASSED_SUMMARY, StandInSandboxes } from "./journey-stand-ins.js";
@@ -963,3 +967,326 @@ describe("J1 interface, part 2: the build, preview, checklist and export screens
     expect(await r.text()).toContain("This interface was started without builds.");
   });
 });
+
+describe("J1 interface: the instance lock lost while the interface serves (review bot on defb9c4)", () => {
+  const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+  /** Wait until `f` is true, for at most `ms`; returns whether it became true. */
+  const until = async (f: () => boolean | Promise<boolean>, ms: number): Promise<boolean> => {
+    const end = Date.now() + ms;
+    while (Date.now() < end) {
+      if (await f()) return true;
+      await sleep(50);
+    }
+    return f();
+  };
+  /** The interface's instance lock's key, as main.ts computes it (written out here, so that the test does not lean on main.ts for it). */
+  const LOCK_KEY_SQL = "('x' || substr(md5('builder-web-interface'), 1, 16))::bit(64)::bigint";
+  /** End the session that holds the instance lock on the pool's database, as PostgreSQL does when it is restarted or the session is terminated; waits until it has ended. */
+  async function endInstanceLockSession(p: pg.Pool): Promise<void> {
+    const r = await p.query<{ ended: boolean }>(
+      `select pg_terminate_backend(l.pid, 5000) as ended from pg_locks l
+        where l.locktype = 'advisory' and l.granted and l.objsubid = 1
+          and l.database = (select oid from pg_database where datname = current_database())
+          and ((l.classid::bigint << 32) | l.objid::bigint) = ${LOCK_KEY_SQL}`,
+    );
+    expect(r.rows).toEqual([{ ended: true }]);
+  }
+  /** A second interface's lock: tried until the first's session has gone, for at most `ms`. */
+  async function takeLockWithin(url: string, ms: number) {
+    const end = Date.now() + ms;
+    for (;;) {
+      try {
+        return await holdInstanceLock(url);
+      } catch (err) {
+        if (Date.now() > end) throw err;
+        await sleep(50);
+      }
+    }
+  }
+  /** A project with its brief and plan confirmed. */
+  async function readyProject(j: Journey, name: string): Promise<string> {
+    const id = await j.createProject({ name, cap: "5", brief: "I need an app where staff can request leave and managers approve it" });
+    await j.continueWithExample(id);
+    await j.answerRestFromSheet(id);
+    await j.confirmBrief(id);
+    await j.confirmPlan(id);
+    return id;
+  }
+
+  it("a job is running when PostgreSQL ends the lock's connection, and a second interface on the same database then takes the lock and runs its recovery: the first accepts no more work (every request a plain 503), and its job is stopped and changes nothing more in the sandbox (review bot on defb9c4)", async () => {
+    const sb1 = new StandInSandboxes(pool);
+    const sb2 = new StandInSandboxes(pool);
+    const box: { j1?: Journey; jobs1?: JourneyJobs; jobs2?: JourneyJobs } = {};
+    // The first interface, wired as main.ts wires it: the lock's loss halts its journey, the lock is asked of the
+    // database before each job, and every request is refused once the lock is lost.
+    const lock1 = await holdInstanceLock(TEST_DB_URL, { onLost: (why) => void box.j1?.halt(why) });
+    const j1 = new Journey({ pool, dataDir, cleanupProject: (p, rec) => box.jobs1!.cleanup(p, rec), ownership: () => lock1.check() });
+    box.j1 = j1;
+    const jobs1 = new JourneyJobs({ journey: j1, sandboxes: sb1, measureFree: () => 50 * 1024 ** 3 });
+    box.jobs1 = jobs1;
+    const app1 = createWebApp({ journey: j1, jobs: jobs1, password: new PasswordState("env", digestPassword(PASSWORD), null), sessions: new Sessions(), limiter: new SignInLimiter(), dataDir, unavailable: () => lock1.lost() });
+    let lock2: { release: () => Promise<void> } | null = null;
+    let release: (() => void) | undefined;
+    try {
+      const cookie = await signIn(app1);
+      const id = await readyProject(j1, "Lock lost while a job runs (made-up)");
+      await jobs1.buildStep(id, "01-data");
+      await j1.waitForJob();
+      await jobs1.approve(id, "01-data");
+      await j1.waitForJob();
+      // The preview job: the app started (stand-in), its camera running, held until let go.
+      let cameraStarted!: () => void;
+      const started = new Promise<void>((r) => (cameraStarted = r));
+      sb1.cameraHold = { started: () => cameraStarted(), release: new Promise<void>((r) => (release = r)) };
+      expect((await jobs1.approve(id, "02-submitter-screen")).next).toBe("preview");
+      await started;
+      const previewJob = j1.runningJob()!;
+      expect(previewJob.projectId).toBe(id);
+      const projectsBefore = await projectCount();
+
+      await endInstanceLockSession(pool);
+      // The second interface: its lock taken, then its recovery run, as main.ts does at start.
+      lock2 = await takeLockWithin(TEST_DB_URL, 5000);
+      const j2 = new Journey({ pool, dataDir, cleanupProject: (p, rec) => box.jobs2!.cleanup(p, rec) });
+      box.jobs2 = new JourneyJobs({ journey: j2, sandboxes: sb2 });
+      expect(await j2.recoverInterrupted()).toContain(id);
+      expect(sb2.destroyedRecorded.map((d) => d.projectId)).toContain(id);
+      // The first interface's camera is let go: unless it was stopped, its job goes on from here.
+      release!();
+      await j1.waitForJob();
+
+      // The first accepts no more work: every request, signed in or not, is refused with a plain 503. Its job was
+      // stopped and changed nothing more: no screenshot recorded, its app not stopped by it (that is left to the
+      // recovery, which has removed the sandbox), and no "finished" or "failed" written for it.
+      await until(async () => (await get(app1, "/projects", cookie)).status === 503, 3000);
+      const r = await get(app1, "/projects", cookie);
+      const made = await post(app1, "/projects", { name: "After the loss (made-up)", cap: "5", brief: "Made-up brief." }, { cookie });
+      const evs = await listEvents(pool, id);
+      const afterLoss = {
+        "GET /projects": r.status,
+        "POST /projects (a new project)": made.status,
+        "GET /sign-in": (await get(app1, "/sign-in")).status,
+        "GET /static/app.css": (await get(app1, "/static/app.css")).status,
+        "GET the project's preview": (await get(app1, `/projects/${id}/preview`, cookie)).status,
+        "projects made after the loss": (await projectCount()) - projectsBefore,
+        "screenshots recorded by the first's job": evs.filter((e) => e.kind === EV.screenshot).length,
+        "the first's job written finished or failed": evs.filter((e) => (e.kind === EV.jobFinished || e.kind === EV.jobFailed) && e.payload.job_id === previewJob.jobId).length,
+        "app stopped by the first after the loss": evs.filter((e) => e.kind === EV.appStopped).length + sb1.stoppedApps.filter((p) => p === id).length,
+        "camera stopped by the halt": sb1.cameraAborted,
+      };
+      expect(afterLoss).toEqual({
+        "GET /projects": 503,
+        "POST /projects (a new project)": 503,
+        "GET /sign-in": 503,
+        "GET /static/app.css": 503,
+        "GET the project's preview": 503,
+        "projects made after the loss": 0,
+        "screenshots recorded by the first's job": 0,
+        "the first's job written finished or failed": 0,
+        "app stopped by the first after the loss": 0,
+        "camera stopped by the halt": 1,
+      });
+      expect(r.headers.get("content-type")).toMatch(/^text\/plain/);
+      expect(await r.text()).toMatch(/lost its instance lock/);
+      expect((await j2.state(id)).jobs.find((x) => x.jobId === previewJob.jobId)?.state).toBe("interrupted");
+      // Nor does its journey start anything.
+      await expect(j1.createProject({ name: "After the loss (made-up)", cap: "5", brief: "Made-up brief." })).rejects.toThrow(/lost its instance lock/);
+      await expect(jobs1.acceptance(id)).rejects.toThrow(/lost its instance lock/);
+    } finally {
+      release?.();
+      await lock2?.release();
+      await lock1.release();
+      sb1.removeAll();
+      sb2.removeAll();
+    }
+  });
+
+  it("before any job starts, the lock is asked of the database: once PostgreSQL has ended its connection, the job is refused and nothing is written, even with nothing else told of the loss; a lock released on purpose reports no loss (review bot on defb9c4, the fix's parts)", async () => {
+    const quietSeen: string[] = [];
+    const quiet = await holdInstanceLock(TEST_DB_URL, { onLost: (why) => quietSeen.push(why) });
+    expect(await quiet.check()).toBeNull();
+    await quiet.release();
+    await sleep(100);
+    expect(quietSeen).toEqual([]);
+    expect(quiet.lost()).toBeNull();
+
+    const seen: string[] = [];
+    const lock = await holdInstanceLock(TEST_DB_URL, { onLost: (why) => seen.push(why) });
+    // Nothing halts this journey: only the check before each job stands between the loss and a job.
+    const j = new Journey({ pool, dataDir, ownership: () => lock.check() });
+    try {
+      const id = await readyProject(j, "Lock asked before a job (made-up)");
+      expect(await lock.check()).toBeNull();
+      expect(lock.lost()).toBeNull();
+      await endInstanceLockSession(pool);
+      const before = (await listEvents(pool, id)).length;
+      let ran = false;
+      await expect(
+        j.startJob(id, "build_step", async () => {
+          ran = true;
+        }, { step: "01-data" }),
+      ).rejects.toThrow(LOCK_LOST);
+      expect(ran).toBe(false);
+      expect(j.runningJob()).toBeNull();
+      expect((await listEvents(pool, id)).length).toBe(before);
+      expect(lock.lost()).toBe(LOCK_LOST);
+      expect(seen).toEqual([LOCK_LOST]);
+      // Another interface can take the lock now.
+      const other = await holdInstanceLock(TEST_DB_URL);
+      await other.release();
+    } finally {
+      await lock.release();
+    }
+    expect(seen).toEqual([LOCK_LOST]);
+  });
+
+  it("what the interface does once its lock is lost: a line saying why, its running job stopped first (or, if it has not ended in time, left for the next start), then its server closed and exit code 1 (review bot on defb9c4, the fix's parts)", async () => {
+    // No job running.
+    const j0 = new Journey({ pool, dataDir });
+    const log0: string[] = [];
+    const calls0: string[] = [];
+    await stopAfterLockLost(LOCK_LOST, { journey: j0, closeServer: () => void calls0.push("server closed"), log: (l) => void log0.push(l), exit: (c) => void calls0.push(`exit ${c}`) });
+    expect(log0).toEqual([`[interface stopped] ${LOCK_LOST} No job was running.`]);
+    expect(calls0).toEqual(["server closed", "exit 1"]);
+    expect(j0.halted()).toBe(LOCK_LOST);
+
+    // A job that stops when told to: it ends first, recorded interrupted, then the server is closed.
+    const j1 = new Journey({ pool, dataDir });
+    const id1 = await readyProject(j1, "Stopped after the lock was lost (made-up)");
+    const calls1: string[] = [];
+    const { jobId } = await j1.startJob(
+      id1,
+      "build_step",
+      ({ signal }) =>
+        new Promise((_, reject) =>
+          signal.addEventListener("abort", () => {
+            calls1.push("job stopped");
+            reject(new Error("stopped"));
+          }, { once: true }),
+        ),
+      { step: "01-data" },
+    );
+    const log1: string[] = [];
+    await stopAfterLockLost(LOCK_LOST, { journey: j1, closeServer: () => void calls1.push("server closed"), log: (l) => void log1.push(l), exit: (c) => void calls1.push(`exit ${c}`), waitMs: 10_000 });
+    expect(calls1).toEqual(["job stopped", "server closed", "exit 1"]);
+    expect(log1).toEqual([
+      `[interface stopped] ${LOCK_LOST} Its running job (${jobId}, project ${id1}) is being stopped first.`,
+      `[interface stopped] The job ${jobId} has ended; its record says how. It is not resumed.`,
+    ]);
+    const s1 = await j1.state(id1);
+    expect(s1.jobs.at(-1)).toMatchObject({ jobId, state: "interrupted" });
+    expect(s1.jobs.at(-1)!.reason).toBe(`The interface stopped while this job ran: ${LOCK_LOST} The job was stopped part-way and is not resumed.`);
+
+    // A job that does not end in time: the interface exits all the same after the wait.
+    const j2 = new Journey({ pool, dataDir });
+    const id2 = await readyProject(j2, "Not ended in time (made-up)");
+    let letGo!: () => void;
+    const second = await j2.startJob(id2, "build_step", () => new Promise((r) => (letGo = () => r({ note: "let go by the test" }))), { step: "01-data" });
+    const log2: string[] = [];
+    const calls2: string[] = [];
+    const t0 = Date.now();
+    await stopAfterLockLost(LOCK_LOST, { journey: j2, closeServer: () => void calls2.push("server closed"), log: (l) => void log2.push(l), exit: (c) => void calls2.push(`exit ${c}`), waitMs: 1000 });
+    expect(Date.now() - t0).toBeLessThan(5000);
+    expect(calls2).toEqual(["server closed", "exit 1"]);
+    expect(log2[1]).toBe(`[interface stopped] The job ${second.jobId} had not ended after 1 s; the interface exits all the same. The next start records it as interrupted and removes the project's sandbox.`);
+    letGo();
+    await j2.waitForJob();
+  });
+
+  it("the real interface (src/web/main.ts, as npm run web starts it, on a database of its own): when PostgreSQL ends its lock's connection, it accepts no more work and exits with code 1 and a line saying why; a second interface on the same database then starts and runs its recovery (review bot on defb9c4)", { timeout: 90_000 }, async () => {
+    const base = new URL(TEST_DB_URL);
+    const dbName = `${decodeURIComponent(base.pathname.slice(1))}_lk_${randomBytes(3).toString("hex")}`;
+    expect(dbName).toMatch(/^[a-z0-9_]{1,63}$/);
+    await pool.query(`create database "${dbName}"`);
+    base.pathname = `/${dbName}`;
+    const url = base.toString();
+    const db = createPool(url);
+    const dir = mkdtempSync(join(tmpdir(), "builder-web-lock-"));
+    const procs: ChildProcess[] = [];
+    const freePort = () =>
+      new Promise<number>((resolve, reject) => {
+        const srv = net.createServer();
+        srv.once("error", reject);
+        srv.listen(0, "127.0.0.1", () => {
+          const port = (srv.address() as net.AddressInfo).port;
+          srv.close(() => resolve(port));
+        });
+      });
+    type Answer = { status: number; text: string; setCookie: string } | "refused";
+    /** One request over HTTP, on a connection of its own; "refused" once nothing listens. */
+    const httpTo = (port: number, method: "GET" | "POST", path: string, o: { cookie?: string; form?: Record<string, string> } = {}) =>
+      new Promise<Answer>((resolve, reject) => {
+        const body = o.form ? new URLSearchParams(o.form).toString() : undefined;
+        const headers: Record<string, string | number> = { ...(o.cookie ? { cookie: o.cookie } : {}) };
+        if (body !== undefined) Object.assign(headers, { "content-type": "application/x-www-form-urlencoded", "content-length": Buffer.byteLength(body), origin: `http://127.0.0.1:${port}` });
+        const req = http.request({ host: "127.0.0.1", port, method, path, headers, agent: false }, (res) => {
+          let text = "";
+          res.setEncoding("utf8");
+          res.on("data", (d: string) => (text += d));
+          res.on("end", () => resolve({ status: res.statusCode ?? 0, text, setCookie: String(res.headers["set-cookie"] ?? "") }));
+        });
+        req.on("error", (err: NodeJS.ErrnoException) => (err.code === "ECONNREFUSED" || err.code === "ECONNRESET" ? resolve("refused") : reject(err)));
+        if (body !== undefined) req.write(body);
+        req.end();
+      });
+    const shown = (a: Answer) => (a === "refused" ? "refused" : a.status);
+    const start = async () => {
+      const port = await freePort();
+      const env = { PATH: process.env.PATH ?? "", HOME: process.env.HOME ?? "/root", PGUSER: process.env.PGUSER ?? "", BUILDER_DATABASE_URL: url, BUILDER_DATA_DIR: dir, BUILDER_UI_PASSWORD: PASSWORD, BUILDER_UI_PORT: String(port) };
+      const child = spawn(process.execPath, ["--import", "tsx", "src/web/main.ts"], { cwd: builderDir, env, stdio: ["ignore", "pipe", "pipe"] });
+      procs.push(child);
+      const out = { stdout: "", stderr: "" };
+      child.stdout!.on("data", (d: Buffer) => (out.stdout += d.toString("utf8")));
+      child.stderr!.on("data", (d: Buffer) => (out.stderr += d.toString("utf8")));
+      const exited = new Promise<number | null>((r) => child.on("exit", (code) => r(code)));
+      expect(await until(() => out.stdout.includes("Interface listening on"), 30_000), `${out.stdout}\n${out.stderr}`).toBe(true);
+      return { port, out, exited, child };
+    };
+    const projects = async () => Number((await db.query<{ n: string }>("select count(*)::text as n from projects")).rows[0]!.n);
+    try {
+      const a = await start();
+      const signedIn = await httpTo(a.port, "POST", "/sign-in", { form: { password: PASSWORD } });
+      expect(shown(signedIn)).toBe(303);
+      const cookie = /builder_session=[^;]+/.exec((signedIn as { setCookie: string }).setCookie)![0];
+      // While it holds the lock, it accepts work.
+      expect(shown(await httpTo(a.port, "POST", "/projects", { cookie, form: { name: "Before the loss (made-up)", cap: "5", brief: "Made-up brief." } }))).toBe(303);
+      expect(await projects()).toBe(1);
+
+      await endInstanceLockSession(db);
+      // Every request after the loss is refused with a 503, or not answered at all once the process has exited.
+      let last: Answer = "refused";
+      await until(async () => {
+        last = await httpTo(a.port, "GET", "/projects", { cookie });
+        return shown(last) === 503 || shown(last) === "refused";
+      }, 5000);
+      const after = await httpTo(a.port, "POST", "/projects", { cookie, form: { name: "After the loss (made-up)", cap: "5", brief: "Made-up brief." } });
+      const code = await Promise.race([a.exited, sleep(15_000).then(() => "still running")]);
+      const notAccepted = (x: Answer) => (shown(x) === 503 || shown(x) === "refused" ? "503 or not answered" : shown(x));
+      expect({
+        "GET /projects after the loss": notAccepted(last),
+        "POST /projects after the loss": notAccepted(after),
+        "projects in the database": await projects(),
+        "the first interface's exit code": code,
+        "its line saying why": /\[interface stopped\] The builder lost its instance lock/.test(a.out.stderr),
+      }).toEqual({
+        "GET /projects after the loss": "503 or not answered",
+        "POST /projects after the loss": "503 or not answered",
+        "projects in the database": 1,
+        "the first interface's exit code": 1,
+        "its line saying why": true,
+      });
+
+      // A second interface on the same database starts: it takes the lock and runs its recovery.
+      const b = await start();
+      expect(b.out.stdout).toMatch(/marked interrupted and removed at start: 0\./);
+      b.child.kill("SIGTERM");
+      expect(await b.exited).toBe(0);
+    } finally {
+      for (const p of procs) if (p.exitCode === null && p.signalCode === null) p.kill("SIGKILL");
+      await db.end();
+      await pool.query(`drop database if exists "${dbName}" with (force)`);
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+

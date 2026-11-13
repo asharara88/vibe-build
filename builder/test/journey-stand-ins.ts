@@ -46,6 +46,17 @@ export class StandInSandboxes implements Sandboxes {
   cameraImageChecks = 0;
   cameraNetworkChecks = 0;
   cameraRuns = 0;
+  /**
+   * After the review bot on defb9c4: when set, the app camera waits until `release` resolves, or until the signal
+   * its job gives it is aborted (the interface lost its instance lock); aborted, it writes nothing and ends as a
+   * killed container would (counted in `cameraAborted`).
+   */
+  cameraHold: { started: () => void; release: Promise<void> } | null = null;
+  cameraAborted = 0;
+  /** After the review bot on defb9c4: when set, the engine's container (this stand-in runner) runs until it is killed; `started` is called once it is asked for. */
+  engineHold: { started: () => void } | null = null;
+  /** The engine containers killed, by name. */
+  killedRunners: string[] = [];
   /** The acceptance run's outcome: passed (item 1 passed) or did not run. */
   acceptanceOutcome: "passed" | "did not run" = "passed";
   /**
@@ -84,6 +95,15 @@ export class StandInSandboxes implements Sandboxes {
       const m = readManifest(CHANGE_SETS_DIR, EXAMPLE, step);
       let finish: (e: StreamingEnd) => void = () => undefined;
       const done = new Promise<StreamingEnd>((r) => (finish = r));
+      const kill = async () => {
+        this.killedRunners.push(a.container);
+        finish({ code: 137, stderrTail: "" });
+      };
+      if (this.engineHold) {
+        const hold = this.engineHold;
+        setTimeout(() => hold.started(), 0);
+        return { container: a.container, done, kill };
+      }
       setTimeout(() => {
         a.onLine(JSON.stringify({ kind: "start", example: EXAMPLE, step, files: m.files.length, label: m.label }));
         for (const f of m.files) {
@@ -98,7 +118,7 @@ export class StandInSandboxes implements Sandboxes {
         a.onLine(JSON.stringify({ kind: "done", written: m.files.length }));
         finish({ code: 0, stderrTail: "" });
       }, 5);
-      return { container: a.container, done, kill: async () => finish({ code: 137, stderrTail: "" }) };
+      return { container: a.container, done, kill };
     };
   }
 
@@ -122,10 +142,23 @@ export class StandInSandboxes implements Sandboxes {
     return this.cameraNetwork;
   }
 
-  async appCamera(_x: ProjectSandbox, a: { outDir: string; secretFile: string; onLine: (line: string) => void }): Promise<StreamingEnd> {
+  async appCamera(_x: ProjectSandbox, a: { outDir: string; secretFile: string; onLine: (line: string) => void; signal?: AbortSignal }): Promise<StreamingEnd> {
     // The password file is there while the camera runs.
     if (readFileSync(a.secretFile, "utf8") !== "made-up-sample-password") throw new Error("the stand-in camera did not find the sample password file");
     this.cameraRuns++;
+    if (this.cameraHold) {
+      const hold = this.cameraHold;
+      hold.started();
+      const aborted = await new Promise<boolean>((resolve) => {
+        void hold.release.then(() => resolve(false));
+        if (a.signal?.aborted) resolve(true);
+        a.signal?.addEventListener("abort", () => resolve(true), { once: true });
+      });
+      if (aborted) {
+        this.cameraAborted++;
+        return { code: 137, stderrTail: "" };
+      }
+    }
     this.cameraWrites(a.outDir);
     a.onLine(JSON.stringify({ kind: "done", code: 0 }));
     return { code: 0, stderrTail: "" };

@@ -476,9 +476,24 @@ export interface JourneyOptions {
   cleanupProject?: (projectId: string, recorded: SandboxRecord | null) => Promise<void>;
   /** Called when a job's body throws or the interface stops part-way, before it is recorded failed. */
   onFault?: (message: string, detail: unknown) => void;
+  /**
+   * Why this interface may not start a job now, or null (review bot on defb9c4: main.ts asks its instance lock of the
+   * database). Asked under the project's lock just before every job is recorded; a reason refuses the job.
+   */
+  ownership?: () => Promise<string | null>;
 }
 
-export type JobBody = (ctx: { projectId: string; jobId: string; queue: EventQueue; state: JourneyState }) => Promise<Record<string, unknown> | void>;
+/**
+ * A job's body. `signal` is aborted when the journey is halted (the interface lost its instance lock, review bot on
+ * defb9c4): the body then stops at once where it can, and before each further step (`stillOwned`), and changes
+ * nothing more in its sandbox.
+ */
+export type JobBody = (ctx: { projectId: string; jobId: string; queue: EventQueue; state: JourneyState; signal: AbortSignal }) => Promise<Record<string, unknown> | void>;
+
+/** Throws, with the reason the journey was halted for, once a job's signal is aborted (review bot on defb9c4). */
+export function stillOwned(signal: AbortSignal): void {
+  if (signal.aborted) throw new JourneyRefused(String(signal.reason));
+}
 
 export class Journey {
   readonly pool: pg.Pool;
@@ -487,7 +502,9 @@ export class Journey {
   readonly spec: AppSpec;
   readonly specSha256: string;
   private readonly locks = new Map<string, Promise<unknown>>();
-  private running: { projectId: string; jobId: string; done: Promise<void> } | null = null;
+  private running: { projectId: string; jobId: string; done: Promise<void>; abort: AbortController } | null = null;
+  /** Why the journey was halted (review bot on defb9c4), or null. Once set, nothing starts again in this process. */
+  private haltedWhy: string | null = null;
 
   constructor(private readonly o: JourneyOptions) {
     this.pool = o.pool;
@@ -505,10 +522,11 @@ export class Journey {
     });
   }
 
-  /** One action at a time per project, in this process. */
+  /** One action at a time per project, in this process. None once the journey is halted (review bot on defb9c4). */
   private withLock<T>(projectId: string, fn: () => Promise<T>): Promise<T> {
     const prev = this.locks.get(projectId) ?? Promise.resolve();
-    const next = prev.then(fn, fn);
+    const guarded = (): Promise<T> => (this.haltedWhy !== null ? Promise.reject(new JourneyRefused(this.haltedWhy)) : fn());
+    const next = prev.then(guarded, guarded);
     this.locks.set(
       projectId,
       next.then(
@@ -549,6 +567,7 @@ export class Journey {
 
   /** A new project and its brief. The brief is stored as the owner typed it; it is never given to the engine. */
   async createProject(input: { name: string; cap: string; brief: string }): Promise<string> {
+    if (this.haltedWhy !== null) throw new JourneyRefused(this.haltedWhy);
     const name = input.name.trim();
     if (name === "" || name.length > MAX_NAME || CONTROL.test(name)) throw new JourneyRefused(`Give the project a name of 1 to ${MAX_NAME} characters, on one line.`);
     if (!/^\d{1,8}(\.\d{1,2})?$/.test(input.cap.trim())) throw new JourneyRefused("Give the cap in US dollars, such as 5 or 5.00.");
@@ -725,6 +744,25 @@ export class Journey {
   }
 
   /**
+   * Halt the journey for good (review bot on defb9c4: the interface has lost its instance lock, so another interface
+   * may now own the database). From now on no action or job starts in this process. The running job, if any, is told
+   * to stop (its signal is aborted with `why`): it stops at once where it can, changes nothing more in its sandbox,
+   * and its end is recorded as interrupted. Resolves once that job has ended.
+   */
+  halt(why: string): Promise<void> {
+    this.haltedWhy ??= why;
+    const r = this.running;
+    if (!r) return Promise.resolve();
+    r.abort.abort(this.haltedWhy);
+    return r.done;
+  }
+
+  /** Why the journey was halted, or null. */
+  halted(): string | null {
+    return this.haltedWhy;
+  }
+
+  /**
    * Start a job, one at a time in this process. Its preconditions (`JOB_RULES`) are checked under the project's
    * lock; then `journey.job.started` is written and the body runs in the background. When it ends, the events
    * it pushed are written first, then `journey.job.finished` or `journey.job.failed`.
@@ -736,12 +774,18 @@ export class Journey {
       if (s.interrupted) throw new JourneyRefused("A job of this project was interrupted. Close the project, or start a new one.");
       const why = JOB_RULES[kind](s) ?? (kind === "build_step" ? buildStepRefusal(s, o.step) : null);
       if (why) throw new JourneyRefused(why);
+      // After the review bot on defb9c4: the instance lock is asked of the database just before any job starts; then
+      // the halt is looked at again, with nothing awaited between it, the check below and the slot being taken.
+      const notOwned = (await this.o.ownership?.()) ?? null;
+      if (notOwned !== null) throw new JourneyRefused(notOwned);
+      if (this.haltedWhy !== null) throw new JourneyRefused(this.haltedWhy);
       if (this.running) throw new JourneyRefused("Another job is running. One job runs at a time.");
       const jobId = `job-${randomBytes(4).toString("hex")}`;
       // The slot is taken before anything is awaited, so that two jobs of two projects asked for at the same
       // moment cannot both pass the check above (each project has its own lock).
       let ended!: () => void;
-      const slot = { projectId, jobId, done: new Promise<void>((r) => (ended = r)) };
+      const abort = new AbortController();
+      const slot = { projectId, jobId, done: new Promise<void>((r) => (ended = r)), abort };
       this.running = slot;
       try {
         await appendEvent(this.pool, projectId, EV.jobStarted, { job_id: jobId, kind, step: o.step ?? null }, o.step ?? null);
@@ -754,14 +798,23 @@ export class Journey {
       void (async () => {
         let ending: { kind: string; payload: Record<string, unknown> };
         try {
-          const result = (await body({ projectId, jobId, queue, state: s })) ?? {};
+          stillOwned(abort.signal);
+          const result = (await body({ projectId, jobId, queue, state: s, signal: abort.signal })) ?? {};
           await queue.drain();
           ending = { kind: EV.jobFinished, payload: { job_id: jobId, kind, ...result } };
         } catch (err) {
           await queue.settled();
-          const reason = err instanceof JourneyRefused ? err.message : `the job stopped with an error (${err instanceof Error ? err.name : typeof err})`;
-          this.o.onFault?.(`A ${kind} job failed.`, { project: projectId, job: jobId, error: err instanceof Error ? err.message : String(err) });
-          ending = { kind: EV.jobFailed, payload: { job_id: jobId, kind, reason } };
+          if (abort.signal.aborted) {
+            // Halted (review bot on defb9c4): recorded as interrupted, as the next start would record it; not resumed.
+            ending = {
+              kind: EV.jobInterrupted,
+              payload: { job_id: jobId, kind, reason: `The interface stopped while this job ran: ${String(abort.signal.reason)} The job was stopped part-way and is not resumed.` },
+            };
+          } else {
+            const reason = err instanceof JourneyRefused ? err.message : `the job stopped with an error (${err instanceof Error ? err.name : typeof err})`;
+            this.o.onFault?.(`A ${kind} job failed.`, { project: projectId, job: jobId, error: err instanceof Error ? err.message : String(err) });
+            ending = { kind: EV.jobFailed, payload: { job_id: jobId, kind, reason } };
+          }
         }
         try {
           await appendEvent(this.pool, projectId, ending.kind, ending.payload, o.step ?? null);

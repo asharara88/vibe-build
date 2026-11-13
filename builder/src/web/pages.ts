@@ -693,9 +693,11 @@ ${s.approved.has(st.step) ? html`<p class="ok">${t(lang, "build.approved")}</p>`
 
 export function previewPage(lang: Lang, s: JourneyState): Html {
   const id = s.project.id;
-  const shots = s.events.filter((e) => e.kind === EV.screenshot);
   const lines = s.events.filter((e) => e.kind === EV.previewLine).slice(-12);
   const lastPreview = [...s.jobs].reverse().find((x) => x.kind === "preview");
+  // The screenshots of the latest preview job only (one job runs at a time): never an earlier attempt's, which
+  // failed part-way and whose files are kept (review bot on defb9c4).
+  const shots = lastPreview ? s.events.filter((e) => e.kind === EV.screenshot && BigInt(e.id) > BigInt(lastPreview.startedEventId)) : [];
   const canStart = !s.runningJob && !s.interrupted && JOB_RULES.preview(s) === null;
   const status = html`${runningNote(lang, s)}
 ${lastPreview?.state === "failed" ? html`<p class="warn">${t(lang, "preview.failed")}</p><p class="warn" lang="en" dir="ltr">${lastPreview.reason ?? ""}</p>` : ""}
