@@ -1,0 +1,119 @@
+$ git rev-parse --short HEAD
+236c70a
+$ BUILDER_TEST_DATABASE_URL=postgres:///builder_demo_p14b?host=/var/run/postgresql npx tsx scripts/demo-journal-recovery.ts   (a database made empty for this run)
+Database: builder_demo_p14b (its name only). Stand-in provider; made-up key; nothing is spent. Journal folder: a new temporary folder, <journal folder>.
+Projects: demo14b_mweuwy1m_a and demo14b_mweuwy1m_b, each with a cap of $0.03.
+
+== 1. A call's ending written to the journal by the gateway, which is then killed ==
+  | journal lines replayed at start-up: 0; all recorded: true
+  | journal lines that could not be read at start-up: 0
+  | holds found open at start-up: 0; marked expired at start-up: 0; their gateway found gone: 0
+  | gateway gw_be32c9fd3a6f listening on 127.0.0.1:40429
+  project a's call, held at the stand-in while a demonstration-only trigger began refusing project a's writes, answered: HTTP 200
+  the gateway could not write the call's ending to the event log, so it wrote it to its journal: 1 line, 828 bytes, ending with a line end: true
+  the gateway killed (SIGKILL)
+  the demonstration-only trigger dropped
+  project a's hold 1: open, $0.009960 held; project a frozen: no (the freeze was never written)
+
+== 2. The journal's last line cut in the middle, as a crash during its append leaves it ==
+  the journal file: 828 bytes before, 414 after; its last byte is a line end: false
+  what is left of the line: {"journal_id":"j_mweuwy8h_17b2b56c33d4a1ec","gateway":"gw_be32c9fd3a6f","project_id":"demo14b_mweuwy1m_a","hold_id":"1","step":null,"ending":"settle","kept_reason":null,"cost_usd_as_read":0.006142,"call":{"model":"claude-opus-5-5","served_model":"claude-opus-5-5","priced_as":"claude-opus-5-5","path":"/v1/messages","status":200,"stream":false,"usage":{"input_tokens":30,"output_tokens":300,"cache_creation_input_t
+
+== 3. The gateway started again: it forwards nothing, for any project ==
+  | journal lines replayed at start-up: 0; all recorded: true
+  | journal lines that could not be read at start-up: 1; this gateway forwards nothing, for any project, until an operator recovers them (scripts/journal-recover.ts) and restarts it
+  | holds found open at start-up: 1; marked expired at start-up: 0; their gateway found gone: 1
+  | gateway gw_2b57ec122385 listening on 127.0.0.1:45673
+  project b's call: HTTP 503: This gateway forwards nothing, for any project: when it started, 1 line(s) of its journal file could not be read. Such a line may be the record of a model call whose cost was not recorded, for a project that cannot be told. An operator has to recover the journal (builder/scripts/journal-recover.ts) and then restart the gateway, which reads its journal only when it starts. Nothing was forwarded.
+  project b's counting request (passed through): HTTP 503
+  project a's call: HTTP 503
+  reached the stand-in since the restart: 0 calls, 0 counting calls; holds opened for project b: 0
+  project a's hold 1, as the restarted gateway left it: kept, unreconciled (its gateway was found gone): true
+  the gateway stopped (SIGTERM), for the recovery
+
+== 4. The recovery: the line listed, then set aside naming the hold it stands for ==
+$ npx tsx scripts/journal-recover.ts --list --dir <journal folder>
+  Database: builder_demo_p14b (its name only; the address is not printed)
+  Journal folder: <journal folder> (folder id jf_ecfe3c0d58911a9dd415d520ec7d3c3a)
+  In use now: no. No process holds the folder's lock.
+  Journal file: 1 line(s), 414 bytes, SHA-256 282c530f4bcebceff8dbc1a7017fe1974452fa2dfa1bf8a8baa42f6cfe6fe665
+    readable records waiting (a gateway writes them into the database when it starts): 0
+    lines that cannot be read: 1 (while one is there, a gateway that starts forwards nothing, for any project)
+      line 1: 414 bytes; torn: the file ends inside it, with no line end
+        fingerprint: 282c530f4bcebceff8dbc1a7017fe1974452fa2dfa1bf8a8baa42f6cfe6fe665
+        text:        {"journal_id":"j_mweuwy8h_17b2b56c33d4a1ec","gateway":"gw_be32c9fd3a6f","project_id":"demo14b_mweuwy1m_a","hold_id":"1","step":null,"ending":"settle","kept_reason":null,"cost_usd_as_read":0.006142,"call":{"model":"claude-opus-5-5","served_model":"claude-opus-5-5","priced_as":"claude-opus-5-5","path":"/v1/messages","status":200,"stream":false,"usage":{"input_tokens":30,"output_tokens":300,"cache_creation_input_t
+  
+  Candidates: open holds kept because the gateway that opened them was found gone, which no freeze names: 1
+    hold 1, project demo14b_mweuwy1m_a: $0.009960 held; opened 2026-11-13T10:51:37.143Z by gateway gw_be32c9fd3a6f; deadline 2026-11-13T11:11:37.143Z; step (none)
+    (A gateway marks the holds of a gateway found gone when it starts: start it once if a killed gateway's hold is not listed. It forwards nothing while a line here cannot be read.)
+  
+  Set-asides recorded before for this folder: 0
+  
+  To set a line aside, naming the hold it may stand for (that hold's project is then frozen until the owner reconciles the hold):
+    npx tsx scripts/journal-recover.ts --set-aside --line 1 --fingerprint 282c530f4bcebceff8dbc1a7017fe1974452fa2dfa1bf8a8baa42f6cfe6fe665 --hold <hold id> --by "<who>" --reason "<why>"
+  or, for a line shown to concern no open hold, with --no-hold in place of --hold <hold id>. Then restart the gateway: it reads its journal only when it starts.
+  (exit code 0)
+
+$ npx tsx scripts/journal-recover.ts --set-aside --dir <journal folder> --line 1 --fingerprint 282c530f4bcebceff8dbc1a7017fe1974452fa2dfa1bf8a8baa42f6cfe6fe665 --hold 1 --by "Claude Code (demonstration)" --reason "package 1.4b demonstration: the line's readable part names project a and hold 1, the one candidate"
+  Database: builder_demo_p14b (its name only; the address is not printed)
+  Journal folder: <journal folder>
+  Line 1 set aside (set-aside sa_a9ac177f387feebf, row 1)
+    line:        414 bytes; torn: the file ends inside it, with no line end; fingerprint 282c530f4bcebceff8dbc1a7017fe1974452fa2dfa1bf8a8baa42f6cfe6fe665
+    text:        {"journal_id":"j_mweuwy8h_17b2b56c33d4a1ec","gateway":"gw_be32c9fd3a6f","project_id":"demo14b_mweuwy1m_a","hold_id":"1","step":null,"ending":"settle","kept_reason":null,"cost_usd_as_read":0.006142,"call":{"model":"claude-opus-5-5","served_model":"claude-opus-5-5","priced_as":"claude-opus-5-5","path":"/v1/messages","status":200,"stream":false,"usage":{"input_tokens":30,"output_tokens":300,"cache_creation_input_t
+    hold:        1 of project demo14b_mweuwy1m_a, $0.009960 held: the project is FROZEN (freeze 2) until the owner reconciles that hold (scripts/reconcile.ts)
+    by:          Claude Code (demonstration)
+    reason:      package 1.4b demonstration: the line's readable part names project a and hold 1, the one candidate
+    events:      gateway.journal_line_set_aside 4; project.frozen 5
+    recorded at: 2026-11-13T10:51:38.103Z (the database's clock)
+    moved:       to unrecorded-endings.set-aside.jsonl in the folder (forced to disk); the journal file now holds 0 line(s)
+  Restart the gateway now: it reads its journal only when it starts.
+  (exit code 0)
+
+== 5. The gateway started again ==
+  | journal lines replayed at start-up: 0; all recorded: true
+  | journal lines that could not be read at start-up: 0
+  | holds found open at start-up: 1; marked expired at start-up: 0; their gateway found gone: 0
+  | gateway gw_cde9698413f2 listening on 127.0.0.1:43519
+  project a's call: HTTP 402: This project is stopped: a line of the gateway's journal that could not be read was set aside at 2026-11-13T10:51:38.098Z as possibly the record of a call on its hold 1, so what that call cost is not known. Its hold of up to $0.01 stays counted against the budget. The gateway forwarded nothing, and no further call will be made for this project until the owner records what that call cost.
+  forwarded to the stand-in for it: nothing, not even its counting call
+  project b's call: HTTP 200; forwarded: yes
+  project b's events: hold.opened, model.call, hold.settled
+
+== 6. The owner's reconciliation of the named hold (package 1.5) ==
+$ npx tsx scripts/reconcile.ts --hold 1 --actual 0.006142 --evidence "Provider usage record (made up for this demonstration): request req_demo_14b, Claude Opus 5.5, 30 input, 4 cache-write, 8 cache-read and 300 output tokens, billed $0.006142" --asked-by "the owner (demonstration; made up)" --by "Claude Code" --reason "package 1.4b demonstration: the usage record gives the set-aside call's actual cost"
+  Database: builder_demo_p14b (its name only; the address is not printed)
+  Hold 1 of project demo14b_mweuwy1m_a reconciled
+    kind:          froze its project; gateway gone
+    held:          $0.009960
+    actual cost:   $0.006142, now charged; $0.003818 back to the budget
+    evidence:      Provider usage record (made up for this demonstration): request req_demo_14b, Claude Opus 5.5, 30 input, 4 cache-write, 8 cache-read and 300 output tokens, billed $0.006142
+    asked by:      the owner (demonstration; made up)
+    recorded by:   Claude Code
+    reason:        package 1.4b demonstration: the usage record gives the set-aside call's actual cost
+    events:        model.call 10; hold.reconciled 11
+    recorded at:   2026-11-13T10:51:38.694Z (the database's clock, under the project's lock)
+    budget before: spent $0.000000; open holds $0.009960; cap $0.0300
+    budget after:  spent $0.006142; open holds $0.000000; cap $0.0300
+    freezes:       cleared 2; the project is not frozen
+  (exit code 0)
+
+== 7. Project a runs again ==
+  project a's call: HTTP 200; forwarded to the stand-in: yes
+  budget: cap $0.0300; spent $0.012284 (the reconciled $0.006142 and this call's $0.006142); open holds $0.000000
+  project a's event log:
+    1 hold.opened hold_id=1 amount_usd=0.00996
+    3 hold.found_at_startup hold_id=1 amount_usd=0.00996 reason="the gateway that opened it was found gone while the call was in flight, so whether the provider billed it is not known"
+    4 gateway.journal_line_set_aside hold_id=1 line_number=1 fingerprint="282c530f4bcebceff8dbc1a7017fe1974452fa2dfa1bf8a8baa42f6cfe6fe665" set_aside_by="Claude Code (demonstration)" freeze_id=2 reason="package 1.4b demonstration: the line's readable part names project a and hold 1, the one candidate"
+    5 project.frozen hold_id=1 freeze_id=2 reason="a line of the gateway's journal could not be read; an operator set it aside naming this project's hold, so the call it may record, and what that call cost, are not known"
+    6 gateway.refused freeze_id=2 reason="project_frozen"
+    10 model.call hold_id=1 cost_usd=0.006142
+    11 hold.reconciled hold_id=1 amount_usd=0.00996 actual_usd=0.006142 reason="package 1.4b demonstration: the usage record gives the set-aside call's actual cost" evidence="Provider usage record (made up for this demonstration): request req_demo_14b, Claude Opus 5.5, 30 input, 4 cache-write, 8 cache-read and 300 output tokens, billed $0.006142"
+    12 project.freeze_cleared hold_id=1 freeze_id=2
+    13 hold.opened hold_id=3 amount_usd=0.00996
+    14 model.call hold_id=3 cost_usd=0.006142
+    15 hold.settled hold_id=3 amount_usd=0.00996 actual_usd=0.006142
+  the gateway stopped
+
+Files in the journal folder: unrecorded-endings.jsonl 0 bytes; the set-aside file holds the line (fingerprint 282c530f4bcebceff8dbc1a7017fe1974452fa2dfa1bf8a8baa42f6cfe6fe665).
+Every step as expected.
+exit code: 0

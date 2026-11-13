@@ -22,7 +22,9 @@
  * open, so its reconciliation clears it. A reconciliation above the hold does not freeze the project: it is the
  * owner's own recorded action (Claude Code's decision, docs/DECISIONS.md, 13 Nov 2026). After the review of 1.4c, a
  * call kept with usage figures as read above its hold freezes its project too (kind 'kept_above_hold'); its hold is
- * open, so its reconciliation clears that freeze as well.
+ * open, so its reconciliation clears that freeze as well. So does package 1.4b's freeze after an unreadable journal
+ * line set aside naming an open kept hold (kind 'journal_line_set_aside', migration 012): its hold's reconciliation
+ * clears it; `recordOverrun` refuses it, as it refuses every kind but 'bill_above_hold'.
  */
 import type pg from "pg";
 import { activeFreezeIn, type Freeze, type FreezeKind } from "./freezes.js";
@@ -114,7 +116,7 @@ export interface UnreconciledHold {
   seen: { status: unknown; servedModel: unknown; usage: unknown; error: unknown } | null;
   /** Answers that arrived after it was kept or expired, written down and not settled. */
   lateAnswers: { eventId: string; at: string; costUsdAsRead: number | null; reason: string }[];
-  /** The freezes this hold caused (package 1.4; since 1.4c, also a late answer above it, or a keep with figures as read above it), each with its kind. */
+  /** The freezes this hold caused (package 1.4; since 1.4c, also a late answer above it, or a keep with figures as read above it; package 1.4b, an unreadable journal line set aside naming it), each with its kind. */
   freezes: { freezeId: string; kind: FreezeKind; journalId: string | null; endedAt: string; frozenAt: string; cleared: boolean; costUsdAsRead: number | null }[];
 }
 
@@ -191,7 +193,9 @@ async function describe(q: Queryable, rows: Hold[], now: Date): Promise<Unreconc
     const add = (k: HoldKind | null) => {
       if (k && !kinds.includes(k)) kinds.push(k);
     };
-    if (freezes.some((f) => f.kind === "unrecorded_ending")) add("froze its project");
+    // Package 1.4b: a freeze from an unreadable journal line set aside naming this hold is listed as package 1.4b listed
+    // it, "froze its project"; the script's line for the freeze says where it came from (scripts/reconcile.ts).
+    if (freezes.some((f) => f.kind === "unrecorded_ending" || f.kind === "journal_line_set_aside")) add("froze its project");
     if (freezes.some((f) => f.kind === "late_answer_above_hold")) add("late answer above its hold");
     if (freezes.some((f) => f.kind === "kept_above_hold")) add("kept above its hold");
     if (h.kept_reason !== null) add(reasonKind(h.kept_reason));
@@ -503,6 +507,7 @@ const FREEZE_KIND_TEXT: Record<FreezeKind, string> = {
   bill_above_hold: "a bill above its hold",
   late_answer_above_hold: "a late answer above its hold",
   kept_above_hold: "the usage figures read before its call ended put it above its hold",
+  journal_line_set_aside: "an unreadable line of the gateway's journal was set aside naming it",
 };
 
 export interface OverrunRecord extends OverrunFreeze {

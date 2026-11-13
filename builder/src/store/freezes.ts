@@ -25,12 +25,18 @@
  * refused the same way by `activeFreezeIn`. A bill above its hold is cleared only by the owner's record of it
  * (reconcile.ts, `recordOverrun`); the other kinds name an open hold, and are cleared by the owner's reconciliation
  * of that hold (`reconcileHold`).
+ *
+ * Package 1.4b (brought up to date with 1.4c): an operator's set-aside of a journal line that could not be read,
+ * naming an open kept hold, freezes that hold's project ('journal_line_set_aside', migration 012), written by
+ * gateway/journal-recovery.ts. It has no bill: what the call cost is not known. Its hold is open, so the owner's
+ * reconciliation of that hold clears it, as for 'unrecorded_ending'. There can be more than one per hold (one per
+ * line set aside, by its `journal_id`), so it is outside the one-per-hold-and-kind index of the kinds above.
  */
 import type pg from "pg";
 import { event, inTransaction, type Queryable } from "./tx.js";
 
-/** What froze a project (migration 010). */
-export type FreezeKind = "unrecorded_ending" | "bill_above_hold" | "late_answer_above_hold" | "kept_above_hold";
+/** What froze a project (migrations 010 and 011; 'journal_line_set_aside': package 1.4b, migration 012). */
+export type FreezeKind = "unrecorded_ending" | "bill_above_hold" | "late_answer_above_hold" | "kept_above_hold" | "journal_line_set_aside";
 /** The kinds that carry a bill above the hold's amount, written by `freezeAfterOverrunIn` (packages 1.4c and after its review). */
 export type OverrunKind = "bill_above_hold" | "late_answer_above_hold" | "kept_above_hold";
 
@@ -61,7 +67,7 @@ export interface Freeze {
   /** Since package 1.4c; every freeze written before it is 'unrecorded_ending'. */
   kind: FreezeKind;
   hold_id: string | null;
-  /** The journal line, for 'unrecorded_ending' only; null for the kinds of package 1.4c. */
+  /** The journal line, for 'unrecorded_ending'; "set-aside:" and the set-aside's id, for 'journal_line_set_aside' (package 1.4b); null for the kinds of package 1.4c. */
   journal_id: string | null;
   gateway: string;
   reason: string;
@@ -81,6 +87,14 @@ export const BILL_ABOVE_HOLD_REASON = "a model call was billed more than its hol
 export const LATE_ANSWER_ABOVE_HOLD_REASON = "an answer that arrived after its hold was kept or expired says the call cost more than its hold";
 /** After the review of 1.4c: a call kept without a bill the gateway could settle, whose figures as read already put it above its hold. */
 export const KEPT_ABOVE_HOLD_REASON = "a model call ended without a bill the gateway could settle, and the usage figures read before it ended already put its cost above its hold";
+/**
+ * Package 1.4b: why a project is frozen when an operator set aside a journal line that could not be read, naming
+ * one of its holds (builder/src/gateway/journal-recovery.ts). Such a freeze is of kind 'journal_line_set_aside'
+ * (migration 012); its `journal_id` is "set-aside:" and the set-aside's id, and its `ended_at` is when the line was
+ * set aside: when the call ended is not known.
+ */
+export const SET_ASIDE_FREEZE_REASON =
+  "a line of the gateway's journal could not be read; an operator set it aside naming this project's hold, so the call it may record, and what that call cost, are not known";
 const FAULT_MESSAGE = "A model call ended and its ending could not be written to the event log. Its hold stays open at its full amount; the project is frozen until the owner records what the call cost.";
 
 /** The project's freeze that has not been cleared, if any. Run under the project's lock by every budget decision that opens anything. */
@@ -131,6 +145,14 @@ export function frozenMessage(f: Freeze, refused: "call" | "step" = "call"): str
     );
   }
   const held = f.hold_amount_usd !== null ? ` Its hold of up to $${(Math.ceil(Math.round(Number(f.hold_amount_usd) * 1e6) / 10_000) / 100).toFixed(2)} stays counted against the budget.` : "";
+  // Package 1.4b. Read by its kind, and by its reason too: a set-aside freeze written by package 1.4b on a database
+  // that had not yet run 1.4c's migration 010 was given the kind 'unrecorded_ending' by it (a freeze is never rewritten).
+  if (f.kind === "journal_line_set_aside" || f.reason === SET_ASIDE_FREEZE_REASON) {
+    return (
+      `This project is stopped: a line of the gateway's journal that could not be read was set aside at ${f.frozen_at.toISOString()} as possibly the record of a call on its hold ${f.hold_id ?? "(none)"}, so what that call cost is not known.${held} ` +
+      `${now}, and no further call will be made for this project until the owner records what that call cost.`
+    );
+  }
   return (
     `This project is stopped: a model call that ended at ${f.ended_at.toISOString()} could not be recorded, so what it cost is not known.${held} ` +
     `${now}, and no further call will be made for this project until the owner records what that call cost.`
@@ -164,7 +186,7 @@ export async function freezeAfterOverrunIn(
   const ins = await c.query<Freeze>(
     `insert into project_freezes(project_id, kind, hold_id, journal_id, gateway, reason, ended_at, hold_amount_usd, bill_usd, record)
      values ($1, $2, $3, null, $4, $5, $6, $7, $8, $9)
-     on conflict (hold_id, kind) where kind <> 'unrecorded_ending' do nothing
+     on conflict (hold_id, kind) where kind not in ('unrecorded_ending', 'journal_line_set_aside') do nothing
      returning *`,
     [p.projectId, p.kind, p.holdId, p.gateway, reason, p.endedAt, p.holdAmountUsd, p.billUsd, JSON.stringify(p.record)],
   );

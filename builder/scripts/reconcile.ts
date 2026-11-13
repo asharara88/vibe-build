@@ -119,8 +119,14 @@ function printHold(h: UnreconciledHold): void {
       f.kind === "late_answer_above_hold" ? "a late answer above its hold froze its project: freeze"
       : f.kind === "kept_above_hold" ? "the usage read before its call ended put it above its hold, which froze its project: freeze"
       : "froze its project: freeze";
-    const where = f.journalId === null ? "" : ` (journal line ${line(f.journalId)})`;
-    const when = f.kind === "late_answer_above_hold" ? "answer arrived" : "call ended";
+    // Package 1.4b: a freeze from an unreadable journal line an operator set aside naming this hold (kind
+    // 'journal_line_set_aside'; its journal id says so too, for one written before migration 012); when its call ended is not known.
+    const setAside = f.journalId !== null && (f.kind === "journal_line_set_aside" || f.journalId.startsWith("set-aside:"));
+    const where =
+      f.journalId === null ? ""
+      : setAside ? ` (an unreadable journal line set aside as ${line(f.journalId.slice("set-aside:".length))})`
+      : ` (journal line ${line(f.journalId)})`;
+    const when = f.kind === "late_answer_above_hold" ? "answer arrived" : setAside ? "set aside" : "call ended";
     console.log(`    ${what} ${f.freezeId}${where}, ${when} ${f.endedAt}; ${f.cleared ? "cleared" : "not cleared"}; cost as read ${f.costUsdAsRead === null ? "(none)" : usd(f.costUsdAsRead)}`);
   }
 }
