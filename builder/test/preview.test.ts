@@ -573,24 +573,28 @@ describe("stale short folders", () => {
     expect((await fetch(`${t.base}/`)).status).toBe(200);
   });
 
-  it.skipIf(process.getuid?.() !== 0)("run as root, also removes a stale camera folder, which the interface gave to the runner's user (J3's review)", () => {
+  it("also removes a stale camera folder: run as root, one the interface gave to the runner's user; one of another user is left alone (J3's review)", () => {
+    const root = process.getuid?.() === 0;
+    const old = new Date(Date.now() - 120_000);
     const stale = mkdtempSync("/tmp/bpc-");
     writeFileSync(join(stale, "c.sock"), "not a socket");
-    chownSync(stale, RUNNER_UID, RUNNER_UID);
-    const old = new Date(Date.now() - 120_000);
+    // As cameraSocket makes it: the runner's user's when the interface runs as root.
+    if (root) chownSync(stale, RUNNER_UID, RUNNER_UID);
     utimesSync(stale, old, old);
-    // A stale folder of another user (neither root nor the runner's) is left alone.
-    const other = mkdtempSync("/tmp/bpc-");
-    chownSync(other, 4242, 4242);
-    utimesSync(other, old, old);
+    // A stale folder of another user (neither root nor the runner's): only root can make one.
+    const other = root ? mkdtempSync("/tmp/bpc-") : null;
+    if (other) {
+      chownSync(other, 4242, 4242);
+      utimesSync(other, old, old);
+    }
     try {
       const removed = removeStaleFolders("/tmp");
       expect(removed).toContain(stale.split("/").pop());
       expect(existsSync(stale)).toBe(false);
-      expect(existsSync(other)).toBe(true);
+      if (other) expect(existsSync(other)).toBe(true);
     } finally {
       rmSync(stale, { recursive: true, force: true });
-      rmSync(other, { recursive: true, force: true });
+      if (other) rmSync(other, { recursive: true, force: true });
     }
   });
 });
