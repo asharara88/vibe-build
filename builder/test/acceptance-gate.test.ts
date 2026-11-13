@@ -7,12 +7,13 @@
  *   neither pass an empty run nor leave files out.
  */
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 import { browserZipProblem, dockerProblem, liveAcceptanceProblems } from "../src/acceptance/prerequisites.js";
 import { BROWSER_ZIP } from "../src/acceptance/runner-image.js";
+import { runnerTestFiles, scanForLeftOutTests, scanRunnerSettings } from "./gate-scan.js";
 
 const builderDir = resolve(import.meta.dirname, "..");
 const scratch = mkdtempSync(join(tmpdir(), "builder-acceptance-gate-"));
@@ -71,27 +72,78 @@ describe("the gate: npm test cannot pass while the browser was not exercised", (
     expect(out).toContain("npx tsx scripts/fetch-browser.ts");
   }, 200_000);
 
-  it("no test file can skip a test, mark one to do, run one alone or run one only if something holds; npm test runs the whole suite", () => {
-    // The words are put together here so that this file, which is scanned too, does not hold them.
-    const skip = ["sk", "ip"].join("");
-    const words = [skip, `${skip}If`, ["run", "If"].join(""), ["to", "do"].join(""), ["on", "ly"].join("")];
-    const byApi = new RegExp(`\\b(?:describe|it|test|suite|bench)(?:\\s*\\.\\s*\\w+)*\\s*\\.\\s*(?:${words.join("|")})\\b`);
-    const byContext = new RegExp(`\\.\\s*${skip}\\s*\\(`);
-    const testDir = join(builderDir, "test");
-    const files = readdirSync(testDir).filter((f) => f.endsWith(".ts"));
-    expect(files).toContain("acceptance-live.test.ts");
-    expect(files).toContain("acceptance-gate.test.ts");
-    const found: string[] = [];
-    for (const f of files) {
-      readFileSync(join(testDir, f), "utf8")
-        .split("\n")
-        .forEach((line, i) => {
-          if (byApi.test(line) || byContext.test(line)) found.push(`test/${f}:${i + 1}: ${line.trim()}`);
-        });
+  it("no test file can skip a test, mark one to do, run one alone, run one only if something holds, or expect it to fail; the test runner runs every test file in test/; npm test runs the whole suite", () => {
+    // The scan is in test/gate-scan.ts; the tests below, on made-up folders, show that each of its rules finds what it is for.
+    const listed = runnerTestFiles(builderDir);
+    expect(listed).toContain(realpathSync(join(builderDir, "test", "acceptance-live.test.ts")));
+    expect(listed).toContain(realpathSync(join(builderDir, "test", "acceptance-gate.test.ts")));
+    expect(scanForLeftOutTests(builderDir, listed)).toEqual([]);
+    expect(scanRunnerSettings(builderDir)).toEqual([]);
+  }, 60_000);
+});
+
+describe("the gate's scan, on made-up folders: each rule finds what it is for (added after the package's review)", () => {
+  // The words are put together here, so that this file, which the scan reads too, does not hold them.
+  const word = (...parts: string[]) => parts.join("");
+  const [skipW, onlyW, failsW] = [word("sk", "ip"), word("on", "ly"), word("fa", "ils")];
+  /** A made-up builder folder: package.json, vitest.config.ts and one plain test file, then the given files. */
+  const madeUp = (files: Record<string, string>) => {
+    const dir = mkdtempSync(join(scratch, "made-up-builder-"));
+    const all: Record<string, string> = {
+      "package.json": JSON.stringify({ scripts: { test: "vitest run" } }),
+      "vitest.config.ts": "export default { test: { fileParallelism: false } };\n",
+      "test/plain.test.ts": "// made-up\n",
+      ...files,
+    };
+    for (const [name, text] of Object.entries(all)) {
+      mkdirSync(dirname(join(dir, name)), { recursive: true });
+      writeFileSync(join(dir, name), text);
     }
-    expect(found).toEqual([]);
-    const config = readFileSync(join(builderDir, "vitest.config.ts"), "utf8");
-    for (const setting of ["passWithNoTests", ["allow", "Only"].join(""), "exclude", "include", "filter"]) expect(config, setting).not.toContain(setting);
-    expect((JSON.parse(readFileSync(join(builderDir, "package.json"), "utf8")) as { scripts: Record<string, string> }).scripts.test).toBe("vitest run");
+    return dir;
+  };
+
+  it("a failure turned into a pass: `fails` after it or test is found", () => {
+    const dir = madeUp({ "test/a.test.ts": `it.${failsW}("made-up", () => { throw new Error("x"); });\ntest.concurrent.${failsW}("made-up", () => {});\n` });
+    const found = scanForLeftOutTests(dir, [join(dir, "test", "plain.test.ts"), join(dir, "test", "a.test.ts")]);
+    expect(found).toEqual([`test/a.test.ts:1: it.${failsW}("made-up", () => { throw new Error("x"); });`, `test/a.test.ts:2: test.concurrent.${failsW}("made-up", () => {});`]);
+  });
+
+  it("a file in a subfolder of test/ is read", () => {
+    const dir = madeUp({ "test/sub/deeper/b.test.ts": `it.${skipW}("made-up", () => {});\n`, "test/sub/helper.ts": `export const later = () => describe.${onlyW}("made-up", () => {});\n` });
+    const found = scanForLeftOutTests(dir, [join(dir, "test", "plain.test.ts"), join(dir, "test", "sub", "deeper", "b.test.ts")]);
+    expect(found).toEqual([`test/sub/deeper/b.test.ts:1: it.${skipW}("made-up", () => {});`, `test/sub/helper.ts:1: export const later = () => describe.${onlyW}("made-up", () => {});`]);
+  });
+
+  it("a file the test runner runs outside test/ is read", () => {
+    const dir = madeUp({ "src/c.test.ts": `describe.${onlyW}("made-up", () => {});\n` });
+    expect(scanForLeftOutTests(dir, [join(dir, "test", "plain.test.ts")])).toEqual([]);
+    expect(scanForLeftOutTests(dir, [join(dir, "test", "plain.test.ts"), join(dir, "src", "c.test.ts")])).toEqual([`src/c.test.ts:1: describe.${onlyW}("made-up", () => {});`]);
+  });
+
+  it("a test file in test/ that the test runner would not run is named, whatever setting leaves it out (here one the settings file takes from another file, so no word in it shows)", () => {
+    const dir = madeUp({
+      "vitest.config.ts": 'import more from "./more-settings.mjs";\nexport default { test: { ...more } };\n',
+      "more-settings.mjs": 'export default { exclude: ["test/hidden/**", "**/node_modules/**"] };\n',
+      "test/hidden/d.test.ts": "// made-up\n",
+    });
+    const listed = runnerTestFiles(dir);
+    expect(listed).toEqual([realpathSync(join(dir, "test", "plain.test.ts"))]);
+    expect(scanRunnerSettings(dir)).toEqual([]);
+    expect(scanForLeftOutTests(dir, listed)).toEqual(["test/hidden/d.test.ts: a test file the test runner would not run"]);
+  }, 60_000);
+
+  it("settings that name projects, dir or root, and another settings file or a workspace file, are named; so are the earlier ones", () => {
+    for (const [setting, config] of [
+      ["projects", 'export default { test: { projects: ["test/sub"] } };\n'],
+      ["dir", 'export default { test: { dir: "test/sub" } };\n'],
+      ["root", 'export default { test: { root: "test/sub" } };\n'],
+      ["passWithNoTests", "export default { test: { passWithNoTests: true } };\n"],
+      ["exclude", 'export default { test: { exclude: ["test/x/**"] } };\n'],
+    ] as const) {
+      expect(scanRunnerSettings(madeUp({ "vitest.config.ts": config })), setting).toEqual([`vitest.config.ts names ${setting}`]);
+    }
+    const others = madeUp({ "vite.config.ts": "export default {};\n", "vitest.config.mts": "export default {};\n", "vitest.workspace.ts": "export default [];\n" });
+    expect(scanRunnerSettings(others)).toEqual(["vite.config.ts: another settings file for the test runner", "vitest.config.mts: another settings file for the test runner", "vitest.workspace.ts: another settings file for the test runner"]);
+    expect(scanRunnerSettings(madeUp({ "package.json": JSON.stringify({ scripts: { test: "vitest run test/plain.test.ts" } }) }))).toEqual(['npm test runs "vitest run test/plain.test.ts", not "vitest run"']);
   });
 });
