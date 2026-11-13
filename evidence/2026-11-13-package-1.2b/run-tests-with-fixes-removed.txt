@@ -1,0 +1,510 @@
+Package 1.2b: each proof row's tests run with a safeguard removed (a control)
+
+Commit: 0972784. Run on the development machine (a cloud session), on the host, against the stand-in provider and the test database builder_test_pkg12b
+(control 6: a fresh test database, builder_test_pkg12b_control6, created for it and dropped after it).
+For each control: one safeguard is removed from the code by an exact text change, shown below as git shows it; the row's tests are run
+with `npx vitest run test/gateway.test.ts -t <the row>` (they are expected to FAIL); the file is restored with `git checkout --`; and
+`git diff --exit-code` is run to show that nothing is left changed. No control was committed.
+Tracked files changed before the first control: none
+
+====================================================================================================
+Control 1 of 6: row B20
+Safeguard removed: The cap.changed event write removed from changeCap
+File: builder/src/store/holds.ts
+
+The change, as `git diff` shows it:
+diff --git a/builder/src/store/holds.ts b/builder/src/store/holds.ts
+index fcc81d6..4a94d9a 100644
+--- a/builder/src/store/holds.ts
++++ b/builder/src/store/holds.ts
+@@ -459,7 +459,7 @@ export async function changeCap(
+       open_holds_usd: budget.openHolds,
+       open_holds: budget.openHoldCount,
+     };
+-    const eventId = await event(c, p.projectId, "cap.changed", payload, null);
++    const eventId = "0"; // CONTROL: the cap.changed event is not written
+     return {
+       projectId: p.projectId,
+       oldCapUsd: budget.cap,
+
+$ cd builder && BUILDER_TEST_DATABASE_URL='postgres:///builder_test_pkg12b?host=/var/run/postgresql' npx vitest run test/gateway.test.ts -t 'B20: ' --reporter=verbose   (skipped tests left out below)
+
+ RUN  v5.1.0 /tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/wt-cap/builder
+
+ × test/gateway.test.ts > the cap change: proof rows B20 to B22 of the design note (package 1.2b) > B20: a raise is recorded with its event, and the next call is judged against the new cap 72ms
+   → expected [] to have a length of 1 but got +0
+ × test/gateway.test.ts > the cap change: proof rows B20 to B22 of the design note (package 1.2b) > B20: a lowering to exactly spent plus open holds is accepted and recorded, and the next call is refused 16ms
+   → expected [] to have a length of 1 but got +0
+ × test/gateway.test.ts > the cap change: proof rows B20 to B22 of the design note (package 1.2b) > B20: the figures at the edges of what is allowed are accepted as written: 0, 0.0003 and 99999999.9999 9ms
+   → expected [] to deeply equal [ [ 5, +0 ], [ +0, 0.0003 ], …(1) ]
+
+ Test Files  1 failed (1)
+      Tests  3 failed | 96 skipped (99)
+   Start at  06:30:19
+   Duration  372ms (tests 46%, transform 28%, import 26%, worker 1%)
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/gateway.test.ts > the cap change: proof rows B20 to B22 of the design note (package 1.2b) > B20: a raise is recorded with its event, and the next call is judged against the new cap
+AssertionError: expected [] to have a length of 1 but got +0
+
+- Expected
++ Received
+
+- 1
++ 0
+
+ ❯ test/gateway.test.ts:1815:20
+    1813|     expect(change).toMatchObject({ projectId: id, oldCapUsd: 0.005, ne…
+    1814|     const events = await capChanges(id);
+    1815|     expect(events).toHaveLength(1);
+       |                    ^
+    1816|     expect(events[0]!.id).toBe(change.eventId);
+    1817|     expect(events[0]!.payload).toEqual({
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯
+
+ FAIL  test/gateway.test.ts > the cap change: proof rows B20 to B22 of the design note (package 1.2b) > B20: a lowering to exactly spent plus open holds is accepted and recorded, and the next call is refused
+AssertionError: expected [] to have a length of 1 but got +0
+
+- Expected
++ Received
+
+- 1
++ 0
+
+ ❯ test/gateway.test.ts:1842:20
+    1840|     expect(change).toMatchObject({ oldCapUsd: 1, newCapUsd: 0.01, spen…
+    1841|     const events = await capChanges(id);
+    1842|     expect(events).toHaveLength(1);
+       |                    ^
+    1843|     expect(events[0]!.payload).toMatchObject({ old_cap_usd: 1, new_cap…
+    1844|     const before = forwarded;
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯
+
+ FAIL  test/gateway.test.ts > the cap change: proof rows B20 to B22 of the design note (package 1.2b) > B20: the figures at the edges of what is allowed are accepted as written: 0, 0.0003 and 99999999.9999
+AssertionError: expected [] to deeply equal [ [ 5, +0 ], [ +0, 0.0003 ], …(1) ]
+
+- Expected
++ Received
+
+- [
+-   [
+-     5,
+-     0,
+-   ],
+-   [
+-     0,
+-     0.0003,
+-   ],
+-   [
+-     0.0003,
+-     99999999.9999,
+-   ],
+- ]
++ []
+
+ ❯ test/gateway.test.ts:1869:153
+    1867|       expect((await getBudget(pool, id)).cap).toBe(next);
+    1868|     }
+    1869|     expect((await capChanges(id)).map((e) => [(e.payload as { old_cap_…
+       |                                                                                                                                                         ^
+    1870|   });
+    1871|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/3]⎯
+exit code: 1  (FAILED, as expected)
+Restored with `git checkout -- builder/src/store/holds.ts`; `git diff --exit-code`: exit code 0 (clean)
+
+====================================================================================================
+Control 2 of 6: row B21
+Safeguard removed: The lock removed: inTransaction no longer takes the project's row lock (the line `select id from projects where id = $1 for update`)
+File: builder/src/store/holds.ts
+
+The change, as `git diff` shows it:
+diff --git a/builder/src/store/holds.ts b/builder/src/store/holds.ts
+index fcc81d6..66e4f65 100644
+--- a/builder/src/store/holds.ts
++++ b/builder/src/store/holds.ts
+@@ -73,7 +73,7 @@ async function inTransaction<T>(pool: pg.Pool, projectId: string, fn: (c: pg.Poo
+     // transaction would keep reading the budget as it stood before it waited for the lock.
+     await client.query("begin isolation level read committed");
+     // The lock that makes check-and-hold one step: every budget decision for a project waits here.
+-    await client.query("select id from projects where id = $1 for update", [projectId]);
++    // CONTROL: the lock on the project's row is not taken
+     const out = await fn(client);
+     await client.query("commit");
+     return out;
+
+$ cd builder && BUILDER_TEST_DATABASE_URL='postgres:///builder_test_pkg12b?host=/var/run/postgresql' npx vitest run test/gateway.test.ts -t 'B21: ' --reporter=verbose   (skipped tests left out below)
+
+ RUN  v5.1.0 /tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/wt-cap/builder
+
+ × test/gateway.test.ts > the cap change: proof rows B20 to B22 of the design note (package 1.2b) > B21: two changes to one project are judged one at a time: the second starts from the figure the first left 44ms
+   → expected 20 to be 30 // Object.is equality
+ × test/gateway.test.ts > the cap change: proof rows B20 to B22 of the design note (package 1.2b) > B21: a change and an admission are judged one at a time, and their events agree in the order they were written 32ms
+   → expected { …(9) } to match object { Object (old_cap_usd, new_cap_usd, ...) }
+(5 matching properties omitted from actual)
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 97 skipped (99)
+   Start at  06:30:20
+   Duration  306ms (tests 45%, import 29%, transform 24%, worker 1%)
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/gateway.test.ts > the cap change: proof rows B20 to B22 of the design note (package 1.2b) > B21: two changes to one project are judged one at a time: the second starts from the figure the first left
+AssertionError: expected 20 to be 30 // Object.is equality
+
+- Expected
++ Received
+
+- 30
++ 20
+
+ ❯ test/gateway.test.ts:1925:36
+    1923|     expect(events).toHaveLength(2);
+    1924|     expect(events[0]!.old_cap_usd).toBe(20);
+    1925|     expect(events[1]!.old_cap_usd).toBe(events[0]!.new_cap_usd); // th…
+       |                                    ^
+    1926|     expect(events.map((e) => e.new_cap_usd).sort()).toEqual([30, 40]);
+    1927|     expect((await getBudget(pool, id)).cap).toBe(events[1]!.new_cap_us…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  test/gateway.test.ts > the cap change: proof rows B20 to B22 of the design note (package 1.2b) > B21: a change and an admission are judged one at a time, and their events agree in the order they were written
+AssertionError: expected { …(9) } to match object { Object (old_cap_usd, new_cap_usd, ...) }
+(5 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+    "new_cap_usd": 2,
+    "old_cap_usd": 1,
+-   "open_holds": 1,
+-   "open_holds_usd": 0.01,
++   "open_holds": 0,
++   "open_holds_usd": 0,
+  }
+
+ ❯ test/gateway.test.ts:1953:25
+    1951|         // The admission was judged first: it was judged against the o…
+    1952|         expect(opened.budget_before.cap_usd).toBe(1);
+    1953|         expect(changed).toMatchObject({ old_cap_usd: 1, new_cap_usd: 2…
+       |                         ^
+    1954|       }
+    1955|       console.log(`B21, a change and an admission (started ${changeFir…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+exit code: 1  (FAILED, as expected)
+Restored with `git checkout -- builder/src/store/holds.ts`; `git diff --exit-code`: exit code 0 (clean)
+
+====================================================================================================
+Control 3 of 6: row B22
+Safeguard removed: The figure check in changeCap removed (the database's own checks and changeCap's comparison of the stored figure stay)
+File: builder/src/store/holds.ts
+
+The change, as `git diff` shows it:
+diff --git a/builder/src/store/holds.ts b/builder/src/store/holds.ts
+index fcc81d6..28a7163 100644
+--- a/builder/src/store/holds.ts
++++ b/builder/src/store/holds.ts
+@@ -427,7 +427,7 @@ export async function changeCap(
+   pool: pg.Pool,
+   p: { projectId: string; newCapUsd: number; askedBy: string; changedBy: string; reason: string },
+ ): Promise<CapChange> {
+-  const newCap = checkCapFigure(p.newCapUsd);
++  const newCap = p.newCapUsd; // CONTROL: the figure check in changeCap removed
+   const askedBy = checkText("asked_by", p.askedBy);
+   const changedBy = checkText("changed_by", p.changedBy);
+   const reason = checkText("reason", p.reason);
+
+$ cd builder && BUILDER_TEST_DATABASE_URL='postgres:///builder_test_pkg12b?host=/var/run/postgresql' npx vitest run test/gateway.test.ts -t 'B22: ' --reporter=verbose   (skipped tests left out below)
+
+ RUN  v5.1.0 /tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/wt-cap/builder
+
+ × test/gateway.test.ts > the cap change: proof rows B20 to B22 of the design note (package 1.2b) > B22: a figure that is not a number of dollars, 0 or more, below $100,000,000 with at most 4 decimals is refused: nothing changed, nothing written 16ms
+   → new row for relation "projects" violates check constraint "projects_cap_is_a_number"
+ ✓ test/gateway.test.ts > the cap change: proof rows B20 to B22 of the design note (package 1.2b) > B22: a name or reason that is missing, empty, longer than 500 characters, or holds a character the log cannot store is refused: nothing changed, nothing written 18ms
+ ✓ test/gateway.test.ts > the cap change: proof rows B20 to B22 of the design note (package 1.2b) > B22: an unknown project, or a figure equal to the current cap, is refused: nothing changed, nothing written 4ms
+ ✓ test/gateway.test.ts > the cap change: proof rows B20 to B22 of the design note (package 1.2b) > B22: a lowering below spent plus open holds is refused, naming the lowest figure allowed now: nothing changed, nothing written 56ms
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 3 passed | 95 skipped (99)
+   Start at  06:30:20
+   Duration  323ms (tests 51%, import 26%, transform 22%, worker 1%)
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/gateway.test.ts > the cap change: proof rows B20 to B22 of the design note (package 1.2b) > B22: a figure that is not a number of dollars, 0 or more, below $100,000,000 with at most 4 decimals is refused: nothing changed, nothing written
+error: new row for relation "projects" violates check constraint "projects_cap_is_a_number"
+ ❯ node_modules/pg/lib/client.js:694:17
+ ❯ src/store/holds.ts:441:15
+    439|     if (micro(newCap) === micro(budget.cap)) throw new CapChangeRefuse…
+    440|     if (micro(newCap) < micro(budget.spent) + micro(budget.openHolds))…
+    441|     const u = await c.query<{ cap_usd: string; changed_at: Date }>(
+       |               ^
+    442|       "update projects set cap_usd = $2 where id = $1 returning cap_us…
+    443|       [p.projectId, newCap],
+ ❯ inTransaction src/store/holds.ts:77:17
+ ❯ refusal test/gateway.test.ts:1786:7
+ ❯ test/gateway.test.ts:1975:17
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+Serialized Error: { length: 287, severity: 'ERROR', code: '23514', detail: 'Failing row contains (p_9985a1de, gateway test, standard, NaN, 2026-11-13 06:30:21.159117+00).', hint: undefined, position: undefined, internalPosition: undefined, internalQuery: undefined, where: undefined, schema: 'public', table: 'projects', dataType: undefined, constraint: 'projects_cap_is_a_number', file: 'execMain.c', routine: 'ExecConstraints' }
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+exit code: 1  (FAILED, as expected)
+Restored with `git checkout -- builder/src/store/holds.ts`; `git diff --exit-code`: exit code 0 (clean)
+
+====================================================================================================
+Control 4 of 6: row B22
+Safeguard removed: The check of who asked, who ran it and the reason removed (any text, or none, is taken)
+File: builder/src/store/holds.ts
+
+The change, as `git diff` shows it:
+diff --git a/builder/src/store/holds.ts b/builder/src/store/holds.ts
+index fcc81d6..b321418 100644
+--- a/builder/src/store/holds.ts
++++ b/builder/src/store/holds.ts
+@@ -395,6 +395,7 @@ function checkCapFigure(x: unknown): number {
+ /** Who asked, who ran it and why: text, trimmed, not empty, at most 500 characters, and storable in the event log. */
+ function checkText(field: "asked_by" | "changed_by" | "reason", value: unknown): string {
+   const text = typeof value === "string" ? value.trim() : "";
++  return text; // CONTROL: the check of names and reason removed
+   if (text === "") throw new CapChangeRefused(`${field}_missing`, `${field} is missing or empty. ${NOTHING_CHANGED}`);
+   if ([...text].length > MAX_TEXT) throw new CapChangeRefused(`${field}_too_long`, `${field} is longer than ${MAX_TEXT} characters. ${NOTHING_CHANGED}`);
+   if (text.includes("\u0000") || LONE_SURROGATE_IN.test(text)) {
+
+$ cd builder && BUILDER_TEST_DATABASE_URL='postgres:///builder_test_pkg12b?host=/var/run/postgresql' npx vitest run test/gateway.test.ts -t 'B22: ' --reporter=verbose   (skipped tests left out below)
+
+ RUN  v5.1.0 /tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/wt-cap/builder
+
+ ✓ test/gateway.test.ts > the cap change: proof rows B20 to B22 of the design note (package 1.2b) > B22: a figure that is not a number of dollars, 0 or more, below $100,000,000 with at most 4 decimals is refused: nothing changed, nothing written 13ms
+ × test/gateway.test.ts > the cap change: proof rows B20 to B22 of the design note (package 1.2b) > B22: a name or reason that is missing, empty, longer than 500 characters, or holds a character the log cannot store is refused: nothing changed, nothing written 11ms
+   → expected the change to be refused, but it was made
+ ✓ test/gateway.test.ts > the cap change: proof rows B20 to B22 of the design note (package 1.2b) > B22: an unknown project, or a figure equal to the current cap, is refused: nothing changed, nothing written 5ms
+ ✓ test/gateway.test.ts > the cap change: proof rows B20 to B22 of the design note (package 1.2b) > B22: a lowering below spent plus open holds is refused, naming the lowest figure allowed now: nothing changed, nothing written 54ms
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 3 passed | 95 skipped (99)
+   Start at  06:30:21
+   Duration  328ms (tests 46%, import 27%, transform 25%, worker 1%)
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/gateway.test.ts > the cap change: proof rows B20 to B22 of the design note (package 1.2b) > B22: a name or reason that is missing, empty, longer than 500 characters, or holds a character the log cannot store is refused: nothing changed, nothing written
+Error: expected the change to be refused, but it was made
+ ❯ refusal test/gateway.test.ts:1791:11
+    1789|       throw e;
+    1790|     }
+    1791|     throw new Error("expected the change to be refused, but it was mad…
+       |           ^
+    1792|   }
+    1793|   /** A project with $0.0025 spent and one hold of $0.0075 open: spent…
+ ❯ test/gateway.test.ts:2004:19
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+exit code: 1  (FAILED, as expected)
+Restored with `git checkout -- builder/src/store/holds.ts`; `git diff --exit-code`: exit code 0 (clean)
+
+====================================================================================================
+Control 5 of 6: row B22
+Safeguard removed: The refusal of a lowering below spent plus open holds removed
+File: builder/src/store/holds.ts
+
+The change, as `git diff` shows it:
+diff --git a/builder/src/store/holds.ts b/builder/src/store/holds.ts
+index fcc81d6..dd93d13 100644
+--- a/builder/src/store/holds.ts
++++ b/builder/src/store/holds.ts
+@@ -437,7 +437,7 @@ export async function changeCap(
+     if (found.rowCount === 0) throw new CapChangeRefused("unknown_project", `There is no project with the id given. ${NOTHING_CHANGED}`);
+     const budget = await readBudget(c, p.projectId);
+     if (micro(newCap) === micro(budget.cap)) throw new CapChangeRefused("no_change", `The project's cap is already $${budget.cap.toFixed(4)}. ${NOTHING_CHANGED}`);
+-    if (micro(newCap) < micro(budget.spent) + micro(budget.openHolds)) throw belowCommitted(newCap, budget);
++    // CONTROL: a lowering below spent plus open holds is not refused
+     const u = await c.query<{ cap_usd: string; changed_at: Date }>(
+       "update projects set cap_usd = $2 where id = $1 returning cap_usd, clock_timestamp() as changed_at",
+       [p.projectId, newCap],
+
+$ cd builder && BUILDER_TEST_DATABASE_URL='postgres:///builder_test_pkg12b?host=/var/run/postgresql' npx vitest run test/gateway.test.ts -t 'B22: ' --reporter=verbose   (skipped tests left out below)
+
+ RUN  v5.1.0 /tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/wt-cap/builder
+
+ ✓ test/gateway.test.ts > the cap change: proof rows B20 to B22 of the design note (package 1.2b) > B22: a figure that is not a number of dollars, 0 or more, below $100,000,000 with at most 4 decimals is refused: nothing changed, nothing written 14ms
+ ✓ test/gateway.test.ts > the cap change: proof rows B20 to B22 of the design note (package 1.2b) > B22: a name or reason that is missing, empty, longer than 500 characters, or holds a character the log cannot store is refused: nothing changed, nothing written 16ms
+ ✓ test/gateway.test.ts > the cap change: proof rows B20 to B22 of the design note (package 1.2b) > B22: an unknown project, or a figure equal to the current cap, is refused: nothing changed, nothing written 4ms
+ × test/gateway.test.ts > the cap change: proof rows B20 to B22 of the design note (package 1.2b) > B22: a lowering below spent plus open holds is refused, naming the lowest figure allowed now: nothing changed, nothing written 18ms
+   → expected the change to be refused, but it was made
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 3 passed | 95 skipped (99)
+   Start at  06:30:22
+   Duration  296ms (tests 36%, import 34%, transform 29%, worker 1%)
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/gateway.test.ts > the cap change: proof rows B20 to B22 of the design note (package 1.2b) > B22: a lowering below spent plus open holds is refused, naming the lowest figure allowed now: nothing changed, nothing written
+Error: expected the change to be refused, but it was made
+ ❯ refusal test/gateway.test.ts:1791:11
+    1789|       throw e;
+    1790|     }
+    1791|     throw new Error("expected the change to be refused, but it was mad…
+       |           ^
+    1792|   }
+    1793|   /** A project with $0.0025 spent and one hold of $0.0075 open: spent…
+ ❯ test/gateway.test.ts:2031:17
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+exit code: 1  (FAILED, as expected)
+Restored with `git checkout -- builder/src/store/holds.ts`; `git diff --exit-code`: exit code 0 (clean)
+
+====================================================================================================
+Control 6 of 6: row migration 007
+Safeguard removed: The check that a cap is a number removed from migration 007 (run against a fresh test database, created for this control and dropped after it, because a migration is applied to a database once)
+File: builder/src/store/migrations/007_project_cap_checks.sql
+$ createdb builder_test_pkg12b_control6   exit code: 0
+
+The change, as `git diff` shows it:
+diff --git a/builder/src/store/migrations/007_project_cap_checks.sql b/builder/src/store/migrations/007_project_cap_checks.sql
+index 2562f84..a7a6262 100644
+--- a/builder/src/store/migrations/007_project_cap_checks.sql
++++ b/builder/src/store/migrations/007_project_cap_checks.sql
+@@ -19,4 +19,4 @@ begin
+ end $$;
+ 
+ alter table projects drop constraint if exists projects_cap_is_a_number;
+-alter table projects add constraint projects_cap_is_a_number check (cap_usd <> 'NaN'::numeric and cap_usd >= 0);
++-- CONTROL: the check that a cap is a number is not added
+
+$ cd builder && BUILDER_TEST_DATABASE_URL='postgres:///builder_test_pkg12b_control6?host=/var/run/postgresql' npx vitest run test/gateway.test.ts -t 'migration 007' --reporter=verbose   (skipped tests left out below)
+
+ RUN  v5.1.0 /tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/wt-cap/builder
+
+ × test/gateway.test.ts > the cap change: proof rows B20 to B22 of the design note (package 1.2b) > the cap change: a cap that is not a number is refused by the database (migration 007) and by createProject 15ms
+   → promise resolved "Result{ command: 'UPDATE', …(9) }" instead of rejecting
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 98 skipped (99)
+   Start at  06:30:23
+   Duration  238ms (import 42%, tests 40%, transform 16%, worker 2%)
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/gateway.test.ts > the cap change: proof rows B20 to B22 of the design note (package 1.2b) > the cap change: a cap that is not a number is refused by the database (migration 007) and by createProject
+AssertionError: promise resolved "Result{ command: 'UPDATE', …(9) }" instead of rejecting
+
+- Expected
++ Received
+
+- Error {
+-   "message": "rejected promise",
++ Result {
++   "RowCtor": null,
++   "_parsers": undefined,
++   "_prebuiltEmptyResultObject": null,
++   "_types": TypeOverrides {
++     "_types": {
++       "arrayParser": {
++         "create": [Function create],
++       },
++       "builtins": {
++         "ABSTIME": 702,
++         "ACLITEM": 1033,
++         "BIT": 1560,
++         "BOOL": 16,
++         "BPCHAR": 1042,
++         "BYTEA": 17,
++         "CHAR": 18,
++         "CID": 29,
++         "CIDR": 650,
++         "CIRCLE": 718,
++         "DATE": 1082,
++         "FLOAT4": 700,
++         "FLOAT8": 701,
++         "GTSVECTOR": 3642,
++         "INET": 869,
++         "INT2": 21,
++         "INT4": 23,
++         "INT8": 20,
++         "INTERVAL": 1186,
++         "JSON": 114,
++         "JSONB": 3802,
++         "MACADDR": 829,
++         "MACADDR8": 774,
++         "MONEY": 790,
++         "NUMERIC": 1700,
++         "OID": 26,
++         "PATH": 602,
++         "PG_DEPENDENCIES": 3402,
++         "PG_LSN": 3220,
++         "PG_NDISTINCT": 3361,
++         "PG_NODE_TREE": 194,
++         "POLYGON": 604,
++         "REFCURSOR": 1790,
++         "REGCLASS": 2205,
++         "REGCONFIG": 3734,
++         "REGDICTIONARY": 3769,
++         "REGNAMESPACE": 4089,
++         "REGOPER": 2203,
++         "REGOPERATOR": 2204,
++         "REGPROC": 24,
++         "REGPROCEDURE": 2202,
++         "REGROLE": 4096,
++         "REGTYPE": 2206,
++         "RELTIME": 703,
++         "SMGR": 210,
++         "TEXT": 25,
++         "TID": 27,
++         "TIME": 1083,
++         "TIMESTAMP": 1114,
++         "TIMESTAMPTZ": 1184,
++         "TIMETZ": 1266,
++         "TINTERVAL": 704,
++         "TSQUERY": 3615,
++         "TSVECTOR": 3614,
++         "TXID_SNAPSHOT": 2970,
++         "UUID": 2950,
++         "VARBIT": 1562,
++         "VARCHAR": 1043,
++         "XID": 28,
++         "XML": 142,
++       },
++       "getTypeParser": [Function getTypeParser],
++       "setTypeParser": [Function setTypeParser],
++     },
++     "binary": {},
++     "text": {},
++   },
++   "command": "UPDATE",
++   "fields": [],
++   "oid": null,
++   "rowAsArray": false,
++   "rowCount": 1,
++   "rows": [],
+  }
+
+ ❯ test/gateway.test.ts:2052:88
+    2050|   it("the cap change: a cap that is not a number is refused by the dat…
+    2051|     const { id } = await newProject(20);
+    2052|     await expect(pool.query("update projects set cap_usd = 'NaN' where…
+       |                                                                                        ^
+    2053|     await expect(pool.query("insert into projects(id, name, cap_usd) v…
+    2054|     expect((await getBudget(pool, id)).cap).toBe(20);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+exit code: 1  (FAILED, as expected)
+Restored with `git checkout -- builder/src/store/migrations/007_project_cap_checks.sql`; `git diff --exit-code`: exit code 0 (clean)
+$ dropdb builder_test_pkg12b_control6   exit code: 0
+
+====================================================================================================
+Controls whose tests failed with the safeguard removed: 6 of 6.
+Tracked files changed after the last control: none
