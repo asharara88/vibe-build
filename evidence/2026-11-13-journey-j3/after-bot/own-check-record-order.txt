@@ -1,0 +1,18 @@
+J3, own check after the review bot on af80dc9: what the project's record holds when a sign-out lands while an opening is being recorded, 2026-11-13T22:40:51Z, on 34ff56c. Command: bash own-check-record-order.sh (the existing journey test 'a sign-out while live_opened is being written' run alone on a fresh database builder_test_ownj3_order, its record listed, the database dropped). Columns: event id | kind | reason | live session. The test slows the write of live_opened by 800 ms; the preview writes live_closed at once.
+
+ Test Files  1 passed (1)
+      Tests  1 passed | 49 skipped (50)
+26|journey.job.started||
+37|journey.job.finished||
+39|journey.job.started||
+53|journey.job.finished||
+55|journey.job.started||
+63|journey.job.finished||
+64|journey.job.started||
+65|journey.preview.live_opened||live-db413fba255cbd09
+66|journey.job.finished||live-db413fba255cbd09
+67|journey.preview.live_closed|ended_on_builder|live-db413fba255cbd09
+68|journey.job.started||
+69|journey.preview.live_closed|sign_out|live-164b1702e2033439
+70|journey.preview.live_opened||live-164b1702e2033439
+71|journey.job.failed|The live app was not opened: this sign-in session was signed out while it was being opened. No live session is open. Sign in and ask again.|

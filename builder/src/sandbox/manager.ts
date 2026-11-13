@@ -850,6 +850,116 @@ function runStreaming(sb: Sandbox, service: string, cmd: string[], opts: Streami
   return { container: opts.container, done, kill, args: ["docker", ...args] };
 }
 
+/**
+ * The script a stream's `check` container runs (package J3; final design, section 4.2): connect to the host and port
+ * given as its two arguments, and pass standard input to that connection and the connection's bytes to standard
+ * output, both ways, unread. Node's own modules only. It ends (measurement M2):
+ * - when the app closes the connection, once everything the app sent has been written to standard output (exiting
+ *   before that lost the end of a 2 MB answer once in four runs);
+ * - 2 s after its standard input ends;
+ * - after 70 s with no byte either way (the front's own limit is 60 s);
+ * - at once, with code 1, if the app cannot be reached.
+ * Ending the docker client's standard input does not reach the container (M2), so the interface ends a stream the
+ * front has closed by killing its container (`appStream`'s `kill`).
+ */
+export const STREAM_SCRIPT =
+  "let up=false;const bye=(c)=>process.stdout.write('',()=>process.exit(c));" +
+  "const s=require('net').connect(Number(process.argv[2]),process.argv[1]);" +
+  "s.on('connect',()=>{up=true;process.stdin.pipe(s);s.pipe(process.stdout,{end:false})});" +
+  "s.on('error',()=>{if(!up)process.exit(1)});" +
+  "s.on('close',()=>bye(0));" +
+  "process.stdin.on('end',()=>setTimeout(()=>process.exit(0),2000));" +
+  "process.stdout.on('error',()=>process.exit(0));" +
+  "s.setTimeout(70000,()=>process.exit(0))";
+
+/** A stream to the app (package J3): one connection to http://app:<port>, through a short-lived `check` container. */
+export interface AppStream {
+  /** The container's name, given with `--name`, so that it can be killed by name. */
+  container: string;
+  /** Bytes to the app. Ending it ends the connection's sending side. */
+  stdin: NodeJS.WritableStream;
+  /** Bytes from the app. */
+  stdout: NodeJS.ReadableStream;
+  /** Settles when the container's command has ended. It never rejects. */
+  done: Promise<StreamingEnd>;
+  /** Kill the container, wait for the command to end, and remove the container if anything is left. */
+  kill: () => Promise<void>;
+  /** The exact arguments given to `docker`. */
+  args: string[];
+}
+
+/** The only target a stream takes: the app, by its name on the project's `front` network, and its port. */
+export const STREAM_TARGET = /^app:(\d{1,5})$/;
+
+/**
+ * Open one stream to the app (package J3; final design, section 4.2), built as `askApp` is: a fresh container of the
+ * `check` service (the `front` network only, the approved Node image, the hardening, the user `node`, no settings, no
+ * mount), run with `docker compose run --rm --no-deps -T`, whose standard input and output are the stream. Nothing
+ * is added to the service: no `--volume`, `--env`, `--user` or `--privileged`. The target is only `app:<port>`.
+ */
+/** The exact arguments `appStream` gives `docker` (the tests read them): nothing added to the `check` service. */
+export function appStreamArgs(sb: Pick<Sandbox, "composeFile">, target: string, container: string): string[] {
+  const m = STREAM_TARGET.exec(target);
+  const port = m ? Number(m[1]) : 0;
+  if (!m || port < 1 || port > 65535) throw new Error(`appStream takes app:<port>, nothing else: ${target}`);
+  if (!CONTAINER_NAME.test(container)) throw new Error(`"${container}" is not a container name Docker accepts.`);
+  return ["compose", "-f", sb.composeFile, ...ONE_OFF_PROFILES, "run", "--rm", "--no-deps", "-T", "--name", container, "check", "node", "-e", STREAM_SCRIPT, "app", String(port)];
+}
+
+function appStream(sb: Sandbox, target: string, o: { container: string }): AppStream {
+  const args = appStreamArgs(sb, target, o.container);
+  const env = dockerEnv(sb);
+  // Its own process group, so that the docker client and its compose plugin can be killed together (measurement M2:
+  // killing the client alone left the plugin running).
+  const child = spawn("docker", args, { env, stdio: ["pipe", "pipe", "pipe"], detached: true });
+  let stderrTail = "";
+  child.stderr.on("data", (d: Buffer) => {
+    stderrTail = (stderrTail + d.toString("utf8")).slice(-2000);
+  });
+  child.stdin.on("error", () => undefined);
+  child.stdout.on("error", () => undefined);
+  let settled = false;
+  const done = new Promise<StreamingEnd>((resolve) => {
+    child.on("error", (err) => {
+      settled = true;
+      resolve({ code: null, stderrTail: stderrTail + String(err) });
+    });
+    child.on("close", (code) => {
+      settled = true;
+      resolve({ code, stderrTail });
+    });
+  });
+  let killing: Promise<void> | null = null;
+  const kill = () =>
+    (killing ??= (async () => {
+      child.stdin.end();
+      // What the app still sends is read and dropped, so the client is never left blocked on a full pipe (measurement
+      // M2: a stream whose reader had gone kept its client, and its container, after it was killed).
+      child.stdout.resume();
+      // Ended already: `--rm` has removed its container.
+      if (settled) return;
+      for (let i = 0; i < 20 && !settled; i++) {
+        const killed = await run("docker", ["kill", o.container], { env }).then(
+          () => true,
+          () => false,
+        );
+        if (killed) break;
+        await pause(250);
+      }
+      await waitAtMost(done, 15_000);
+      await run("docker", ["rm", "-f", o.container], { env }).catch(() => undefined);
+      if (!settled && child.pid) {
+        try {
+          process.kill(-child.pid, "SIGKILL");
+        } catch {
+          child.kill("SIGKILL");
+        }
+      }
+      await done;
+    })());
+  return { container: o.container, stdin: child.stdin, stdout: child.stdout, done, kill, args: ["docker", ...args] };
+}
+
 export const sandbox = {
   /**
    * Build the app image (the Dockerfile's `run` stage) and the tools image (its `tools` stage) with
@@ -911,6 +1021,8 @@ export const sandbox = {
     }
     return { error: `the check printed something else: ${last.slice(0, 200)}` };
   },
+  /** One stream to the app, through a short-lived `check` container on the project's `front` network (package J3). */
+  appStream,
   /** Run a one-off command in a fresh container of a service (for migrations and seeding). */
   runOnce: (sb: Sandbox, service: string, cmd: string[]) => compose(sb, ["run", "--rm", "--no-deps", "-T", service, ...cmd], 600_000),
   /** Run a one-off command in a fresh, named container of a service, reading its output line by line, with a handle to kill it (the engine's steps). */

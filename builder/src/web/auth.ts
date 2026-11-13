@@ -166,6 +166,11 @@ export class Sessions {
     if (id) this.byId.delete(id);
   }
 
+  /** When a valid session expires (milliseconds since 1970), or null if it is not one (package J3, after its review). */
+  expiresAt(id: string | undefined, now = Date.now()): number | null {
+    return id && this.valid(id, now) ? this.byId.get(id)! : null;
+  }
+
   get count(): number {
     return this.byId.size;
   }

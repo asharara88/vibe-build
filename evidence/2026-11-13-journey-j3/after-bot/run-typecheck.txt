@@ -1,0 +1,6 @@
+J3 after the review bot on af80dc9: npm run typecheck on 4e41340 (builder/ tree d87f963), working tree of builder/: 0 changed files, 2026-11-13T22:05:51Z.
+
+> builder@0.0.1 typecheck
+> tsc --noEmit
+
+exit code: 0

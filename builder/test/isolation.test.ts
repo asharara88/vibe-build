@@ -60,6 +60,7 @@ import {
   buildStandIns,
   devProbeSettings,
   freePort,
+  FRONT_STAND_IN,
   GATEWAY_STAND_IN,
   leftOf,
   probeComparison,
@@ -69,8 +70,10 @@ import {
   runnerStandInImage,
   runnerStandInImageFor,
   startCanary,
+  startFrontStandIn,
   startGatewayStandIn,
 } from "../scripts/isolation-harness.js";
+import { cameraSocket } from "../src/web/preview.js";
 
 // Package 0.6a. The unit tests call the probe's functions only. Those that make an attempt make it only
 // against made-up servers the test itself starts on the loopback address (127.0.0.1 and "localhost"):
@@ -236,6 +239,15 @@ describe("isolation probe, package 0.6c additions (unit)", () => {
     const old = planAttempts(parseSettings(JSON.stringify(SETTINGS)));
     expect(old.some((a) => /^[MWP]/.test(a.id))).toBe(false);
     expect(old.find((a) => a.id === "E1")?.how).toBe("CONNECT through 127.0.0.1:3128");
+  });
+
+  it("package J3, group U: each Unix socket mounted at /psock is asked for a page, last; nothing else is taken as a socket", () => {
+    const plan = planAttempts(parseSettings(JSON.stringify({ ...S06C, sockets: ["/psock/c.sock"] })));
+    expect(plan.filter((a) => a.id.startsWith("U")).map((a) => [a.id, a.toward, a.target, a.op])).toEqual([["U1", "host", "/psock/c.sock", { type: "unix-http", path: "/psock/c.sock" }]]);
+    expect(planAttempts(parseSettings(JSON.stringify(S06C))).some((a) => a.id.startsWith("U"))).toBe(false);
+    for (const bad of [["/var/run/docker.sock"], ["/psock/../etc/x.sock"], ["/psock/c.sock", "/psock/d.sock", "/psock/e.sock", "/psock/f.sock", "/psock/g.sock"], "/psock/c.sock"])
+      expect(() => parseSettings(JSON.stringify({ ...S06C, sockets: bad })), JSON.stringify(bad)).toThrow(/sockets/);
+    expect(compareIds({ id: "U1" }, { id: "P1" })).toBeGreaterThan(0);
   });
 
   it("refuses malformed new settings", () => {
@@ -852,7 +864,10 @@ describe("isolation: live, every project container on the development profile, c
   let gateway: Awaited<ReturnType<typeof startGatewayStandIn>> | undefined;
   let canary: Awaited<ReturnType<typeof startCanary>> | undefined;
   let main: Sandbox | undefined;
-  const ctx = () => ({ appPort: APP_PORT, gatewayServer: new RegExp(`server: ${GATEWAY_STAND_IN}`) });
+  // Package J3: a stand-in for the preview front on 4041 (the automated run's), listening before the machine is read, and the camera socket leading to it.
+  let front: Awaited<ReturnType<typeof startFrontStandIn>> | undefined;
+  let camera: Awaited<ReturnType<typeof cameraSocket>> | undefined;
+  const ctx = () => ({ appPort: APP_PORT, gatewayServer: new RegExp(`server: ${GATEWAY_STAND_IN}`), frontServer: new RegExp(`server: ${FRONT_STAND_IN}`) });
 
   /**
    * A sandbox on the development profile with the three stand-in images, and the engine as package 2.2 would
@@ -900,22 +915,30 @@ describe("isolation: live, every project container on the development profile, c
     }
     await gateway?.close();
     await canary?.close();
+    await front?.close();
+    await camera?.close();
   });
 
-  it("each project container (app, tools, db, runner, the door, and the engine as package 2.2 would place it) reaches exactly what its list allows", async () => {
+  it("each project container (app, tools, db, runner, the door, the engine as package 2.2 would place it, and package J3's stream container and live camera) reaches exactly what its list allows", async () => {
     gateway = await startGatewayStandIn();
     canary = await startCanary();
+    front = await startFrontStandIn(4041);
+    camera = await cameraSocket(4041);
     main = await makeProject("p_iso06c_live");
     await sandbox.up(main, ["app", "egress"]);
     const { settings, machineAddresses } = await devProbeSettings(main, { appPort: APP_PORT, gatewayPort: gateway.port });
     expect(machineAddresses.length).toBeGreaterThan(0);
-    const columns: Array<[string, "app" | "tools" | "db" | "runner" | "engine" | "egress", () => Promise<string[]>]> = [
+    expect(settings).toContain(':4041"');
+    const withSocket = JSON.stringify({ ...JSON.parse(settings), sockets: ["/psock/c.sock"] });
+    const columns: Array<[string, "app" | "tools" | "db" | "runner" | "engine" | "egress" | "check" | "camera", () => Promise<string[]>]> = [
       ["app", "app", () => probeService(main!, "app", "app", settings)],
       ["tools", "tools", () => probeService(main!, "tools", "tools", settings)],
       ["db", "db", () => probeInNetworkOf(main!, "db", "db", settings)],
       ["runner", "runner", () => probeService(main!, "acceptance", "runner", settings)],
       ["engine", "engine", () => probeService(main!, "engine", "engine", settings)],
       ["egress", "egress", () => probeService(main!, "egress", "door", settings)],
+      ["check", "check", () => probeService(main!, "check", "check", settings)],
+      ["camera", "camera", () => probeService(main!, "acceptance", "camera", withSocket, [`${camera!.dir}:/psock:ro`])],
     ];
     const results: Record<string, string[]> = {};
     for (const [label, kind, go] of columns) {
@@ -928,8 +951,8 @@ describe("isolation: live, every project container on the development profile, c
       expect(r.info.find((i) => i.name === DEFAULT_ROUTE_INFO)?.value, label).toBe("no");
     }
     // All at once, so that a failure shows every container's differences.
-    expect(results).toEqual({ app: [], tools: [], db: [], runner: [], engine: [], egress: [] });
-  }, 900_000);
+    expect(results).toEqual({ app: [], tools: [], db: [], runner: [], engine: [], egress: [], check: [], camera: [] });
+  }, 2_400_000);
 
   it("the builder's check that the right app answers (package 3.1) asks from a container on `front`: it gets the app; the machine itself cannot even look the app's name up", async () => {
     expect(await appAnswers(main!, `http://app:${APP_PORT}`)).toBe(true);

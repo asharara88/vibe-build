@@ -7,8 +7,13 @@
  * - The project's containers sit on its private networks (`data`, `front`, `out`), with no route to the machine
  *   and no port on it. The app listens on 3161 inside its container and is reached only at http://app:3161, from
  *   containers on `front`: the check that nothing answers there before the app starts and the "right app
- *   answers" check before a checklist run (0.6c's `askApp`), the acceptance runner and the app camera. Nothing
- *   this process runs on the machine connects to the app or its database.
+ *   answers" check before a checklist run (0.6c's `askApp`), the acceptance runner, the app camera, and (package J3)
+ *   the live preview's streams, each a short-lived `check` container whose standard input and output carry one
+ *   connection to the app (`appStream`; manager.ts). Nothing this process runs on the machine opens a TCP connection
+ *   to the app or its database: the live preview's front reads the HTTP those streams carry (src/web/preview.ts).
+ *   Before the first stream, Compose's own reading of the sandbox must put `check` on `front` alone
+ *   (`streamNetworkProblem`). The live camera (`liveCamera`) is the app camera's service with one more mount: the
+ *   camera socket's folder, read-only, at /psock.
  * - The image build goes through the door's machine side: npm through its port on the machine's loopback address,
  *   127.0.0.1:13161 (the package registry only), every step that runs the workspace's code with no network
  *   (templates/next/Dockerfile). That port is the project's one port on the machine, held while its machine side
@@ -37,6 +42,7 @@ import type { EngineRunner } from "../engine/scripted.js";
 import { appImageName, composeProjectName, dockerEnv, PROJECT_NETWORK, sandbox, toolsImageName, type Sandbox, type StreamingEnd } from "../sandbox/manager.js";
 import { buildAndStart, destroyExample1, makeExample1, portFree, type Example1 } from "../../scripts/example-1-sandbox.js";
 import { JourneyRefused, type SandboxRecord } from "./journey.js";
+import type { AppStream } from "../sandbox/manager.js";
 
 const run = promisify(execFile);
 
@@ -84,6 +90,14 @@ export interface Sandboxes {
   appCamera(x: ProjectSandbox, a: { outDir: string; secretFile: string; onLine: (line: string) => void; signal?: AbortSignal }): Promise<StreamingEnd>;
   /** One acceptance run (package 3.1's `runAcceptance`). */
   runAcceptance(input: AcceptanceRunInput): Promise<AcceptanceReport>;
+  /**
+   * Package J3: why the live preview's streams may not run in the project's `check` service, or null: Compose's own
+   * reading of that service must put it on the project's `front` network alone, a private one (`frontOnlyProblem`).
+   * Asked before a live session opens.
+   */
+  streamNetworkProblem(x: ProjectSandbox): Promise<string | null>;
+  /** Package J3: one stream to the running app (manager.ts, `appStream`). */
+  appStream(x: ProjectSandbox): AppStream;
   /** Stop and remove the project's containers and images; keep its folder (a preview that failed). */
   stopApp(x: ProjectSandbox): Promise<void>;
   /** Remove the project's containers, images and folder. */
@@ -195,6 +209,65 @@ export async function cameraNetworkProblem(sb: Pick<Sandbox, "dir" | "composeFil
   return frontOnlyProblem(config, "acceptance");
 }
 
+/**
+ * Package J3: why the live preview's streams may not run in a sandbox's `check` service, or null: Compose's own reading
+ * of the sandbox's compose file, with the service's profile on, must put the service on `front` and nothing else, and
+ * read `front` as internal with the "isolated" gateway option (`frontOnlyProblem`), as `cameraNetworkProblem` reads it.
+ */
+export async function streamNetworkProblem(sb: Pick<Sandbox, "dir" | "composeFile">): Promise<string | null> {
+  let config: unknown;
+  try {
+    const { stdout } = await run("docker", ["compose", "-f", sb.composeFile, "--profile", "check", "config", "--format", "json"], { env: dockerEnv(sb), maxBuffer: 4 * 1024 * 1024, timeout: 60_000 });
+    config = JSON.parse(stdout);
+  } catch (err) {
+    return `Compose could not read the sandbox's services (${(err as Error).message.split("\n")[0]})`;
+  }
+  return frontOnlyProblem(config, "check");
+}
+
+/** The live camera's time limit. */
+export const LIVE_CAMERA_TIMEOUT_MS = 300_000;
+
+/**
+ * Package J3 (final design, section 4.8): the live camera, in a sandbox's own `acceptance` service, started as the app
+ * camera is (`runStreaming`): the approved runner image, its user 1001, `front` only, no video and no trace. Its
+ * mounts: the script (read-only), one output folder, a folder of passes (pass-1, and pass-2 when a walk asks for a new
+ * entry) and the sample password, read-only, and the camera socket's folder read-only at /psock. Its script loads only http://127.0.0.1:4030 inside its own container,
+ * which it forwards to /psock/c.sock; on the machine that socket leads to the preview front (preview.ts,
+ * `cameraSocket`). Before it starts, the image is checked (`cameraImageProblem`) and the service's networks
+ * (`cameraNetworkProblem`). `env` names the walk (the live test's refusals use their own).
+ */
+export async function liveCamera(
+  sb: Sandbox,
+  a: { cameraDir: string; outDir: string; passDir: string; sampleFile: string; onLine: (line: string) => void; env?: Record<string, string>; signal?: AbortSignal },
+): Promise<StreamingEnd> {
+  const image = await cameraImageProblem(sb);
+  if (image) throw new JourneyRefused(`The live camera did not start: ${image}.`);
+  const network = await cameraNetworkProblem(sb);
+  if (network) throw new JourneyRefused(`The live camera did not start: ${network}.`);
+  const r = sandbox.runStreaming(sb, "acceptance", ["node", "/camera/live-shots.mjs"], {
+    container: `${sb.projectName}-live-camera-${randomBytes(3).toString("hex")}`.slice(0, 120),
+    volumes: [
+      `${join(CAMERA_DIR, "live-shots.mjs")}:/camera/live-shots.mjs:ro`,
+      `${a.outDir}:/shots`,
+      `${a.passDir}:/run/secrets/live:ro`,
+      `${a.sampleFile}:/run/secrets/sample-password:ro`,
+      `${a.cameraDir}:/psock:ro`,
+    ],
+    onLine: a.onLine,
+    timeoutMs: LIVE_CAMERA_TIMEOUT_MS,
+    env: a.env,
+  });
+  const kill = () => void r.kill();
+  if (a.signal?.aborted) kill();
+  else a.signal?.addEventListener("abort", kill, { once: true });
+  try {
+    return await r.done;
+  } finally {
+    a.signal?.removeEventListener("abort", kill);
+  }
+}
+
 /** The real sandboxes: Docker, on the development profile, through example-1-sandbox.ts. */
 export function example1Sandboxes(o: { runnerImage?: string; buildProxyPort?: number } = {}): Sandboxes {
   const runnerImage = o.runnerImage ?? RUNNER_IMAGE;
@@ -230,6 +303,8 @@ export function example1Sandboxes(o: { runnerImage?: string; buildProxyPort?: nu
       }
     },
     runAcceptance: (input) => runAcceptance(input),
+    streamNetworkProblem: (x) => streamNetworkProblem(x.sb),
+    appStream: (x) => sandbox.appStream(x.sb, `app:${x.appPort}`, { container: `${x.sb.projectName}-live-${randomBytes(4).toString("hex")}` }),
     async stopApp(x) {
       checkJourneyId(x.projectId);
       await sandbox.destroy(x.sb).catch(() => undefined);

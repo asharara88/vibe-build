@@ -15,8 +15,15 @@
  *     compared with that container's expected list: every row PASS or FAIL.
  *  4. Positive controls: the same settings from a container on the machine's own network and one on Docker's
  *     default network (not project containers), which must reach the canary.
- *  5. Two deliberate misconfigurations, each of which must FAIL its comparison: the app also given an ordinary
- *     bridge (a way out); the data network made internal without the isolated gateway mode.
+ *  5. Deliberate misconfigurations, each of which must FAIL its comparison: the app also given an ordinary
+ *     bridge (a way out); the data network made internal without the isolated gateway mode; and (package J3) the
+ *     stream container (`check`) also on `out`, and on the machine's network, each also refused by the builder's own
+ *     check before a live session opens (`streamNetworkProblem`).
+ *
+ * Package J3 adds: the live preview's stream container (`check`) and the live camera (the runner with the camera
+ * socket's folder mounted at /psock) to section 3, each compared with its own list; a stand-in for the preview front
+ * listening on 127.0.0.1:4041 before the machine is read, so that groups G and M try it too (gap 128, point 3); and the
+ * camera socket (src/web/preview.ts, `cameraSocket`), which leads only to that port.
  *  6. The machine side's and the door's own logs.
  *  7. Everything removed, and what is left listed, with the Docker objects before and after.
  *
@@ -45,11 +52,14 @@ import {
   type ProbeReport,
 } from "../src/sandbox/isolation.js";
 import { composeDocument, createSandbox, dockerEnv, sandbox, socketOwner, toYaml, type Sandbox, type SandboxSpec } from "../src/sandbox/manager.js";
+import { streamNetworkProblem } from "../src/orchestrator/example-1-adapter.js";
+import { cameraSocket } from "../src/web/preview.js";
 import {
   buildStandIns,
   builderDir,
   devProbeSettings,
   freePort,
+  FRONT_STAND_IN,
   GATEWAY_STAND_IN,
   leftOf,
   probeComparison,
@@ -58,6 +68,7 @@ import {
   removeImages,
   runnerStandInImageFor,
   startCanary,
+  startFrontStandIn,
   startGatewayStandIn,
 } from "./isolation-harness.js";
 
@@ -80,6 +91,9 @@ const dockerObjects = async () => {
 const made: Array<{ sb: Sandbox; dir: string; images: string[] }> = [];
 let gateway: Awaited<ReturnType<typeof startGatewayStandIn>> | undefined;
 let canary: Awaited<ReturnType<typeof startCanary>> | undefined;
+let front: Awaited<ReturnType<typeof startFrontStandIn>> | undefined;
+let camera: Awaited<ReturnType<typeof cameraSocket>> | undefined;
+const FRONT_PORT = 4041;
 const files: Record<string, string> = {};
 let verdict = true;
 
@@ -132,6 +146,9 @@ try {
 
   gateway = await startGatewayStandIn();
   canary = await startCanary();
+  // Package J3: the preview front's stand-in listens before the machine is read, and the camera socket leads to it.
+  front = await startFrontStandIn(FRONT_PORT);
+  camera = await cameraSocket(FRONT_PORT);
   log("== 1. The project, as the sandbox manager writes it ==");
   const { sb, spec } = await makeProject("p_iso06c_demo");
   const doc = composeDocument(spec, socketOwner()) as { networks: Record<string, unknown>; services: Record<string, { network_mode?: string; networks?: string[]; user?: string; read_only?: boolean; cap_drop?: string[] }> };
@@ -139,6 +156,7 @@ try {
   for (const [name, svc] of Object.entries(doc.services))
     log(`  ${name.padEnd(11)} network: ${svc.network_mode ?? (svc.networks ?? []).join(", ")}; user: ${svc.user ?? "the image's own"}; read-only root: ${svc.read_only}; capabilities dropped: ${(svc.cap_drop ?? []).join(", ")}`);
   log(`  Stand-in gateway on the machine at 127.0.0.1:${gateway.port} (server: ${GATEWAY_STAND_IN}); the canary on every address of the machine, port ${canary.port}.`);
+  log(`  Package J3: a stand-in preview front on 127.0.0.1:${FRONT_PORT} (server: ${FRONT_STAND_IN}), listening before the machine is read; the camera socket's folder (the runner's user, mode 750) leads only to it.`);
   await sandbox.up(sb, ["app", "egress"]);
   const ps = JSON.parse(`[${(await sandbox.ps(sb)).trim().split("\n").join(",")}]`) as Array<{ Service: string; State: string; Health?: string }>;
   for (const p of ps) log(`  Container ${p.Service}: ${p.State}${p.Health ? ` (${p.Health})` : ""}`);
@@ -153,7 +171,10 @@ try {
   log();
 
   log("== 3. The probe in each project container, compared with its list ==");
-  const ctx = { appPort: APP_PORT, gatewayServer: new RegExp(`server: ${GATEWAY_STAND_IN}`) };
+  const ctx = { appPort: APP_PORT, gatewayServer: new RegExp(`server: ${GATEWAY_STAND_IN}`), frontServer: new RegExp(`server: ${FRONT_STAND_IN}`) };
+  const withSocket = JSON.stringify({ ...JSON.parse(settings), sockets: ["/psock/c.sock"] });
+  log(`  Machine listeners given to the probe include the front's port ${FRONT_PORT}: ${settings.includes(`:${FRONT_PORT}"`) ? "yes" : "NO"}.`);
+  if (!settings.includes(`:${FRONT_PORT}"`)) verdict = false;
   const plan: Array<[string, DevContainer, string, () => Promise<string[]>]> = [
     ["app", "app", "app (data, front)", () => probeService(sb, "app", "app", settings)],
     ["tools", "tools", "tools (data)", () => probeService(sb, "tools", "tools", settings)],
@@ -161,6 +182,8 @@ try {
     ["runner", "runner", "runner (front)", () => probeService(sb, "acceptance", "runner", settings)],
     ["engine", "engine", "engine as package 2.2 would place it (out)", () => probeService(sb, "engine", "engine", settings)],
     ["egress", "egress", "the door, egress (out)", () => probeService(sb, "egress", "door", settings)],
+    ["check", "check", "a live preview stream, check (front)", () => probeService(sb, "check", "check", settings)],
+    ["camera", "camera", "the live camera: the runner with the camera socket at /psock (front)", () => probeService(sb, "acceptance", "camera", withSocket, [`${camera!.dir}:/psock:ro`])],
   ];
   const columns: Column[] = [];
   for (const [key, kind, label, go] of plan) {
@@ -218,6 +241,28 @@ try {
   files["comparison-misconfiguration-2.md"] = `# Misconfiguration 2: data internal, without the isolated gateway mode\n\n${renderComparison("tools, misconfigured", c2)}\n`;
   show("misconfiguration 2: data internal without the isolated gateway mode", parseProbeOutput(l2), c2);
   if (c2.pass) verdict = false;
+  // Package J3: the stream container misplaced; each must fail the check's comparison, and be refused by the builder's own check.
+  for (const [n, label, mutate] of [
+    [3, "the stream container (check) also on out", (d: Record<string, unknown>) => void ((d.services as Record<string, { networks?: string[] }>).check!.networks = ["front", "out"])],
+    [4, "the stream container (check) on the machine's network", (d: Record<string, unknown>) => {
+      const c = (d.services as Record<string, Record<string, unknown>>).check!;
+      delete c.networks;
+      c.network_mode = "host";
+    }],
+  ] as const) {
+    const mis = await makeProject(`p_iso06c_demo_mis${n}`, mutate);
+    await sandbox.up(mis.sb, n === 3 ? ["app", "egress"] : ["app"]);
+    const refused = await streamNetworkProblem(mis.sb);
+    log(`  misconfiguration ${n} (${label}): the builder's own check before a live session (streamNetworkProblem): ${refused ?? "NOT REFUSED"}`);
+    if (!refused) verdict = false;
+    const sm = await devProbeSettings(mis.sb, { appPort: APP_PORT, gatewayPort: gateway.port });
+    const lm = await probeService(mis.sb, "check", `check-misconfigured-${n}`, sm.settings);
+    files[`probe-misconfiguration-${n}-check.jsonl`] = lm.join("\n") + "\n";
+    const cm = compareWithExpected(parseProbeOutput(lm), expectedOnDevelopment("check", ctx));
+    files[`comparison-misconfiguration-${n}.md`] = `# Misconfiguration ${n}: ${label}\n\n${renderComparison(`check, misconfigured`, cm)}\n`;
+    show(`misconfiguration ${n}: ${label}`, parseProbeOutput(lm), cm);
+    if (cm.pass) verdict = false;
+  }
   log();
 
   log("== 6. The machine side's log (the egress proxy's decisions, the gateway forwarder) and the door's ==");
@@ -235,7 +280,7 @@ try {
   files["attempts-table.md"] = table + "\n";
   log(table);
   log();
-  log(`RESULT: ${verdict ? "PASS" : "FAIL"}: every project container matched its list, both controls got their answers, and both misconfigurations failed their comparison${verdict ? "" : " (NOT ALL: see above)"}.`);
+  log(`RESULT: ${verdict ? "PASS" : "FAIL"}: every project container matched its list (the live preview's stream and camera included), both controls got their answers, and all four misconfigurations failed their comparison${verdict ? "" : " (NOT ALL: see above)"}.`);
   if (!verdict) process.exitCode = 1;
 } catch (err) {
   const e = err as { stdout?: string; stderr?: string; message?: string };
@@ -257,9 +302,11 @@ try {
     await step(`reporting what is left of ${m.sb.projectName}`, async () => log(`Left of ${m.sb.projectName}: ${await leftOf(m.sb)}`));
     await step("removing the temporary folder", () => rmSync(m.dir, { recursive: true, force: true }));
   }
-  await step("closing the stand-in gateway and the canary", async () => {
+  await step("closing the stand-in gateway, the canary, the front's stand-in and the camera socket", async () => {
     await gateway?.close();
     await canary?.close();
+    await front?.close();
+    await camera?.close();
   });
   await step("listing the Docker objects after the run", async () => {
     const after = await dockerObjects();

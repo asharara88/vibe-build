@@ -1,0 +1,49 @@
+J3, after the review bot on af80dc9: the new tests, 2026-11-13T21:45:54Z. Command (from builder/, database builder_test_botj3, TMPDIR <scratchpad>/botj3-tmp): flock <scratchpad>/live-tests.lock npx vitest run test/preview.test.ts test/web.test.ts test/journey.test.ts -t af80dc9 --reporter=verbose; only the tests run, the first line of each failure, and the summary are kept below.
+
+1. BEFORE the fixes: builder/src as at af80dc9 (git checkout af80dc9 -- builder/src), the tests as committed in 4e41340. Expected: every new test fails but the control (another sign-in session's sign-out does not cancel the open), which passes on both.
+   builder/src differs from af80dc9's: 0 lines of diff (0: none)
+ × test/preview.test.ts > after the review bot on af80dc9 > an answer the app cuts short after its headers (Content-Length: 100, five bytes, then the app gone) ends at the browser at once, not when the front's 60-second idle timer fires; its stream is ended 7192ms
+ × test/preview.test.ts > after the review bot on af80dc9 > relayAnswer, the front's own: an answer cut short destroys the browser's response and clears the idle timer at once; a whole answer passes whole and clears it too 20003ms
+   → Test timed out in 20000ms.
+ × test/preview.test.ts > after the review bot on af80dc9 > a sign-out of the builder sign-in session that asked for an open cancels it: open refuses it even while that session still reads as valid; another session's sign-out does not 96ms
+ × test/preview.test.ts > after the review bot on af80dc9 > open looks again after its last await: a sign-out while it waits for the session it replaces to close cancels it, and no session is left open 95ms
+ × test/web.test.ts > J3 interface: the live app's screens (stand-in sandbox, the real front) > a sign-out in another tab while Open the live app is pending cancels it: no pass is shown, no live session exists, and nothing is recorded as opened (review bot on af80dc9) 552ms
+ × test/web.test.ts > J3 interface: the live app's screens (stand-in sandbox, the real front) > the sign-in session ended without a sign-out (as at its expiry) while Open the live app is pending: the open checks it again and is refused; no pass, no live session (review bot on af80dc9) 467ms
+ ✓ test/web.test.ts > J3 interface: the live app's screens (stand-in sandbox, the real front) > control: with the same wait, the sign-out of another sign-in session does not cancel the open: its pass is shown and its live session is open (review bot on af80dc9) 579ms
+ × test/journey.test.ts > J3: the live app, on the journey (stand-in sandbox, the real front, a stand-in app on this machine's loopback address) > a sign-out while live_opened is being written ends the session just opened, and its pass is not returned; with no sign-out, the same slow write returns it (review bot on af80dc9) 1932ms
+AssertionError: promise resolved "{ pass: 'CYMWDKNV', …(3) }" instead of rejecting
+AssertionError: expected 'still open after 5 s' to be 'cut short' // Object.is equality
+Error: Test timed out in 20000ms.
+TypeError: t.p.beginOpen is not a function
+TypeError: p.beginOpen is not a function
+AssertionError: expected '4QW7-FR68' to be undefined
+AssertionError: expected 'AW3N-5HV0' to be undefined
+TypeError: relayAnswer is not a function
+ Test Files  3 failed (3)
+      Tests  7 failed | 1 passed | 118 skipped (126)
+
+   The scratch measurement on the same source (a copy of a stand-in app that says Content-Length: 100, sends 5 bytes, and is gone 100 ms later; through the real forked front; not committed):
+MEASURED: status 200, content-length 100, the browser's read ended "cut short" after 60002 ms
+ ✓ test/zz-botj3-measure.test.ts > measure: an answer that says 100 bytes, sends 5 and is cut 60194ms
+ Test Files  1 passed (1)
+      Tests  1 passed (1)
+
+2. AFTER the fixes: the same command on 4e41340 (git diff af80dc9 --stat -- src:  5 files changed, 172 insertions(+), 19 deletions(-)).
+ ✓ test/preview.test.ts > after the review bot on af80dc9 > an answer the app cuts short after its headers (Content-Length: 100, five bytes, then the app gone) ends at the browser at once, not when the front's 60-second idle timer fires; its stream is ended 471ms
+ ✓ test/preview.test.ts > after the review bot on af80dc9 > relayAnswer, the front's own: an answer cut short destroys the browser's response and clears the idle timer at once; a whole answer passes whole and clears it too 159ms
+ ✓ test/preview.test.ts > after the review bot on af80dc9 > a sign-out of the builder sign-in session that asked for an open cancels it: open refuses it even while that session still reads as valid; another session's sign-out does not 106ms
+ ✓ test/preview.test.ts > after the review bot on af80dc9 > open looks again after its last await: a sign-out while it waits for the session it replaces to close cancels it, and no session is left open 190ms
+ ✓ test/web.test.ts > J3 interface: the live app's screens (stand-in sandbox, the real front) > a sign-out in another tab while Open the live app is pending cancels it: no pass is shown, no live session exists, and nothing is recorded as opened (review bot on af80dc9) 520ms
+ ✓ test/web.test.ts > J3 interface: the live app's screens (stand-in sandbox, the real front) > the sign-in session ended without a sign-out (as at its expiry) while Open the live app is pending: the open checks it again and is refused; no pass, no live session (review bot on af80dc9) 456ms
+ ✓ test/web.test.ts > J3 interface: the live app's screens (stand-in sandbox, the real front) > control: with the same wait, the sign-out of another sign-in session does not cancel the open: its pass is shown and its live session is open (review bot on af80dc9) 548ms
+ ✓ test/journey.test.ts > J3: the live app, on the journey (stand-in sandbox, the real front, a stand-in app on this machine's loopback address) > a sign-out while live_opened is being written ends the session just opened, and its pass is not returned; with no sign-out, the same slow write returns it (review bot on af80dc9) 1963ms
+ Test Files  3 passed (3)
+      Tests  8 passed | 118 skipped (126)
+
+   The scratch measurement on the fixed source:
+MEASURED: status 200, content-length 100, the browser's read ended "cut short" after 101 ms
+ ✓ test/zz-botj3-measure.test.ts > measure: an answer that says 100 bytes, sends 5 and is cut 285ms
+ Test Files  1 passed (1)
+      Tests  1 passed (1)
+
+Working tree after (git status --porcelain, count): 0

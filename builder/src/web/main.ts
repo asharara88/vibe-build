@@ -20,6 +20,12 @@
  * (of this process and of the npm or tsx process that started it), still holds them: Node cannot change it
  * (review of 13 Nov 2026, known gap 130). The interface starts no gateway and calls no model; it listens on
  * 127.0.0.1 only.
+ * Package J3: the live preview's front (preview.ts) is started with the interface only when BUILDER_LIVE_PREVIEW=1
+ * (after J3's review: off unless turned on, until the owner's phone test has been recorded), on
+ * 127.0.0.1:BUILDER_PREVIEW_PORT (4030 by default), as BUILDER_PREVIEW_UID (1990 by default) when the interface runs as
+ * root; it is stopped with the interface, and when the interface loses its instance lock every live session ends
+ * first. Off, nothing listens on that port and "Open the live app" is refused ("started without the live preview").
+ * On, a port already taken stops the interface's start, in one line.
  */
 import { serve } from "@hono/node-server";
 import { fileURLToPath } from "node:url";
@@ -30,8 +36,12 @@ import { migrate } from "../store/migrate.js";
 import { example1Sandboxes } from "../orchestrator/example-1-adapter.js";
 import { Journey } from "../orchestrator/journey.js";
 import { JourneyJobs } from "../orchestrator/journey-jobs.js";
+import { appendEvent } from "../store/events.js";
+import { J1_BUILD_PROXY_PORT } from "../orchestrator/example-1-adapter.js";
 import { createWebApp } from "./app.js";
 import { passwordFromSettings, Sessions, SignInLimiter, type PasswordState } from "./auth.js";
+import { frontTexts } from "./pages.js";
+import { DEFAULT_PREVIEW_PORT, DEFAULT_PREVIEW_UID, LivePreview } from "./preview.js";
 
 export const UI_HOST = "127.0.0.1";
 export const DEFAULT_UI_PORT = 4020;
@@ -43,6 +53,11 @@ export interface Settings {
   dataDir: string;
   port: number;
   password: PasswordState;
+  /** Package J3: the live preview front's port on 127.0.0.1, and its user when the interface runs as root. */
+  previewPort: number;
+  previewUid: number;
+  /** Package J3, after its review: the front is started only when BUILDER_LIVE_PREVIEW is "1". Off by default. */
+  livePreview: boolean;
 }
 
 /**
@@ -61,8 +76,14 @@ export function readSettings(env: NodeJS.ProcessEnv = process.env): Settings {
     }
     const port = env.BUILDER_UI_PORT ? Number(env.BUILDER_UI_PORT) : DEFAULT_UI_PORT;
     if (!Number.isInteger(port) || port < 1024 || port > 65535) throw new Error("BUILDER_UI_PORT must be a port number from 1024 to 65535. The interface does not start.");
+    const previewPort = env.BUILDER_PREVIEW_PORT ? Number(env.BUILDER_PREVIEW_PORT) : DEFAULT_PREVIEW_PORT;
+    if (!Number.isInteger(previewPort) || previewPort < 1024 || previewPort > 65535 || previewPort === port || previewPort === J1_BUILD_PROXY_PORT)
+      throw new Error(`BUILDER_PREVIEW_PORT must be a port number from 1024 to 65535, not the interface's own nor ${J1_BUILD_PROXY_PORT}. The interface does not start.`);
+    const previewUid = env.BUILDER_PREVIEW_UID ? Number(env.BUILDER_PREVIEW_UID) : DEFAULT_PREVIEW_UID;
+    const live = env.BUILDER_LIVE_PREVIEW ?? "";
+    if (!["", "0", "1"].includes(live)) throw new Error("BUILDER_LIVE_PREVIEW must be 1 (the live preview on) or 0 or unset (off). The interface does not start.");
     const password = passwordFromSettings(env, dataDir);
-    return { databaseUrl, dataDir, port, password };
+    return { databaseUrl, dataDir, port, password, previewPort, previewUid, livePreview: live === "1" };
   } finally {
     for (const k of SCRUBBED) delete env[k];
   }
@@ -154,11 +175,13 @@ export async function holdInstanceLock(url: string, o: { onLost?: (why: string) 
  */
 export async function stopAfterLockLost(
   why: string,
-  o: { journey: Journey; closeServer: () => void; log: (line: string) => void; exit: (code: number) => void; waitMs?: number },
+  o: { journey: Journey; closeServer: () => void; log: (line: string) => void; exit: (code: number) => void; waitMs?: number; preview?: Pick<LivePreview, "stop"> },
 ): Promise<void> {
   const waitMs = o.waitMs ?? LOCK_LOST_WAIT_MS;
   const job = o.journey.runningJob();
   o.log(`[interface stopped] ${why} ${job ? `Its running job (${job.jobId}, project ${job.projectId}) is being stopped first.` : "No job was running."}`);
+  // Package J3: every live session ends, its streams are killed, and the front stops.
+  await o.preview?.stop("lock_lost").catch(() => undefined);
   let timer: NodeJS.Timeout | undefined;
   const ended = await Promise.race([
     o.journey.halt(why).then(() => true),
@@ -204,17 +227,45 @@ export async function main(env: NodeJS.ProcessEnv = process.env): Promise<void> 
   jobs = new JourneyJobs({ journey, sandboxes: example1Sandboxes(), onFault: fault });
   const touched = await journey.recoverInterrupted();
   console.log(`Projects with a job or a sandbox left by an interface that stopped, marked interrupted and removed at start: ${touched.length}.`);
-  const app = createWebApp({ journey, jobs, password: s.password, sessions: new Sessions(), limiter: new SignInLimiter(), dataDir: s.dataDir, onFault: fault, unavailable: () => lock.lost() });
+  // Package J3: the live preview's front, before the interface serves; only when it is turned on (J3's review).
+  let preview: LivePreview | undefined;
+  if (s.livePreview) {
+    const p = new LivePreview({
+      port: s.previewPort,
+      uid: s.previewUid,
+      texts: frontTexts(),
+      openStream: (id) => jobs?.openStream(id) ?? null,
+      onEvent: async (id, kind, payload) => void (await appendEvent(pool, id, kind, payload)),
+      onFault: fault,
+    });
+    try {
+      await p.start();
+    } catch (err) {
+      console.error(`${err instanceof Error ? err.message : String(err)} The interface does not start.`);
+      await p.stop().catch(() => undefined);
+      process.exit(1);
+    }
+    preview = p;
+    jobs.attachPreview(p);
+    console.log(`Live preview front listening on http://127.0.0.1:${s.previewPort}, as ${p.frontUser()}.`);
+  } else {
+    console.log(`Live preview: off (BUILDER_LIVE_PREVIEW is not 1). Nothing listens on 127.0.0.1:${s.previewPort}; "Open the live app" is refused.`);
+  }
+  const app = createWebApp({ journey, jobs, password: s.password, sessions: new Sessions(), limiter: new SignInLimiter(), dataDir: s.dataDir, onFault: fault, unavailable: () => lock.lost(), preview });
   const server = serve({ fetch: app.fetch, port: s.port, hostname: UI_HOST }, (info) => {
     console.log(`Interface listening on http://${info.address}:${info.port} (password from: ${s.password.source}).`);
   });
   onLockLost = (why) =>
-    void stopAfterLockLost(why, { journey, closeServer: () => server.close(), log: (line) => console.error(line), exit: (code) => process.exit(code) });
+    void stopAfterLockLost(why, { journey, closeServer: () => server.close(), log: (line) => console.error(line), exit: (code) => process.exit(code), preview });
   const lostAlready = lock.lost();
   if (lostAlready) onLockLost(lostAlready);
   const stop = () => {
     server.close();
-    void lock.release().then(() => pool.end()).then(() => process.exit(0));
+    void (preview?.stop() ?? Promise.resolve())
+      .catch(() => undefined)
+      .then(() => lock.release())
+      .then(() => pool.end())
+      .then(() => process.exit(0));
   };
   process.on("SIGINT", stop);
   process.on("SIGTERM", stop);

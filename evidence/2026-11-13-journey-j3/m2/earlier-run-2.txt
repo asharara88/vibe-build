@@ -1,0 +1,52 @@
+M2, 2026-11-13T18:35:32.150Z: streams through short-lived check containers, sandbox builder_p_j3m2_f22b5c (development profile), app stand-in on app:3171.
+Before: stream containers of this project [].
+App stand-in started and healthy (db, app).
+The docker arguments of a stream: docker compose -f <compose file> --profile tools --profile engine --profile acceptance --profile check run --rm --no-deps -T --name builder_p_j3m2_f22b5c-live-a6fbf6dd check node -e const s=require('net').connect(Number(process.argv[2]),process.argv[1]);s.on('connect',()=>{process.stdin.pipe(s);s.pipe(process.stdout)});s.on('error',()=>process.exit(1));s.on('close',()=>process.exit(0));process.stdout.on('error',()=>process.exit(0));process.stdin.on('end',()=>setTimeout(()=>process.exit(0),2000));s.setTimeout(70000,()=>process.exit(0)) app 3171
+
+== 1. One stream, straight ==
+  run 1: cold (a new stream: container started) first byte 324 ms, whole page 328 ms; warm (the same stream, a second request) first byte 1 ms, whole page 124 ms; bytes 244 then 216
+  run 2: cold (a new stream: container started) first byte 368 ms, whole page 368 ms; warm (the same stream, a second request) first byte 1 ms, whole page 114 ms; bytes 244 then 216
+  run 3: cold (a new stream: container started) first byte 340 ms, whole page 344 ms; warm (the same stream, a second request) first byte 1 ms, whole page 110 ms; bytes 244 then 216
+  2 MB answer: HTTP 200, 2097152 bytes in 554 ms (first byte 339 ms); SHA-256 15d80ba308304e391a817479e20a3922787105dfdff12e2251e83d80f8c32195; expected 15d80ba308304e391a817479e20a3922787105dfdff12e2251e83d80f8c32195: the same
+  POST body of every byte value (65536 bytes, 0x10 0x11 included 256 times): the app received SHA-256 7daca2095d0438260fa849183dfc67faa459fdf4936e1bc91eec6b281b27e4c2; echoed back 7daca2095d0438260fa849183dfc67faa459fdf4936e1bc91eec6b281b27e4c2; sent 7daca2095d0438260fa849183dfc67faa459fdf4936e1bc91eec6b281b27e4c2: the same both ways
+  After step 1: stream containers left 0, docker compose clients left 0 (checked 58 ms after the last stream).
+
+== 2. Through the preview front and the pump socket ==
+  Entered with the pass: HTTP 303. Front's user: uid 1990 (no name in /etc/passwd).
+  Through the front: cold 386 ms (HTTP 200), warm 6 ms (HTTP 200); streams opened so far 1.
+  2 MB through the front: HTTP 200, 2097152 bytes, 43 ms, SHA-256 the same.
+  Six requests at once: HTTP 200 37 ms, HTTP 200 656 ms, HTTP 200 672 ms, HTTP 200 573 ms, HTTP 200 576 ms, HTTP 200 660 ms; all in 674 ms; streams opened so far 6, open now 6.
+  A client left after 142126 bytes of the 2 MB answer.
+  A page that never ends (HTTP 200): its client left after 3 s.
+  After step 2 and the session's end: stream containers left 1, docker compose clients left 2 (100327 ms after the session ended).
+  Each stream's life (ms from the run's start):
+    12138 opened <project>-live-81811cb4
+    12581 opened <project>-live-0037a206
+    12584 opened <project>-live-1baab5aa
+    12586 opened <project>-live-b9d791cb
+    12608 opened <project>-live-64ad99aa
+    12610 opened <project>-live-274dedb8
+    13262 kill asked <project>-live-1baab5aa
+    16270 kill asked <project>-live-81811cb4
+    16273 kill asked <project>-live-0037a206
+    16275 kill asked <project>-live-b9d791cb
+    16278 kill asked <project>-live-64ad99aa
+    16280 kill asked <project>-live-274dedb8
+    16614 ended <project>-live-81811cb4 code 0
+    16648 ended <project>-live-274dedb8 code 0
+    16684 ended <project>-live-0037a206 code 0
+    16688 ended <project>-live-b9d791cb code 0
+    16718 ended <project>-live-64ad99aa code 0
+
+== 3. The interface killed (SIGKILL) with streams open ==
+  With three pages that never end open: stream containers 4, docker compose clients 8.
+  The interface (pid 23263) killed with SIGKILL.
+  After: stream containers left 1 (builder_p_j3m2_f22b5c-live-1baab5aa), docker compose clients left 2, checked 100248 ms after the kill; the front (pid 23270) gone.
+
+== 4. compose run against exec (time to a first byte, a new connection each) ==
+  run 1: compose run first byte 406 ms (whole 525 ms); exec into the running app first byte 172 ms. (Exec is measured only: it runs inside a container the app controls, which the design does not use.)
+  run 2: compose run first byte 384 ms (whole 511 ms); exec into the running app first byte 158 ms. (Exec is measured only: it runs inside a container the app controls, which the design does not use.)
+  run 3: compose run first byte 394 ms (whole 519 ms); exec into the running app first byte 160 ms. (Exec is measured only: it runs inside a container the app controls, which the design does not use.)
+
+Removed: the sandbox, its images and its folder. Stream containers left: 0; compose clients left: 0.
+RESULT: NOT every check passed.

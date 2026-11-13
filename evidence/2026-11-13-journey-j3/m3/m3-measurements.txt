@@ -1,0 +1,46 @@
+example 1 built, started and photographed by the app camera in 28 s
+owner's walk: exit 0, 14 s; checks 19 passed, 0 failed
+  PASS before the pass: the gate, with its two labels
+  PASS the pass let the browser in, at the app
+  PASS the app's own sample-data banner is there
+  PASS signed in to the app as the made-up employee, through the preview
+  PASS the new request was saved: the list shows it
+  PASS the app in Arabic, right to left
+  PASS the walk itself drew no content-security-policy refusal
+  PASS a fetch to http://app:3161 from the app's page is refused
+  PASS a fetch to the builder's 127.0.0.1:4020 from the app's page is refused
+  PASS a fetch to an outside name from the app's page is refused
+  PASS a service worker is refused
+  PASS none of those fetches reached the network: the policy refused them before the camera's rule saw them
+  PASS no answer the browser got names the app's own address (app:3161)
+  PASS every cookie the browser was given carries the session's prefix or is the front's own
+  PASS no Location the browser got leads off the preview
+  PASS signed out of the app
+  PASS left the live app
+  PASS after leaving, the app is not reached: the gate's page
+  PASS nothing but http://127.0.0.1:4030 was loaded by the camera's own rule
+  {"kind":"timing","what":"sign-in to home","ms":847}
+  {"kind":"fact","name":"WebRTC in the app's page","value":"present (not blocked by the preview)"}
+  {"kind":"fact","name":"the preview is a secure context in this browser","value":"true"}
+  {"kind":"blocked","by_route":{},"note":"addresses the browser tried that the camera's own rule refused; those the policy refused never reach it"}
+  {"kind":"fact","name":"answer bodies read for the app's address","value":"86 of 87 (the rest were still streaming when read)"}
+  {"kind":"answers","count":89,"statuses":{"200":86,"303":1,"307":2},"locations":["303 /__builder/enter -> /","307 / -> /en","307 /en -> /en/sign-in"],"cookie_names":["builder_preview","bp2d83eed1_NEXT_LOCALE","bp2d83eed1_better-auth.session_token"],"bodies_naming_app_3161":[]}
+  {"kind":"timing","what":"whole walk","ms":12425}
+  {"kind":"csp","violations_seen_in_console":7,"messages":["Creating a worker from 'http://127.0.0.1:4030/sw-probe.js' violates the following Content Security Policy directive: \"worker-src 'none'\". The action has been blocked.","Connecting to 'http://app:3161/en/sign-in' violates the following Content Security Policy directive: \"connect-src 'self'\". The action has been blocked.","Fetch API cannot load http://app:3161/en/sign-in. Refused to connect because it violates the document's Content Security Policy.","Connecting to 'http://127.0.0.1:4020/' violates the following Content Security Policy directive: \"connect-src 'self'\". The action has been blocked.","Fetch API cannot load http://127.0.0.1:4020/. Refused to connect because it violates the document's Content Security Policy.","Connecting to 'https://example.com/' violates the following Content Security Policy directive: \"connect-src 'self'\". The action has been blocked.","Fetch API cannot load https://example.com/. Refused to connect because it violates the document's Content Security Policy."]}
+  live_entered: {"session":"live-965fe4fc215d088e","sec_fetch_site_sent":true}
+storage: PASS storage written in the app's page
+storage: PASS after a new entry, the page's storage is gone (Clear-Site-Data)
+storage: PASS nothing but http://127.0.0.1:4030 was loaded by the camera's own rule
+mappings (M3): what the app does with each one turned off, through the browser
+| Turned off | Signed in | Request saved | The POSTs the browser made (status as the browser got it) |
+| --- | --- | --- | --- |
+| all mappings on, the policy's sandbox value on (as built) | true | true | /__builder/enter 303; /api/auth/sign-in/email 200; action /en/my-requests/new 200 |
+| Host not mapped | true | false | /__builder/enter 303; /api/auth/sign-in/email 200; action /en/my-requests/new 500 |
+| Origin not mapped | false | not reached | /__builder/enter 303; /api/auth/sign-in/email 403 |
+| Referer not mapped | true | true | /__builder/enter 303; /api/auth/sign-in/email 200; action /en/my-requests/new 200 |
+| Sec-Fetch-* not passed | true | true | /__builder/enter 303; /api/auth/sign-in/email 200; action /en/my-requests/new 200 |
+| no cookie prefix | true | true | /__builder/enter 303; /api/auth/sign-in/email 200; action /en/my-requests/new 200 |
+| the policy's sandbox value off | true | true | /__builder/enter 303; /api/auth/sign-in/email 200; action /en/my-requests/new 200 |
+refusals: no pass -> the gate; a crafted cross-site POST -> HTTP 403, streams opened by it: 0
+after the project closed: its containers left: none; live sessions open: 0
+live_closed reasons, in order: leave, replaced, replaced, replaced, replaced, replaced, replaced, replaced, replaced, replaced, project_closed

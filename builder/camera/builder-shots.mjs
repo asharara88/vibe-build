@@ -12,7 +12,7 @@
 // typed. Each thing it checks is printed as one JSON line ({"kind":"check",...}); it ends with exit code 0 only if
 // every check passed.
 import { createHash, randomBytes } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { chromium } from "/runner/node_modules/playwright-core/index.mjs";
 
 // Only http://127.0.0.1:<port> is accepted; anything else stops the camera before the browser starts.
@@ -303,8 +303,87 @@ async function run() {
   check("signed out", path() === "/sign-in" && (await text("main")).includes("You are signed out."), path());
 }
 
+/**
+ * Package J3's walk (BUILDER_CAMERA_WALK=j3): the journey to the preview, then "Open the live app" and "Show" as the
+ * owner would. The pass and the sample password are read from the page and written, each as a read-only file, into
+ * /shots (pass-1, sample-password) for the automated run to hand to the live camera; both are masked in every
+ * photograph. Then it waits for /shots/live-done (the live camera has walked the app), photographs the preview screen,
+ * runs the checklist (which ends the live session first, and says the app was used live), and closes the project.
+ */
+async function runJ3() {
+  await page.goto(`${BASE}/sign-in`);
+  await page.fill("#password", password);
+  await clickAndLoad('form[action="/sign-in"] button[type="submit"]');
+  check("signed in, at the projects page", path() === "/projects", path());
+  await clickAndLoad('a[href="/projects/new"]');
+  await page.fill("#name", "Leave requests (made-up, J3 live)");
+  await page.fill("#cap", "5.00");
+  await page.fill("#brief", ASK);
+  await clickAndLoad('form[action="/projects"] button[type="submit"]');
+  const m = /^\/projects\/(j1-[0-9a-f]{12})\/brief$/.exec(path());
+  if (!check("the project is made", m, path())) return;
+  const id = m[1];
+  say({ kind: "project", id, name: "Leave requests (made-up, J3 live)", cap: "5.00" });
+  for (const a of ["continue", "answer-rest"]) await clickAndLoad(`form[action="/projects/${id}/${a}"] button`);
+  await clickAndLoad(`a[href="/projects/${id}/proposal"]`);
+  await clickAndLoad(`form[action="/projects/${id}/confirm-brief"] button`);
+  await clickAndLoad(`form[action="/projects/${id}/confirm-plan"] button`);
+  await clickAndLoad('a[data-go="build"]');
+  await clickAndLoad('button[data-build="01-data"]');
+  if (!check("step 1 built", await waitFor('[data-step="01-data"][data-step-state="finished"]', 600_000, '[data-step="01-data"][data-step-state="failed"]'))) return;
+  await clickAndLoad('button[data-approve="01-data"]');
+  if (!check("step 2 built", await waitFor('[data-step="02-submitter-screen"][data-step-state="finished"]', 600_000, '[data-step="02-submitter-screen"][data-step-state="failed"]'))) return;
+  await clickAndLoad('button[data-approve="02-submitter-screen"]');
+  if (!check("the preview is made: the app runs", await waitFor("[data-shots]", 1_800_000, "main p.warn"), await text("main"))) return;
+  check("the live app's panel, labelled: simulated build, made-up data, not yet approved for use", (await has("[data-live-open]")) && (await text("[data-live-label]")) === "Simulated build: scripted engine, sample data" && (await text("[data-live-data-label]")) === "Made-up data only. No customer or personal details. Removed when the project closes." && (await has("[data-live-not-approved]")), await text("main"));
+  await photo(1, "preview-live-panel", ["en", "ar", "phone"]);
+
+  // "Open the live app": the pass, shown once, masked in the photograph, written for the live camera.
+  await clickAndLoad("button[data-live-open]");
+  const pass = (await text("[data-pass] code")).trim();
+  if (!check("the pass is shown once, on the POST's answer", /^[0-9A-Z]{4}-[0-9A-Z]{4}$/.test(pass), "not shown")) return;
+  await page.screenshot({ path: "/shots/02-live-pass-en.png", fullPage: true, mask: [page.locator("[data-pass]")] });
+  say({ kind: "shot", file: "02-live-pass-en.png", path: path(), lang: "en", width: 1280 });
+  writeFileSync("/shots/pass-1", pass, { mode: 0o400 });
+  await clickAndLoad("button[data-live-show]");
+  const sample = (await text("[data-sample-password]")).trim();
+  check("Show gives the made-up employee's sign-in", (await text("[data-sample-email]")) === "employee@example.test" && sample.length >= 12, await text("[data-sample-email]"));
+  await page.screenshot({ path: "/shots/03-live-sample-sign-in-en.png", fullPage: true, mask: [page.locator("[data-sample-password]")] });
+  say({ kind: "shot", file: "03-live-sample-sign-in-en.png", path: path(), lang: "en", width: 1280 });
+  writeFileSync("/shots/sample-password", sample, { mode: 0o400 });
+  say({ kind: "live_ready" });
+
+  // The automated run's live camera walks the app; this camera waits for it to finish.
+  const end = Date.now() + 600_000;
+  while (!existsSync("/shots/live-done") && Date.now() < end) await page.waitForTimeout(1000);
+  check("the live camera finished its walk", existsSync("/shots/live-done"), "no /shots/live-done after 10 minutes");
+  await page.goto(`${BASE}/projects/${id}/preview`);
+  check("the preview screen says the last live session closed when the owner left", (await page.locator('[data-live-closed="leave"]').count()) > 0, await text("main"));
+  await photo(4, "preview-after-live", ["en", "ar"]);
+
+  // The checklist ends a live session first, and its record says the app was used live.
+  await clickAndLoad(`button[data-live-open]`);
+  check("a second pass is shown", /^[0-9A-Z]{4}-[0-9A-Z]{4}$/.test((await text("[data-pass] code")).trim()));
+  await page.goto(`${BASE}/projects/${id}/acceptance`);
+  await clickAndLoad(`form[action="/projects/${id}/acceptance"] button`);
+  if (!check("the checklist ran", await waitFor("table[data-run]", 900_000), await text("main"))) return;
+  check("the checklist's screen says the app was used live and its data changed", (await text("[data-used-live]")) === "The app was used live before this run; its data changed.", await text("main"));
+  await photo(5, "checklist-after-live", ["en", "ar"]);
+  await page.goto(`${BASE}/projects/${id}/preview`);
+  check("the open pass was ended by the checklist", (await page.locator('[data-live-closed="checklist"]').count()) > 0, await text("main"));
+  await page.goto(`${BASE}/projects/${id}/record`);
+  const record = await text("main");
+  check("the record holds live_opened, live_entered and live_closed", ["journey.preview.live_opened", "journey.preview.live_entered", "journey.preview.live_closed"].every((k) => record.includes(k)), "");
+  await photo(6, "record", ["en"]);
+  await clickAndLoad(`form[action="/projects/${id}/close"] button`);
+  check("the project is closed: its containers, images and folder removed", await has("[data-closed]"));
+  await clickAndLoad('form[action="/sign-out"] button');
+  check("signed out", path() === "/sign-in", path());
+}
+
 try {
-  await run();
+  if ((process.env.BUILDER_CAMERA_WALK ?? "j1") === "j3") await runJ3();
+  else await run();
 } catch (err) {
   check("the walk ran to its end without an error", false, String(err && err.message ? err.message : err).split("\n")[0]);
 } finally {

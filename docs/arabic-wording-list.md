@@ -132,9 +132,9 @@ Generated on 2026-11-12 by `docs/tools/arabic-wording-list.py`. Keys compared on
 
 ## The builder's own interface (package J1, 13 November 2026)
 
-Added with package J1, part 1: the messages of the builder's own screens (`builder/src/web/messages/en.json` and `ar.json`), and the Arabic of the 20 questions of test example 1 (`builder/src/orchestrator/intake/example-1.json`; the English is the question bank, `docs/spec/B2-question-bank.md`, word for word). The Arabic is Claude Code's; no reader of Arabic has checked it (known gap 134). Generated from those files on 13 November 2026; regenerate after any change to them. Part 2 (13 November 2026) adds the messages of the build, preview, checklist and export screens; the regenerated table below holds both parts. Brought up to date with packages 1.4b, 1.4c and 3.1b (13 November 2026): 15 messages added (the checklist's outcome word, each kind of freeze on the cost panel, a bill above its hold in the unreconciled list) and 1 removed (`cost.frozen`, replaced by `cost.frozen_intro`); the table below is regenerated from the files. On package 0.6c's private networks (13 November 2026): 10 messages added (the checklist's latest job, an item's result that is provisional while its run did not pass, an item whose test is written but has no result) and 0 removed; two changed (`preview.app_running`, `preview.not_live`: where the app runs since 0.6c); the table below is regenerated from the files.
+Added with package J1, part 1: the messages of the builder's own screens (`builder/src/web/messages/en.json` and `ar.json`), and the Arabic of the 20 questions of test example 1 (`builder/src/orchestrator/intake/example-1.json`; the English is the question bank, `docs/spec/B2-question-bank.md`, word for word). The Arabic is Claude Code's; no reader of Arabic has checked it (known gap 134). Generated from those files on 13 November 2026; regenerate after any change to them. Part 2 (13 November 2026) adds the messages of the build, preview, checklist and export screens; the regenerated table below holds both parts. Brought up to date with packages 1.4b, 1.4c and 3.1b (13 November 2026): 15 messages added (the checklist's outcome word, each kind of freeze on the cost panel, a bill above its hold in the unreconciled list) and 1 removed (`cost.frozen`, replaced by `cost.frozen_intro`); the table below is regenerated from the files. On package 0.6c's private networks (13 November 2026): 10 messages added (the checklist's latest job, an item's result that is provisional while its run did not pass, an item whose test is written but has no result) and 0 removed; two changed (`preview.app_running`, `preview.not_live`: where the app runs since 0.6c); the table below is regenerated from the files. Package J3, the live preview (13 November 2026): 46 messages added (the live app's panel, its pass and sample sign-in pages, the checklist's note that the app was used live, and the 18 texts of the preview front's own pages, `front.*`, which the interface sends to the front) and 0 removed; 2 changed (`preview.app_running`, `preview.not_live`: where the app is reached from, and the screenshots no longer the only view); the table below is regenerated from the files.
 
-Count: English messages 272, Arabic messages 272; missing from Arabic 0, missing from English 0 (a test, `builder/test/web.test.ts`, checks that the two files have the same keys). Identical in both languages: 3 (`app.name`, `lang.en`, `lang.ar`: the product's name, and each language's own name, so a reader who cannot read Arabic can find the switch). On Arabic pages, four labels the owner approved in English (the stand-in label, the sign-off label, the export label and the sentence under a refused step) are shown in Arabic and then in English, word for word.
+Count: English messages 318, Arabic messages 318; missing from Arabic 0, missing from English 0 (a test, `builder/test/web.test.ts`, checks that the two files have the same keys). Identical in both languages: 3 (`app.name`, `lang.en`, `lang.ar`: the product's name, and each language's own name, so a reader who cannot read Arabic can find the switch). On Arabic pages, four labels the owner approved in English (the stand-in label, the sign-off label, the export label and the sentence under a refused step) are shown in Arabic and then in English, word for word.
 
 | Key | English | Arabic |
 | --- | --- | --- |
@@ -345,10 +345,10 @@ Count: English messages 272, Arabic messages 272; missing from Arabic 0, missing
 | `preview.title` | Preview | المعاينة |
 | `preview.start` | Start the app for the preview | شغّل التطبيق للمعاينة |
 | `preview.failed` | The last preview failed. Its containers and images were removed; it can be tried again. | فشلت المعاينة الأخيرة. أُزيلت حاوياتها وصورها؛ ويمكن إعادة المحاولة. |
-| `preview.app_running` | The app is running in its sandbox on this machine, on the project's own private networks: only the project's own containers reach it. | يعمل التطبيق في بيئته المعزولة على هذا الجهاز، على الشبكات الخاصة بالمشروع: لا تصل إليه إلا حاويات المشروع نفسه. |
+| `preview.app_running` | The app is running in its sandbox on this machine, on the project's own private networks: only the project's own containers reach it. The live app below passes your clicks to it through short-lived containers on those networks. | يعمل التطبيق في بيئته المعزولة على هذا الجهاز، على الشبكات الخاصة بالمشروع: لا تصل إليه إلا حاويات المشروع نفسه. التطبيق المباشر أدناه ينقل نقراتك إليه عبر حاويات قصيرة العمر على تلك الشبكات. |
 | `preview.app_stopped` | The app is not running any more. | التطبيق لم يعد يعمل. |
 | `preview.lines` | What the preview job did | ما فعلته مهمة المعاينة |
-| `preview.not_live` | Screenshots, not a live view: the app runs on this machine, on networks of its own that nothing else on the machine reaches, and J1 shows no live view of it. | لقطات شاشة، لا عرض مباشر: يعمل التطبيق على هذا الجهاز، على شبكات خاصة به لا يصل إليها أي شيء آخر على الجهاز، ولا تعرض J1 عرضاً مباشراً له. |
+| `preview.not_live` | The screenshots below were taken by the app camera; they are not live. To use the app yourself, use "Open the live app". | اللقطات أدناه التقطتها كاميرا التطبيق؛ وهي ليست مباشرة. لاستخدام التطبيق بنفسك، استخدم "افتح التطبيق المباشر". |
 | `preview.shots` | Screenshots of the running app | لقطات شاشة للتطبيق أثناء تشغيله |
 | `preview.none` | No screenshot yet. | لا توجد لقطة شاشة بعد. |
 | `preview.alt` | The app's page {page} | صفحة التطبيق {page} |
@@ -410,6 +410,52 @@ Count: English messages 272, Arabic messages 272; missing from Arabic 0, missing
 | `close.button` | Close project | أغلق المشروع |
 | `close.note` | Closing removes the project's containers, images and folder. Its record stays. | إغلاق المشروع يُزيل حاوياته وصوره ومجلّده. يبقى سجلّه. |
 | `close.done` | This project is closed: its containers, images and folder were removed. Its record stays. | هذا المشروع مغلق: أُزيلت حاوياته وصوره ومجلّده. يبقى سجلّه. |
+| `job.kind.live` | opening the live app | فتح التطبيق المباشر |
+| `live.title` | Live app | التطبيق المباشر |
+| `live.sim_note` | The app was built by the scripted engine: fixed changes written in advance by Claude Code (the AI assistant building this project); no model call by the builder. | بنى التطبيقَ المحركُ المُبرمَج مسبقاً: تغييرات ثابتة كتبها مسبقاً Claude Code (مساعد الذكاء الاصطناعي الذي يبني هذا المشروع)؛ لا يستدعي المُنشئ أي نموذج. |
+| `live.label_sim` | Simulated build: scripted engine, sample data | بناء محاكى: محرك مُبرمَج مسبقاً، بيانات نموذجية |
+| `live.label_data` | Made-up data only. No customer or personal details. Removed when the project closes. | بيانات مُختلَقة فقط. لا بيانات عملاء ولا بيانات شخصية. تُحذف عند إغلاق المشروع. |
+| `live.intro` | Use the running app yourself, from your phone: its own sign-in, My requests, a new request, Arabic. The builder passes your clicks to the app through the project's own sandbox; it changes none of the app's pages. | استخدم التطبيق أثناء تشغيله بنفسك من هاتفك: تسجيل الدخول الخاص به، وطلباتي، وطلب جديد، والعربية. ينقل المُنشئ نقراتك إلى التطبيق عبر البيئة المعزولة للمشروع نفسه؛ ولا يغيّر أي صفحة من صفحات التطبيق. |
+| `live.not_approved` | Not yet approved for use: your two-page phone test comes first (docs/QUESTIONS.md, "Yours to confirm"). | لم تتم الموافقة على استخدامه بعد: يأتي أولاً اختبارك على الهاتف بصفحتين (docs/QUESTIONS.md، "للتأكيد منك"). |
+| `live.not_started` | The live preview is not running in this interface. | المعاينة المباشرة لا تعمل في هذه الواجهة. |
+| `live.only_running` | The live app is offered only while this project's app runs. | يُعرض التطبيق المباشر فقط أثناء تشغيل تطبيق هذا المشروع. |
+| `live.none_open` | No live session is open. | لا توجد جلسة مباشرة مفتوحة. |
+| `live.open` | Open the live app | افتح التطبيق المباشر |
+| `live.open_again` | Open the live app again (a new pass; the open session ends) | افتح التطبيق المباشر مرة أخرى (رمز جديد؛ تنتهي الجلسة المفتوحة) |
+| `live.open_pending` | A pass is open until {time} UTC; it has not been used yet. | يوجد رمز صالح حتى {time} بالتوقيت العالمي؛ ولم يُستخدم بعد. |
+| `live.open_entered` | The live app is open since {time} UTC, until {until} UTC at the latest. It closes when you leave it, sign out here, run the checklist or close the project. | التطبيق المباشر مفتوح منذ {time} بالتوقيت العالمي، وحتى {until} بالتوقيت العالمي على الأكثر. يُغلق عندما تغادره، أو تسجّل الخروج هنا، أو تشغّل قائمة التحقق، أو تغلق المشروع. |
+| `live.end` | End the live app | أنهِ التطبيق المباشر |
+| `live.show` | Show the sample sign-in | اعرض بيانات الدخول النموذجية |
+| `live.where` | Then open "app" in your Claude app's preview list (this machine's port {port}) and type the pass. | ثم افتح "app" في قائمة المعاينة في تطبيق Claude (المنفذ {port} على هذا الجهاز) واكتب الرمز. |
+| `live.checklist_note` | Running the checklist ends the live app first; the run's record then says the app was used live and its data changed. | تشغيل قائمة التحقق يُنهي التطبيق المباشر أولاً؛ ويذكر سجل التشغيل حينها أن التطبيق استُخدم مباشرة وأن بياناته تغيّرت. |
+| `live.closed_last` | Last live session: closed ({reason}). | آخر جلسة مباشرة: أُغلقت ({reason}). |
+| `live.pass_title` | Your pass for the live app | رمزك للتطبيق المباشر |
+| `live.pass_valid` | It works once, until {time} UTC (2 minutes). Only you should see it. | يعمل مرة واحدة، حتى {time} بالتوقيت العالمي (دقيقتان). يجب ألا يراه غيرك. |
+| `live.pass_bound` | It is tied to this sign-in, this project and this start of the app. It is not recorded anywhere. | وهو مرتبط بتسجيل الدخول هذا، وبهذا المشروع، وبهذا التشغيل للتطبيق. ولا يُسجَّل في أي مكان. |
+| `live.back` | Back to the preview | العودة إلى المعاينة |
+| `live.sample_title` | Sample sign-in (made-up user) | بيانات الدخول النموذجية (مستخدم مُختلَق) |
+| `live.sample_email` | Email | البريد الإلكتروني |
+| `live.sample_password` | Password | كلمة المرور |
+| `live.sample_note` | A made-up employee of the sample data, for the app's own sign-in. Shown only when you ask; not recorded. | موظف مُختلَق من البيانات النموذجية، لتسجيل الدخول الخاص بالتطبيق. يُعرض فقط عندما تطلب ذلك؛ ولا يُسجَّل. |
+| `acceptance.used_live` | The app was used live before this run; its data changed. | استُخدم التطبيق مباشرة قبل هذا التشغيل؛ وتغيّرت بياناته. |
+| `front.title` | Live app | التطبيق المباشر |
+| `front.label_sim` | Simulated build: scripted engine, sample data | بناء محاكى: محرك مُبرمَج مسبقاً، بيانات نموذجية |
+| `front.label_data` | Made-up data only. No customer or personal details. Removed when the project closes. | بيانات مُختلَقة فقط. لا بيانات عملاء ولا بيانات شخصية. تُحذف عند إغلاق المشروع. |
+| `front.no_live` | No live app now. On the builder's preview screen, press "Open the live app" while the app runs. | لا يوجد تطبيق مباشر الآن. في شاشة المعاينة في المُنشئ، اضغط "افتح التطبيق المباشر" أثناء تشغيل التطبيق. |
+| `front.pass_label` | Pass from the builder | الرمز من المُنشئ |
+| `front.pass_help` | Type the pass the builder showed after "Open the live app". It works once, for 2 minutes. | اكتب الرمز الذي عرضه المُنشئ بعد "افتح التطبيق المباشر". يعمل مرة واحدة، لمدة دقيقتين. |
+| `front.enter` | Open the app | افتح التطبيق |
+| `front.wrong` | That pass is not right. | هذا الرمز غير صحيح. |
+| `front.locked` | Too many wrong passes. The pass is void and this page is closed for {seconds} seconds; then ask the builder for a new pass. | محاولات خاطئة كثيرة. أُلغي الرمز وأُغلقت هذه الصفحة لمدة {seconds} ثانية؛ ثم اطلب رمزاً جديداً من المُنشئ. |
+| `front.no_pass` | No pass is open now, or it has expired or been used. Press "Open the live app" on the builder for a new one. | لا يوجد رمز صالح الآن، أو انتهت صلاحيته أو استُخدم. اضغط "افتح التطبيق المباشر" في المُنشئ للحصول على رمز جديد. |
+| `front.refused` | This was not passed to the app: {reason}. | لم يُمرَّر هذا إلى التطبيق: {reason}. |
+| `front.leave` | Leave the live app | غادر التطبيق المباشر |
+| `front.left` | You left the live app. Its session is closed. | غادرت التطبيق المباشر. أُغلقت جلسته. |
+| `front.off_site` | The app tried to send you to another site. The preview did not follow. | حاول التطبيق نقلك إلى موقع آخر. لم تتبعه المعاينة. |
+| `front.not_passed` | The app's answer was not passed on: {reason}. | لم يُمرَّر رد التطبيق: {reason}. |
+| `front.no_answer` | The app did not answer. | لم يستجب التطبيق. |
+| `front.too_large` | Too large: at most 1 MB is passed to the app. | كبير جداً: يُمرَّر إلى التطبيق 1 ميغابايت على الأكثر. |
+| `front.not_found` | Not found. | غير موجود. |
 
 ### The 20 questions of example 1
 

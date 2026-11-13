@@ -5,6 +5,7 @@
  * for the image build, the app camera and the acceptance runner. No container, no network, no model.
  */
 import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import net from "node:net";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import type pg from "pg";
@@ -14,7 +15,7 @@ import { readManifest, type EngineRunner } from "../src/engine/scripted.js";
 import type { ProjectSandbox, Sandboxes } from "../src/orchestrator/example-1-adapter.js";
 import { APP_SHOTS } from "../src/orchestrator/journey-jobs.js";
 import { CHANGE_SETS_DIR, EXAMPLE, type SandboxRecord } from "../src/orchestrator/journey.js";
-import type { Sandbox, StreamingEnd } from "../src/sandbox/manager.js";
+import type { AppStream, Sandbox, StreamingEnd } from "../src/sandbox/manager.js";
 import { appendEvent } from "../src/store/events.js";
 
 const templateDir = resolve(import.meta.dirname, "..", "..", "templates", "next");
@@ -140,6 +141,51 @@ export class StandInSandboxes implements Sandboxes {
   async cameraNetworkProblem(): Promise<string | null> {
     this.cameraNetworkChecks++;
     return this.cameraNetwork;
+  }
+
+  /** Package J3: what the streams' network check answers (the `check` service on `front` alone): null, or a problem. */
+  streamNetwork: string | null = null;
+  streamNetworkChecks = 0;
+  /** Package J3: where a stand-in stream connects (a stand-in app on the machine's loopback address, in the tests only). */
+  upstreamPort: number | null = null;
+  /** The stand-in streams opened, and those killed. */
+  streamsOpened = 0;
+  streamsKilled = 0;
+
+  /**
+   * After the review bot on af80dc9: when set, the streams' network check waits until `release` resolves; `started` is
+   * called once it is asked. "Open the live app" is then pending, so a test can sign out meanwhile.
+   */
+  streamNetworkHold: { started: () => void; release: Promise<void> } | null = null;
+
+  async streamNetworkProblem(): Promise<string | null> {
+    this.streamNetworkChecks++;
+    const hold = this.streamNetworkHold;
+    if (hold) {
+      hold.started();
+      await hold.release;
+    }
+    return this.streamNetwork;
+  }
+
+  appStream(): AppStream {
+    if (this.upstreamPort === null) throw new Error("the stand-in has no upstream for a stream");
+    this.streamsOpened++;
+    const sock = net.connect(this.upstreamPort, "127.0.0.1");
+    sock.on("error", () => undefined);
+    const done = new Promise<StreamingEnd>((r) => sock.on("close", () => r({ code: 0, stderrTail: "" })));
+    return {
+      container: `stand-in-stream-${this.streamsOpened}`,
+      stdin: sock,
+      stdout: sock,
+      done,
+      kill: async () => {
+        this.streamsKilled++;
+        sock.destroy();
+        await done;
+      },
+      args: [],
+    };
   }
 
   async appCamera(_x: ProjectSandbox, a: { outDir: string; secretFile: string; onLine: (line: string) => void; signal?: AbortSignal }): Promise<StreamingEnd> {

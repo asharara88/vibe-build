@@ -1,29 +1,34 @@
 # Status
 
-**As of:** 13 November 2026. Rules: build plan section 8, rule 6. Questions: [`docs/QUESTIONS.md`](QUESTIONS.md). Earlier versions: `docs/log/`.
+**As of:** 13 November 2026, J3's review and the review bot answered. Rules: build plan section 8, rule 6. Questions: [`docs/QUESTIONS.md`](QUESTIONS.md). Earlier versions: `docs/log/` (the one before this: `2026-11-13-status-before-j3-review.md`).
+
+## What you can now do (J3, built, reviewed once, not tested)
+
+- **Use the scripted app live from your phone, after your phone test.** "Open the live app" on the preview screen shows a pass once (2 minutes); open "app" in your Claude app's preview list, type it, and use example 1's app. Labelled "Simulated build"; made-up data only.
+- **Off until then.** It starts only when turned on (`BUILDER_LIVE_PREVIEW=1`), after your two-page phone test (`docs/QUESTIONS.md`, "Yours to confirm").
+- Shown by an automated run on `0706ee3` (46 of 46 checks, 20 photographs): `evidence/2026-11-13-journey-j3/live-preview.md`.
+
+## The review
+
+Nothing blocking; nine notes, six fixed (among them the switch above, and a live session ending with its sign-in); gaps 148, 149 corrected, 159 to 161 added (161, the live app after sign-off, is your choice). The review bot found two, my own check a third: a sign-out in another tab while the live app was opening, or closing, still gave a pass; an answer the app cut short stayed open 60 seconds. All fixed, each with a test that failed before and a control.
 
 ## State
 
-1. **Tested:** 0.1 to 0.5, 0.6a (development profile), 1.1, 1.2, 1.2b, 1.3, 1.4, 1.5 (stand-in only), 2.1, W4. R1: merged, not tested.
-2. **Built, not tested, merged:** 3.1 (#29), 1.4c (#35), 3.1b (#34), 1.4b (#33), **0.6c (#36)**.
-3. **What 0.6c gives:** project containers on private networks, with no route to this machine; out only through the builder's proxy (its list) and the gateway's port. Open: gaps 118 to 128.
-4. **What you can do (J1, built, not tested; #37, draft):** the whole journey, scripted engine, English and Arabic, sign-in to export ($0.00 spent). Simulated, labelled: analyst, build changes, stand-in test. Checked: 600 of 600 tests; before the last fixes, 54 of 54 automated checks and 0.6c's isolation run (`evidence/2026-11-13-journey-j1/journey.md`). Your interface now running on 127.0.0.1:4020 is an older copy, from before 0.6c: its projects still use the old arrangement (the app published on this machine) until Claude Code restarts it from this code once J1 merges.
-5. **Budget cap, shown against a stand-in only:** a call or step must fit the cap. The first bill above its hold is charged in full and only then freezes the project (gap 114); an unrecorded ending or set-aside journal line also freezes it until recorded. Holds are estimates plus a margin, not ceilings.
-6. **Real models:** none called; no model-written code runs. Licences: internal development and testing only (questions 11, 15).
+1. **Tested:** 0.1 to 0.5, 0.6a (development profile), 1.1, 1.2, 1.2b, 1.3, 1.4, 1.5 (stand-in only), 2.1, W4.
+2. **Built, not tested:** 3.1, 1.4c, 3.1b, 1.4b, 0.6c, J1 (merged), J3 (pull request #38).
+3. **Checked after the review bot:** on `34ff56c`, the whole suite, 692 of 692 (live tests included), typecheck and licence check passed; 46 of 46 controls failed with their safeguard removed. Not repeated: 0.6c's isolation run (nothing it covers changed). **Assumed:** your phone's browser behaves as Chromium did (M1).
+4. **Your 4020 interface:** stopped at 19:24 UTC (the session's limit); restarted from the merged code once J3 merges, live preview off.
 
 ## Next
 
-1. **J1:** the check's five points fixed (`journey.md`); then a check of the fixes, the merge, and your older 4020 interface restarted from this code for you to try.
-2. **1.4c:** wording and a new action yours to confirm.
+1. Your phone test, then its result recorded and the live preview turned on.
+2. J2: the broken copy rejected by the checklist; a restart mid-build shown; then 3.2, the export that starts on its own.
 
 ## What blocks it
 
-- No engineer has read 0.6c or proof row B10's design (question 7; gap 35); 0.6c's server profile not shown (0.6b).
+- No engineer has read 0.6c or J3 (gaps 35, 148, 149, 159).
 - 2.3, the first real-model run: 2.2, the key, and 0.6c tested.
-- `npm test` and the checklist fail without Docker or the approved browser zip (3.1b), which a new session fetches first (gap 110; `CLAUDE.md`: gap 141, yours).
-- Disk: a build is refused below 4 GB free, a floor assumed, not measured (gap 137).
-- Can your app show the interface? Unknown (gap 131).
 
 ## Money
 
-Model spend through the builder: **$0.00**. The hosted prototype agent is paused. No paid service in use.
+Model spend through the builder: **$0.00**. No paid service in use.

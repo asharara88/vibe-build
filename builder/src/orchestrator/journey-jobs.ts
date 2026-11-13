@@ -30,6 +30,16 @@
  *   stopped from here (the app's image build and start, a checklist run, the export's archive) runs to its own end.
  * - After the review bot on defb9c4: each preview attempt copies its screenshots into a folder of its own, named by
  *   its job (`shots/<job id>/`), so that a retry never meets, or overwrites, a file an earlier event names.
+ * - Package J3: "Open the live app" is a `live` job (`openLive`): only while this interface's app of the project
+ *   runs; only for a record that shows the scripted engine's fixed change sets alone (journey.ts,
+ *   `scriptedOnlyProblem`); only once Compose reads the `check` service as on `front` alone (`streamNetworkProblem`).
+ *   It opens a session of the live preview (src/web/preview.ts), whose pass is shown once and never recorded. The
+ *   session ends before a checklist run (whose record then says the app was used live), when the app stops or the
+ *   project closes, and as preview.ts says.
+ * - After the review bot on af80dc9: the open is registered with the preview before anything is awaited, so that the
+ *   sign-out of the builder sign-in session that asked for it cancels it; the preview looks at that, and at whether the
+ *   sign-in session still reads as valid, with nothing awaited between that look and the session being opened; and
+ *   if the session has ended by the time its opening is recorded, its pass is not returned.
  */
 import { chmodSync, chownSync, closeSync, constants, fstatSync, mkdirSync, openSync, readSync, rmSync, writeFileSync } from "node:fs";
 import { randomBytes } from "node:crypto";
@@ -41,9 +51,11 @@ import { resetToLastCommit } from "../engine/project-repo.js";
 import { DEFAULT_PROFILES } from "../gateway/hold.js";
 import { appendEvent } from "../store/events.js";
 import { journeyFolder } from "../web/files.js";
+import type { AppStream } from "../sandbox/manager.js";
+import { LiveOpenCancelled, type LivePreview, type OpenCancelledReason } from "../web/preview.js";
 import type { ProjectSandbox, Sandboxes } from "./example-1-adapter.js";
 import { writeExport } from "./export.js";
-import { CHANGE_SETS_DIR, diskRefusal, DISK_FLOOR_BYTES, engineEventHandler, EV, EXAMPLE, EXPORT_LABEL, freeBytes, Journey, JourneyRefused, JOURNEY_STAND_IN_LABEL, scriptedEngineFor, stillOwned, type SandboxRecord } from "./journey.js";
+import { CHANGE_SETS_DIR, diskRefusal, DISK_FLOOR_BYTES, engineEventHandler, EV, EXAMPLE, EXPORT_LABEL, freeBytes, Journey, JourneyRefused, JOURNEY_STAND_IN_LABEL, scriptedEngineFor, scriptedOnlyProblem, stillOwned, type SandboxRecord } from "./journey.js";
 import { runBudgetedStep } from "./steps.js";
 
 /** The model whose prices size a step's reservation in J1 (final design, section 1, item 6). */
@@ -57,8 +69,29 @@ export const STEP_TIME_LIMIT_MS = 660_000;
 /** The extra sentence under a refused step (final design, section 1, item 10). */
 export const REFUSAL_EXTRA =
   "Scripted steps spend $0; this is a reservation sized from a real model's price. To go on, ask Claude Code to change the cap (a recorded change), or start a new project.";
-/** Where the running app is reached from (package 0.6c), as `journey.app.started` records it. */
-export const APP_REACHED_FROM = "containers on the project's front network only; no port of the app or its database on the machine";
+/**
+ * Where the running app is reached from (package 0.6c; package J3), as `journey.app.started` records it. Since J3 the
+ * builder's live preview exchanges HTTP with it, through short-lived `check` containers on that network; nothing on
+ * the machine opens a TCP connection to it.
+ */
+export const APP_REACHED_FROM =
+  "containers on the project's front network only; no port of the app or its database on the machine; the live preview's streams are check containers on that network, whose HTTP the builder's preview front reads on the machine";
+/** The labels of the live app (package J3, section 1). */
+export const LIVE_LABEL = "Simulated build: scripted engine, sample data";
+export const LIVE_DATA_LABEL = "Made-up data only. No customer or personal details. Removed when the project closes.";
+/** The made-up employee of the sample data (templates/next/scripts/seed.ts), whose sign-in "Show" gives. */
+export const SAMPLE_EMPLOYEE_EMAIL = "employee@example.test";
+/** What a checklist run's record says when the app was used live before it (section 4.7). */
+export const USED_LIVE_NOTE = "The app was used live before this run; its data changed.";
+/** Why "Open the live app" opened nothing: its builder sign-in session ended while it was being opened (after the review bot on af80dc9). */
+export const liveCancelledRefusal = (why: OpenCancelledReason) =>
+  `The live app was not opened: ${
+    why === "sign_out"
+      ? "this sign-in session was signed out while it was being opened"
+      : why === "signed_in_again"
+        ? "a new sign-in in this browser ended this sign-in session while it was being opened"
+        : "this sign-in session ended while it was being opened"
+  }. No live session is open. Sign in and ask again.`;
 /** The caption under a screenshot of the running app (final design, section 1, item 7). */
 export const appShotCaption = (at: Date) => `Screenshot of the running app at ${at.toISOString().replace("T", " ").slice(0, 19)} UTC. Not live. Sample data.`;
 
@@ -85,9 +118,146 @@ export interface JobsOptions {
 export class JourneyJobs {
   private readonly handles = new Map<string, ProjectSandbox>();
   private readonly j: Journey;
+  private live: LivePreview | null = null;
 
   constructor(private readonly o: JobsOptions) {
     this.j = o.journey;
+  }
+
+  /** Package J3: the live preview this interface runs (main.ts). Without it, "Open the live app" is refused. */
+  attachPreview(p: LivePreview): void {
+    this.live = p;
+  }
+
+  /**
+   * Package J3: a stream to the running app of a project, for the live preview's pump socket, or null when this
+   * interface holds no running app of that project (the session then ends, "app_stopped").
+   */
+  openStream(projectId: string): AppStream | null {
+    const x = this.handles.get(projectId);
+    if (!x?.appStarted) return null;
+    return this.o.sandboxes.appStream(x);
+  }
+
+  /**
+   * Package J3: "Open the live app", a `live` job (final design, sections 4.4 and 4.6). Under the project's lock, with
+   * no other job running: the app must run and be this interface's; the record must show the scripted engine's fixed
+   * change sets alone (`JOB_RULES.live`); Compose must read the `check` service as on `front` alone. Then a session is
+   * opened, bound to this builder sign-in session, this project and this start of the app, and
+   * `journey.preview.live_opened` written, without the pass. Resolves with the pass, to be shown once.
+   * `builderSessionEndsAt`: when that sign-in session expires, if known; the live session ends no later (J3's review).
+   * `builderSessionValid`: whether that sign-in session is still valid (after the review bot on af80dc9); the open is
+   * refused if it is not when the session would be opened, or when its opening has been recorded.
+   */
+  async openLive(
+    projectId: string,
+    builderSession: string,
+    builderSessionEndsAt: number | null = null,
+    builderSessionValid?: () => boolean,
+  ): Promise<{ pass: string; shown: string; expiresAt: Date; sessionId: string }> {
+    const preview = this.live;
+    if (!preview) throw new JourneyRefused("This interface was started without the live preview.");
+    // After the review bot on af80dc9: registered before anything is awaited, so that the sign-out of this sign-in
+    // session (or a new sign-in that ends it) from now on cancels this open (preview.ts, `signedOut`).
+    const pending = preview.beginOpen(builderSession);
+    try {
+      return await this.openLiveJob(preview, pending, projectId, builderSession, builderSessionEndsAt, builderSessionValid);
+    } finally {
+      preview.endOpen(pending);
+    }
+  }
+
+  private async openLiveJob(
+    preview: LivePreview,
+    pending: ReturnType<LivePreview["beginOpen"]>,
+    projectId: string,
+    builderSession: string,
+    builderSessionEndsAt: number | null,
+    builderSessionValid: (() => boolean) | undefined,
+  ): Promise<{ pass: string; shown: string; expiresAt: Date; sessionId: string }> {
+    let give!: (v: { pass: string; shown: string; expiresAt: Date; sessionId: string }) => void;
+    let fail!: (e: unknown) => void;
+    const got = new Promise<{ pass: string; shown: string; expiresAt: Date; sessionId: string }>((a, b) => {
+      give = a;
+      fail = b;
+    });
+    got.catch(() => undefined);
+    await this.j.startJob(projectId, "live", async ({ state, signal }) => {
+      try {
+        const x = this.held(projectId);
+        if (!x.appStarted || !state.appStartedEventId) throw new JourneyRefused("The app is not running in this interface. The live app is offered only while it runs.");
+        // Checked again here, inside the job, on the state the job started from.
+        const why = scriptedOnlyProblem(state);
+        if (why) throw new JourneyRefused(why);
+        const network = await this.o.sandboxes.streamNetworkProblem(x);
+        if (network) throw new JourneyRefused(`The live app was not opened: ${network}.`);
+        stillOwned(signal);
+        let r: Awaited<ReturnType<LivePreview["open"]>>;
+        try {
+          // After the review bot on af80dc9: refused if this sign-in session signed out, or no longer reads as valid,
+          // since the open was asked for; looked at with nothing awaited between that look and the session being set.
+          r = await preview.open({ projectId, builderSession, builderSessionEndsAt, appStartEventId: state.appStartedEventId, appPort: x.appPort, pending, builderSessionValid });
+        } catch (err) {
+          if (err instanceof LiveOpenCancelled) throw new JourneyRefused(liveCancelledRefusal(err.reason));
+          throw err;
+        }
+        try {
+          await appendEvent(this.j.pool, projectId, EV.liveOpened, {
+            session: r.sessionId,
+            pass_recorded: false,
+            pass_valid_seconds: 120,
+            bound_to: "this builder sign-in session, this project and this start of the app",
+            app_started_event: state.appStartedEventId,
+            front: preview.frontUser(),
+            streams: "short-lived check containers on the project's front network (docker compose run), one connection to http://app:3161 each",
+            label: LIVE_LABEL,
+            data_label: LIVE_DATA_LABEL,
+          });
+        } catch (err) {
+          await preview.closeFor(projectId, "not_recorded");
+          throw err;
+        }
+        // After the review bot on af80dc9: a sign-out while the opening was being recorded has ended the session
+        // (`signedOut`); a sign-in session that ended otherwise meanwhile ends it now. Its pass is not returned.
+        const stillOpen = preview.status(projectId)?.sessionId === r.sessionId;
+        const ended: OpenCancelledReason | null = pending.cancelled ?? (builderSessionValid && !builderSessionValid() ? "builder_session_ended" : null);
+        if (!stillOpen || ended) {
+          if (stillOpen) await preview.closeFor(projectId, "builder_session_ended");
+          throw new JourneyRefused(ended ? liveCancelledRefusal(ended) : "The live app was not opened: its session ended before its pass could be shown. No live session is open.");
+        }
+        give(r);
+        return { session: r.sessionId };
+      } catch (err) {
+        fail(err);
+        throw err;
+      }
+    });
+    return got;
+  }
+
+  /** Package J3: "End the live app" on the builder's preview screen. */
+  async endLive(projectId: string): Promise<boolean> {
+    return (await this.live?.closeFor(projectId, "ended_on_builder")) ?? false;
+  }
+
+  /** Package J3: the live session of a project, if one is open (the preview screen shows it). */
+  liveStatus(projectId: string) {
+    return this.live?.status(projectId) ?? null;
+  }
+
+  /** Package J3: the front's port and user (the preview screen and the record say where the live app is). */
+  livePort(): number | null {
+    return this.live ? this.live.port() : null;
+  }
+
+  /**
+   * Package J3, "Show": the made-up employee's sign-in, from this interface's handle to the running app (the sample
+   * password is the sandbox's own, made when it was). Only while the app runs here. Never written to a record or a log.
+   */
+  sampleSignIn(projectId: string): { email: string; password: string } {
+    const x = this.held(projectId);
+    if (!x.appStarted) throw new JourneyRefused("The app is not running in this interface.");
+    return { email: SAMPLE_EMPLOYEE_EMAIL, password: x.samplePassword };
   }
 
   /** This process's handle to a project's sandbox, if it has one. */
@@ -190,7 +360,7 @@ export class JourneyJobs {
         await this.o.sandboxes.buildAndStart(x, (line) => queue.push(EV.previewLine, { line: line.trim() }));
         await queue.drain();
         stillOwned(signal);
-        await appendEvent(this.j.pool, projectId, EV.appStarted, { app_url: x.appUrl, reached_from: APP_REACHED_FROM, live_view: false });
+        await appendEvent(this.j.pool, projectId, EV.appStarted, { app_url: x.appUrl, reached_from: APP_REACHED_FROM, live_view: true });
         recordedStarted = true;
         const shots = await this.appShots(projectId, x, (line) => queue.push(EV.previewLine, { line: `app camera: ${line.slice(0, 300)}` }), { jobId, signal });
         await queue.drain();
@@ -200,6 +370,7 @@ export class JourneyJobs {
         // Halted: nothing more is changed in the sandbox; its app is left for the next start's recovery to remove.
         if (signal.aborted) throw err;
         // A preview that failed leaves no container or image behind: the next try starts from the images' build.
+        await this.live?.closeFor(projectId, "app_stopped");
         await this.o.sandboxes.stopApp(x).catch((e: unknown) => this.o.onFault?.("The app could not be stopped after a failed preview.", { project: projectId, error: e instanceof Error ? e.message : String(e) }));
         if (recordedStarted) await appendEvent(this.j.pool, projectId, EV.appStopped, { reason: "The preview failed; its containers and images were removed." });
         throw err;
@@ -279,6 +450,9 @@ export class JourneyJobs {
   acceptance(projectId: string): Promise<{ jobId: string }> {
     return this.j.startJob(projectId, "acceptance", async ({ state, signal }) => {
       const x = this.held(projectId);
+      // Package J3 (section 4.7): the live app is closed first; the run's record says whether it was used live.
+      const closed = (await this.live?.closeFor(projectId, "checklist")) ?? false;
+      const usedLive = state.usedLiveSinceStart || (closed && (await this.j.state(projectId)).usedLiveSinceStart);
       const store = openStore(this.j.dataDir, { refuse: [x.dir] });
       stillOwned(signal);
       const r = await this.o.sandboxes.runAcceptance({
@@ -291,7 +465,16 @@ export class JourneyJobs {
         samplePassword: x.samplePassword,
         checklistItems: this.j.spec.acceptance.length,
       });
-      return { run_id: r.runId, version: r.version, summary: r.reading.summary, refused: r.refused, container_started: r.exit !== null, label: JOURNEY_STAND_IN_LABEL };
+      return {
+        run_id: r.runId,
+        version: r.version,
+        summary: r.reading.summary,
+        refused: r.refused,
+        container_started: r.exit !== null,
+        label: JOURNEY_STAND_IN_LABEL,
+        app_used_live: usedLive,
+        ...(usedLive ? { app_used_live_note: USED_LIVE_NOTE } : {}),
+      };
     });
   }
 
@@ -320,6 +503,7 @@ export class JourneyJobs {
 
   /** Remove a project's containers, images and folder (closing it, or at start). Only for journey projects. */
   async cleanup(projectId: string, recorded: SandboxRecord | null): Promise<void> {
+    await this.live?.closeFor(projectId, "project_closed");
     const x = this.handles.get(projectId);
     if (x) {
       await this.o.sandboxes.destroy(x);

@@ -18,7 +18,9 @@ import { SET_ASIDE_FREEZE_REASON, type Freeze, type FreezeKind } from "../store/
 import type { UnreconciledList } from "../store/reconcile.js";
 import { fieldChecklist, MAX_FREE_TEXT, showReason, type Answer, type IntakeQuestion } from "../orchestrator/intake.js";
 import { approveRefusal, buildStepRefusal, DISK_FLOOR_BYTES, EV, EXPORT_LABEL, JOB_RULES, jobRunFinished, JOURNEY_PREFIX, JOURNEY_STAND_IN_LABEL, MAX_BRIEF, MAX_NAME, runOutcome, SIGN_OFF_LABEL, signOffRefusal, type Journey, type JourneyState, type Stage } from "../orchestrator/journey.js";
-import { REFUSAL_EXTRA } from "../orchestrator/journey-jobs.js";
+import { LIVE_DATA_LABEL, LIVE_LABEL, REFUSAL_EXTRA, USED_LIVE_NOTE } from "../orchestrator/journey-jobs.js";
+import type { LiveSession } from "./preview.js";
+import { FRONT_TEXT_KEYS, type Texts } from "./preview-rules.ts";
 import { STAND_IN_NOTE } from "../acceptance/store.js";
 
 export type Lang = "en" | "ar";
@@ -691,7 +693,96 @@ ${s.approved.has(st.step) ? html`<p class="ok">${t(lang, "build.approved")}</p>`
   return projectPage(lang, s, "build", t(lang, "build.title"), html`${head}${stepPanels}`, { refreshSeconds: s.runningJob ? 2 : undefined });
 }
 
-export function previewPage(lang: Lang, s: JourneyState): Html {
+/** Package J3: the texts of the preview front's own pages, from the message files ("front.*"), for both languages. */
+export function frontTexts(): Texts {
+  const pick = (lang: Lang) => Object.fromEntries(FRONT_TEXT_KEYS.map((k) => [k, t(lang, `front.${k}`)])) as Texts["en"];
+  return { en: pick("en"), ar: pick("ar") };
+}
+
+const utcTime = (d: Date | number) => new Date(d).toISOString().slice(11, 19);
+
+/**
+ * Package J3: the live app's panel on the preview screen. Simulated build, labelled so. Offered only while the app
+ * runs; the session's state as the preview holds it. Not marked approved for use: the owner's phone test comes first.
+ */
+function livePanel(lang: Lang, s: JourneyState, live: { port: number; session: LiveSession | null } | null): Html {
+  const id = s.project.id;
+  const labels = html`<p><span class="label" data-live-label>${t(lang, "live.label_sim")}</span></p><p><span class="label" data-live-data-label>${t(lang, "live.label_data")}</span></p>${englishToo(lang, `${LIVE_LABEL} ${LIVE_DATA_LABEL}`)}`;
+  const lastClosed = s.events.filter((e) => e.kind === EV.liveClosed).at(-1);
+  const closedNote = lastClosed ? html`<p class="note" data-live-closed="${String(lastClosed.payload.reason ?? "")}">${t(lang, "live.closed_last", { reason: String(lastClosed.payload.reason ?? "") })}</p>` : "";
+  let body: Html;
+  if (!live) body = html`${labels}<p class="note">${t(lang, "live.not_started")}</p>`;
+  else if (!s.appRunning || s.stage === "closed") body = html`${labels}<p class="note" data-live-off>${t(lang, "live.only_running")}</p>${closedNote}`;
+  else {
+    const se = live.session;
+    const canOpen = !s.runningJob && !s.interrupted && JOB_RULES.live(s) === null;
+    const state = se
+      ? se.entered
+        ? html`<p class="ok" data-live-state="entered">${t(lang, "live.open_entered", { time: utcTime(se.enteredAt ?? se.openedAt), until: utcTime(se.endsAt) })}</p>`
+        : html`<p class="neutral" data-live-state="pass_open">${t(lang, "live.open_pending", { time: utcTime(se.passExpiresAt) })}</p>`
+      : html`<p class="note" data-live-state="none">${t(lang, "live.none_open")}</p>${closedNote}`;
+    const why = JOB_RULES.live(s);
+    body = html`${labels}<p>${t(lang, "live.intro")}</p>
+<p class="warn" data-live-not-approved>${t(lang, "live.not_approved")}</p>
+${state}
+<div class="actions">
+${canOpen ? html`<form method="post" action="/projects/${id}/live"><button type="submit" data-live-open>${t(lang, se ? "live.open_again" : "live.open")}</button></form>` : ""}
+${se ? html`<form method="post" action="/projects/${id}/live/end"><button type="submit" class="secondary" data-live-end>${t(lang, "live.end")}</button></form>` : ""}
+<form method="post" action="/projects/${id}/live/show"><button type="submit" class="secondary" data-live-show>${t(lang, "live.show")}</button></form>
+</div>
+${why && !s.runningJob ? html`<p class="warn" lang="en" dir="ltr" data-live-refused>${why}</p>` : ""}
+<p class="note">${t(lang, "live.where", { port: live.port })}</p>
+<p class="note">${t(lang, "live.checklist_note")}</p>`;
+  }
+  return panel(lang, "sim", t(lang, "live.title"), body, { simNote: t(lang, "live.sim_note") });
+}
+
+/** Package J3: the answer to "Open the live app": the pass, shown once, with what it is tied to. Masked in screenshots. */
+export function livePassPage(lang: Lang, s: JourneyState, o: { shown: string; expiresAt: Date; port: number }): Html {
+  const id = s.project.id;
+  return projectPage(
+    lang,
+    s,
+    "preview",
+    t(lang, "live.pass_title"),
+    panel(
+      lang,
+      "sim",
+      t(lang, "live.pass_title"),
+      html`<p><span class="label">${t(lang, "live.label_sim")}</span></p><p><span class="label">${t(lang, "live.label_data")}</span></p>
+<p class="pass" data-pass dir="ltr" lang="en"><code style="font-size: 28px; letter-spacing: 4px">${o.shown}</code></p>
+<p data-pass-valid>${t(lang, "live.pass_valid", { time: utcTime(o.expiresAt) })}</p>
+<p class="note">${t(lang, "live.pass_bound")}</p>
+<p>${t(lang, "live.where", { port: o.port })}</p>
+<p class="warn">${t(lang, "live.not_approved")}</p>
+<div class="actions"><form method="post" action="/projects/${id}/live/show"><button type="submit" class="secondary" data-live-show>${t(lang, "live.show")}</button></form><a href="/projects/${id}/preview" data-go="preview">${t(lang, "live.back")}</a></div>`,
+      { simNote: t(lang, "live.sim_note") },
+    ),
+  );
+}
+
+/** Package J3: the answer to "Show": the made-up employee's sign-in. Masked in screenshots; never on a GET page. */
+export function liveSamplePage(lang: Lang, s: JourneyState, o: { email: string; password: string }): Html {
+  const id = s.project.id;
+  return projectPage(
+    lang,
+    s,
+    "preview",
+    t(lang, "live.sample_title"),
+    panel(
+      lang,
+      "sim",
+      t(lang, "live.sample_title"),
+      html`<table><tr><th>${t(lang, "live.sample_email")}</th><td dir="ltr" lang="en"><code data-sample-email>${o.email}</code></td></tr>
+<tr><th>${t(lang, "live.sample_password")}</th><td dir="ltr" lang="en"><code data-sample-password>${o.password}</code></td></tr></table>
+<p class="note">${t(lang, "live.sample_note")}</p>
+<div class="actions"><a href="/projects/${id}/preview" data-go="preview">${t(lang, "live.back")}</a></div>`,
+      { simNote: t(lang, "live.sim_note") },
+    ),
+  );
+}
+
+export function previewPage(lang: Lang, s: JourneyState, live: { port: number; session: LiveSession | null } | null = null): Html {
   const id = s.project.id;
   const lines = s.events.filter((e) => e.kind === EV.previewLine).slice(-12);
   const lastPreview = [...s.jobs].reverse().find((x) => x.kind === "preview");
@@ -716,7 +807,7 @@ ${lines.length ? html`<details${s.runningJob?.kind === "preview" ? html` open` :
     s,
     "preview",
     t(lang, "preview.title"),
-    html`${panel(lang, "real", t(lang, "preview.title"), status)}${panel(lang, "real", t(lang, "preview.shots"), gallery)}`,
+    html`${panel(lang, "real", t(lang, "preview.title"), status)}${s.previewFinished ? livePanel(lang, s, live) : ""}${panel(lang, "real", t(lang, "preview.shots"), gallery)}`,
     { refreshSeconds: s.runningJob ? 2 : undefined },
   );
 }
@@ -748,6 +839,7 @@ export function acceptancePage(lang: Lang, s: JourneyState, j: Journey): Html {
     t(lang, "acceptance.run_title"),
     html`${runningNote(lang, s)}<p>${t(lang, "acceptance.run_intro")}</p>
 ${lastJob?.state === "failed" || lastJob?.state === "interrupted" ? html`<p class="warn" lang="en" dir="ltr" data-job-failed>${lastJob.reason ?? ""}</p>` : ""}
+${ended && s.events.some((e) => e.kind === EV.jobFinished && String(e.payload.job_id) === ended.jobId && e.payload.app_used_live === true) ? html`<p class="warn" data-used-live>${t(lang, "acceptance.used_live")}</p>${englishToo(lang, USED_LIVE_NOTE)}` : ""}
 ${canRun ? html`<div class="actions">${postButton(`/projects/${id}/acceptance`, t(lang, "acceptance.run"))}</div>` : ""}
 ${runTable}`,
   );

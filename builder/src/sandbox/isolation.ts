@@ -201,7 +201,7 @@ function rows(columns: Column[]): Row[] {
 }
 
 /** The groups in the order the probe makes them; within a group, ids in natural order (G2024 before G45887, M addresses by number). */
-const GROUP_ORDER = ["A", "B", "C", "X", "G", "M", "D", "E", "W", "F", "P"];
+const GROUP_ORDER = ["A", "B", "C", "X", "G", "M", "D", "E", "W", "F", "P", "U"];
 export function compareIds(x: { id: string }, y: { id: string }): number {
   const gx = GROUP_ORDER.indexOf(x.id[0] ?? "");
   const gy = GROUP_ORDER.indexOf(y.id[0] ?? "");
@@ -370,8 +370,8 @@ export function renderComparison(label: string, c: Comparison): string {
   return lines.join("\n");
 }
 
-/** The project containers the development profile's lists are written for (package 0.6c). */
-export type DevContainer = "app" | "tools" | "db" | "runner" | "engine" | "egress";
+/** The project containers the development profile's lists are written for (package 0.6c; package J3: check, camera). */
+export type DevContainer = "app" | "tools" | "db" | "runner" | "engine" | "egress" | "check" | "camera";
 
 /**
  * The expected lists on the development profile (package 0.6c; design note 2.5, amendment of 13 Nov 2026).
@@ -388,7 +388,7 @@ export type DevContainer = "app" | "tools" | "db" | "runner" | "engine" | "egres
  *   lets the registry through (E1, E2, E4) and refuses example.com in its own words (E3, E5); the gateway
  *   answers at the door's gateway port (W1); the door's two ports answer by name.
  */
-export function expectedOnDevelopment(container: DevContainer, ctx: { appPort: number; gatewayServer: RegExp }): Expected[] {
+export function expectedOnDevelopment(container: DevContainer, ctx: { appPort: number; gatewayServer: RegExp; frontServer?: RegExp }): Expected[] {
   const dns: Expected = { ids: /^X/, result: /^connected$/, why: "Docker's own name server, inside this container's own network namespace (127.0.0.11)" };
   const onData: Expected[] = [
     { ids: /^D3$/, result: /^found \d+ address(es)?$/, why: "the project's database, by its name on the data network" },
@@ -413,6 +413,17 @@ export function expectedOnDevelopment(container: DevContainer, ctx: { appPort: n
       return [dns, ...onData, { ids: /^C[57]$/, result: /^connected$/, why: "the database itself, at its own container's loopback address" }];
     case "runner":
       return [dns, { ids: new RegExp(`^Papp:${ctx.appPort}$`), result: /^connected$/, why: "the project's app, on the front network (the runner's only peer)" }];
+    // Package J3: a stream container (the check service) has the runner's list: the app on front, nothing else.
+    case "check":
+      return [dns, { ids: new RegExp(`^Papp:${ctx.appPort}$`), result: /^connected$/, why: "the project's app, on the front network (a stream's only peer)" }];
+    // Package J3: the live camera (the runner, with the camera socket's folder mounted): the runner's list, and through
+    // the socket the preview front, which answers in its own words.
+    case "camera":
+      return [
+        dns,
+        { ids: new RegExp(`^Papp:${ctx.appPort}$`), result: /^connected$/, why: "the project's app, on the front network (the runner's only peer)" },
+        { ids: /^U1$/, result: /^HTTP \d{3}$/, detail: ctx.frontServer ?? /server: preview-front/, why: "the preview front, through the camera socket (and nothing else through it)" },
+      ];
     case "engine":
     case "egress":
       return [dns, ...onOut];

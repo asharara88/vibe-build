@@ -1,0 +1,40 @@
+J3, after the review: the new and extended tests, 2026-11-13T20:49:06Z. Command (from builder/, own database and TMPDIR): flock <scratchpad>/live-tests.lock npx vitest run test/preview-rules.test.ts test/preview.test.ts test/web.test.ts -t "J3's review|start is refused without each setting" --reporter=verbose; only the tests run and the summary are kept below.
+
+1. BEFORE the fixes: builder/src as at bc7b637 (git checkout -- src), the tests as changed. Expected: every new test fails, but the restart cap's (the cap was already in the code; only its test was missing).
+ × test/preview.test.ts > the preview front: requests and answers > a GET or HEAD that says it has a body reaches the app with no Content-Length, and the next request on the same connection reaches it as a request of its own (J3's review) 2180ms
+ × test/preview.test.ts > the live session's ends (section 4.4) > the session ends when the builder sign-in session that opened it expires, if that comes before its 8 hours (J3's review) 106ms
+ ✓ test/preview.test.ts > the front's restarts (J3's review: the cap added in c8c4b23 had no test) > a front that stops is started again at most 5 times in one interface's life; each stop ends the open session; then the live app stays off 11251ms
+ × test/preview.test.ts > stale short folders > run as root, also removes a stale camera folder, which the interface gave to the runner's user (J3's review) 5ms
+ × test/web.test.ts > J1 interface: first run and start checks > start is refused without each setting: the database, the data folder, a password (or a first run); a short password; a data folder inside the repository 168ms
+ × test/web.test.ts > J1 interface: the instance lock lost while the interface serves (review bot on defb9c4) > the real interface (src/web/main.ts, on a database of its own) starts no live preview front unless BUILDER_LIVE_PREVIEW=1: off, nothing listens on its port and Open the live app is refused; on, the front listens (J3's review) 711ms
+ × test/web.test.ts > J3 interface: the live app's screens (stand-in sandbox, the real front) > a live session ends no later than the builder sign-in session that opened it: it is opened to end by that session's expiry, and a new sign-in in the same browser ends it (J3's review) 543ms
+ × test/preview-rules.test.ts > request headers: the allowlist and the mappings (section 4.5) > a GET or a HEAD is sent with no Content-Length, so a stated body the front never sends cannot desynchronise a kept-alive stream; a POST keeps its own (J3's review) 10ms
+ × test/preview-rules.test.ts > answers: Set-Cookie, Location, dropped and refused (section 4.6) > headers that make the browser fetch or prepare other addresses quietly, change what it sends, or turn on features are dropped (J3's review) 1ms
+ Test Files  3 failed (3)
+      Tests  8 failed | 1 passed | 86 skipped (95)
+
+2. AFTER the fixes: the same command on the fixed source (git diff --stat -- src:  7 files changed, 109 insertions(+), 42 deletions(-)).
+ ✓ test/preview.test.ts > the preview front: requests and answers > a GET or HEAD that says it has a body reaches the app with no Content-Length, and the next request on the same connection reaches it as a request of its own (J3's review) 601ms
+ ✓ test/preview.test.ts > the live session's ends (section 4.4) > the session ends when the builder sign-in session that opened it expires, if that comes before its 8 hours (J3's review) 1886ms
+ ✓ test/preview.test.ts > the front's restarts (J3's review: the cap added in c8c4b23 had no test) > a front that stops is started again at most 5 times in one interface's life; each stop ends the open session; then the live app stays off 11256ms
+ ✓ test/preview.test.ts > stale short folders > run as root, also removes a stale camera folder, which the interface gave to the runner's user (J3's review) 29ms
+ ✓ test/web.test.ts > J1 interface: first run and start checks > start is refused without each setting: the database, the data folder, a password (or a first run); a short password; a data folder inside the repository 301ms
+ ✓ test/web.test.ts > J1 interface: the instance lock lost while the interface serves (review bot on defb9c4) > the real interface (src/web/main.ts, on a database of its own) starts no live preview front unless BUILDER_LIVE_PREVIEW=1: off, nothing listens on its port and Open the live app is refused; on, the front listens (J3's review) 1184ms
+ ✓ test/web.test.ts > J3 interface: the live app's screens (stand-in sandbox, the real front) > a live session ends no later than the builder sign-in session that opened it: it is opened to end by that session's expiry, and a new sign-in in the same browser ends it (J3's review) 656ms
+ ✓ test/preview-rules.test.ts > request headers: the allowlist and the mappings (section 4.5) > a GET or a HEAD is sent with no Content-Length, so a stated body the front never sends cannot desynchronise a kept-alive stream; a POST keeps its own (J3's review) 2ms
+ ✓ test/preview-rules.test.ts > answers: Set-Cookie, Location, dropped and refused (section 4.6) > headers that make the browser fetch or prepare other addresses quietly, change what it sends, or turn on features are dropped (J3's review) 1ms
+ Test Files  3 passed (3)
+      Tests  9 passed | 86 skipped (95)
+
+3. The camera-folder test rewritten without it.skipIf (the whole suite's gate, test/acceptance-gate.test.ts, refuses a test run only if something holds: after-review/run-tests-full-first-red.txt), 2026-11-13T21:09:21Z. BEFORE the fix (src/web/preview.ts as at bc7b637):
+ × test/preview.test.ts > stale short folders > also removes a stale camera folder: run as root, one the interface gave to the runner's user; one of another user is left alone (J3's review) 11ms
+ Test Files  1 failed (1)
+      Tests  1 failed | 29 skipped (30)
+AFTER the fix (git diff -- src: '', i.e. none):
+ ✓ test/preview.test.ts > stale short folders > also removes a stale camera folder: run as root, one the interface gave to the runner's user; one of another user is left alone (J3's review) 35ms
+ Test Files  1 passed (1)
+      Tests  1 passed | 29 skipped (30)
+The gate itself, after:
+ ✓ test/acceptance-gate.test.ts > the gate: npm test cannot pass while the browser was not exercised > no test file can skip a test, mark one to do, run one alone, run one only if something holds, or expect it to fail; the test runner runs every test file in test/; npm test runs the whole suite 245ms
+ Test Files  1 passed (1)
+      Tests  1 passed | 10 skipped (11)
