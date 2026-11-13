@@ -198,6 +198,8 @@ Ruby on Rails (MIT) was considered as the batteries-included candidate and set a
 - **The tests join the app at export.** The exporter copies the project's folder from the store into `acceptance/` in the exported repository and commits it there, so the customer receives and can run the same checks. The export commit is the first time the tests appear in any git history.
 - The user's own sign-off is recorded as an event and is the final approval. Automated checks make it quick; they do not replace it.
 
+*Amendment, 13 November 2026, by the owner's answer to question 12, option (a) (`docs/DECISIONS.md`):* until the acceptance writer exists, tests written in advance by Claude Code may be used **only to develop and test the acceptance runner** (package 3.1). Each is labelled "stand-in test" wherever it appears. They show that the tests are kept apart from the engine. They are not independent acceptance. The acceptance check at the skeleton report (package 3.3, checkpoint 2) is written by the acceptance writer through a real model call (package 3.2b), not by the engine or by Claude Code, and nobody edits it by hand.
+
 ### 2.8 Decision F: staying adaptable
 
 **Position: agree with the two seams, the profiles and certification by the protocol. The second engine is decided: OpenAI's Codex SDK (owner, 11 November 2026). Two cautions follow.**
