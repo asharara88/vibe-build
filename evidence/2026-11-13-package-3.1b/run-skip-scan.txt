@@ -1,0 +1,193 @@
+Package 3.1b: every way a test in builder/ could be left out, searched at the base 4e8354a and at a0b0ff1. 2026-11-13T10:53:36Z. Read line by line afterwards; the reading is in browser-required.md, 'Every way a test could be left out'.
+
+== 1. Test files vitest would run (its default pattern: *.test.* and *.spec.*), outside node_modules ==
+$ find builder -path '*/node_modules' -prune -o \( -name '*.test.*' -o -name '*.spec.*' \) -print | sort
+builder/test/acceptance-gate.test.ts
+builder/test/acceptance-live.test.ts
+builder/test/acceptance.test.ts
+builder/test/app-spec.test.ts
+builder/test/approved-images.test.ts
+builder/test/browser-fetch.test.ts
+builder/test/egress.test.ts
+builder/test/events.test.ts
+builder/test/failures.test.ts
+builder/test/gateway.test.ts
+builder/test/isolation.test.ts
+builder/test/key-reader.test.ts
+builder/test/licence-rule.test.ts
+builder/test/sandbox.test.ts
+builder/test/scripted-engine.test.ts
+builder/test/step-hold.test.ts
+
+== 2. The runner's settings and the test command ==
+$ cat builder/vitest.config.ts
+import { defineConfig } from "vitest/config";
+export default defineConfig({
+  test: { fileParallelism: false, testTimeout: 20000, hookTimeout: 30000 },
+});
+$ grep '"test"' builder/package.json
+    "test": "vitest run",
+
+== 3. Skip, run-if, to-do, only or fails written on describe/it/test/suite/bench, or a call to .skip(, at 4e8354a ==
+$ git grep -n -E '\b(describe|it|test|suite|bench)(\s*\.\s*\w+)*\s*\.\s*(skip|skipIf|runIf|todo|only|fails)\b|\.\s*skip\s*\(' 4e8354a -- builder/test
+4e8354a:builder/test/acceptance-live.test.ts:44:describe.skipIf(!dockerThere || !zipThere)(`acceptance runner: live, development profile, stand-in test${skipWhy}`, () => {
+(end of list)
+
+== 3. Skip, run-if, to-do, only or fails written on describe/it/test/suite/bench, or a call to .skip(, at a0b0ff1 ==
+$ git grep -n -E '\b(describe|it|test|suite|bench)(\s*\.\s*\w+)*\s*\.\s*(skip|skipIf|runIf|todo|only|fails)\b|\.\s*skip\s*\(' a0b0ff1 -- builder/test
+(end of list)
+
+== 4. Test contexts, assertion counts, generated tests, retries (a0b0ff1) ==
+$ grep -n -E 'ctx\.|context\.|expect\.assertions|expect\.hasAssertions|\.each\(|\.for\(|\.extend\(|onTestFailed|\bretry:' builder/test/*.ts
+builder/test/acceptance.test.ts:250:  retry: 0,
+builder/test/acceptance.test.ts:349:    ["the result is from a retry", () => facts(runFolder(report({ tests: [{ expectedStatus: "passed", status: "expected", results: [passedResult({ retry: 1 })] }] }
+builder/test/acceptance.test.ts:350:    ["two results", () => facts(runFolder(report({ tests: [{ expectedStatus: "passed", status: "flaky", results: [passedResult({ status: "failed" }), passedResult({
+builder/test/acceptance.test.ts:379:    const skipped = (file: string) => ({ title: `${file} (stand-in test): made-up`, file, tests: [{ expectedStatus: "skipped", status: "skipped", annotations: [], r
+(end)
+
+== 5. Every 'return' in a test file that ends a function early on a condition (a0b0ff1) ==
+$ grep -n -E 'if \(.*\) return( |;)|^\s+return;' builder/test/*.ts
+builder/test/acceptance.test.ts:44:    if (!existsSync(d)) return;
+builder/test/acceptance.test.ts:835:    if ((err as { status?: number }).status === 1) return false; // exit 1: not ignored
+builder/test/browser-fetch.test.ts:57:          if (!res.write(randomBytes(64 * 1024))) return void res.once("drain", more);
+builder/test/browser-fetch.test.ts:74:        if (res.destroyed || at >= BODY.length) return clearInterval(t);
+builder/test/browser-fetch.test.ts:247:        return;
+builder/test/browser-fetch.test.ts:256:        return;
+builder/test/failures.test.ts:61:    if (fsWatch.journal === null || String(path) !== fsWatch.journal || flags !== "a") return real.open(...args);
+builder/test/failures.test.ts:194:      if ((await Promise.race([park(tag).promise, closed])) === "closed") return;
+builder/test/failures.test.ts:197:    return;
+builder/test/failures.test.ts:201:    return;
+builder/test/failures.test.ts:216:      if ((await Promise.race([park(tag).promise, closed])) === "closed") return;
+builder/test/failures.test.ts:221:      return;
+builder/test/failures.test.ts:225:      return;
+builder/test/failures.test.ts:230:      return;
+builder/test/failures.test.ts:236:      if (how === "closed") return;
+builder/test/failures.test.ts:239:        return;
+builder/test/failures.test.ts:242:      return;
+builder/test/failures.test.ts:881:    if (!step.ok) return;
+builder/test/failures.test.ts:884:    if (!opened.ok) return;
+builder/test/failures.test.ts:1174:      if (!held) return;
+builder/test/gateway.test.ts:84:    if (mode === "fail-529") return new Response(JSON.stringify({ type: "error", error: { type: "overloaded_error", message: "stand-in overloaded" } }), { status: 529, 
+builder/test/gateway.test.ts:85:    if (mode === "bad-usage") return ok({ ...PLAIN_USAGE, cache_read_input_tokens: "lots" });
+builder/test/gateway.test.ts:86:    if (mode === "negative-usage") return ok({ ...PLAIN_USAGE, input_tokens: -1_000_000 });
+builder/test/gateway.test.ts:87:    if (mode === "fraction-usage") return ok({ ...PLAIN_USAGE, output_tokens: 12.5 });
+builder/test/gateway.test.ts:88:    if (mode === "iterations") return ok({ ...PLAIN_USAGE, iterations: [{ type: "message", input_tokens: 30, output_tokens: 300 }] });
+builder/test/gateway.test.ts:89:    if (mode === "served-unknown") return ok(PLAIN_USAGE, "claude-opus-4-8");
+builder/test/gateway.test.ts:90:    if (mode === "fail-408") return c.json({ type: "error", error: { type: "timeout_error", message: "stand-in timeout" } }, 408);
+builder/test/gateway.test.ts:91:    if (mode === "fail-400-other") return c.text("<html>Bad Request from something in between</html>", 400);
+builder/test/gateway.test.ts:92:    if (mode === "fail-429") return c.json({ type: "error", error: { type: "rate_limit_error", message: "stand-in rate limit" } }, 429);
+builder/test/gateway.test.ts:93:    if (mode === "odd-speed") return ok({ ...PLAIN_USAGE, speed: "turbo" });
+builder/test/gateway.test.ts:94:    if (mode === "speed-fast-stated") return ok({ ...PLAIN_USAGE, speed: "fast" });
+builder/test/gateway.test.ts:95:    if (mode === "cache-writes-not-itemised") return ok({ input_tokens: 30, cache_creation_input_tokens: 10_000, cache_read_input_tokens: 0, output_tokens: 300 });
+builder/test/gateway.test.ts:96:    if (mode === "cache-writes-itemised-5m") return ok({ input_tokens: 30, cache_creation_input_tokens: 10_000, cache_creation: { ephemeral_5m_input_tokens: 10_000, eph
+builder/test/gateway.test.ts:97:    if (mode === "speed-standard-stated") return ok({ ...PLAIN_USAGE, speed: "standard" });
+builder/test/gateway.test.ts:98:    if (mode === "cache-mismatch") return ok({ ...PLAIN_USAGE, cache_creation: { ephemeral_1h_input_tokens: 1_000_000 } });
+builder/test/gateway.test.ts:99:    if (mode === "server-tool-usage") return ok({ ...PLAIN_USAGE, server_tool_use: { web_search_requests: 5 } });
+builder/test/gateway.test.ts:100:    if (mode === "priority-tier") return ok({ ...PLAIN_USAGE, service_tier: "priority" });
+builder/test/gateway.test.ts:101:    if (mode === "zero-usage") return ok({ input_tokens: 0, output_tokens: 0 });
+builder/test/gateway.test.ts:102:    if (mode === "echo-key-model") return ok(PLAIN_USAGE, `model-${c.req.header("x-api-key")}`);
+builder/test/gateway.test.ts:103:    if (mode === "echo-key-header") return c.json({ id: "msg_test", type: "message", model: body.model, content: [], usage: PLAIN_USAGE }, 200, { "x-echo": c.req.heade
+builder/test/gateway.test.ts:105:    if (mode === "echo-key-escaped-400") return c.body(`{"type":"error","error":{"type":"invalid_request_error","message":"echo ${escapedKey}"}}`, 400, { "content-type
+builder/test/gateway.test.ts:106:    if (mode === "echo-key-escaped-200") return c.body(`{"id":"msg_test","type":"message","model":"${body.model}","content":[{"type":"text","text":"echo ${escapedKey}"
+builder/test/gateway.test.ts:107:    if (mode === "echo-key-escaped-twice") return c.json({ type: "error", error: { type: "api_error", message: `inner {"note":"${escapedKey}"}` } }, 500);
+builder/test/gateway.test.ts:108:    if (mode === "echo-key-escaped-not-json") return c.text(`<html>broken ${escapedKey}</html>`, 500);
+builder/test/gateway.test.ts:109:    if (mode === "echo-key-header-name") return c.json({ id: "msg_test", type: "message", model: body.model, content: [], usage: PLAIN_USAGE }, 200, { [c.req.header("x
+builder/test/gateway.test.ts:110:    if (mode === "unknown-usage-field") return ok({ ...PLAIN_USAGE, premium_tokens: 1_000_000 });
+builder/test/gateway.test.ts:111:    if (mode === "unknown-cache-member") return ok({ ...PLAIN_USAGE, cache_creation: { ephemeral_24h_input_tokens: 4 } });
+builder/test/gateway.test.ts:112:    if (mode === "thinking-details") return ok({ ...PLAIN_USAGE, output_tokens_details: { thinking_tokens: 120 } });
+builder/test/gateway.test.ts:113:    if (mode === "thinking-details-over") return ok({ ...PLAIN_USAGE, output_tokens_details: { thinking_tokens: 9_999 } });
+builder/test/gateway.test.ts:114:    if (mode === "model-not-text") return c.json({ id: "msg_test", type: "message", model: ["claude-haiku-5-5"], content: [], usage: PLAIN_USAGE });
+builder/test/gateway.test.ts:118:    if (mode === "echo-key-after-backslash-500") return c.body(`{"type":"error","error":{"type":"api_error","message":"\\${k}"}}`, 500, { "content-type": "application/
+builder/test/gateway.test.ts:119:    if (mode === "echo-key-after-backslash-200") return c.body(`{"id":"msg_test","type":"message","model":"${body.model}","note":"\\${k}","content":[],"usage":${JSON.s
+builder/test/gateway.test.ts:122:    if (mode === "echo-key-backslash-ux-text") return c.text(`bad key ${uxKey}`, 500);
+builder/test/gateway.test.ts:123:    if (mode === "echo-key-backslash-ux-json") return c.json({ type: "error", error: { type: "api_error", message: `bad key ${uxKey}` } }, 500);
+builder/test/gateway.test.ts:124:    if (mode === "echo-key-backslash-ux-header") return c.json({ id: "msg_test", type: "message", model: body.model, content: [], usage: PLAIN_USAGE }, 200, { "x-echo"
+builder/test/gateway.test.ts:125:    if (mode === "nul-500") return c.body(`{"type":"error","error":{"type":"api_error","message":"a\\u0000b"}}`, 500, { "content-type": "application/json" });
+builder/test/gateway.test.ts:126:    if (mode === "served-constructor") return ok(PLAIN_USAGE, "constructor");
+builder/test/gateway.test.ts:127:    if (mode === "huge-200") return c.body(`{"id":"msg_test","type":"message","model":"${body.model}","pad":"${"a".repeat(8_100_000)}","content":[],"usage":${JSON.stri
+builder/test/gateway.test.ts:128:    if (mode === "backslash-run") return c.body(`{"id":"msg_test","type":"message","model":"${body.model}","big":12345678901234567890,  "content":[{"type":"text","text
+builder/test/gateway.test.ts:129:    if (mode === "surrogate-500") return c.body(`{"type":"error","error":{"type":"api_error","message":"a\\ud800b"}}`, 500, { "content-type": "application/json" });
+builder/test/gateway.test.ts:131:    if (mode === "echo-key-shadowed-500") return c.body(`{"type":"error","error":{"type":"api_error","message":"bad key ${k}","message":"nothing here"}}`, 500, { "cont
+builder/test/gateway.test.ts:132:    if (mode === "echo-key-shadowed-escaped-500") return c.body(`{"type":"error","error":{"type":"api_error","message":"bad key ${escapedKey}","message":"nothing here"
+builder/test/gateway.test.ts:133:    if (mode === "echo-key-shadowed-200") return c.body(`{"id":"msg_test","type":"message","model":"${body.model}","note":"${k}","note":"x","content":[],"usage":${JSON
+builder/test/gateway.test.ts:134:    if (mode === "many-backslashes") return c.body(`{"id":"msg_test","type":"message","model":"${body.model}","content":[{"type":"text","text":"${"\\".repeat(80)}"}], 
+builder/test/gateway.test.ts:135:    if (mode === "deep-500-key") return c.body(`{"type":"error","note":"${k}","error":${"[".repeat(20_000)}${"]".repeat(20_000)}}`, 500, { "content-type": "application
+builder/test/gateway.test.ts:136:    if (mode === "deep-500") return c.body(`{"type":"error","error":${"[".repeat(20_000)}${"]".repeat(20_000)}}`, 500, { "content-type": "application/json" });
+builder/test/gateway.test.ts:137:    if (mode === "model-missing") return c.json({ id: "msg_test", type: "message", content: [], usage: PLAIN_USAGE });
+builder/test/gateway.test.ts:138:    if (mode === "model-empty") return c.json({ id: "msg_test", type: "message", model: "", content: [], usage: PLAIN_USAGE });
+builder/test/gateway.test.ts:139:    if (mode === "echo-key-escaped-500") return c.body(`{"type":"error","error":{"type":"api_error","message":"echo ${(c.req.header("x-api-key") ?? "").replace(/-/g, "
+builder/test/gateway.test.ts:140:    if (mode === "echo-key-500") return c.json({ type: "error", error: { type: "api_error", message: `stand-in echo of ${c.req.header("x-api-key")}` } }, 500);
+builder/test/gateway.test.ts:141:    if (mode === "fail-500") return c.json({ type: "error", error: { type: "api_error", message: "stand-in failure" } }, 500);
+builder/test/gateway.test.ts:142:    if (mode === "fail-400") return c.json({ type: "error", error: { type: "invalid_request_error", message: "stand-in rejection" } }, 400);
+builder/test/gateway.test.ts:143:    if (mode === "redirect") return c.redirect("http://127.0.0.1:9/elsewhere", 307);
+builder/test/gateway.test.ts:152:    if (mode === "no-usage") return c.json({ id: "msg_test", type: "message", model: body.model, content: [{ type: "text", text: "hello" }] });
+builder/test/gateway.test.ts:224:    if (s === "count-fail") return c.json({ type: "error", error: { type: "api_error", message: "stand-in count failure" } }, 500);
+builder/test/gateway.test.ts:225:    if (s === "count-garbage") return c.json({ input_tokens: "many" });
+builder/test/gateway.test.ts:231:    if (s === "count-echo-after-backslash") return c.body(`{"input_tokens":42,"note":"\\${c.req.header("x-api-key") ?? ""}"}`, 200, { "content-type": "application/json
+builder/test/gateway.test.ts:292:    if (events.length >= n) return events;
+builder/test/gateway.test.ts:1150:    if (!opened.ok) return;
+builder/test/gateway.test.ts:1788:      if (e instanceof CapChangeRefused) return e;
+builder/test/gateway.test.ts:1885:      if (names.every((n) => waiting.includes(n))) return;
+builder/test/key-reader.test.ts:76:      if (how < 5) return slashes(rnd(4)) + c;
+builder/test/key-reader.test.ts:77:      if (how < 8) return `${slashes(1 + rnd(3))}u${hex(c, 4)}`;
+builder/test/sandbox.test.ts:26:    if (wanted(answer) || Date.now() >= until) return answer;
+builder/test/step-hold.test.ts:74:    if (mode === "fail-500") return c.json({ type: "error", error: { type: "api_error", message: "stand-in failure" } }, 500);
+builder/test/step-hold.test.ts:76:    if (mode === "bill-over-hold") return c.json({ id: "msg_test", type: "message", model: body.model, content: [], usage: { ...USAGE, output_tokens: body.max_tokens 
+builder/test/step-hold.test.ts:414:      if (names.every((n) => waiting.includes(n))) return;
+(end)
+
+== 6. A check made only when a condition holds, at the start of a line in a test file (a0b0ff1) ==
+$ grep -n -E '^\s+if \(.*\) expect' builder/test/*.ts
+builder/test/failures.test.ts:892:    if (!another.ok) expect(another.message).toContain("The step was not started");
+builder/test/gateway.test.ts:1257:      if (mode !== "echo-key-escaped-not-json") expect(JSON.stringify(JSON.parse(text))).toContain("[redacted]");
+builder/test/gateway.test.ts:1589:      if (pricedAt === null) expect(p.cache_writes_not_itemised, label).toBeUndefined();
+builder/test/gateway.test.ts:1612:      if (pricedAt === null) expect(p.cache_writes_not_itemised, label).toBeUndefined();
+builder/test/sandbox.test.ts:87:      if (profile === "server") expect(tools.networks).toEqual(["internal"]);
+(end)
+
+== 7. A setting read from the environment that changes what a test does (a0b0ff1) ==
+$ grep -n -E 'process\.env\.[A-Z_]+|process\.env\[' builder/test/*.ts | grep -v -E '= saved|delete process\.env|process\.env\.PATH'
+builder/test/acceptance-live.test.ts:52:  const savedDataDir = process.env[DATA_DIR_SETTING];
+builder/test/acceptance-live.test.ts:56:    process.env[DATA_DIR_SETTING] = dataDir;
+builder/test/acceptance-live.test.ts:80:    const img = await buildRunnerImage({ hostProxy: { url: process.env.HTTPS_PROXY ?? "", caBundlePath: "/root/.ccr/ca-bundle.crt" } });
+builder/test/acceptance-live.test.ts:140:    expect(process.env[DATA_DIR_SETTING]).toBe(dataDir);
+builder/test/acceptance.test.ts:549:    const saved = process.env.DOCKER_HOST;
+builder/test/acceptance.test.ts:550:    process.env.DOCKER_HOST = "unix:///nonexistent-p31b/docker.sock"; // short: a socket's path has a length limit
+builder/test/acceptance.test.ts:609:    const saved = process.env.BUILDER_DATA_DIR;
+builder/test/acceptance.test.ts:610:    process.env.BUILDER_DATA_DIR = dataDir;
+builder/test/acceptance.test.ts:766:    for (const s of ['testDir: "/acceptance"', "retries: 0", "workers: 1", "forbidOnly: true", 'screenshot: "on"', 'video: "off"', '["json", { outputFile: "/results
+builder/test/b6-gateway-process.ts:40:  const v = process.env[name];
+builder/test/b6-gateway-process.ts:50:const graceMs = Number(process.env.B6_GRACE_MS ?? 300);
+builder/test/egress.test.ts:8:const sessionProxy = process.env.HTTPS_PROXY;
+builder/test/failures.test.ts:302:    PATH: process.env["PATH"] ?? "/usr/bin:/bin",
+builder/test/failures.test.ts:303:    HOME: process.env["HOME"] ?? "/tmp",
+builder/test/failures.test.ts:304:    TMPDIR: process.env["TMPDIR"] ?? "/tmp",
+builder/test/failures.test.ts:311:  if (process.env["PGUSER"]) env["PGUSER"] = process.env["PGUSER"];
+builder/test/failures.test.ts:377:  const out = process.env["PKG14_TRACE_OUT"];
+builder/test/helpers.ts:6:export const TEST_DB_URL = process.env.BUILDER_TEST_DATABASE_URL ?? "postgres:///builder_test?host=/var/run/postgresql";
+builder/test/isolation.test.ts:599:        hostProxy: { url: process.env.HTTPS_PROXY ?? "http://127.0.0.1:1", caBundlePath: "/root/.ccr/ca-bundle.crt" },
+builder/test/isolation.test.ts:610:    const settings = JSON.stringify({ ...SETTINGS, sessionProxy: sessionProxyHostPort(process.env.HTTPS_PROXY), projectDbPort: 5563, timeoutMs: 3000, ...machine });
+builder/test/sandbox.test.ts:36:  hostProxy: { url: process.env.HTTPS_PROXY ?? "http://127.0.0.1:1", caBundlePath: "/root/.ccr/ca-bundle.crt" },
+builder/test/sandbox.test.ts:94:    const saved = { DOCKER_CONFIG: process.env.DOCKER_CONFIG, DOCKER_HOST: process.env.DOCKER_HOST, DOCKER_CONTEXT: process.env.DOCKER_CONTEXT };
+builder/test/sandbox.test.ts:95:    process.env.DOCKER_CONFIG = mkdtempSync(join(tmpdir(), "builder-user-docker-"));
+builder/test/sandbox.test.ts:101:        else process.env[k] = v;
+builder/test/sandbox.test.ts:119:    const saved = { DOCKER_CONFIG: process.env.DOCKER_CONFIG, DOCKER_HOST: process.env.DOCKER_HOST, DOCKER_CONTEXT: process.env.DOCKER_CONTEXT };
+builder/test/sandbox.test.ts:122:      process.env.DOCKER_CONFIG = userDir;
+builder/test/sandbox.test.ts:148:        else process.env[k] = v;
+builder/test/sandbox.test.ts:154:    const saved = { DOCKER_CONFIG: process.env.DOCKER_CONFIG, HOME: process.env.HOME };
+builder/test/sandbox.test.ts:160:      process.env.HOME = home;
+builder/test/sandbox.test.ts:161:      process.env.DOCKER_CONFIG = "";
+builder/test/sandbox.test.ts:167:        else process.env[k] = v;
+builder/test/sandbox.test.ts:173:    const saved = { DOCKER_CONFIG: process.env.DOCKER_CONFIG, DOCKER_HOST: process.env.DOCKER_HOST, DOCKER_CONTEXT: process.env.DOCKER_CONTEXT };
+builder/test/sandbox.test.ts:177:      process.env.DOCKER_CONFIG = userDir;
+builder/test/sandbox.test.ts:184:      process.env.DOCKER_HOST = "tcp://made-up-daemon.invalid:2375";
+builder/test/sandbox.test.ts:188:      process.env.DOCKER_CONTEXT = "default";
+builder/test/sandbox.test.ts:191:      process.env.DOCKER_CONTEXT = "made-up-context";
+builder/test/sandbox.test.ts:196:        else process.env[k] = v;
+builder/test/sandbox.test.ts:204:    const saved = process.env.DOCKER_CONFIG;
+builder/test/sandbox.test.ts:212:      process.env.DOCKER_CONFIG = first;
+builder/test/sandbox.test.ts:220:      process.env.DOCKER_CONFIG = second;
+builder/test/sandbox.test.ts:303:  const savedHome = process.env.HOME;
+builder/test/sandbox.test.ts:325:    process.env.HOME = userHome;
+builder/test/scripted-engine.test.ts:175:  hostProxy: { url: process.env.HTTPS_PROXY ?? "http://127.0.0.1:1", caBundlePath: "/root/.ccr/ca-bundle.crt" },
+(end)
