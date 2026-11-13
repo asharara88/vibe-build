@@ -4,11 +4,11 @@ Rules: build plan section 8, rule 11. At most six lines each, with the options a
 
 ## Blocking work
 
-None open right now. The approval request for the browser and the runner's two base images (it holds up 3.1) is being prepared and will be added here.
+None open right now. Question 15 (the runner's two base images and the test browser) was approved on 13 Nov: `docs/DECISIONS.md`.
 
 ## Not blocking yet
 
-**15. The "vibe-build" setup script fetches images by tag.** It downloads `node:22-alpine`, `postgres:16-alpine` and `python:3.13-slim` by name, so a rebuilt snapshot can hold versions other than those you approved (question 11), plus an image nothing uses; its downloads have no time limit (gap 67).
+**18. The "vibe-build" setup script fetches images by tag** (numbered 15 when pull request #8 added it). It downloads `node:22-alpine`, `postgres:16-alpine` and `python:3.13-slim` by name, so a rebuilt snapshot can hold versions other than those you approved (question 11), plus an image nothing uses; its downloads have no time limit (gap 67).
 (a) **Change the script to fetch only the two approved images, by digest, each with a time limit** (a change to your environment, approved on a card). Recommended: new sessions then start with the approved versions.
 (b) Leave it; the builder will pin its own images (status, Next, item 2).
 
@@ -54,4 +54,6 @@ Claude Code's readings and work, recorded as such, not as your decisions. Detail
 - Gap 60: the boundary is fixed (package 0.6c) before code from the builder's own model calls runs; "fixed" means 0.6a's probe shows each such container reaching only what design note 2.5 allows.
 - A caller who leaves before the call is forwarded has its hold released (package 1.2; design note 5.5, step 3).
 - A hold kept after an error answer is not marked unreconciled, unlike design note 5.5's table (gap 62).
+- The approved-images check lets the builder's own images (`builder_<project>-app` and `-tools`, built from the template, never pulled) go without a digest (gap 68).
+- The counting rules for the runner's base images: "and/or" not split; both keyring packages counted as copyleft (`docs/licences/runner-base-images.md`, section 3).
 - `CLAUDE.md` line 63 (your file): Claude Code's sentence on Docker failing to start on 12 Nov, its fix and a pointer to a second failure, merged with pull request #8 at your request; keep, change or remove.

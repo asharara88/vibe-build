@@ -1,0 +1,29 @@
+13 Nov 2026, at commit eb2cd44: every image reference the check finds, with its verdict. Folders: builder/src, builder/scripts, builder/test, builder/scripted, templates (node_modules, .next, .git, dist and lock files skipped; binary files skipped).
+Printed by a short script in the session's scratch folder that calls the same scanFolders function the test calls, with the same list and folders.
+
+files 127
+approved               name:tag     builder/src/sandbox/manager.ts:93  postgres:16-alpine@sha256:aa6cb33cf4c19c765cefcf48d96176258800870a9a1e930ad126200f9d825139
+approved               name:tag     builder/src/sandbox/manager.ts:94  node:22-alpine@sha256:0e1754758c2df4cfa3e68d59e2e1b7374bb7fd9ea6328eaaacf15cc934af8202
+built by the builder   name:tag     builder/test/approved-images.test.ts:166  builder_p_test-tools:latest
+built by the builder   name:tag     builder/test/approved-images.test.ts:168  builder_p_test-tools:latest
+built by the builder   name:tag     builder/test/sandbox.test.ts:58  builder_p_test-tools:latest
+built by the builder   name:tag     builder/test/sandbox.test.ts:92  builder_p_test-tools:latest
+image table            FROM         builder/test/sandbox.test.ts:306  ${DEFAULT_IMAGES.node}
+approved               FROM         templates/next/Dockerfile:4  node:22-alpine@sha256:0e1754758c2df4cfa3e68d59e2e1b7374bb7fd9ea6328eaaacf15cc934af8202
+stage                  FROM         templates/next/Dockerfile:31  build
+approved               FROM         templates/next/Dockerfile:39  node:22-alpine@sha256:0e1754758c2df4cfa3e68d59e2e1b7374bb7fd9ea6328eaaacf15cc934af8202
+
+Before the change (at f6f5007, the integration branch), the same scan found these references not pinned (the scanner's file did not exist there and was not scanned):
+files 126
+violation              name:tag     builder/src/sandbox/manager.ts:87  postgres:16-alpine  -- not pinned by digest: write the approved tag@digest
+violation              name:tag     builder/src/sandbox/manager.ts:88  node:22-alpine  -- not pinned by digest: write the approved tag@digest
+violation              name:tag     builder/scripts/demo-isolation.ts:109  node:22-alpine  -- not pinned by digest: write the approved tag@digest
+built by the builder   name:tag     builder/test/sandbox.test.ts:58  builder_p_test-tools:latest
+built by the builder   name:tag     builder/test/sandbox.test.ts:92  builder_p_test-tools:latest
+violation              FROM         builder/test/sandbox.test.ts:306  node:22-alpine  -- not pinned by digest: write the approved tag@digest
+violation              image field  builder/test/scripted-engine.test.ts:192  node:22-alpine  -- not pinned by digest: write the approved tag@digest
+violation              name:tag     builder/test/scripted-engine.test.ts:618  node:22-alpine  -- not pinned by digest: write the approved tag@digest
+violation              name:tag     builder/test/scripted-engine.test.ts:926  node:22-alpine  -- not pinned by digest: write the approved tag@digest
+violation              FROM         templates/next/Dockerfile:2  node:22-alpine  -- not pinned by digest: write the approved tag@digest
+stage                  FROM         templates/next/Dockerfile:29  build
+violation              FROM         templates/next/Dockerfile:37  node:22-alpine  -- not pinned by digest: write the approved tag@digest

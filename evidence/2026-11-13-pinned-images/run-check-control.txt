@@ -1,0 +1,100 @@
+13 Nov 2026. The control for the approved-images check: one unpinned reference added, the check run, the change undone, the check run again.
+Development machine (a cloud session), in builder/, at commit eb2cd44 (branch claude/pkg-pin-approved-images). The check is a unit test: it reads files and starts nothing.
+
+1. The run stage of the template's Dockerfile is set back to the tag alone:
+$ git diff
+diff --git a/templates/next/Dockerfile b/templates/next/Dockerfile
+index 2f9c977..c73c2ea 100644
+--- a/templates/next/Dockerfile
++++ b/templates/next/Dockerfile
+@@ -36,7 +36,7 @@ USER node
+ ENTRYPOINT []
+ CMD ["node", "-e", "console.error('The tools image runs one named command at a time, e.g. drizzle-kit push or the seed.'); process.exit(1)"]
+ 
+-FROM node:22-alpine@sha256:0e1754758c2df4cfa3e68d59e2e1b7374bb7fd9ea6328eaaacf15cc934af8202 AS run
++FROM node:22-alpine AS run
+ WORKDIR /app
+ ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 PORT=3000 HOSTNAME=0.0.0.0
+ RUN addgroup -S app && adduser -S app -G app
+
+2. The check, with that change:
+$ npx vitest run test/approved-images.test.ts
+
+ RUN  v5.1.0 /tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/wt-pin/builder
+
+ ❯ test/approved-images.test.ts (10 tests | 2 failed) 19ms
+   ❯ the scan of the code, scripts, tests and templates (2)
+     × finds no image reference that is not tag@digest of an approved entry 6ms
+     × is not empty: it reads the image table, the template's two FROM lines and the test's inline FROM 2ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/approved-images.test.ts > the scan of the code, scripts, tests and templates > finds no image reference that is not tag@digest of an approved entry
+AssertionError: expected [ Array(1) ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   "templates/next/Dockerfile:39 FROM node:22-alpine (not pinned by digest: write the approved tag@digest)",
++ ]
+
+ ❯ test/approved-images.test.ts:58:24
+     56|   it("finds no image reference that is not tag@digest of an approved e…
+     57|     const violations = references.filter((r) => r.verdict === "violati…
+     58|     expect(violations).toEqual([]);
+       |                        ^
+     59|   });
+     60|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  test/approved-images.test.ts > the scan of the code, scripts, tests and templates > is not empty: it reads the image table, the template's two FROM lines and the test's inline FROM
+AssertionError: expected [ 'approved', 'stage', 'violation' ] to deeply equal [ 'approved', 'stage', 'approved' ]
+
+- Expected
++ Received
+
+  [
+    "approved",
+    "stage",
+-   "approved",
++   "violation",
+  ]
+
+ ❯ test/approved-images.test.ts:73:121
+     71|       ]),
+     72|     );
+     73|     expect(references.filter((r) => r.file === "templates/next/Dockerf…
+       |                                                                                                                         ^
+     74|   });
+     75| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 8 passed (10)
+   Start at  06:56:12
+   Duration  248ms (import 77%, tests 15%, transform 6%, worker 3%)
+
+exit code: 1
+
+3. The change undone:
+$ git checkout -- templates/next/Dockerfile && git status --short
+?? evidence/2026-11-13-pinned-images/
+(git status lists only this evidence folder, not yet committed: the Dockerfile is back as committed)
+
+4. The check again:
+$ npx vitest run test/approved-images.test.ts
+
+ RUN  v5.1.0 /tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/wt-pin/builder
+
+
+ Test Files  1 passed (1)
+      Tests  10 passed (10)
+   Start at  06:56:13
+   Duration  195ms (import 82%, transform 8%, tests 7%, worker 3%)
+
+exit code: 0
