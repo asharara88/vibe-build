@@ -17,7 +17,9 @@
  *   can be named: a freeze on any other could not be cleared by a reconciliation (known gap 100).
  *
  * It takes the journal folder's lock (store/liveness.ts) for the whole set-aside, and refuses without it: a gateway
- * using the folder holds that lock, and a gateway cannot start while the set-aside holds it. A set-aside cut short
+ * using the folder holds that lock, and a gateway cannot start while the set-aside holds it. A gateway that has lost its
+ * lock (its database connection down) still appends to the journal file; the rewrite carries such lines over
+ * (gateway/journal.ts, 1.4b's review). `--list` only reads which locks are held; it takes none. A set-aside cut short
  * (after its database record, before its line left the journal file) is finished by the next run, which writes
  * nothing to the database for it again; a second set-aside of a line already moved out is refused. Who set it aside
  * and why are written as stated: nothing checks them.
@@ -67,6 +69,8 @@ const MAX_TEXT = 500;
 /** A longer line is refused: an engineer has to look at it. */
 const MAX_LINE_BYTES = 1024 * 1024;
 const lenient = new TextDecoder("utf-8");
+/** `--list` shows at most this many bytes of a line as text: a line of hundreds of megabytes is not decoded whole (1.4b's review). */
+export const LISTED_BYTES = 8 * 1024;
 
 /** Text as one line for a terminal: control characters (C0, DEL, C1), line and paragraph separators and bidirectional controls shown as spaces. */
 export const printable = (s: unknown): string => String(s).replace(/[\u0000-\u001f\u007f-\u009f\u2028\u2029\u200e\u200f\u202a-\u202e\u2066-\u2069]+/g, " ");
@@ -74,16 +78,23 @@ export const printable = (s: unknown): string => String(s).replace(/[\u0000-\u00
 /** A line's bytes as text for reading: bytes that are not UTF-8 shown as U+FFFD, then made printable. */
 export const shownText = (bytes: Buffer): string => printable(lenient.decode(bytes));
 
-/** Whether a gateway (or another run of the script) holds the folder's lock now: tried for one transaction only. */
+/**
+ * Whether a gateway (or a run of the script) holds the folder's lock now, read from the database's list of locks held
+ * (`pg_locks`) without taking the lock, even for a moment: a gateway starting meanwhile must not find it taken (1.4b's
+ * review). A lock on a 64-bit key is listed with its high half as `classid`, its low half as `objid` and `objsubid` 1
+ * (PostgreSQL documentation, pg_locks; docs/SOURCES.md).
+ */
 async function folderInUse(pool: pg.Pool, folderId: string): Promise<boolean> {
-  const c = await pool.connect();
-  try {
-    await c.query("begin");
-    return !(await c.query<{ free: boolean }>(`select pg_try_advisory_xact_lock(${journalFolderLockKeySql("$1")}) as free`, [folderId])).rows[0]!.free;
-  } finally {
-    await c.query("rollback").catch(() => undefined);
-    c.release();
-  }
+  const r = await pool.query<{ held: boolean }>(
+    `select exists (
+       select 1 from pg_locks l
+        where l.locktype = 'advisory' and l.granted and l.objsubid = 1
+          and l.database = (select oid from pg_database where datname = current_database())
+          and ((l.classid::bigint << 32) | l.objid::bigint) = ${journalFolderLockKeySql("$1")}
+     ) as held`,
+    [folderId],
+  );
+  return r.rows[0]!.held;
 }
 
 async function openFolder(dir: string): Promise<FaultJournal> {
@@ -103,7 +114,7 @@ export interface UnreadableShown {
   length: number;
   fingerprint: string;
   why: Unreadable;
-  /** The line as text, printable: what the operator reads to judge which call it may record. */
+  /** The line as text, printable: what the operator reads to judge which call it may record. From `--list`, its first `LISTED_BYTES` bytes only. */
   text: string;
 }
 
@@ -180,7 +191,7 @@ export async function listJournal(pool: pg.Pool, dir: string): Promise<JournalLi
   const waiting: JournalListing["waiting"] = [];
   for (const l of lines) {
     const r = readLine(l);
-    if (r.kind === "unreadable") unreadable.push({ number: l.number, length: l.bytes.length, fingerprint: fingerprintOf(l.bytes), why: r.why, text: shownText(l.bytes) });
+    if (r.kind === "unreadable") unreadable.push({ number: l.number, length: l.bytes.length, fingerprint: fingerprintOf(l.bytes), why: r.why, text: shownText(l.bytes.subarray(0, LISTED_BYTES)) });
     if (r.kind === "record") waiting.push({ number: l.number, journalId: r.record.journal_id, projectId: r.record.project_id, holdId: r.record.hold_id, endedAt: r.record.ended_at });
   }
   return {
@@ -218,6 +229,11 @@ export interface SetAside {
   linesLeft: number;
   /** Earlier set-asides, cut short, that this run finished first (their line moved; nothing written to the database again). */
   finishedEarlier: string[];
+  /**
+   * True when this line's set-aside was recorded earlier (a run cut short, finished now) naming another hold than the one
+   * asked for now, or a hold where none is asked, or none where one is: the earlier record stands (1.4b's review).
+   */
+  holdDiffersFromRequest: boolean;
 }
 
 function checkText(field: "by" | "reason", value: unknown): string {
@@ -308,7 +324,10 @@ export async function setAsideLine(pool: pg.Pool, databaseUrl: string, req: SetA
     const finishedEarlier = finishedRows.map((r) => r.set_aside_id);
     // The same command run again after it was cut short: its own set-aside is the one just finished.
     const mine = finishedRows.find((r) => r.fingerprint === fingerprint);
-    if (mine) return fromRow(pool, mine, finishedEarlier, (await journal.lines()).lines.length);
+    if (mine) {
+      const earlier = await fromRow(pool, mine, finishedEarlier, (await journal.lines()).lines.length);
+      return { ...earlier, holdDiffersFromRequest: (mine.hold_id === null ? null : String(mine.hold_id)) !== req.hold };
+    }
     try {
       return await setAsideLocked(pool, journal, req, fingerprint, by, reason, finishedEarlier);
     } catch (err) {
@@ -352,6 +371,7 @@ async function fromRow(pool: pg.Pool, row: SetAsideRow, finishedEarlier: string[
     recordedAt: row.recorded_at.toISOString(),
     linesLeft,
     finishedEarlier,
+    holdDiffersFromRequest: false,
   };
 }
 
@@ -509,5 +529,6 @@ async function setAsideLocked(pool: pg.Pool, journal: FaultJournal, req: SetAsid
     recordedAt: row.recorded_at.toISOString(),
     linesLeft: lines.length - 1,
     finishedEarlier,
+    holdDiffersFromRequest: false,
   };
 }

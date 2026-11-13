@@ -236,8 +236,6 @@ export function createGateway(opts: GatewayOptions) {
     return c.json(errorBody("gateway_unavailable", "The gateway could not use its database, so it stopped this request. If a model call was under way, its hold stays open at its full amount."), 503);
   });
 
-  app.get("/healthz", (c) => c.json({ ok: true }));
-
   // Package 1.4: the two refusals of a gateway that must forward nothing, on arrival and again just before
   // each forward (`sent` says what, if anything, reached the provider).
   const livenessLost = (sent: string) =>
@@ -263,6 +261,12 @@ export function createGateway(opts: GatewayOptions) {
   const stoppedNow = (): "journal" | "gate" | "liveness" | null =>
     gate.unreadableLines().length > 0 ? "journal" : gate.closed() ? "gate" : opts.liveness && !opts.liveness.ok() ? "liveness" : null;
   const stoppedBody = (why: "journal" | "gate" | "liveness", sent: string) => (why === "journal" ? journalUnreadable(sent) : why === "gate" ? gateClosed(sent) : livenessLost(sent));
+
+  // The health check. Package 1.4b, after its review: while the journal held a line that could not be read at start-up,
+  // the gateway forwards nothing until an operator recovers it and restarts the gateway, so the check answers 503 with
+  // the same message. A gate closed for an unrecorded ending, or a lost liveness lock, is not reported here: each clears
+  // without a restart, and a restart while an ending is held only in memory (its journal append failed) would lose it.
+  app.get("/healthz", (c) => (gate.unreadableLines().length > 0 ? c.json({ ok: false, ...journalUnreadable("This is the gateway's health check.") }, 503) : c.json({ ok: true })));
 
   app.all("/v1/*", async (c) => {
     // Package 1.4b. A journal line that could not be read at start-up: refused before anything else, nothing written.

@@ -36,7 +36,7 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import type pg from "pg";
-import { listJournal, printable, RecoveryRefused, setAsideLine, type SetAsideRow } from "../src/gateway/journal-recovery.js";
+import { LISTED_BYTES, listJournal, printable, RecoveryRefused, setAsideLine, type SetAsideRow } from "../src/gateway/journal-recovery.js";
 import { createPool, databaseUrl } from "../src/store/db.js";
 
 const USAGE = [
@@ -98,6 +98,9 @@ const usd = (n: number) => `$${n.toFixed(6)}`;
 /** At most this many characters of a line's text are printed. */
 const SHOWN = 2000;
 const clip = (s: string) => (s.length > SHOWN ? `${s.slice(0, SHOWN)} ... (${s.length - SHOWN} more characters not shown)` : s);
+/** A listed line's text: its first LISTED_BYTES bytes only were decoded (1.4b's review), so a longer line says so in bytes. */
+const clipListed = (s: string, bytes: number) =>
+  bytes > LISTED_BYTES || s.length > SHOWN ? `${s.slice(0, SHOWN)} ... (the line is ${bytes} bytes long; only its start is shown)` : s;
 
 function printSetAside(r: SetAsideRow): void {
   console.log(`  set-aside ${r.set_aside_id} (row ${r.id}), ${r.recorded_at.toISOString()}: line ${r.line_number}, ${r.line_length} bytes, fingerprint ${r.fingerprint}`);
@@ -127,7 +130,7 @@ try {
     for (const u of l.unreadable) {
       console.log(`    line ${u.number}: ${u.length} bytes; ${u.why}`);
       console.log(`      fingerprint: ${u.fingerprint}`);
-      console.log(`      text:        ${clip(u.text)}`);
+      console.log(`      text:        ${clipListed(u.text, u.length)}`);
     }
     console.log("");
     console.log(`Candidates: open holds kept because the gateway that opened them was found gone, which no freeze names: ${l.candidates.length}`);
@@ -156,6 +159,11 @@ try {
     });
     console.log(`Journal folder: ${printable(dir)}`);
     for (const s of r.finishedEarlier) console.log(`First finished set-aside ${s}, recorded earlier but cut short: its line moved out of the journal file; nothing was written to the database again.`);
+    if (r.holdDiffersFromRequest) {
+      console.log(
+        `NOTE: this line was set aside earlier (a run cut short, finished now) naming ${r.hold ? `hold ${r.hold.id}` : "no hold"}, not ${v.hold ? `hold ${v.hold.trim()}` : "no hold"} as asked now. The earlier record stands; nothing was written for the hold asked now.`,
+      );
+    }
     console.log(`Line ${r.line.number} set aside (set-aside ${r.setAsideId}, row ${r.rowId})`);
     console.log(`  line:        ${r.line.length} bytes; ${r.line.why}; fingerprint ${r.line.fingerprint}`);
     console.log(`  text:        ${clip(r.line.text)}`);
