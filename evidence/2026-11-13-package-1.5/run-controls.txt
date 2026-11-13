@@ -1,0 +1,168 @@
+Controls of package 1.5, run at ca7f226 by <scratchpad>/p15-tools/controls.sh (each removes one safeguard with perl, runs the named test of test/reconcile.test.ts on builder_test_pkg15 under the lock, expects it to FAIL, then restores the file with git checkout)
+=== X1: the list's selection keeps only expired holds
+    file: src/store/reconcile.ts; test: B14 \(1\)
+    -const KEPT_SQL = "state = 'open' and (unreconciled or expired or kept_reason is not null or deadline_at <= $1)";
+    +const KEPT_SQL = "state = 'open' and (expired or deadline_at <= $1)";
+    |      × B14 (1): the list shows one hold of each kind with what is known of it (an error answer, an interrupted call and an unreadable answer made through the gateway; an expired hold; a hold whose gateway was found gone; a late answer written down; the call whose ending could not be recorded, which froze its project); a call in flight and a settled call are not on it 157ms
+    | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+    | AssertionError: expected [ '403', '404' ] to deeply equal [ '398', '399', '400', '403', …(2) ]
+    |       Tests  1 failed | 7 skipped (8)
+    RESULT: the test FAILED, as it should (exit 1)
+=== X2: the error-answer kind
+    file: src/store/reconcile.ts; test: B14 \(1\)
+    -  if (ERROR_ANSWER.has(reason)) return "error answer";
+    |      × B14 (1): the list shows one hold of each kind with what is known of it (an error answer, an interrupted call and an unreadable answer made through the gateway; an expired hold; a hold whose gateway was found gone; a late answer written down; the call whose ending could not be recorded, which froze its project); a call in flight and a settled call are not on it 165ms
+    | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+    | AssertionError: expected { holdId: '407', …(17) } to match object { kinds: [ 'error answer' ], …(4) }
+    |       Tests  1 failed | 7 skipped (8)
+    RESULT: the test FAILED, as it should (exit 1)
+=== X3: the freeze cleared with the reconciliation
+    file: src/store/reconcile.ts; test: B14 \(2\)
+    -      await c.query<Freeze>("update project_freezes set cleared_at = clock_timestamp() where project_id = $1 and hold_id = $2 and cleared_at is null returning *", [p.projectId, hold.id])
+    +      await c.query<Freeze>("update project_freezes set cleared_at = clock_timestamp() where false and project_id = $1 and hold_id = $2 and cleared_at is null returning *", [p.projectId, hold.id])
+    |      × B14 (2): one reconciliation recorded with its evidence: the hold is closed at the stated actual cost, which is then what is charged, its freeze is cleared in the same step, and the frozen project of B10 runs again 82ms
+    | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+    | AssertionError: expected { projectId: 'p15_c78c0995', …(17) } to match object { holdId: '416', …(7) }
+    |       Tests  1 failed | 7 skipped (8)
+    RESULT: the test FAILED, as it should (exit 1)
+=== X4: the invariant checker's reading of hold.reconciled
+    file: test/invariants.ts; test: B14 \(2\)
+    -      case "hold.reconciled": {
+    +      {
+    |      × B14 (2): one reconciliation recorded with its evidence: the hold is closed at the stated actual cost, which is then what is charged, its freeze is cleared in the same step, and the frozen project of B10 runs again 103ms
+    | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+    | AssertionError: expected [ Array(1) ] to deeply equal []
+    |       Tests  1 failed | 7 skipped (8)
+    RESULT: the test FAILED, as it should (exit 1)
+=== X5: the hold closed at the actual cost
+    file: src/store/reconcile.ts; test: B14 \(3\)
+    -    await c.query("update holds set state = 'settled', closed_at = now(), actual_usd = $2 where id = $1", [hold.id, actual]);
+    +    await c.query("update holds set closed_at = closed_at where id = $1 and $2::numeric is not null", [hold.id, actual]);
+    |      × B14 (3): the budget equation after a reconciliation: below the hold, the difference goes back to the budget; above it, the actual cost is charged in full, hold.exceeded says so, and a call that no longer fits is refused 31ms
+    | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+    | AssertionError: expected { before: 9960, after: +0, open: 9960 } to deeply equal { before: 9960, after: 2000, open: +0 }
+    |       Tests  1 failed | 7 skipped (8)
+    RESULT: the test FAILED, as it should (exit 1)
+=== X6: hold.exceeded when the actual cost is above the hold
+    file: src/store/reconcile.ts; test: B14 \(3\)
+    -    if (aboveHold) await event(c, p.projectId, "hold.exceeded", { hold_id: Number(hold.id), amount_usd: held, actual_usd: actual, reconciled: true }, hold.step);
+    +    if (false && aboveHold) await event(c, p.projectId, "hold.exceeded", { hold_id: Number(hold.id), amount_usd: held, actual_usd: actual, reconciled: true }, hold.step);
+    |      × B14 (3): the budget equation after a reconciliation: below the hold, the difference goes back to the budget; above it, the actual cost is charged in full, hold.exceeded says so, and a call that no longer fits is refused 51ms
+    | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+    | AssertionError: expected [] to deeply equal [ { hold_id: 421, …(3) } ]
+    |       Tests  1 failed | 7 skipped (8)
+    RESULT: the test FAILED, as it should (exit 1)
+=== X7: the refusal of a hold that is not kept (a call in flight)
+    file: src/store/reconcile.ts; test: B14 \(4\)
+    -    if (!hold.unreconciled && !hold.expired && hold.kept_reason === null) {
+    +    if (false) {
+    |      × B14 (4): a reconciliation that cannot be recorded is refused with its own reason, and changes and writes nothing 47ms
+    | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+    | AssertionError: expected the refusal hold_not_kept: expected null to be an instance of ReconcileRefused
+    |     199|   expect(err, `expected the refusal ${code}`).toBeInstanceOf(Reconcile…
+    |     200|   expect((err as ReconcileRefused).code).toBe(code);
+    |     201|   expect((err as ReconcileRefused).message).toContain("Nothing was cha…
+    RESULT: the test FAILED, as it should (exit 1)
+=== X8: the refusal of a hold whose cost is already recorded
+    file: src/store/reconcile.ts; test: B14 \(4\)
+    -    if ((already.rowCount ?? 0) > 0) {
+    +    if (false) {
+    |      × B14 (4): a reconciliation that cannot be recorded is refused with its own reason, and changes and writes nothing 43ms
+    | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+    | AssertionError: expected the refusal cost_already_recorded: expected null to be an instance of ReconcileRefused
+    |     199|   expect(err, `expected the refusal ${code}`).toBeInstanceOf(Reconcile…
+    |     200|   expect((err as ReconcileRefused).code).toBe(code);
+    |     201|   expect((err as ReconcileRefused).message).toContain("Nothing was cha…
+    RESULT: the test FAILED, as it should (exit 1)
+=== X9: the check of the evidence
+    file: src/store/reconcile.ts; test: B14 \(4\)
+    -  const evidence = checkText("evidence", p.evidence, MAX_EVIDENCE);
+    +  const evidence = String(p.evidence);
+    |      × B14 (4): a reconciliation that cannot be recorded is refused with its own reason, and changes and writes nothing 35ms
+    | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+    | AssertionError: expected the refusal evidence_missing: expected null to be an instance of ReconcileRefused
+    |     199|   expect(err, `expected the refusal ${code}`).toBeInstanceOf(Reconcile…
+    |     200|   expect((err as ReconcileRefused).code).toBe(code);
+    |     201|   expect((err as ReconcileRefused).message).toContain("Nothing was cha…
+    RESULT: the test FAILED, as it should (exit 1)
+=== X10: the project's lock (tx.ts) and the hold's row lock (reconcile.ts)
+    file: src/store/tx.ts and src/store/reconcile.ts; test: B14 \(5\)
+    -    const hold = (await c.query<Hold>("select * from holds where id = $1 and project_id = $2 for update", [p.holdId, p.projectId])).rows[0];
+    +    const hold = (await c.query<Hold>("select * from holds where id = $1 and project_id = $2", [p.holdId, p.projectId])).rows[0];
+    -    await client.query("select id from projects where id = $1 for update", [projectId]);
+    |      × B14 (5): two reconciliations of the same hold at once are judged one after the other under the project's lock: one is recorded, the other refused, and the cost is charged once 32ms
+    | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+    | AssertionError: expected [ { status: 'fulfilled', …(1) }, …(1) ] to have a length of 1 but got 2
+    |     422|     expect(no.map((x) => (x.reason as ReconcileRefused).code)).toEqual…
+    |       Tests  1 failed | 7 skipped (8)
+    RESULT: the test FAILED, as it should (exit 1)
+=== X11: clearing only the freezes this hold caused
+    file: src/store/reconcile.ts; test: B14 \(6\)
+    -      await c.query<Freeze>("update project_freezes set cleared_at = clock_timestamp() where project_id = $1 and hold_id = $2 and cleared_at is null returning *", [p.projectId, hold.id])
+    +      await c.query<Freeze>("update project_freezes set cleared_at = clock_timestamp() where project_id = $1 and (hold_id = $2 or true) and cleared_at is null returning *", [p.projectId, hold.id])
+    |      × B14 (6): a project frozen by two calls stays frozen until both are reconciled; a hold past its deadline not yet marked is reconciled after being marked; a kept call of a running step gives back to the step what it did not cost; a freeze whose hold is not open is listed apart 33ms
+    | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+    | AssertionError: expected { projectId: 'p15_d0e896d5', …(17) } to match object { projectStillFrozen: true }
+    |       Tests  1 failed | 7 skipped (8)
+    RESULT: the test FAILED, as it should (exit 1)
+=== X12: marking holds past their deadline before the hold is read
+    file: src/store/reconcile.ts; test: B14 \(6\)
+    -    await expireHoldsIn(c, p.projectId, now);
+    |      × B14 (6): a project frozen by two calls stays frozen until both are reconciled; a hold past its deadline not yet marked is reconciled after being marked; a kept call of a running step gives back to the step what it did not cost; a freeze whose hold is not open is listed apart 60ms
+    | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+    | ReconcileRefused: Hold 436 is open for a call that has not ended: it is not on the unreconciled list. Nothing was changed and nothing was written.
+    |     330|       throw new ReconcileRefused("hold_not_kept", `Hold ${p.holdId} is…
+    |       Tests  1 failed | 7 skipped (8)
+    RESULT: the test FAILED, as it should (exit 1)
+=== X13: giving back to a running step's room
+    file: src/store/reconcile.ts; test: B14 \(6\)
+    -    const step = await returnToStepIn(c, hold, actual);
+    +    const step = null;
+    |      × B14 (6): a project frozen by two calls stays frozen until both are reconciled; a hold past its deadline not yet marked is reconciled after being marked; a kept call of a running step gives back to the step what it did not cost; a freeze whose hold is not open is listed apart 92ms
+    | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+    | AssertionError: expected 9960 to be 18920 // Object.is equality
+    |       Tests  1 failed | 7 skipped (8)
+    RESULT: the test FAILED, as it should (exit 1)
+=== X14: listing a hold past its deadline that the sweep has not marked
+    file: src/store/reconcile.ts; test: B14 \(6\)
+    -const KEPT_SQL = "state = 'open' and (unreconciled or expired or kept_reason is not null or deadline_at <= $1)";
+    +const KEPT_SQL = "state = 'open' and (unreconciled or expired or kept_reason is not null or deadline_at <= $1 - interval '100 years')";
+    |      × B14 (6): a project frozen by two calls stays frozen until both are reconciled; a hold past its deadline not yet marked is reconciled after being marked; a kept call of a running step gives back to the step what it did not cost; a freeze whose hold is not open is listed apart 43ms
+    | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+    |       Tests  1 failed | 7 skipped (8)
+    RESULT: the test FAILED, as it should (exit 1)
+=== X15: printing the database's name only
+    file: scripts/reconcile.ts; test: B14 \(7\)
+    -  console.log(`Database: ${db.rows[0]!.name} (its name only; the address is not printed)`);
+    +  console.log(`Database: ${process.env.BUILDER_DATABASE_URL} ${db.rows[0]!.name} (its name only; the address is not printed)`);
+    |      × B14 (7): the script lists and records: --list prints the list; a reconciliation is recorded (exit 0) and printed; a refusal exits 2 and a misuse 1; neither the database's address nor a key is printed 1774ms
+    | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+    | AssertionError: expected 'Database: postgres:///builder_test_pk…' not to contain '/var/run/postgresql'
+    |       Tests  1 failed | 7 skipped (8)
+    RESULT: the test FAILED, as it should (exit 1)
+=== X16: the kinds table matching what the gateway writes
+    file: src/store/reconcile.ts; test: still written
+    -  "the provider answered with a server error",
+    +  "the provider answered with a server error (renamed)",
+    |      × 1.5: each reason the kinds table names is still written by the gateway or the store 11ms
+    | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+    | AssertionError: the provider answered with a server error (renamed): expected '/**\n * The model gateway: the only r…' to contain 'the provider answered with a server e…'
+    |       Tests  1 failed | 7 skipped (8)
+    RESULT: the test FAILED, as it should (exit 1)
+=== controls that failed as they should: 16; that did not: 0
+?? ../evidence/2026-11-13-package-1.5/
+
+---
+
+Control X17 of package 1.5 (after its review), run at 026d405 by controls.sh in this folder with ONLY=X17 (it removes one safeguard with perl, runs the named test of test/reconcile.test.ts on builder_test_pkg15 under the lock, expects it to FAIL, then restores the file with git checkout)
+=== X17: showing C1 control characters (U+0080 to U+009F) as spaces in the script's output (added after 1.5's review)
+    file: scripts/reconcile.ts; test: C1 ones included
+    -const line = (s: unknown) => String(s).replace(/[\u0000-\u001f\u007f-\u009f]+/g, " ");
+    +const line = (s: unknown) => String(s).replace(/[\u0000-\u001f\u007f]+/g, " ");
+    |      × 1.5, after its review: the script prints an owner's words with their control characters, C1 ones included, as spaces; the event log keeps them as given 499ms
+    | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+    | AssertionError: expected 'Database: builder_test_pkg15 (its nam…' to contain 'evidence:      Usage record (made up)…'
+    |       Tests  1 failed | 8 skipped (9)
+    RESULT: the test FAILED, as it should (exit 1)
+=== controls that failed as they should: 1; that did not: 0
+ M ../evidence/2026-11-13-package-1.5/controls.sh
