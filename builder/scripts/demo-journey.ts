@@ -16,6 +16,10 @@
  * made is removed: J1's containers, images, volumes and networks, the sandbox folders, the data folder, the camera's
  * folder and the database. What was on the machine before and after is listed in <evidence>/run-demo.txt.
  *
+ * Before anything else, the runner image both cameras use is checked with package 3.1b's `runnerImageProblem`
+ * (Docker answers; the image is on this machine, labelled with the approved browser zip's fingerprint); with a
+ * problem, the run is refused and nothing is started or written.
+ *
  * Made-up data only. No model is called; no gateway is started; the real-model gate stays closed.
  */
 import { execFile, execFileSync, spawn } from "node:child_process";
@@ -24,7 +28,7 @@ import { chmodSync, chownSync, closeSync, constants, existsSync, fstatSync, mkdi
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { promisify } from "node:util";
-import { RUNNER_IMAGE, RUNNER_UID, runnerImageExists } from "../src/acceptance/runner-image.js";
+import { BROWSER_ZIP_LABEL, RUNNER_IMAGE, RUNNER_UID, runnerImageProblem } from "../src/acceptance/runner-image.js";
 import { sha256 } from "../src/acceptance/store.js";
 import { createPool } from "../src/store/db.js";
 import { portFree } from "./example-1-sandbox.js";
@@ -97,6 +101,13 @@ function readPng(path: string): Buffer | null {
 async function main(): Promise<number> {
   mkdirSync(screensDir, { recursive: true });
   say(`J1's automated run, ${new Date().toISOString()} (run ${runId}).`);
+  // Package 3.1b: the runner image both cameras use, checked first, as an acceptance run checks it.
+  const imageProblem = await runnerImageProblem(RUNNER_IMAGE, dockerEnv());
+  if (imageProblem) {
+    say(`Refused: ${imageProblem}. Nothing was started.`);
+    return 2;
+  }
+  say(`The approved runner image ${RUNNER_IMAGE} is on the machine, labelled ${BROWSER_ZIP_LABEL} with the approved browser zip's fingerprint (checked with runnerImageProblem, package 3.1b; id ${await sh("docker", ["image", "inspect", RUNNER_IMAGE, "--format", "{{.Id}}"])}); this run neither builds nor removes it.`);
   say(`Builder tree: ${execFileSync("git", ["-C", builderDir, "write-tree", "--prefix=builder/"], { encoding: "utf8" }).trim()} (git write-tree --prefix=builder/ of the index at the start of the run).`);
   say(`Free disk before: ${execFileSync("df", ["-h", "/"], { encoding: "utf8" }).trim().split("\n").pop()}`);
   say("docker system df before:");
@@ -115,11 +126,6 @@ async function main(): Promise<number> {
     return 2;
   }
   say(`Ports ${PORTS.join(", ")} on 127.0.0.1: free before the run (checked by a connection attempt, refused).`);
-  if (!(await runnerImageExists(dockerEnv()))) {
-    say(`Refused: the approved runner image ${RUNNER_IMAGE} is not on this machine (it is built by the acceptance runner's tests); nothing was started.`);
-    return 2;
-  }
-  say(`The approved runner image ${RUNNER_IMAGE} is on the machine (id ${await sh("docker", ["image", "inspect", RUNNER_IMAGE, "--format", "{{.Id}}"])}); this run neither builds nor removes it.`);
 
   // A fresh database and data folder, and the camera's folders.
   execFileSync("createdb", ["-h", "/var/run/postgresql", dbName]);

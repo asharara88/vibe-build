@@ -14,10 +14,10 @@ import { html } from "hono/html";
 import type { HtmlEscapedString } from "hono/utils/html";
 import type { Event } from "../store/events.js";
 import type { Budget, StepHoldRow } from "../store/holds.js";
-import type { Freeze } from "../store/freezes.js";
+import { SET_ASIDE_FREEZE_REASON, type Freeze, type FreezeKind } from "../store/freezes.js";
 import type { UnreconciledList } from "../store/reconcile.js";
 import { fieldChecklist, MAX_FREE_TEXT, showReason, type Answer, type IntakeQuestion } from "../orchestrator/intake.js";
-import { approveRefusal, buildStepRefusal, DISK_FLOOR_BYTES, EV, EXPORT_LABEL, JOB_RULES, JOURNEY_PREFIX, JOURNEY_STAND_IN_LABEL, MAX_BRIEF, MAX_NAME, SIGN_OFF_LABEL, signOffRefusal, type Journey, type JourneyState, type Stage } from "../orchestrator/journey.js";
+import { approveRefusal, buildStepRefusal, DISK_FLOOR_BYTES, EV, EXPORT_LABEL, JOB_RULES, JOURNEY_PREFIX, JOURNEY_STAND_IN_LABEL, MAX_BRIEF, MAX_NAME, runOutcome, SIGN_OFF_LABEL, signOffRefusal, type Journey, type JourneyState, type Stage } from "../orchestrator/journey.js";
 import { REFUSAL_EXTRA } from "../orchestrator/journey-jobs.js";
 import { STAND_IN_NOTE } from "../acceptance/store.js";
 
@@ -168,6 +168,17 @@ function tStep(lang: Lang, key: string, vars: Record<string, string | number>, s
 
 const usd = (n: number) => `$${n.toFixed(2)}`;
 const usd4 = (n: number) => `$${n.toFixed(4)}`;
+/** To the millionth, as a bill above its hold is stored (it can differ from the hold by less than a cent). */
+const usd6 = (n: number) => `$${n.toFixed(6)}`;
+
+/**
+ * The kind a freeze is shown under (packages 1.4, 1.4c and 1.4b). A set-aside freeze written by package 1.4b on a
+ * database that had not yet run 1.4c's migration 010 has the kind 'unrecorded_ending' and the set-aside's reason
+ * (store/freezes.ts, `frozenMessage`, reads it the same way): it is shown as a set-aside.
+ */
+export function shownFreezeKind(f: Pick<Freeze, "kind" | "reason">): FreezeKind {
+  return f.kind === "unrecorded_ending" && f.reason === SET_ASIDE_FREEZE_REASON ? "journal_line_set_aside" : f.kind;
+}
 
 /* ------------------------------------------------------------------ sign-in and first run */
 
@@ -475,8 +486,8 @@ ${
 export interface CostView {
   budget: Budget;
   stepHolds: StepHoldRow[];
-  freeze: Freeze | null;
-  freezeMessage: string | null;
+  /** Every freeze of the project not cleared, oldest first, each with the message `frozenMessage` gives for a step. */
+  freezes: Array<{ freeze: Freeze; message: string }>;
   unreconciled: UnreconciledList;
   modelCalls: number;
   pricedModel: string;
@@ -500,13 +511,21 @@ ${b.spent === 0 && v.modelCalls === 0 ? html`<p class="note" data-zero>${t(lang,
 <tbody>${v.stepHolds.map((h) => html`<tr><td>${stepId(h.step_id)}</td><td>${usd4(Number(h.budget_usd))}</td><td>${h.state}${h.closed_reason ? ` (${h.closed_reason})` : ""}</td></tr>`)}</tbody></table></div>
 <p class="note">${t(lang, "cost.priced", { model: v.pricedModel, date: v.priceTableDate })}</p>`
     : html`<p>${t(lang, "cost.no_steps")}</p>`;
-  const freeze = v.freeze ? html`<p class="warn" data-freeze>${t(lang, "cost.frozen", { message: v.freezeMessage ?? "" })}</p>` : html`<p data-no-freeze>${t(lang, "cost.no_freeze")}</p>`;
+  // Every freeze not cleared, each with its kind (packages 1.4, 1.4b and 1.4c) and the message the gateway's refusal gives.
+  const freeze = v.freezes.length
+    ? html`<p class="warn" data-frozen>${t(lang, "cost.frozen_intro")}</p>
+<div class="scroll"><table data-freezes><thead><tr><th>#</th><th>${t(lang, "cost.freeze_kind")}</th><th>${t(lang, "cost.freeze_hold")}</th><th>${t(lang, "cost.freeze_message")}</th></tr></thead>
+<tbody>${v.freezes.map(({ freeze: f, message }) => {
+        const kind = shownFreezeKind(f);
+        return html`<tr data-freeze="${f.id}" data-freeze-kind="${kind}"><td>${f.id}</td><td>${t(lang, `cost.kind.${kind}`)}<div class="note" lang="en" dir="ltr"><code>${kind}</code></div></td><td>${f.hold_id ?? ""}</td><td lang="en" dir="ltr">${message}</td></tr>`;
+      })}</tbody></table></div>`
+    : html`<p data-no-freeze>${t(lang, "cost.no_freeze")}</p>`;
   const un = v.unreconciled;
   const unreconciled =
-    un.holds.length === 0 && un.freezesWithNoOpenHold.length === 0
+    un.holds.length === 0 && un.freezesWithNoOpenHold.length === 0 && un.overrunFreezes.length === 0
       ? html`<p data-unreconciled-empty>${t(lang, "cost.unreconciled_none")}</p>`
       : html`<div class="scroll"><table data-unreconciled><thead><tr><th>#</th><th>${t(lang, "cost.amount")}</th><th>${t(lang, "cost.reason")}</th></tr></thead>
-<tbody>${un.holds.map((h) => html`<tr><td>${h.holdId}</td><td>${usd4(h.amountUsd)}</td><td>${h.kinds.join(", ")}${h.keptReason ? `: ${h.keptReason}` : ""}</td></tr>`)}${un.freezesWithNoOpenHold.map((f) => html`<tr><td>${f.freezeId}</td><td></td><td>${f.holdState ?? ""}</td></tr>`)}</tbody></table></div>`;
+<tbody>${un.holds.map((h) => html`<tr data-unreconciled-hold="${h.holdId}"><td>${h.holdId}</td><td>${usd4(h.amountUsd)}</td><td>${h.kinds.join(", ")}${h.keptReason ? `: ${h.keptReason}` : ""}</td></tr>`)}${un.freezesWithNoOpenHold.map((f) => html`<tr data-freeze-no-open-hold="${f.freezeId}"><td>${f.freezeId}</td><td></td><td>${f.holdState ?? ""}</td></tr>`)}${un.overrunFreezes.map((o) => html`<tr data-overrun="${o.freezeId}"><td>${o.holdId}</td><td>${usd6(o.billUsd)}</td><td>${t(lang, "cost.overrun", { freeze: o.freezeId, bill: usd6(o.billUsd), held: usd6(o.heldUsd), above: usd6(o.aboveByUsd) })}</td></tr>`)}</tbody></table></div>`;
   return projectPage(
     lang,
     s,
@@ -703,6 +722,9 @@ export function acceptancePage(lang: Lang, s: JourneyState, j: Journey): Html {
   const id = s.project.id;
   const finished = s.events.filter((e) => e.kind === "acceptance.run.finished").at(-1);
   const runId = finished ? String(finished.payload.run_id ?? "") : null;
+  // The run's outcome word, from its own acceptance.run.finished event (package 3.1b), not from the summary's text.
+  const outcome = runId ? runOutcome(s.events, runId) : null;
+  const outcomeShown = html`<strong class="${outcome === "passed" ? "ok" : "warn"}" data-outcome="${outcome ?? "none"}">${t(lang, `acceptance.outcome.${outcome === null ? "none" : outcome === "not passed" ? "not_passed" : outcome}`)}</strong>`;
   const items = runId ? s.events.filter((e) => e.kind === "acceptance.item" && e.payload.run_id === runId) : [];
   const canRun = !s.runningJob && !s.interrupted && JOB_RULES.acceptance(s) === null;
   const lastJob = [...s.jobs].reverse().find((x) => x.kind === "acceptance");
@@ -713,7 +735,7 @@ export function acceptancePage(lang: Lang, s: JourneyState, j: Journey): Html {
     html`${runningNote(lang, s)}<p>${t(lang, "acceptance.run_intro")}</p>
 ${lastJob?.state === "failed" || lastJob?.state === "interrupted" ? html`<p class="warn" lang="en" dir="ltr" data-job-failed>${lastJob.reason ?? ""}</p>` : ""}
 ${canRun ? html`<div class="actions">${postButton(`/projects/${id}/acceptance`, t(lang, "acceptance.run"))}</div>` : ""}
-${finished ? html`<table data-run="${runId ?? ""}"><tr><th>${t(lang, "acceptance.run_id")}</th><td lang="en" dir="ltr">${runId}</td></tr><tr><th>${t(lang, "acceptance.version")}</th><td>${String(finished.payload.version ?? "")}</td></tr><tr><th>${t(lang, "acceptance.exit")}</th><td>${finished.payload.exit_code === null ? t(lang, "acceptance.no_container") : String(finished.payload.exit_code)}</td></tr><tr><th>${t(lang, "acceptance.summary")}</th><td lang="en" dir="ltr" data-summary>${String(finished.payload.summary ?? "")}</td></tr></table>` : html`<p class="note">${t(lang, "acceptance.not_run")}</p>`}`,
+${finished ? html`<table data-run="${runId ?? ""}"><tr><th>${t(lang, "acceptance.run_id")}</th><td lang="en" dir="ltr">${runId}</td></tr><tr><th>${t(lang, "acceptance.version")}</th><td>${String(finished.payload.version ?? "")}</td></tr><tr><th>${t(lang, "acceptance.exit")}</th><td>${finished.payload.exit_code === null ? t(lang, "acceptance.no_container") : String(finished.payload.exit_code)}</td></tr><tr><th>${t(lang, "acceptance.outcome")}</th><td>${outcomeShown}</td></tr><tr><th>${t(lang, "acceptance.summary")}</th><td lang="en" dir="ltr" data-summary>${String(finished.payload.summary ?? "")}</td></tr></table>` : html`<p class="note">${t(lang, "acceptance.not_run")}</p>`}`,
   );
   const rows = j.spec.acceptance.map((item) => {
     const ev = items.find((e) => num(e.payload.item) === item.number);
@@ -728,7 +750,7 @@ ${finished ? html`<table data-run="${runId ?? ""}"><tr><th>${t(lang, "acceptance
     t(lang, "acceptance.results"),
     html`<p><span class="label" data-label>${t(lang, "acceptance.label")}</span></p>${englishToo(lang, JOURNEY_STAND_IN_LABEL)}
 <p class="note" lang="en" dir="ltr" data-stand-in-note>${STAND_IN_NOTE}</p>
-${finished ? html`<p>${t(lang, "acceptance.summary")}: <span lang="en" dir="ltr">${String(finished.payload.summary ?? "")}</span></p>` : ""}
+${finished ? html`<p>${t(lang, "acceptance.outcome")}: ${outcomeShown}</p><p>${t(lang, "acceptance.summary")}: <span lang="en" dir="ltr">${String(finished.payload.summary ?? "")}</span></p>` : ""}
 <div class="scroll"><table data-items><thead><tr><th>#</th><th>${t(lang, "acceptance.item")}</th><th>${t(lang, "acceptance.result")}</th></tr></thead><tbody>${rows}</tbody></table></div>
 <h3>${t(lang, "proposal.assumed")}</h3>
 <ul data-assumed lang="en" dir="ltr">${j.spec.assumed.map((a) => html`<li>${a.about}: ${a.chose} ${a.reason}</li>`)}</ul>`,

@@ -5,15 +5,16 @@
  * preview, checklist and export jobs, with a stand-in for example 1's sandboxes (test/journey-stand-ins.ts): a real
  * workspace and history, no container.
  */
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import type pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { BROWSER_ZIP_LABEL, BROWSER_ZIP_SHA256, RUNNER_IMAGE } from "../src/acceptance/runner-image.js";
 import { openStore, sha256 } from "../src/acceptance/store.js";
 import { git, workspaceChanges } from "../src/engine/project-repo.js";
-import { checkJourneyId, recordedSandboxRefusal } from "../src/orchestrator/example-1-adapter.js";
+import { cameraImageProblem, checkJourneyId, recordedSandboxRefusal } from "../src/orchestrator/example-1-adapter.js";
 import { secretLikePath } from "../src/orchestrator/export.js";
 import { APP_SHOTS, JourneyJobs, REFUSAL_EXTRA } from "../src/orchestrator/journey-jobs.js";
 import { journeyFolder } from "../src/web/files.js";
@@ -21,7 +22,7 @@ import { PASSED_SUMMARY, PNG_1X1, slowPoolFor, StandInSandboxes } from "./journe
 import type { BuildEngine } from "../src/engine/interface.js";
 import { ScriptedEngine } from "../src/engine/scripted.js";
 import { DEFAULT_PROFILES } from "../src/gateway/hold.js";
-import { diskRefusal, EV, EventQueue, EXPORT_LABEL, Journey, JourneyRefused, JOURNEY_STAND_IN_LABEL, orderedEngine, scriptedEngineFor, engineEventHandler, SIGN_OFF_LABEL } from "../src/orchestrator/journey.js";
+import { diskRefusal, EV, EventQueue, EXPORT_LABEL, Journey, JourneyRefused, JOURNEY_STAND_IN_LABEL, orderedEngine, runOutcome, scriptedEngineFor, engineEventHandler, SIGN_OFF_LABEL } from "../src/orchestrator/journey.js";
 import { runBudgetedStep } from "../src/orchestrator/steps.js";
 import type { Sandbox } from "../src/sandbox/manager.js";
 import { appendEvent, listEvents } from "../src/store/events.js";
@@ -519,7 +520,7 @@ describe("J1 journey, part 2: the build, preview, checklist and export jobs (sta
     await j.waitForJob();
     await j.signOff(id);
     const signed = (await listEvents(pool, id, EV.signedOff))[0]!;
-    expect(signed.payload).toMatchObject({ label: SIGN_OFF_LABEL, acceptance_summary: PASSED_SUMMARY, acceptance_label: JOURNEY_STAND_IN_LABEL });
+    expect(signed.payload).toMatchObject({ label: SIGN_OFF_LABEL, acceptance_outcome: "passed", acceptance_summary: PASSED_SUMMARY, acceptance_label: JOURNEY_STAND_IN_LABEL });
     expect(SIGN_OFF_LABEL).toBe("Sign-off on a simulated build, checked by a stand-in test of item 1 only: not acceptance");
     expect((await j.state(id)).stage).toBe("signed_off");
     await expect(jobs.acceptance(id)).rejects.toThrow("The project is signed off; the checklist is not run again.");
@@ -723,6 +724,96 @@ describe("J1 journey, part 2: the build, preview, checklist and export jobs (sta
     expect(kinds.indexOf(EV.jobInterrupted)).toBeLessThan(kinds.indexOf("step.hold_closed"));
     expect((await listStepHolds(pool, other)).map((h) => h.state)).toEqual(["open"]);
   });
+
+  it("brought up to date with 3.1b: sign-off reads the outcome word of the run's own acceptance.run.finished event, never its summary's text", async () => {
+    const { j, jobs } = make();
+    const id = await previewed(j, jobs);
+    // The summary says "version passed; …" in every one of these runs; only the outcome word differs.
+    for (const word of ["not passed", "failed", "absent", "Passed", "passed "]) {
+      sandboxes.outcomeWord = word;
+      try {
+        await jobs.acceptance(id);
+        await j.waitForJob();
+      } finally {
+        sandboxes.outcomeWord = null;
+      }
+      const s = await j.state(id);
+      expect(s.acceptanceRun?.summary, word).toBe(PASSED_SUMMARY);
+      expect(s.acceptanceRun?.outcome, word).toBe(word === "not passed" || word === "failed" ? word : null);
+      await expect(j.signOff(id), word).rejects.toThrow("The last checklist run did not pass, so there is nothing to sign off.");
+    }
+    expect(await listEvents(pool, id, EV.signedOff)).toEqual([]);
+    // A run whose record gives "passed" is signed off, and the sign-off records the word.
+    await jobs.acceptance(id);
+    await j.waitForJob();
+    expect((await j.state(id)).acceptanceRun?.outcome).toBe("passed");
+    await j.signOff(id);
+    expect((await listEvents(pool, id, EV.signedOff))[0]!.payload).toMatchObject({ acceptance_outcome: "passed", acceptance_summary: PASSED_SUMMARY });
+    await j.closeProject(id);
+  });
+
+  it("brought up to date with 3.1b: a run's outcome word is read only from one acceptance.run.finished event of that run, and only if it is one of the three words", () => {
+    const at = new Date();
+    const ev = (id: string, payload: Record<string, unknown>, kind = "acceptance.run.finished") => ({ id, project_id: "j1-0123456789ab", at, kind, step: null, payload });
+    expect(runOutcome([ev("1", { run_id: "r1", outcome: "passed" })], "r1")).toBe("passed");
+    expect(runOutcome([ev("1", { run_id: "r1", outcome: "not passed" })], "r1")).toBe("not passed");
+    expect(runOutcome([ev("1", { run_id: "r1", outcome: "failed" })], "r1")).toBe("failed");
+    expect(runOutcome([ev("1", { run_id: "r2", outcome: "passed" })], "r1")).toBeNull(); // another run's
+    expect(runOutcome([ev("1", { run_id: "r1", outcome: "passed" }, "acceptance.item")], "r1")).toBeNull(); // not the run's ending
+    expect(runOutcome([ev("1", { run_id: "r1", summary: PASSED_SUMMARY })], "r1")).toBeNull(); // no word: not read from the summary
+    expect(runOutcome([ev("1", { run_id: "r1", outcome: "skipped" })], "r1")).toBeNull();
+    expect(runOutcome([ev("1", { run_id: "r1", outcome: true })], "r1")).toBeNull();
+    expect(runOutcome([ev("1", { run_id: "r1", outcome: "passed" }), ev("2", { run_id: "r1", outcome: "passed" })], "r1")).toBeNull(); // two endings for one run
+  });
+
+  it("brought up to date with 3.1b: the preview checks the camera's runner image first; with a problem, no app is built, or the app is stopped before the camera starts, and no screenshot is recorded", async () => {
+    const { j, jobs } = make();
+    const id = await ready(j);
+    await jobs.buildStep(id, "01-data");
+    await j.waitForJob();
+    await jobs.approve(id, "01-data");
+    await j.waitForJob();
+    const problem = `the runner image ${RUNNER_IMAGE} has no ${BROWSER_ZIP_LABEL} label, so it was not built by this version of the builder from the approved browser zip: build it again`;
+    const runsBefore = sandboxes.cameraRuns;
+    // Before the build: nothing is built or started.
+    sandboxes.cameraImage = problem;
+    try {
+      await jobs.approve(id, "02-submitter-screen");
+      await j.waitForJob();
+    } finally {
+      sandboxes.cameraImage = null;
+    }
+    let s = await j.state(id);
+    expect(s.jobs.at(-1)).toMatchObject({ kind: "preview", state: "failed", reason: `The app camera cannot start, so the app was not built: ${problem}.` });
+    expect(sandboxes.started).not.toContain(id);
+    expect(s.appRunning).toBe(false);
+    // After the build, just before the camera: the app is stopped, the camera does not run.
+    sandboxes.cameraImageAfterStart = problem;
+    try {
+      await jobs.preview(id);
+      await j.waitForJob();
+    } finally {
+      sandboxes.cameraImageAfterStart = null;
+      sandboxes.cameraImage = null;
+    }
+    s = await j.state(id);
+    expect(s.jobs.at(-1)).toMatchObject({ kind: "preview", state: "failed", reason: `The app camera did not start: ${problem}. No screenshot was recorded.` });
+    expect(sandboxes.started).toContain(id);
+    expect(sandboxes.stoppedApps).toContain(id);
+    expect(s.appRunning).toBe(false);
+    expect((await listEvents(pool, id)).map((e) => e.kind).slice(-2)).toEqual([EV.appStopped, EV.jobFailed]);
+    expect(sandboxes.cameraRuns).toBe(runsBefore);
+    expect(await listEvents(pool, id, EV.screenshot)).toEqual([]);
+    expect(existsSync(join(dataDir, "journey", id, "camera-runs")) ? readdirSync(join(dataDir, "journey", id, "camera-runs")) : []).toEqual([]);
+    // With the image as it should be, the preview is made.
+    const checks = sandboxes.cameraImageChecks;
+    await jobs.preview(id);
+    await j.waitForJob();
+    expect((await j.state(id)).previewFinished).toBe(true);
+    expect(sandboxes.cameraImageChecks - checks).toBe(2); // before the build, and just before the camera
+    expect(sandboxes.cameraRuns).toBe(runsBefore + 1);
+    await j.closeProject(id);
+  });
 });
 
 describe("J1 journey, part 2: the adapter removes only journey sandboxes", () => {
@@ -749,6 +840,84 @@ describe("J1 journey, part 2: the adapter removes only journey sandboxes", () =>
       expect(recordedSandboxRefusal(id, empty)).toBe("the recorded folder holds no compose file");
     } finally {
       rmSync(base, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("J1 journey, brought up to date with 3.1b: both cameras check the runner image first, with runnerImageProblem", () => {
+  /** A made-up docker program: it answers `docker image inspect` only, as its mode file says, and writes down every call. */
+  function standInDocker(mode: "right label" | "no label" | "another fingerprint" | "no such image") {
+    const bin = mkdtempSync(join(tmpdir(), "builder-journey-standin-docker-"));
+    const labels =
+      mode === "right label" ? `{"builder.package":"3.1","${BROWSER_ZIP_LABEL}":"${BROWSER_ZIP_SHA256}"}`
+      : mode === "another fingerprint" ? `{"builder.package":"3.1","${BROWSER_ZIP_LABEL}":"${"0".repeat(64)}"}`
+      : '{"builder.package":"3.1"}';
+    const script = [
+      "#!/bin/sh",
+      'echo "$*" >> "$(dirname "$0")/calls"',
+      'if [ "$1" = "image" ] && [ "$2" = "inspect" ]; then',
+      mode === "no such image" ? `  echo "Error response from daemon: No such image: ${RUNNER_IMAGE}" >&2; exit 1` : `  echo '${labels}'; exit 0`,
+      "fi",
+      'echo "made-up docker: only image inspect is answered" >&2',
+      "exit 1",
+      "",
+    ].join("\n");
+    writeFileSync(join(bin, "docker"), script, { mode: 0o755 });
+    return { bin, calls: () => (existsSync(join(bin, "calls")) ? readFileSync(join(bin, "calls"), "utf8").trim().split("\n") : []) };
+  }
+
+  it("the app camera: the adapter asks runnerImageProblem of the image the sandbox's acceptance service names, with the sandbox's Docker settings", async () => {
+    const sbDir = mkdtempSync(join(tmpdir(), "builder-journey-camera-image-"));
+    const savedPath = process.env.PATH;
+    try {
+      expect(await cameraImageProblem({ dir: sbDir })).toBe("the sandbox has no acceptance service");
+      for (const [mode, expected] of [
+        ["right label", null],
+        ["no label", `the runner image ${RUNNER_IMAGE} has no ${BROWSER_ZIP_LABEL} label, so it was not built by this version of the builder from the approved browser zip: build it again`],
+        ["another fingerprint", `the runner image ${RUNNER_IMAGE} was built from a browser zip with another fingerprint, not the approved ${BROWSER_ZIP_SHA256}: build it again`],
+        ["no such image", `the runner image ${RUNNER_IMAGE} is not on this machine: it is built from the approved browser zip (scripts/fetch-browser.ts fetches the zip; the image is built by buildRunnerImage)`],
+      ] as const) {
+        const d = standInDocker(mode);
+        try {
+          process.env.PATH = `${d.bin}:${savedPath ?? ""}`;
+          expect(await cameraImageProblem({ dir: sbDir, acceptanceImage: RUNNER_IMAGE }), mode).toBe(expected);
+          expect(d.calls(), mode).toEqual([`image inspect --format {{json .Config.Labels}} ${RUNNER_IMAGE}`]);
+        } finally {
+          process.env.PATH = savedPath;
+          rmSync(d.bin, { recursive: true, force: true });
+        }
+      }
+    } finally {
+      process.env.PATH = savedPath;
+      rmSync(sbDir, { recursive: true, force: true });
+    }
+  });
+
+  it("the builder camera: the automated run checks the runner image before anything else, and is refused with runnerImageProblem's reason, starting and writing nothing", () => {
+    for (const mode of ["no label", "no such image"] as const) {
+      const d = standInDocker(mode);
+      const evidence = mkdtempSync(join(tmpdir(), "builder-journey-demo-refused-"));
+      try {
+        const r = spawnSync(process.execPath, ["--import", "tsx", "scripts/demo-journey.ts", evidence], {
+          cwd: builderDir,
+          env: { PATH: `${d.bin}:${process.env.PATH ?? ""}`, HOME: process.env.HOME ?? "/root", NO_COLOR: "1" },
+          encoding: "utf8",
+          timeout: 60_000,
+        });
+        const out = `${r.stdout}\n${r.stderr}`;
+        expect(r.status, out).toBe(2);
+        expect(out, mode).toMatch(mode === "no label" ? new RegExp(`Refused: the runner image ${RUNNER_IMAGE.replace(/[.:-]/g, "\\$&")} has no ${BROWSER_ZIP_LABEL.replace(/\./g, "\\.")} label`) : /Refused: the runner image builder-acceptance-runner:local is not on this machine/);
+        expect(out).toContain("Nothing was started.");
+        // The image check was the only Docker call: no container listed, no database made, no port tried.
+        expect(d.calls(), mode).toEqual([`image inspect --format {{json .Config.Labels}} ${RUNNER_IMAGE}`]);
+        expect(out).not.toMatch(/Builder tree|Fresh database|docker system df before|Ports .* free before the run/);
+        // Nothing written into the evidence folder but its empty screens folder.
+        expect(readdirSync(evidence)).toEqual(["screens"]);
+        expect(readdirSync(join(evidence, "screens"))).toEqual([]);
+      } finally {
+        rmSync(d.bin, { recursive: true, force: true });
+        rmSync(evidence, { recursive: true, force: true });
+      }
     }
   });
 });

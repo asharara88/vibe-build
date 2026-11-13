@@ -21,6 +21,7 @@ import { join } from "node:path";
 import type pg from "pg";
 import type { BuildEngine, EngineEvent, StepInstruction, StepResult } from "../engine/interface.js";
 import { listSteps, readManifest, ScriptedEngine, type ScriptedEngineOptions } from "../engine/scripted.js";
+import type { RunOutcome } from "../acceptance/results.js";
 import { openStore, sha256, STAND_IN_LABEL } from "../acceptance/store.js";
 import { writeStandInVersion } from "../acceptance/stand-in.js";
 import type { AppSpec } from "../spec/app-spec.js";
@@ -124,8 +125,13 @@ export interface JourneyState {
   previewFinished: boolean;
   /** The app was started and its sandbox not removed since. */
   appRunning: boolean;
-  /** The last acceptance job that finished, with what it reported. */
-  acceptanceRun: { jobId: string; runId: string | null; summary: string | null; refused: string | null } | null;
+  /**
+   * The last acceptance job that ended, with what it reported. `outcome` is the one word the runner's own
+   * `acceptance.run.finished` event of that run gives (package 3.1b): "passed", "failed" or "not passed"; null when
+   * the job reported no run, or the run's event gives no such word (a record written before 3.1b). Sign-off reads
+   * `outcome`, never the summary's text.
+   */
+  acceptanceRun: { jobId: string; runId: string | null; summary: string | null; refused: string | null; outcome: RunOutcome | null } | null;
   /** The last export written, by its event. */
   exportEventId: string | null;
 }
@@ -241,15 +247,17 @@ export function journeyState(project: Project, events: Event[], intake: Intake, 
           if (j.state === "interrupted") s.interrupted = true;
           if (j.state === "finished" && j.kind === "preview") s.previewFinished = true;
           if (j.state === "finished" && j.kind === "acceptance")
-            s.acceptanceRun = { jobId: j.jobId, runId: typeof p.run_id === "string" ? p.run_id : null, summary: typeof p.summary === "string" ? p.summary : null, refused: typeof p.refused === "string" ? p.refused : null };
+            s.acceptanceRun = { jobId: j.jobId, runId: typeof p.run_id === "string" ? p.run_id : null, summary: typeof p.summary === "string" ? p.summary : null, refused: typeof p.refused === "string" ? p.refused : null, outcome: null };
           // A checklist job that failed or was interrupted is the last run too: sign-off is judged on it, never on
           // an earlier run that passed (review of 13 Nov 2026, note 4).
-          else if (j.kind === "acceptance") s.acceptanceRun = { jobId: j.jobId, runId: null, summary: null, refused: j.reason ?? `The checklist job was ${j.state}.` };
+          else if (j.kind === "acceptance") s.acceptanceRun = { jobId: j.jobId, runId: null, summary: null, refused: j.reason ?? `The checklist job was ${j.state}.`, outcome: null };
         }
         break;
       }
     }
   }
+  // The outcome word of the last checklist job's run, from the runner's own event of that run (package 3.1b).
+  if (s.acceptanceRun?.runId) s.acceptanceRun.outcome = runOutcome(events, s.acceptanceRun.runId);
   s.runningJob = s.jobs.find((j) => j.state === "running") ?? null;
   s.nextTurn = intake.turns.findIndex((t) => t.some((q) => !s.answers.has(q)));
   if (s.nextTurn === -1) s.nextTurn = null;
@@ -261,6 +269,20 @@ export function journeyState(project: Project, events: Event[], intake: Intake, 
   else if (continued) s.stage = "questions";
   else s.stage = "brief";
   return s;
+}
+
+/** The three outcome words of package 3.1b; anything else is not one. */
+const RUN_OUTCOMES: readonly RunOutcome[] = ["passed", "failed", "not passed"];
+
+/**
+ * The outcome word of one acceptance run, as the runner's `acceptance.run.finished` event of that run gives it
+ * (package 3.1b, `RunReading.outcome`), or null: no such event, more than one, or no such word in it.
+ */
+export function runOutcome(events: Event[], runId: string): RunOutcome | null {
+  const finished = events.filter((e) => e.kind === "acceptance.run.finished" && e.payload.run_id === runId);
+  if (finished.length !== 1) return null;
+  const word = finished[0]!.payload.outcome;
+  return typeof word === "string" && (RUN_OUTCOMES as readonly string[]).includes(word) ? (word as RunOutcome) : null;
 }
 
 /**
@@ -315,8 +337,10 @@ export function approveRefusal(s: JourneyState, step: string): string | null {
 
 /**
  * When the owner may sign off: the last checklist job finished (one that failed or was interrupted counts as the
- * last run, and did not pass), its run was not refused before its start, and its summary says the version passed
- * (a run that did not execute is never shown as passed, and is not signed off).
+ * last run, and did not pass), its run was not refused before its start, and the runner's own record of that run
+ * gives the outcome "passed" (package 3.1b). The summary's text is not read: a run whose record has no outcome word
+ * is not read as passed, whatever its summary says (a run that did not execute is never shown as passed, and is not
+ * signed off).
  */
 export function signOffRefusal(s: JourneyState): string | null {
   if (s.stage === "stopped" || s.stage === "closed") return "This project is stopped or closed.";
@@ -324,7 +348,7 @@ export function signOffRefusal(s: JourneyState): string | null {
   if (s.runningJob) return "A job of this project is running; wait for it to end.";
   const r = s.acceptanceRun;
   if (!r) return "The checklist has not been run yet.";
-  if (r.refused || !(r.summary ?? "").startsWith("version passed")) return "The last checklist run did not pass, so there is nothing to sign off.";
+  if (r.refused || r.outcome !== "passed") return "The last checklist run did not pass, so there is nothing to sign off.";
   return null;
 }
 
@@ -664,6 +688,7 @@ export class Journey {
         label: SIGN_OFF_LABEL,
         acceptance_job: s.acceptanceRun!.jobId,
         acceptance_run: s.acceptanceRun!.runId,
+        acceptance_outcome: s.acceptanceRun!.outcome,
         acceptance_summary: s.acceptanceRun!.summary,
         acceptance_label: JOURNEY_STAND_IN_LABEL,
       });

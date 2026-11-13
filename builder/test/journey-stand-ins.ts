@@ -36,8 +36,21 @@ export class StandInSandboxes implements Sandboxes {
     for (const s of APP_SHOTS) writeFileSync(join(outDir, `${s.name}.png`), PNG_1X1);
   };
   ports: string | null = null;
+  /** What the camera's image check answers (package 3.1b's runnerImageProblem): null, or a problem. */
+  cameraImage: string | null = null;
+  /** Set as cameraImage once the app is started: a problem that appears while the app is built. */
+  cameraImageAfterStart: string | null = null;
+  /** How many times the camera's image was checked, and how many times the camera ran. */
+  cameraImageChecks = 0;
+  cameraRuns = 0;
   /** The acceptance run's outcome: passed (item 1 passed) or did not run. */
   acceptanceOutcome: "passed" | "did not run" = "passed";
+  /**
+   * What the run's acceptance.run.finished event says its outcome word is (package 3.1b): by default the word that
+   * goes with acceptanceOutcome ("passed" or "not passed"); a word of its own, or "absent" for an event with none
+   * (a record written before 3.1b), to show the journey reads the word and not the summary's text.
+   */
+  outcomeWord: string | "absent" | null = null;
   /** The acceptance job fails after the runner has written its events (as a later fault in the job would). */
   acceptanceFailsAfterRun = false;
   private dirs: string[] = [];
@@ -91,11 +104,18 @@ export class StandInSandboxes implements Sandboxes {
   async buildAndStart(x: ProjectSandbox, log: (line: string) => void): Promise<void> {
     log("stand-in: no image built, no container started");
     this.started.push(x.projectId);
+    if (this.cameraImageAfterStart !== null) this.cameraImage = this.cameraImageAfterStart;
+  }
+
+  async cameraImageProblem(): Promise<string | null> {
+    this.cameraImageChecks++;
+    return this.cameraImage;
   }
 
   async appCamera(_x: ProjectSandbox, a: { outDir: string; secretFile: string; onLine: (line: string) => void }): Promise<StreamingEnd> {
     // The password file is there while the camera runs.
     if (readFileSync(a.secretFile, "utf8") !== "made-up-sample-password") throw new Error("the stand-in camera did not find the sample password file");
+    this.cameraRuns++;
     this.cameraWrites(a.outDir);
     a.onLine(JSON.stringify({ kind: "done", code: 0 }));
     return { code: 0, stderrTail: "" };
@@ -105,14 +125,15 @@ export class StandInSandboxes implements Sandboxes {
     const runId = `run-standin-${Date.now().toString(36)}`;
     const passed = this.acceptanceOutcome === "passed";
     const summary = passed ? PASSED_SUMMARY : "did not run: the stand-in said so";
+    const word = this.outcomeWord ?? (passed ? "passed" : "not passed");
     const common = { run_id: runId, version: input.version, written_by: "stand-in", label: "stand-in test" };
     const events = [
       await appendEvent(this.pool, input.projectId, "acceptance.run.started", { ...common, container_started: passed, refused: null }),
       await appendEvent(this.pool, input.projectId, "acceptance.item", { ...common, item: 1, file: "item-01.spec.ts", status: passed ? "passed" : "did not run", why: passed ? "ran once and passed, with its screenshot" : "not reached", screenshot: null }),
-      await appendEvent(this.pool, input.projectId, "acceptance.run.finished", { ...common, exit_code: passed ? 0 : null, timed_out: false, summary, run_problems: [] }),
+      await appendEvent(this.pool, input.projectId, "acceptance.run.finished", { ...common, exit_code: passed ? 0 : null, timed_out: false, ...(word === "absent" ? {} : { outcome: word }), summary, run_problems: [] }),
     ];
     if (this.acceptanceFailsAfterRun) throw new Error("stand-in: the job failed after the runner wrote its events");
-    return { runId, version: input.version, manifestSha256: null, writtenBy: "stand-in", refused: null, appAnswered: true, exit: passed ? { code: 0, stderrTail: "" } : null, args: null, reading: { items: [], runProblems: [], summary }, output: [], events } as unknown as AcceptanceReport;
+    return { runId, version: input.version, manifestSha256: null, writtenBy: "stand-in", refused: null, appAnswered: true, exit: passed ? { code: 0, stderrTail: "" } : null, args: null, reading: { outcome: word === "absent" ? "not passed" : word, items: [], runProblems: [], summary }, output: [], events } as unknown as AcceptanceReport;
   }
 
   async stopApp(x: ProjectSandbox): Promise<void> {

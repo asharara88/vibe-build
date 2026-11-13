@@ -11,7 +11,10 @@
  * - Before a step and before the app is built, the free disk space is measured; below the floor (4 GB, a
  *   figure assumed, not measured) the job is refused before anything is made.
  * - After a failed step, the workspace is put back to its last commit (`resetToLastCommit`).
- * - The app is built once, after the last step is approved (the preview), through example-1-adapter.ts.
+ * - The app is built once, after the last step is approved (the preview), through example-1-adapter.ts. Before
+ *   it is built, and again just before the app camera starts, the runner image the camera uses is checked with
+ *   package 3.1b's `runnerImageProblem` (`Sandboxes.cameraImageProblem`): with a problem, nothing is built or
+ *   started, or the app is stopped, and no screenshot is recorded.
  * - The handles of this process's sandboxes are kept in memory. A sandbox left by an interface that stopped is
  *   not resumed: it is removed at the next start (journey.ts, `recoverInterrupted`).
  */
@@ -152,6 +155,9 @@ export class JourneyJobs {
       }
       const busy = await this.o.sandboxes.portsBusy(x);
       if (busy) throw new JourneyRefused(busy);
+      // Package 3.1b: the camera's runner image is checked first, so that no app is built for a camera that cannot run.
+      const imageProblem = await this.o.sandboxes.cameraImageProblem(x);
+      if (imageProblem) throw new JourneyRefused(`The app camera cannot start, so the app was not built: ${imageProblem}.`);
       let recordedStarted = false;
       try {
         x.appStarted = true;
@@ -185,6 +191,9 @@ export class JourneyJobs {
     mkdirSync(secretDir, { mode: 0o700 });
     const secretFile = join(secretDir, "sample-password");
     try {
+      // Package 3.1b: the runner image again, just before the camera starts (the app's build can take minutes).
+      const imageProblem = await this.o.sandboxes.cameraImageProblem(x);
+      if (imageProblem) throw new JourneyRefused(`The app camera did not start: ${imageProblem}. No screenshot was recorded.`);
       writeFileSync(secretFile, x.samplePassword, { mode: 0o400 });
       if (process.getuid?.() === 0) {
         chownSync(outDir, RUNNER_UID, RUNNER_UID);

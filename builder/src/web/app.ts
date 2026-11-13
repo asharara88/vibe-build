@@ -16,7 +16,7 @@ import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { csrf } from "hono/csrf";
 import { HTTPException } from "hono/http-exception";
 import { secureHeaders } from "hono/secure-headers";
-import { activeFreeze, frozenMessage } from "../store/freezes.js";
+import { frozenMessage, listFreezes } from "../store/freezes.js";
 import { getBudget, listStepHolds } from "../store/holds.js";
 import { listUnreconciled } from "../store/reconcile.js";
 import { PRICE_TABLE_DATE } from "../gateway/prices.js";
@@ -239,13 +239,13 @@ export function createWebApp(d: WebDeps): Hono<Env> {
   app.get("/projects/:id/cost", async (c) => {
     const s = await j.state(c.req.param("id"));
     const id = s.project.id;
-    const freeze = await activeFreeze(j.pool, id);
+    // Every freeze not cleared (a project can carry more than one, of different kinds: packages 1.4, 1.4b, 1.4c).
+    const freezes = (await listFreezes(j.pool, id)).filter((f) => f.cleared_at === null);
     return c.html(
       costPage(c.get("lang"), s, {
         budget: await getBudget(j.pool, id),
         stepHolds: await listStepHolds(j.pool, id),
-        freeze,
-        freezeMessage: freeze ? frozenMessage(freeze, "step") : null,
+        freezes: freezes.map((f) => ({ freeze: f, message: frozenMessage(f, "step") })),
         unreconciled: await listUnreconciled(j.pool, { projectId: id }),
         modelCalls: s.events.filter((e) => e.kind === "model.call").length,
         pricedModel: PRICED_MODEL,

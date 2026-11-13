@@ -219,6 +219,8 @@ async function run() {
   check("items 2 to 6: did not run (no test written yet)", notRun === 5 && (await page.locator("tr[data-item]", { hasText: "No test written yet: did not run." }).count()) === 5);
   check("labelled 'stand-in test, not independent acceptance'", (await text("[data-label]")) === "stand-in test, not independent acceptance", await text("[data-label]"));
   check("the summary as the runner's reading wrote it", (await text("[data-summary]")) === "version passed; checklist incomplete (5 of the app spec's 6 checklist items have no test)", await text("[data-summary]"));
+  // Package 3.1b: the outcome word, read from the run's own acceptance.run.finished event, not from the summary.
+  check("the outcome word, as the run's record gives it: Passed", (await text('table[data-run] [data-outcome="passed"]')) === "Passed" && (await page.locator('[data-outcome]:not([data-outcome="passed"])').count()) === 0, await text("table[data-run]"));
   const itemShot = await page.$$eval('tr[data-item="1"] img', (imgs) => imgs.map((i) => i.complete && i.naturalWidth > 0));
   check("item 1's screenshot, taken by the runner, is shown", itemShot.length === 1 && itemShot[0], JSON.stringify(itemShot));
   await photo(16, "checklist", ["en", "ar", "phone"]);

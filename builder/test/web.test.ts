@@ -13,6 +13,8 @@ import { openStore, sha256, STAND_IN_NOTE } from "../src/acceptance/store.js";
 import { EXPORT_LABEL, Journey } from "../src/orchestrator/journey.js";
 import { JourneyJobs, REFUSAL_EXTRA } from "../src/orchestrator/journey-jobs.js";
 import { appendEvent } from "../src/store/events.js";
+import { frozenMessage, listFreezes, recordFreeze, SET_ASIDE_FREEZE_REASON } from "../src/store/freezes.js";
+import { keepHold, openHold, settleHold } from "../src/store/holds.js";
 import { createProject } from "../src/store/projects.js";
 import { createWebApp, PUBLIC_PATHS } from "../src/web/app.js";
 import { PASSWORD_FILE, PasswordState, passwordFromSettings, Sessions, SignInLimiter, digestPassword } from "../src/web/auth.js";
@@ -370,6 +372,72 @@ describe("J1 interface: pages", () => {
     expect(await eventCount()).toBe(before);
   });
 
+  it("brought up to date with 1.4c and 1.4b: the cost panel shows every freeze not cleared, each with its kind and frozenMessage's own words, and a bill above its hold in the unreconciled list", async () => {
+    const { app } = makeApp();
+    const cookie = await signIn(app);
+    const id = await journey.createProject({ name: "Freezes (made-up)", cap: "5.00", brief: "Made-up brief." });
+    const gw = uniqueId("gw_j1_cost_made_up");
+    const open = async () => {
+      const r = await openHold(pool, { projectId: id, step: null, amountUsd: 0.01, deadline: new Date(Date.now() + 3_600_000), gateway: gw, arithmetic: { made_up: true }, path: "/v1/messages" });
+      if (!r.ok) throw new Error(`hold not opened: ${r.reason}`);
+      return r.hold.id;
+    };
+    const billed = await open();
+    const late = await open();
+    const kept = await open();
+    const unrecorded = await open();
+    const setAside = await open();
+    // Package 1.4c: a bill above its hold, through the settlement.
+    expect((await settleHold(pool, { projectId: id, holdId: billed, step: null, actualUsd: 0.012345, call: { model: "made-up-model" }, gateway: gw })).freeze?.kind).toBe("bill_above_hold");
+    // Package 1.4c: an answer above its hold, arriving after the hold was kept.
+    await keepHold(pool, { projectId: id, holdId: late, step: null, reason: "the call reached its time limit", seen: {} });
+    expect((await settleHold(pool, { projectId: id, holdId: late, step: null, actualUsd: 0.02, call: {}, gateway: gw })).freeze?.kind).toBe("late_answer_above_hold");
+    // After 1.4c's review: a call kept with usage figures, read before it ended, already above its hold.
+    const keptAbove = await keepHold(pool, { projectId: id, holdId: kept, step: null, reason: "the call reached its time limit", seen: {}, costAsRead: { usd: 0.015, usage: { output_tokens: 1 }, gateway: gw, endedAt: new Date() } });
+    expect(keptAbove.freeze?.kind).toBe("kept_above_hold");
+    // Package 1.4: an ending that could not be written.
+    expect((await recordFreeze(pool, { journal_id: uniqueId("j_made_up"), gateway: gw, project_id: id, hold_id: unrecorded, step: null, ended_at: new Date().toISOString(), ending: "keep", kept_reason: "made up", cost_usd_as_read: null, call: {}, error: { name: "MadeUpError" } })).written).toBe(true);
+    // Package 1.4b: an unreadable journal line set aside naming a hold. Made-up rows in migration 012's shape (the
+    // recovery script writes them with its set-aside record): one of the set-aside's own kind, and one as 1.4b wrote it
+    // on a database without 1.4c's migration 010 (the kind 'unrecorded_ending', the set-aside's reason).
+    const insertSetAside = (kind: string, setAsideId: string) =>
+      pool.query(
+        `insert into project_freezes(project_id, kind, hold_id, journal_id, gateway, reason, ended_at, hold_amount_usd, bill_usd, record)
+         values ($1, $2, $3, $4, $5, $6, now(), 0.01, null, $7)`,
+        [id, kind, setAside, `set-aside:${setAsideId}`, gw, SET_ASIDE_FREEZE_REASON, JSON.stringify({ set_aside_id: setAsideId, fingerprint: "a".repeat(64), made_up: true })],
+      );
+    // As the recovery requires, the hold a set-aside names is open and kept at its full amount.
+    await keepHold(pool, { projectId: id, holdId: setAside, step: null, reason: "the provider's answer broke off part-way", seen: {} });
+    await insertSetAside("journal_line_set_aside", uniqueId("sa_made_up"));
+    await insertSetAside("unrecorded_ending", uniqueId("sa_made_up_before_010"));
+    const freezes = await listFreezes(pool, id);
+    const shown = ["bill_above_hold", "late_answer_above_hold", "kept_above_hold", "unrecorded_ending", "journal_line_set_aside", "journal_line_set_aside"];
+    expect(freezes.map((f) => f.kind)).toEqual(["bill_above_hold", "late_answer_above_hold", "kept_above_hold", "unrecorded_ending", "journal_line_set_aside", "unrecorded_ending"]);
+    const esc = (x: string) => x.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+    const before = await eventCount();
+    for (const lang of ["en", "ar"] as const) {
+      const page = await (await get(app, `/projects/${id}/cost${lang === "ar" ? "?lang=ar" : ""}`, cookie)).text();
+      expect(page, lang).toContain(esc(t(lang, "cost.frozen_intro")));
+      expect(page, lang).not.toContain("data-no-freeze");
+      expect([...page.matchAll(/<tr data-freeze="(\d+)" data-freeze-kind="([a-z_]+)">/g)].map((m) => [m[1], m[2]]), lang).toEqual(freezes.map((f, i) => [f.id, shown[i]]));
+      for (const [i, f] of freezes.entries()) {
+        const row = new RegExp(`<tr data-freeze="${f.id}" [\\s\\S]*?</tr>`).exec(page)?.[0] ?? "";
+        expect(row, `${lang} ${f.kind}`).toContain(esc(t(lang, `cost.kind.${shown[i]}`)));
+        // The message in English, as the gateway's refusal of a step gives it, with each kind's own figures.
+        expect(row, `${lang} ${f.kind}`).toContain(`<td lang="en" dir="ltr">${esc(frozenMessage(f, "step"))}</td>`);
+      }
+      expect(page).toContain(esc("was billed $0.012345, more than its hold of $0.010000 (above it by $0.002345)"));
+      expect(page).toContain(esc("an answer that arrived at"));
+      expect(page).toContain(esc("had already used at least $0.015000 by the usage figures read before it ended"));
+      expect(page).toContain(esc(`a line of the gateway's journal that could not be read was set aside at ${freezes[5]!.frozen_at.toISOString()} as possibly the record of a call on its hold ${setAside}`));
+      // The unreconciled list is not shown empty: the bill above its hold is in it, with its figures, beside the kept holds.
+      expect(page, lang).not.toContain("data-unreconciled-empty");
+      expect(page, lang).toContain(`<tr data-overrun="${freezes[0]!.id}"><td>${billed}</td><td>$0.012345</td><td>${esc(t(lang, "cost.overrun", { freeze: freezes[0]!.id, bill: "$0.012345", held: "$0.010000", above: "$0.002345" }))}</td></tr>`);
+      for (const h of [late, kept, unrecorded, setAside]) expect(page, `${lang} hold ${h}`).toContain(`<tr data-unreconciled-hold="${h}">`);
+    }
+    expect(await eventCount()).toBe(before);
+  });
+
   it("a project id not made by the journey is not found", async () => {
     const { app } = makeApp();
     const cookie = await signIn(app);
@@ -627,6 +695,7 @@ describe("J1 interface, part 2: the build, preview, checklist and export screens
       expect(row, `item ${n}`).not.toContain(t("en", "acceptance.status.passed"));
     }
     expect(html).toContain(PASSED_SUMMARY.replace(/'/g, "&#39;"));
+    expect(html).toContain('<strong class="ok" data-outcome="passed">Passed</strong>');
     expect(html).toContain(t("en", "acceptance.sign_off_label"));
     await noGetWrites(app, id, cookie);
     await go(app, j, `/projects/${id}/sign-off`, cookie);
@@ -726,6 +795,48 @@ describe("J1 interface, part 2: the build, preview, checklist and export screens
       expect(html, lang).not.toContain(`action="/projects/${id}/sign-off"`);
     }
     expect((await post(app, `/projects/${id}/sign-off`, {}, { cookie })).status).toBe(409);
+    await go(app, j, `/projects/${id}/close`, cookie);
+  });
+
+  it("brought up to date with 3.1b: the checklist screen shows the run's outcome word from its acceptance.run.finished event, not its summary, and offers sign-off only on 'passed'", async () => {
+    const { app, j } = makeJobsApp();
+    const cookie = await signIn(app);
+    const made = await post(app, "/projects", { name: "Outcome word (made-up)", cap: "5.00", brief: "Made-up brief." }, { cookie });
+    const id = /\/projects\/(j1-[0-9a-f]{12})\//.exec(made.headers.get("location") ?? "")![1]!;
+    for (const a of ["continue", "answer-rest", "confirm-brief", "confirm-plan"]) await go(app, j, `/projects/${id}/${a}`, cookie);
+    await go(app, j, `/projects/${id}/build`, cookie, { step: "01-data" });
+    await go(app, j, `/projects/${id}/approve`, cookie, { step: "01-data" });
+    await go(app, j, `/projects/${id}/approve`, cookie, { step: "02-submitter-screen" });
+    // Each run's summary says "version passed; …"; its record's outcome word is what is shown, and judged.
+    for (const [word, shownAs, key] of [
+      ["not passed", "not passed", "acceptance.outcome.not_passed"],
+      ["failed", "failed", "acceptance.outcome.failed"],
+      ["absent", "none", "acceptance.outcome.none"],
+      ["skipped", "none", "acceptance.outcome.none"],
+    ] as const) {
+      sandboxes.outcomeWord = word;
+      try {
+        await go(app, j, `/projects/${id}/acceptance`, cookie);
+      } finally {
+        sandboxes.outcomeWord = null;
+      }
+      for (const lang of ["en", "ar"] as const) {
+        const html = await page(app, `/projects/${id}/acceptance?lang=${lang}`, cookie);
+        expect(html, `${word} ${lang}`).toContain(PASSED_SUMMARY.replace(/'/g, "&#39;"));
+        expect(html.match(new RegExp(`<strong class="warn" data-outcome="${shownAs}">${t(lang, key)}</strong>`, "g")) ?? [], `${word} ${lang}`).toHaveLength(2);
+        expect(html, `${word} ${lang}`).not.toContain('data-outcome="passed"');
+        expect(html, `${word} ${lang}`).toContain(t(lang, "acceptance.sign_off_not_yet"));
+        expect(html, `${word} ${lang}`).not.toContain(`action="/projects/${id}/sign-off"`);
+      }
+      expect((await post(app, `/projects/${id}/sign-off`, {}, { cookie })).status, word).toBe(409);
+    }
+    await go(app, j, `/projects/${id}/acceptance`, cookie);
+    for (const lang of ["en", "ar"] as const) {
+      const html = await page(app, `/projects/${id}/acceptance?lang=${lang}`, cookie);
+      expect(html.match(new RegExp(`<strong class="ok" data-outcome="passed">${t(lang, "acceptance.outcome.passed")}</strong>`, "g")) ?? [], lang).toHaveLength(2);
+      expect(html, lang).toContain(`action="/projects/${id}/sign-off"`);
+    }
+    await go(app, j, `/projects/${id}/sign-off`, cookie);
     await go(app, j, `/projects/${id}/close`, cookie);
   });
 

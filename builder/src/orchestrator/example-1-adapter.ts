@@ -12,6 +12,9 @@
  * - The app camera (camera/app-shots.mjs) runs in the project's own `acceptance` service: the approved runner
  *   image, its unprivileged user, its read-only root and its hardening; the script read-only, one output
  *   folder, the sample password as one read-only file. No video and no trace: the script records neither.
+ *   Before it starts, the image the service names is checked with package 3.1b's `runnerImageProblem` (Docker
+ *   answers, the image is on this machine, labelled with the approved browser zip's fingerprint), as an
+ *   acceptance run checks it (`cameraImageProblem`; journey-jobs.ts asks it first).
  *
  * Development profile only: the app and runner containers share the machine's network (known gaps 1 and 60).
  */
@@ -21,9 +24,9 @@ import { existsSync, lstatSync, readFileSync, rmSync } from "node:fs";
 import { basename, isAbsolute, join, resolve } from "node:path";
 import { promisify } from "node:util";
 import { runAcceptance, type AcceptanceReport, type AcceptanceRunInput } from "../acceptance/runner.js";
-import { RUNNER_IMAGE } from "../acceptance/runner-image.js";
+import { RUNNER_IMAGE, runnerImageProblem } from "../acceptance/runner-image.js";
 import type { EngineRunner } from "../engine/scripted.js";
-import { appImageName, composeProjectName, sandbox, toolsImageName, type Sandbox, type StreamingEnd } from "../sandbox/manager.js";
+import { appImageName, composeProjectName, dockerEnv, sandbox, toolsImageName, type Sandbox, type StreamingEnd } from "../sandbox/manager.js";
 import { buildAndStart, destroyExample1, makeExample1, portFree, type Example1 } from "../../scripts/example-1-sandbox.js";
 import type { SandboxRecord } from "./journey.js";
 
@@ -52,6 +55,12 @@ export interface Sandboxes {
   portsBusy(x: ProjectSandbox): Promise<string | null>;
   /** Build the images, make the tables and sample users in the tools container, start the app. */
   buildAndStart(x: ProjectSandbox, log: (line: string) => void): Promise<void>;
+  /**
+   * Why the app camera cannot use the runner image the project's `acceptance` service names, or null (package 3.1b's
+   * `runnerImageProblem`: Docker must answer, and the image must be on this machine, labelled with the approved
+   * browser zip's fingerprint). Asked before the app is built and again just before the camera starts.
+   */
+  cameraImageProblem(x: ProjectSandbox): Promise<string | null>;
   /** Run the app camera in the project's `acceptance` service. */
   appCamera(x: ProjectSandbox, a: { outDir: string; secretFile: string; onLine: (line: string) => void }): Promise<StreamingEnd>;
   /** One acceptance run (package 3.1's `runAcceptance`). */
@@ -96,6 +105,19 @@ function plainDockerEnv(): NodeJS.ProcessEnv {
   return env;
 }
 
+/**
+ * Why a camera cannot use the runner image a sandbox's `acceptance` service names, or null: package 3.1b's
+ * `runnerImageProblem`, asked with the sandbox's own Docker settings, as an acceptance run asks it (runner.ts, step 2).
+ */
+export async function cameraImageProblem(sb: Pick<Sandbox, "dir" | "acceptanceImage">): Promise<string | null> {
+  if (!sb.acceptanceImage) return "the sandbox has no acceptance service";
+  try {
+    return await runnerImageProblem(sb.acceptanceImage, dockerEnv(sb));
+  } catch (err) {
+    return `Docker's settings could not be used (${(err as Error).message.split("\n")[0]})`;
+  }
+}
+
 /** The real sandboxes: Docker, on the development profile, through example-1-sandbox.ts. */
 export function example1Sandboxes(o: { runnerImage?: string } = {}): Sandboxes {
   const runnerImage = o.runnerImage ?? RUNNER_IMAGE;
@@ -112,6 +134,7 @@ export function example1Sandboxes(o: { runnerImage?: string } = {}): Sandboxes {
       return busy.length ? `Something already listens on 127.0.0.1 port ${busy.join(" and ")}; the app is not started.` : null;
     },
     buildAndStart: (x, log) => buildAndStart(x, log),
+    cameraImageProblem: (x) => cameraImageProblem(x.sb),
     async appCamera(x, a) {
       const r = sandbox.runStreaming(x.sb, "acceptance", ["node", "/camera/app-shots.mjs"], {
         container: `${x.sb.projectName}-app-camera-${randomBytes(3).toString("hex")}`.slice(0, 120),

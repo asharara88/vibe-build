@@ -132,9 +132,9 @@ Generated on 2026-11-12 by `docs/tools/arabic-wording-list.py`. Keys compared on
 
 ## The builder's own interface (package J1, 13 November 2026)
 
-Added with package J1, part 1: the messages of the builder's own screens (`builder/src/web/messages/en.json` and `ar.json`), and the Arabic of the 20 questions of test example 1 (`builder/src/orchestrator/intake/example-1.json`; the English is the question bank, `docs/spec/B2-question-bank.md`, word for word). The Arabic is Claude Code's; no reader of Arabic has checked it (known gap 134). Generated from those files on 13 November 2026; regenerate after any change to them. Part 2 (13 November 2026) adds the messages of the build, preview, checklist and export screens; the regenerated table below holds both parts.
+Added with package J1, part 1: the messages of the builder's own screens (`builder/src/web/messages/en.json` and `ar.json`), and the Arabic of the 20 questions of test example 1 (`builder/src/orchestrator/intake/example-1.json`; the English is the question bank, `docs/spec/B2-question-bank.md`, word for word). The Arabic is Claude Code's; no reader of Arabic has checked it (known gap 134). Generated from those files on 13 November 2026; regenerate after any change to them. Part 2 (13 November 2026) adds the messages of the build, preview, checklist and export screens; the regenerated table below holds both parts. Brought up to date with packages 1.4b, 1.4c and 3.1b (13 November 2026): 15 messages added (the checklist's outcome word, each kind of freeze on the cost panel, a bill above its hold in the unreconciled list) and 1 removed (`cost.frozen`, replaced by `cost.frozen_intro`); the table below is regenerated from the files.
 
-Count: English messages 248, Arabic messages 248; missing from Arabic 0, missing from English 0 (a test, `builder/test/web.test.ts`, checks that the two files have the same keys). Identical in both languages: 3 (`app.name`, `lang.en`, `lang.ar`: the product's name, and each language's own name, so a reader who cannot read Arabic can find the switch). On Arabic pages, four labels the owner approved in English (the stand-in label, the sign-off label, the export label and the sentence under a refused step) are shown in Arabic and then in English, word for word.
+Count: English messages 262, Arabic messages 262; missing from Arabic 0, missing from English 0 (a test, `builder/test/web.test.ts`, checks that the two files have the same keys). Identical in both languages: 3 (`app.name`, `lang.en`, `lang.ar`: the product's name, and each language's own name, so a reader who cannot read Arabic can find the switch). On Arabic pages, four labels the owner approved in English (the stand-in label, the sign-off label, the export label and the sentence under a refused step) are shown in Arabic and then in English, word for word.
 
 | Key | English | Arabic |
 | --- | --- | --- |
@@ -278,11 +278,20 @@ Count: English messages 248, Arabic messages 248; missing from Arabic 0, missing
 | `cost.no_steps` | No step has been reserved yet. | لم يُحجز لأي خطوة بعد. |
 | `cost.freeze` | Freeze | التجميد |
 | `cost.no_freeze` | No freeze. | لا يوجد تجميد. |
-| `cost.frozen` | This project is frozen: {message} | هذا المشروع مجمّد: {message} |
+| `cost.frozen_intro` | This project is frozen: no step starts until each freeze below is cleared by the owner's recorded action. | هذا المشروع مجمّد: لا تبدأ أي خطوة حتى يُرفع كل تجميد أدناه بإجراء مُسجَّل من المالك. |
+| `cost.freeze_kind` | What froze it | سبب التجميد |
+| `cost.freeze_hold` | Hold | الحجز |
+| `cost.freeze_message` | Message, as the gateway's refusal gives it | الرسالة، كما يذكرها رفض البوابة |
+| `cost.kind.unrecorded_ending` | A call's ending could not be recorded | تعذّر تسجيل نهاية استدعاء |
+| `cost.kind.bill_above_hold` | A bill above its hold | فاتورة تتجاوز حجزها |
+| `cost.kind.late_answer_above_hold` | A late answer above its hold | ردّ متأخر يتجاوز حجزه |
+| `cost.kind.kept_above_hold` | A call kept with usage already above its hold | استدعاء أُبقي واستخدامه يتجاوز حجزه مسبقاً |
+| `cost.kind.journal_line_set_aside` | An unreadable journal line set aside | سطر غير مقروء من السجلّ نُحّي جانباً |
 | `cost.unreconciled` | Unreconciled holds | حجوزات غير مسوّاة |
 | `cost.unreconciled_none` | The unreconciled list is empty. | قائمة الحجوزات غير المسوّاة فارغة. |
 | `cost.amount` | Amount | المبلغ |
 | `cost.reason` | Why kept | سبب الإبقاء |
+| `cost.overrun` | A bill above its hold (freeze {freeze}): billed {bill}, held {held}, above it by {above}. Charged in full; cleared by the owner's record of that bill. | فاتورة تتجاوز حجزها (التجميد {freeze}): الفاتورة {bill}، المحجوز {held}، بزيادة {above}. احتُسبت كاملةً؛ يُرفع التجميد بتسجيل المالك لتلك الفاتورة. |
 | `cost.priced` | Step reservations are sized at {model}'s prices, from the price table of {date}. | حجوزات الخطوات محسوبة بأسعار {model}، من جدول أسعار {date}. |
 | `interrupted.message` | A job of this project was interrupted when the interface stopped. It is not resumed. Close the project, or start a new one. | توقفت مهمة لهذا المشروع عندما توقفت الواجهة. لن تُستأنف. أغلق المشروع، أو ابدأ مشروعاً جديداً. |
 | `interrupted.close` | Close project | إغلاق المشروع |
@@ -353,6 +362,11 @@ Count: English messages 248, Arabic messages 248; missing from Arabic 0, missing
 | `acceptance.version` | Tests version | إصدار الاختبارات |
 | `acceptance.exit` | Runner's exit code | رمز خروج المنفّذ |
 | `acceptance.no_container` | no container was started | لم تُشغَّل أي حاوية |
+| `acceptance.outcome` | Outcome, as the run's record gives it | النتيجة، كما يذكرها سجلّ التشغيل |
+| `acceptance.outcome.passed` | Passed | نجح |
+| `acceptance.outcome.failed` | Failed | فشل |
+| `acceptance.outcome.not_passed` | Not passed | لم ينجح |
+| `acceptance.outcome.none` | None recorded: not read as passed | لم تُسجَّل نتيجة: لا يُعدّ ناجحاً |
 | `acceptance.summary` | Summary, as the runner's reading wrote it | الملخّص، كما كتبته قراءة المنفّذ |
 | `acceptance.not_run` | The checklist has not been run yet. | لم تُشغَّل قائمة التحقق بعد. |
 | `acceptance.results` | Checklist results | نتائج قائمة التحقق |
