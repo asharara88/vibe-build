@@ -1,0 +1,107 @@
+Output of controls-after-review.sh (this folder), run with SCRATCHPAD=<scratchpad> WORKTREE=<scratchpad>/wt-14c. Lines 'TypeError: terminated' and 'Error: time limit reached' are logged on stderr by the dropped connection and the time limit that tests (e5) and (e1) provoke on purpose; each control's failure is the line after them.
+Controls of package 1.4c after its review, on a copy of commit 0842aaf (git archive), 2026-11-13T12:23:41Z
+=== Z1: the freeze written when a kept call's figures as read are above its hold (streamed endings)
+    file: src/store/holds.ts; tests: 1.4c \(e[1-5]\) (all 5 must fail)
+    -    const above = read !== null && Number.isFinite(read.usd) && read.usd >= 0 && read.usd < 1e8 && micro(read.usd) > micro(amountUsd) ? read : null;
+    +    const above = null as typeof read;
+    | TypeError: terminated
+    |   [cause]: SocketError: other side closed
+    | Error: timed out waiting for: the project's freeze
+    | Tests  5 failed | 13 skipped (18)
+    RESULT: all 5 FAILED, as they should (exit 1)
+=== Z2: the same, for a plain answer that does not state the speed
+    file: src/store/holds.ts; tests: 1.4c \(f\) (all 1 must fail)
+    -    const above = read !== null && Number.isFinite(read.usd) && read.usd >= 0 && read.usd < 1e8 && micro(read.usd) > micro(amountUsd) ? read : null;
+    +    const above = null as typeof read;
+    | Error: timed out waiting for: the project's freeze
+    | Tests  1 failed | 17 skipped (18)
+    RESULT: all 1 FAILED, as they should (exit 1)
+=== Z3: the freeze in the keep's own transaction (moved to a transaction of its own, after the keep commits)
+    file: src/store/holds.ts; tests: 1.4c \(e[1-5]\) (all 5 must fail)
+    -  return inTransaction(pool, p.projectId, async (c) => {
+    +  let after: any = null;
+    +  const out = await inTransaction(pool, p.projectId, async (c) => {
+    -    const freeze = await freezeAfterOverrunIn(c, {
+    +    after = {
+    -    });
+    -    return { kept: true, amountUsd, freeze };
+    +    };
+    +    return { kept: true, amountUsd, freeze: null as Freeze | null };
+    +  if (after) out.freeze = await inTransaction(pool, p.projectId, (c2) => freezeAfterOverrunIn(c2, after));
+    +  return out;
+    | TypeError: terminated
+    |   [cause]: SocketError: other side closed
+    | AssertionError: expected 2 to be 1 // Object.is equality
+    | Tests  5 failed | 13 skipped (18)
+    RESULT: all 5 FAILED, as they should (exit 1)
+=== Z4: a streamed call's figures as read, passed to the keep
+    file: src/gateway/app.ts; tests: 1.4c \(e[1-5]\) (all 5 must fail)
+    -      const trusted = () => (sawInput && !sawUnreadable ? { usage, itemised } : null);
+    +      const trusted = () => null;
+    | TypeError: terminated
+    |   [cause]: SocketError: other side closed
+    | Error: timed out waiting for: the project's freeze
+    | Tests  5 failed | 13 skipped (18)
+    RESULT: all 5 FAILED, as they should (exit 1)
+=== Z5: the condition that the figures can be trusted (no figure fell, no frame unreadable)
+    file: src/gateway/app.ts; tests: 1.4c \(e6\) (all 1 must fail)
+    -      const trusted = () => (sawInput && !sawUnreadable ? { usage, itemised } : null);
+    +      const trusted = () => (sawInput ? { usage, itemised } : null);
+    | AssertionError: expected [ { id: '318', …(12) } ] to deeply equal []
+    | Tests  1 failed | 17 skipped (18)
+    RESULT: all 1 FAILED, as they should (exit 1)
+=== Z6: a plain answer's figures as read, passed to the keep
+    file: src/gateway/app.ts; tests: 1.4c \(f\) (all 1 must fail)
+    -        readNotSettled = { usage: u, itemised: itemisedCacheWrites(j.usage) };
+    | Error: timed out waiting for: the project's freeze
+    | Tests  1 failed | 17 skipped (18)
+    RESULT: all 1 FAILED, as they should (exit 1)
+=== Z7: the comparison of the cost as read with the hold
+    file: src/store/holds.ts; tests: 1.4c \(e6\) (all 1 must fail)
+    -    const above = read !== null && Number.isFinite(read.usd) && read.usd >= 0 && read.usd < 1e8 && micro(read.usd) > micro(amountUsd) ? read : null;
+    +    const above = read !== null && Number.isFinite(read.usd) && read.usd >= 0 && read.usd < 1e8 ? read : null;
+    | AssertionError: expected { id: '722', …(14) } to match object { state: 'open', …(1) }
+    | Tests  1 failed | 17 skipped (18)
+    RESULT: all 1 FAILED, as they should (exit 1)
+=== Z8: the database's check that a freeze's bill is a number above its hold's amount
+    file: src/store/migrations/010_overrun_freezes.sql; tests: 1.4c \(g\) (all 1 must fail); on a database of its own, made empty for it
+    -         or (hold_id is not null and hold_amount_usd is not null and bill_usd is not null
+    -             and bill_usd <> 'NaN'::numeric and hold_amount_usd <> 'NaN'::numeric and bill_usd > hold_amount_usd));
+    +         or (hold_id is not null and hold_amount_usd is not null and bill_usd is not null));
+NOTICE:  database "builder_test_f14c_ctl" does not exist, skipping
+    | AssertionError: project_freezes_overrun_figures: expected null to match object { code: '23514', …(1) }
+    | Tests  1 failed | 17 skipped (18)
+    RESULT: all 1 FAILED, as they should (exit 1)
+=== Z9: the same check's refusal of 'NaN' (which PostgreSQL ranks above every number)
+    file: src/store/migrations/010_overrun_freezes.sql; tests: 1.4c \(g\) (all 1 must fail); on a database of its own, made empty for it
+    -             and bill_usd <> 'NaN'::numeric and hold_amount_usd <> 'NaN'::numeric and bill_usd > hold_amount_usd));
+    +             and bill_usd > hold_amount_usd));
+NOTICE:  database "builder_test_f14c_ctl" does not exist, skipping
+    | AssertionError: project_freezes_overrun_figures: expected null to match object { code: '23514', …(1) }
+    | Tests  1 failed | 17 skipped (18)
+    RESULT: all 1 FAILED, as they should (exit 1)
+=== Z10: one freeze per hold and kind (the index made not unique)
+    file: src/store/migrations/010_overrun_freezes.sql; tests: 1.4c \(g\) (all 1 must fail); on a database of its own, made empty for it
+    -create unique index if not exists project_freezes_one_overrun_per_hold
+    +create index if not exists project_freezes_one_overrun_per_hold
+NOTICE:  database "builder_test_f14c_ctl" does not exist, skipping
+    | error: there is no unique or exclusion constraint matching the ON CONFLICT specification
+    | Tests  1 failed | 17 skipped (18)
+    RESULT: all 1 FAILED, as they should (exit 1)
+=== Z11: the refusal's message for this kind (the cost as read, the hold and the difference)
+    file: src/store/freezes.ts; tests: 1.4c \(e[1-5]\) (all 5 must fail)
+    -    if (f.kind === "kept_above_hold") {
+    +    if (false) {
+    | TypeError: terminated
+    |   [cause]: SocketError: other side closed
+    | AssertionError: expected 'This project is stopped: an answer th…' to contain 'without a bill the gateway could sett…'
+    | Tests  5 failed | 13 skipped (18)
+    RESULT: all 5 FAILED, as they should (exit 1)
+=== Z12: the list's kind for such a hold
+    file: src/store/reconcile.ts; tests: 1.4c \(e1\) (all 1 must fail)
+    -    if (freezes.some((f) => f.kind === "kept_above_hold")) add("kept above its hold");
+    | AssertionError: expected [ [ '728', [ 'interrupted' ] ] ] to deeply equal [ [ '728', [ …(2) ] ] ]
+    | Tests  1 failed | 17 skipped (18)
+    RESULT: all 1 FAILED, as they should (exit 1)
+=== controls that failed as they should: 12; that did not: 0
+The worktree, untouched: 8 changed or new files
