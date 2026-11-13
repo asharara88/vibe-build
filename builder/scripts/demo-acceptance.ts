@@ -303,7 +303,8 @@ try {
   add("Through the history", "git log --all --name-only: an acceptance file (item-NN.spec.ts, manifest.json, acceptance/)", "the machine (git reads the history; runs nothing)", `${hist.acceptanceFiles.length} of ${hist.fileNames} file names`, hist.acceptanceFiles.length === 0);
   for (const n of needles) add("Through the history", `git grep in every revision (${hist.revisions}) for ${n.label}`, "the machine", `${hist.found[n.label]} files`, hist.found[n.label] === 0);
   // The marker, from the machine, in the source folder of every engine mount.
-  const sources = [...new Set(allEngineMounts.map((m) => m.Source!).filter(Boolean))];
+  // The probe's own folder (/probe) was made for the probe and is already removed; every other source is searched.
+  const sources = [...new Set(allEngineMounts.filter((m) => m.Destination !== "/probe").map((m) => m.Source!).filter(Boolean))];
   const hostSearch = searchFolders(sources, needles);
   log(`  the source folders of the engine's mounts (${sources.length}), from the machine: ${hostSearch.files} files; ${JSON.stringify(Object.fromEntries(Object.entries(hostSearch.found).map(([k, v]) => [k, v.length])))}`);
   for (const n of needles) add("By file path", `the source folders of every engine mount (${sources.length}), searched from the machine for ${n.label}`, "the machine", `found in ${hostSearch.found[n.label]!.length} of ${hostSearch.files} files`, hostSearch.found[n.label]!.length === 0);
