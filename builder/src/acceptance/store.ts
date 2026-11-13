@@ -224,6 +224,34 @@ export function writeVersion(store: AcceptanceStore, projectId: string, input: {
   }
 }
 
+const MANIFEST_TEXT = ["version", "project_id", "written_by", "written_by_note", "written_at", "app_spec_sha256", "marker"] as const;
+const ITEM_TEXT = ["file", "sha256", "checklist"] as const;
+const MANIFEST_FIELDS = new Set<string>([...MANIFEST_TEXT, "items"]);
+const ITEM_FIELDS = new Set<string>(["number", ...ITEM_TEXT]);
+const isObject = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
+
+/**
+ * Why a parsed manifest is not in the shape writeVersion writes, or null. Strict: an object with every
+ * field the store writes, each of its type, and no other; `items` a list of objects, each with a whole
+ * `number` and its three text fields, and no other. What the fields say (this project and version, the
+ * marker's form, the file names) is checked after this, by verifyVersion. Names only fields and places,
+ * never a value from the file.
+ */
+export function manifestShapeProblem(m: unknown): string | null {
+  if (!isObject(m)) return "it is not an object";
+  for (const k of MANIFEST_TEXT) if (typeof m[k] !== "string") return m[k] === undefined ? `${k} is missing` : `${k} is not text`;
+  if (!Array.isArray(m.items)) return m.items === undefined ? "items is missing" : "items is not a list";
+  for (const [i, it] of m.items.entries()) {
+    const at = `items[${i}]`;
+    if (!isObject(it)) return `${at} is not an object`;
+    if (!Number.isInteger(it.number)) return it.number === undefined ? `${at}.number is missing` : `${at}.number is not a whole number`;
+    for (const k of ITEM_TEXT) if (typeof it[k] !== "string") return it[k] === undefined ? `${at}.${k} is missing` : `${at}.${k} is not text`;
+    if (Object.keys(it).some((k) => !ITEM_FIELDS.has(k))) return `${at} holds a field the store does not write`;
+  }
+  if (Object.keys(m).some((k) => !MANIFEST_FIELDS.has(k))) return "it holds a field the store does not write";
+  return null;
+}
+
 /** Read a regular file without following a link, within a size limit. */
 function readPlain(path: string, max = MAX_FILE_BYTES): Buffer {
   const st = lstatSync(path, { throwIfNoEntry: false });
@@ -236,15 +264,17 @@ function readPlain(path: string, max = MAX_FILE_BYTES): Buffer {
 export interface VersionCheck {
   ok: boolean;
   problems: string[];
+  /** Given only when the manifest is in the store's shape (manifestShapeProblem), even if `ok` is false. */
   manifest?: VersionManifest;
   manifestSha256?: string;
   dir: string;
 }
 
 /**
- * Check a version against its manifest before any test starts: the folder is a folder (not a link); it
- * holds exactly the manifest and the files it names, each a plain file with its fingerprint and the
- * marker in its label line; the manifest names this project and version.
+ * Check a version against its manifest before any test starts: the folder is a folder (not a link); the
+ * manifest is in the shape the store writes (if not, that is the one problem, and no manifest is given
+ * on); it holds exactly the manifest and the files it names, each a plain file with its fingerprint and
+ * the marker in its label line; the manifest names this project and version.
  */
 export function verifyVersion(store: AcceptanceStore, projectId: string, version: string): VersionCheck {
   const dir = join(projectDir(store, projectId), version);
@@ -252,20 +282,23 @@ export function verifyVersion(store: AcceptanceStore, projectId: string, version
   if (!VERSION.test(version)) return { ok: false, problems: [`"${version}" is not a version name`], dir };
   const st = lstatSync(dir, { throwIfNoEntry: false });
   if (!st || !st.isDirectory()) return { ok: false, problems: [`version ${version} is missing, or is not a folder`], dir };
-  let manifest: VersionManifest;
+  let parsed: unknown;
   let manifestSha256: string;
   try {
     const raw = readPlain(join(dir, "manifest.json"));
     manifestSha256 = sha256(raw);
-    manifest = JSON.parse(raw.toString("utf8")) as VersionManifest;
+    parsed = JSON.parse(raw.toString("utf8"));
   } catch (err) {
     return { ok: false, problems: [`the manifest cannot be read: ${(err as Error).message}`], dir };
   }
+  const shape = manifestShapeProblem(parsed);
+  if (shape) return { ok: false, problems: [`the manifest is not in the shape the store writes: ${shape}`], dir };
+  const manifest = parsed as VersionManifest;
   if (manifest.version !== version || manifest.project_id !== projectId) problems.push("the manifest names another project or version");
   if (manifest.written_by !== "stand-in") problems.push(`the manifest says it was written by "${String(manifest.written_by)}"`);
-  if (typeof manifest.marker !== "string" || !/^acceptance-marker-[0-9a-f]{32}$/.test(manifest.marker)) problems.push("the manifest's marker is not one the store writes");
+  if (!/^acceptance-marker-[0-9a-f]{32}$/.test(manifest.marker)) problems.push("the manifest's marker is not one the store writes");
   const named = new Set<string>(["manifest.json"]);
-  for (const it of Array.isArray(manifest.items) ? manifest.items : []) {
+  for (const it of manifest.items) {
     if (!ITEM_FILE.test(it.file) || named.has(it.file)) {
       problems.push(`the manifest names "${it.file}", which is not a test file name, or twice`);
       continue;
@@ -280,7 +313,7 @@ export function verifyVersion(store: AcceptanceStore, projectId: string, version
       problems.push(`${it.file}: ${(err as Error).message}`);
     }
   }
-  if (!Array.isArray(manifest.items) || manifest.items.length === 0) problems.push("the manifest names no test");
+  if (manifest.items.length === 0) problems.push("the manifest names no test");
   for (const e of readdirSync(dir)) if (!named.has(e)) problems.push(`the version holds "${e}", which the manifest does not name`);
   return { ok: problems.length === 0, problems, manifest, manifestSha256, dir };
 }

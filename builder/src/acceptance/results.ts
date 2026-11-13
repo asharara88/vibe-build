@@ -3,14 +3,15 @@
  *
  * Every item in the version's manifest starts as "did not run". It becomes "passed" only if all of these
  * hold: the app answered before the start; the runner's container ended with exit code 0 or 1 within its
- * time limit; results.json was read under the rules below and parses; its metadata holds this run's id and
+ * time limit; results.json was read under the rules below, parses, and is in the shape of Playwright's
+ * JSON report (reportShapeProblem; the manifest too, in the store's shape); its metadata holds this run's id and
  * this version's manifest fingerprint; the item's test appears once, in the manifest's file for that item;
  * it expected to pass, its outcome is "expected", it has exactly one result, on retry 0, with status
  * "passed", and no skip, fixme or fail annotation; and its screenshot (the attachment "item-screenshot")
  * exists. It becomes "failed" only on a recorded failure (status "failed" or "timedOut"), with the step
  * named, or "no step named" for a failure outside a step or a test's own time limit. Everything else stays
  * "did not run": a kill, exit code 137, the overall time limit, a skipped or interrupted test, a missing
- * or unreadable file.
+ * or unreadable file, a file not in that shape.
  *
  * The run folder is written by the runner, and the builder runs as root (known gap 57), so it is read
  * without following links: each path is checked part by part with lstat, only plain files are read, only
@@ -21,7 +22,7 @@
  */
 import { lstatSync, readFileSync } from "node:fs";
 import { isAbsolute, join, normalize, sep } from "node:path";
-import { sha256, type VersionManifest } from "./store.js";
+import { manifestShapeProblem, sha256, type VersionManifest } from "./store.js";
 
 export type ItemStatus = "passed" | "failed" | "did not run";
 
@@ -142,6 +143,87 @@ interface JsonSuite {
   suites?: JsonSuite[];
 }
 
+/** How deep suites may sit inside suites, and steps inside steps. Playwright's own reports go a few levels. */
+export const MAX_NESTING = 50;
+
+const isObject = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
+class ShapeProblem extends Error {}
+
+/**
+ * Why a parsed results file is not in the shape the reader walks (Playwright's JSON report, as typed in
+ * its testReporter.d.ts: suites, specs, tests, results, steps, annotations, attachments, errors), or null.
+ * The file is the runner's to write, so nothing in it is trusted: every list the reader walks must be a
+ * list of objects, every field it reads must have its type where present, and suites and steps may nest
+ * at most MAX_NESTING deep. Fields the reader does not read are not checked. Names only fields and
+ * places, never a value from the file.
+ */
+export function reportShapeProblem(report: unknown): string | null {
+  const fail = (what: string): never => {
+    throw new ShapeProblem(what);
+  };
+  const text = (o: Record<string, unknown>, at: string, ...keys: string[]) => {
+    for (const k of keys) if (o[k] !== undefined && typeof o[k] !== "string") fail(`${at}.${k} is not text`);
+  };
+  const object = (o: Record<string, unknown>, at: string, k: string) => {
+    if (o[k] !== undefined && !isObject(o[k])) fail(`${at}${at ? "." : ""}${k} is not an object`);
+  };
+  const list = (o: Record<string, unknown>, at: string, k: string, each: (x: Record<string, unknown>, at: string) => void) => {
+    const v = o[k];
+    if (v === undefined) return;
+    const where = `${at}${at ? "." : ""}${k}`;
+    if (!Array.isArray(v)) fail(`${where} is not a list`);
+    (v as unknown[]).forEach((x, i) => {
+      if (!isObject(x)) fail(`${where}[${i}] is not an object`);
+      each(x as Record<string, unknown>, `${where}[${i}]`);
+    });
+  };
+  const error = (e: Record<string, unknown>, at: string) => text(e, at, "message");
+  const annotation = (a: Record<string, unknown>, at: string) => text(a, at, "type");
+  const step = (depth: number) => (s: Record<string, unknown>, at: string) => {
+    if (depth > MAX_NESTING) fail(`steps are nested more than ${MAX_NESTING} deep`);
+    text(s, at, "title");
+    object(s, at, "error");
+    list(s, at, "steps", step(depth + 1));
+  };
+  const result = (r: Record<string, unknown>, at: string) => {
+    text(r, at, "status");
+    if (r.retry !== undefined && !Number.isInteger(r.retry)) fail(`${at}.retry is not a whole number`);
+    object(r, at, "error");
+    if (isObject(r.error)) error(r.error, `${at}.error`);
+    list(r, at, "errors", error);
+    list(r, at, "steps", step(1));
+    list(r, at, "annotations", annotation);
+    list(r, at, "attachments", (a, where) => text(a, where, "name", "path", "contentType"));
+  };
+  const test = (t: Record<string, unknown>, at: string) => {
+    text(t, at, "expectedStatus", "status");
+    list(t, at, "annotations", annotation);
+    list(t, at, "results", result);
+  };
+  const spec = (s: Record<string, unknown>, at: string) => {
+    text(s, at, "title", "file");
+    list(s, at, "tests", test);
+  };
+  const suite = (depth: number) => (s: Record<string, unknown>, at: string) => {
+    if (depth > MAX_NESTING) fail(`suites are nested more than ${MAX_NESTING} deep`);
+    text(s, at, "title", "file");
+    list(s, at, "specs", spec);
+    list(s, at, "suites", suite(depth + 1));
+  };
+  try {
+    if (!isObject(report)) fail("it is not an object");
+    const r = report as Record<string, unknown>;
+    object(r, "", "config");
+    if (isObject(r.config)) object(r.config, "config", "metadata");
+    list(r, "", "errors", error);
+    list(r, "", "suites", suite(1));
+    return null;
+  } catch (err) {
+    if (err instanceof ShapeProblem) return err.message;
+    throw err;
+  }
+}
+
 function allSpecs(suites: JsonSuite[] | undefined, out: JsonSpec[] = []): JsonSpec[] {
   for (const s of suites ?? []) {
     for (const sp of s.specs ?? []) out.push({ ...sp, file: sp.file ?? s.file });
@@ -160,29 +242,51 @@ function failedStep(steps: JsonStep[] | undefined): string | undefined {
 
 const SKIPPING = new Set(["skip", "fixme", "fail"]);
 
-/** Read a run under the rules above. Pure apart from reading files in the run folder. */
+/**
+ * Read a run under the rules above. Pure apart from reading files in the run folder. It does not throw:
+ * a manifest not in the store's shape gives no item and "did not run"; a results file not in the shape
+ * the reader walks, or anything else that fails while it is read, gives every item "did not run".
+ */
 export function readRun(f: RunFacts): RunReading {
+  const manifestShape = manifestShapeProblem(f.manifest);
+  if (manifestShape) {
+    const why = `the manifest is not in the shape the store writes (${manifestShape}), so no item is read`;
+    return { items: [], runProblems: [why], summary: `did not run: ${why}` };
+  }
   const items: ItemResult[] = f.manifest.items.map((it) => ({ number: it.number, file: it.file, status: "did not run" as ItemStatus, why: "not reached" }));
   const runProblems: string[] = [];
-  const allDidNotRun = (why: string): RunReading => {
-    for (const it of items) it.why = why;
-    return { items, runProblems: [...runProblems, why], summary: `did not run: ${why}` };
-  };
+  // Every item afresh, so that nothing set by a reading cut short (a status, a screenshot) is kept.
+  const allDidNotRun = (why: string): RunReading => ({
+    items: f.manifest.items.map((it) => ({ number: it.number, file: it.file, status: "did not run", why })),
+    runProblems: [...runProblems, why],
+    summary: `did not run: ${why}`,
+  });
   if (f.refused) return allDidNotRun(`the run was refused before its start: ${f.refused}`);
   if (f.appAnswered !== true) return allDidNotRun(`the app did not answer before the start (${f.appAnswered}), so the runner was not started`);
   if (!f.exit) return allDidNotRun("the runner was not started");
   if (f.exit.timedOut) return allDidNotRun("the run went past its time limit and its container was stopped");
   if (f.exit.code !== 0 && f.exit.code !== 1) return allDidNotRun(`the runner's container ended with exit code ${f.exit.code ?? "none (killed)"}`);
+  try {
+    return readResults(f, items, runProblems, allDidNotRun);
+  } catch (err) {
+    // A backstop: the shape check is meant to leave nothing that throws below it.
+    return allDidNotRun(`the results file could not be read: ${plainText(String((err as Error)?.message ?? err)).split("\n")[0]!.slice(0, 200)}`);
+  }
+}
 
+function readResults(f: RunFacts, items: ItemResult[], runProblems: string[], allDidNotRun: (why: string) => RunReading): RunReading {
   const found = plainFileInside(f.resultsDir, "results.json", RESULTS_MAX_BYTES);
   if ("refused" in found) return allDidNotRun(`the results file cannot be read: ${found.refused}`);
-  let report: { config?: { metadata?: { runId?: unknown; manifestSha256?: unknown } }; suites?: JsonSuite[]; errors?: Array<{ message?: string }> };
+  let parsed: unknown;
   try {
-    report = JSON.parse(readFileSync(found.path, "utf8"));
+    parsed = JSON.parse(readFileSync(found.path, "utf8"));
   } catch {
     return allDidNotRun("the results file does not parse");
   }
-  if (report === null || typeof report !== "object") return allDidNotRun("the results file does not parse");
+  if (parsed === null || typeof parsed !== "object") return allDidNotRun("the results file does not parse");
+  const shape = reportShapeProblem(parsed);
+  if (shape) return allDidNotRun(`the results file is not in the shape the reader expects: ${shape}`);
+  const report = parsed as { config?: { metadata?: { runId?: unknown; manifestSha256?: unknown } }; suites?: JsonSuite[]; errors?: Array<{ message?: string }> };
   const md = report.config?.metadata;
   if (md?.runId !== f.runId) return allDidNotRun(`the results are not this run's (run id ${JSON.stringify(md?.runId)}, expected ${f.runId})`);
   if (md?.manifestSha256 !== f.manifestSha256) return allDidNotRun("the results are not for this version (the manifest's fingerprint differs)");

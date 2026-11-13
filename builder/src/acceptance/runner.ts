@@ -155,7 +155,8 @@ export async function runAcceptance(input: AcceptanceRunInput): Promise<Acceptan
     }
   }
 
-  // 4. The results, under the builder's own rules; then the events.
+  // 4. The results, under the builder's own rules; then the events. verifyVersion gives no manifest that is not
+  // in the store's shape, so such a version is refused and reported "did not run" with no item, and readRun does not throw.
   const reading = readRun({
     resultsDir: runFolder.results,
     runId,

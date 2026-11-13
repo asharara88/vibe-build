@@ -8,9 +8,11 @@ import { execFileSync } from "node:child_process";
 import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, relative, resolve } from "node:path";
-import { afterAll, describe, expect, it } from "vitest";
+import type pg from "pg";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { traceScreenFrames, zipEntryNames } from "../src/acceptance/probes.js";
 import { readRun, plainFileInside, type RunFacts } from "../src/acceptance/results.js";
+import { runAcceptance } from "../src/acceptance/runner.js";
 import { approvedPackages, BROWSER_ZIP_SHA256, checkedBrowserZip, RUNNER_BASE_IMAGES, RUNNER_DIR, RUNNER_IMAGE } from "../src/acceptance/runner-image.js";
 import { exampleChecklist, standInSources, STAND_IN_DIR } from "../src/acceptance/stand-in.js";
 import {
@@ -24,10 +26,14 @@ import {
   verifyVersion,
   writeVersion,
   type AcceptanceStore,
+  type VersionCheck,
   type VersionManifest,
 } from "../src/acceptance/store.js";
 import { listSteps, readManifest, SCRIPTED_BANNER, scriptedHeader, sha256Of, TEMPLATE_PROTECTED_PATHS } from "../src/engine/scripted.js";
-import { composeDocument, createSandbox, engineMountRefusal, sandbox, type SandboxSpec } from "../src/sandbox/manager.js";
+import { composeDocument, createSandbox, engineMountRefusal, sandbox, type Sandbox, type SandboxSpec } from "../src/sandbox/manager.js";
+import { listEvents } from "../src/store/events.js";
+import { createProject } from "../src/store/projects.js";
+import { testPool, uniqueId } from "./helpers.js";
 
 const builderDir = resolve(import.meta.dirname, "..");
 const scratch = mkdtempSync(join(tmpdir(), "builder-acceptance-fast-"));
@@ -54,6 +60,33 @@ let n = 0;
 const freshStore = (): AcceptanceStore => openStore(join(scratch, `data-${++n}`));
 const write = (store: AcceptanceStore, projectId = "p_acc") =>
   writeVersion(store, projectId, { writtenBy: "stand-in", appSpecSha256: "a".repeat(64), items: [{ number: 1, file: "item-01.spec.ts", content: ITEM(), checklist: "made-up" }] });
+
+// Review bot on a7f85b6 (P2): a manifest replaced by valid JSON of the wrong shape threw (null) or was
+// passed on to the result reader ({}), so the refusal was never recorded.
+const badManifests: Array<[string, (m: VersionManifest) => unknown, string]> = [
+  ["null", () => null, "it is not an object"],
+  ["a list", () => [], "it is not an object"],
+  ["{}", () => ({}), "version is missing"],
+  ["items not a list", (m) => ({ ...m, items: "item-01.spec.ts" }), "items is not a list"],
+  ["items an object, not a list", (m) => ({ ...m, items: { 0: m.items[0] } }), "items is not a list"],
+  ["no items", ({ items: _items, ...m }) => m, "items is missing"],
+  ["an item that is not an object", (m) => ({ ...m, items: [null] }), "items[0] is not an object"],
+  ["an item whose number is text", (m) => ({ ...m, items: [{ ...m.items[0], number: "1" }] }), "items[0].number is not a whole number"],
+  ["an item whose file is not text", (m) => ({ ...m, items: [{ ...m.items[0], file: 1 }] }), "items[0].file is not text"],
+  ["an item without its fingerprint", (m) => ({ ...m, items: [{ ...m.items[0], sha256: undefined }] }), "items[0].sha256 is missing"],
+  ["a marker that is not text", (m) => ({ ...m, marker: 7 }), "marker is not text"],
+  ["a field the store does not write", (m) => ({ ...m, made_up: true }), "it holds a field the store does not write"],
+  ["an item with a field the store does not write", (m) => ({ ...m, items: [{ ...m.items[0], made_up: true }] }), "items[0] holds a field the store does not write"],
+];
+/** A fresh store whose project's v001 has its manifest replaced by `json(the manifest as written)`. */
+const withManifest = (json: (m: VersionManifest) => unknown, projectId = "p_acc") => {
+  const store = freshStore();
+  const v = write(store, projectId);
+  chmodSync(v.dir, 0o755);
+  chmodSync(join(v.dir, "manifest.json"), 0o644);
+  writeFileSync(join(v.dir, "manifest.json"), JSON.stringify(json(v.manifest)));
+  return { store, v };
+};
 
 describe("acceptance store", () => {
   it("the data folder has no default: unset or relative is refused", () => {
@@ -141,6 +174,15 @@ describe("acceptance store", () => {
     expect(verifyVersion(store, "p_acc", "v009")).toMatchObject({ ok: false });
   });
 
+  it("the check before a run reports a manifest of the wrong shape as one problem, never throws, and gives no manifest on", () => {
+    for (const [name, json, why] of badManifests) {
+      const { store, v } = withManifest(json);
+      let check: VersionCheck | undefined;
+      expect(() => (check = verifyVersion(store, "p_acc", "v001")), name).not.toThrow();
+      expect(check, name).toEqual({ ok: false, problems: [`the manifest is not in the shape the store writes: ${why}`], dir: v.dir });
+    }
+  });
+
   it("a run folder is fresh: the same run id twice is refused", () => {
     const store = freshStore();
     const r = newRunFolder(store, "p_acc", "run-20261113t000000-abcd1234");
@@ -148,6 +190,41 @@ describe("acceptance store", () => {
     expect(() => newRunFolder(store, "p_acc", "run-20261113t000000-abcd1234")).toThrow(/EEXIST/);
     expect(() => newRunFolder(store, "p_acc", "../run")).toThrow(/not a run id/);
   });
+});
+
+describe("a run refused because its manifest is malformed still says 'did not run', with its events and its report (test database; no container, no app check)", () => {
+  let pool: pg.Pool;
+  beforeAll(async () => {
+    pool = await testPool();
+  });
+  afterAll(async () => {
+    await pool?.end();
+  });
+  /** A sandbox that fails the test if the run touches it: a refused run starts no container and asks no app. */
+  const untouchable = new Proxy({}, {
+    get: (_t, p) => {
+      throw new Error(`the sandbox was used (${String(p)})`);
+    },
+  }) as Sandbox;
+
+  for (const [name, json, why] of badManifests.filter(([name]) => ["null", "{}", "items not a list", "an item that is not an object"].includes(name))) {
+    it(`manifest: ${name}`, async () => {
+      const projectId = uniqueId("p_acc_bad");
+      await createProject(pool, { id: projectId, name: "made-up", capUsd: 0 });
+      const { store, v } = withManifest(json, projectId);
+      const r = await runAcceptance({ pool, sandbox: untouchable, store, projectId, version: v.version, appUrl: "http://127.0.0.1:1", samplePassword: "made-up", checklistItems: 6 });
+      const refused = `the version does not match its manifest: the manifest is not in the shape the store writes: ${why}`;
+      expect(r).toMatchObject({ refused, manifestSha256: null, appAnswered: "not checked: the run was refused before this check", exit: null, args: null });
+      expect(r.reading).toEqual({ items: [], runProblems: [`the run was refused before its start: ${refused}`], summary: `did not run: the run was refused before its start: ${refused}` });
+      const events = await listEvents(pool, projectId);
+      expect(events.map((e) => e.kind)).toEqual(["acceptance.run.started", "acceptance.run.finished"]);
+      expect(events[0]!.payload).toMatchObject({ run_id: r.runId, version: "v001", written_by: "stand-in", manifest_sha256: null, container_started: false, refused });
+      expect(events[1]!.payload).toMatchObject({ run_id: r.runId, exit_code: null, timed_out: false, summary: r.reading.summary });
+      const saved = JSON.parse(readFileSync(join(r.runFolder.builder, "report.json"), "utf8"));
+      expect(saved).toMatchObject({ runId: r.runId, refused, reading: { summary: r.reading.summary }, events: events.map((e) => e.id) });
+      expect(existsSync(r.runFolder.secretFile)).toBe(false);
+    });
+  }
 });
 
 // ---------------------------------------------------------------------------------------------------
@@ -282,6 +359,61 @@ describe("acceptance results: passed only when it ran and passed", () => {
       expect(r.summary).not.toMatch(/^version passed/);
     });
   }
+
+  // Review bot on a7f85b6 (P2): valid JSON with this run's metadata but report fields of the wrong shape threw
+  // in the reader, so runAcceptance wrote no events and no report. Each is now "did not run", with the place named.
+  const T = "suites[0].specs[0].tests[0]";
+  const R = `${T}.results[0]`;
+  const oneTest = (t: Result) => report({ tests: [{ expectedStatus: "passed", status: "expected", annotations: [], results: [passedResult()], ...t }] });
+  const withResult = (extra: Result) => oneTest({ results: [passedResult(extra)] });
+  const failedWith = (extra: Result) => oneTest({ status: "unexpected", results: [passedResult({ status: "failed", error: { message: "made-up" }, ...extra })] });
+  const DEEP = 200_000;
+  const deepSuites = `{"config":{"metadata":{"runId":"${RUN_ID}","manifestSha256":"${MANIFEST_SHA}"}},"suites":${'[{"suites":'.repeat(DEEP)}[]${"}]".repeat(DEEP)},"errors":[]}`;
+  const deepSteps = (() => {
+    const at = JSON.stringify(failedWith({ steps: ["MADE-UP-STEPS"] }));
+    return at.replace('["MADE-UP-STEPS"]', `${'[{"title":"made-up","error":{"message":"made-up"},"steps":'.repeat(DEEP)}[]${"}]".repeat(DEEP)}`);
+  })();
+  const malformed: Array<[string, () => string, string]> = [
+    ["suites is not a list", () => JSON.stringify({ ...report(), suites: {} }), "suites is not a list"],
+    ["a suite is not an object", () => JSON.stringify({ ...report(), suites: [null] }), "suites[0] is not an object"],
+    ["a suite's specs are not a list", () => JSON.stringify({ ...report(), suites: [{ file: "item-01.spec.ts", specs: {} }] }), "suites[0].specs is not a list"],
+    ["a suite's suites are not a list", () => JSON.stringify({ ...report(), suites: [{ file: "item-01.spec.ts", specs: [], suites: "x" }] }), "suites[0].suites is not a list"],
+    ["a spec's tests are not a list", () => JSON.stringify(report({ specs: [{ title: "made-up", file: "item-01.spec.ts", tests: {} }] })), "suites[0].specs[0].tests is not a list"],
+    ["a test is not an object", () => JSON.stringify(report({ tests: [null] as unknown as Result[] })), `${T} is not an object`],
+    ["a test's results are not a list", () => JSON.stringify(oneTest({ results: {} })), `${T}.results is not a list`],
+    ["a result is not an object", () => JSON.stringify(oneTest({ results: [null] })), `${R} is not an object`],
+    ["a test's annotations are not a list", () => JSON.stringify(oneTest({ annotations: {} })), `${T}.annotations is not a list`],
+    ["a test's annotation is not an object", () => JSON.stringify(oneTest({ annotations: [null] })), `${T}.annotations[0] is not an object`],
+    ["a result's annotations are not a list", () => JSON.stringify(withResult({ annotations: "skip" })), `${R}.annotations is not a list`],
+    ["an annotation's type is not text", () => JSON.stringify(withResult({ annotations: [{ type: 5 }] })), `${R}.annotations[0].type is not text`],
+    ["attachments are not a list", () => JSON.stringify(withResult({ attachments: {} })), `${R}.attachments is not a list`],
+    ["an attachment is not an object", () => JSON.stringify(withResult({ attachments: [null, ...(passedResult().attachments as unknown[])] })), `${R}.attachments[0] is not an object`],
+    ["an attachment's name is not text", () => JSON.stringify(withResult({ attachments: [{ name: ["item-screenshot"], path: "/results/test-results/item-01/item-01-stand-in-test.png" }] })), `${R}.attachments[0].name is not text`],
+    ["a failed result's steps are not a list", () => JSON.stringify(failedWith({ steps: {} })), `${R}.steps is not a list`],
+    ["a failed result's step is not an object", () => JSON.stringify(failedWith({ steps: [null] })), `${R}.steps[0] is not an object`],
+    ["a step's steps are not a list", () => JSON.stringify(failedWith({ steps: [{ title: "made-up", error: { message: "made-up" }, steps: {} }] })), `${R}.steps[0].steps is not a list`],
+    ["errors outside any test are not a list", () => JSON.stringify({ ...report(), errors: {} }), "errors is not a list"],
+    [`suites nested ${DEEP} deep`, () => deepSuites, "suites are nested more than 50 deep"],
+    [`steps nested ${DEEP} deep`, () => deepSteps, "steps are nested more than 50 deep"],
+  ];
+  for (const [name, raw, where] of malformed) {
+    it(`did not run, the results file not in the reader's shape: ${name}`, () => {
+      let r: ReturnType<typeof readRun> | undefined;
+      expect(() => (r = readRun(facts(runFolder(null, { raw: raw() })))), name).not.toThrow();
+      const why = `the results file is not in the shape the reader expects: ${where}`;
+      expect(r!.items).toEqual([{ number: 1, file: "item-01.spec.ts", status: "did not run", why }]);
+      expect(r!.summary).toBe(`did not run: ${why}`);
+    });
+  }
+
+  it("a manifest not in the store's shape is never read: no item, 'did not run', no throw", () => {
+    for (const bad of [null, {}, { ...manifest, items: "item-01.spec.ts" }, { ...manifest, items: [null] }]) {
+      let r: ReturnType<typeof readRun> | undefined;
+      expect(() => (r = readRun(facts(runFolder(report()), { manifest: bad as unknown as VersionManifest }))), JSON.stringify(bad)).not.toThrow();
+      expect(r!.items, JSON.stringify(bad)).toEqual([]);
+      expect(r!.summary, JSON.stringify(bad)).toMatch(/^did not run: the manifest is not in the shape the store writes \(.+\), so no item is read$/);
+    }
+  });
 
   it("a file under /results is read without following any link on the way", () => {
     const d = mkdtempSync(join(scratch, "run-links-"));
