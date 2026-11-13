@@ -17,6 +17,8 @@
  * - A time limit for the whole download and one for silence; a size limit: a stated length other than the
  *   approved size is refused before anything is written, and the download stops as soon as more than the
  *   approved size arrives.
+ * - An answer refused at its headers is not read on: it is destroyed with its connection (and the tunnel, through
+ *   a proxy) before the refusal is given, since the time limits end with the refusal (the review bot on 1ebe1cc).
  * - The bytes go to a new temporary file in the same folder (created exclusively, so not through a link);
  *   its size and SHA-256 are checked on disk before it is moved into place, which is done by a hard link
  *   that fails if anything is at the zip's place by then, so nothing is replaced. On any mismatch or
@@ -133,7 +135,8 @@ export async function requestThroughEnv(target: URL, env: NodeJS.ProcessEnv, sig
       }
     });
     req.on("response", (res) => {
-      res.resume();
+      // Node gives every answer to CONNECT as "connect", so this is not expected; if it comes, it is not read on.
+      res.destroy();
       fail(new FetchRefused(`The proxy at ${hostPort(proxy.url)} answered ${res.statusCode} to the tunnel request for ${tunnel}. Nothing was fetched.`));
     });
     req.on("error", fail);
@@ -210,13 +213,13 @@ export async function fetchBrowserZip(opts: FetchOptions): Promise<FetchResult> 
     }
     log(`It answered ${res.statusCode}, ${via}.`);
     if (res.statusCode !== 200) {
-      res.resume();
+      res.destroy(); // not read on: the answer and its connection are closed before the refusal (the time limits end with it)
       const moved = res.statusCode !== undefined && res.statusCode >= 300 && res.statusCode < 400;
       throw new FetchRefused(`${target.host} answered ${res.statusCode} ${res.statusMessage ?? ""}`.trimEnd() + `${moved ? " (a move elsewhere; it is not followed)" : ""}. Nothing was put in place.`);
     }
     const stated = res.headers["content-length"];
     if (stated !== undefined && Number(stated) !== want.bytes) {
-      res.resume();
+      res.destroy(); // as above
       throw new FetchRefused(`${target.host} says the file is ${stated} bytes, not the approved ${want.bytes}. Nothing was put in place.`);
     }
     let received = 0;

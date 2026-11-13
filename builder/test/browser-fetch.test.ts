@@ -25,6 +25,40 @@ afterAll(() => rmSync(scratch, { recursive: true, force: true }));
 const BODY = randomBytes(300_000);
 const SOURCE = { sha256: sha256(BODY), bytes: BODY.length };
 
+/** The stand-in's own side of a watched connection: whether, and when, the fetch closed it. */
+interface Watched {
+  socket: net.Socket;
+  closedAt: number | null;
+}
+const watch = (socket: net.Socket): Watched => {
+  const w: Watched = { socket, closedAt: null };
+  socket.once("close", () => (w.closedAt = Date.now()));
+  return w;
+};
+/** The stand-in server's connections for the paths that end a fetch early, by path. */
+const watched = new Map<string, Watched>();
+/**
+ * An answer the fetch refuses at its headers, its body then left open (a little sent, then nothing): a stated
+ * length other than the approved size, or an answer other than 200. True if the path is one of them.
+ */
+const refuseWithBodyOpen = (path: string, res: http.ServerResponse): boolean => {
+  if (path === "/wrong-length-stall") res.writeHead(200, { "content-length": 4 * BODY.length });
+  else if (path === "/refused-stall") res.writeHead(503, { "content-length": BODY.length });
+  else return false;
+  res.write(BODY.subarray(0, 1000)); // then nothing
+  return true;
+};
+/** How a watched connection stood once the wait was over, counted from the moment the fetch was refused. */
+const howItStood = (path: string, w: Watched, refusedAt: number) =>
+  w.closedAt === null
+    ? `${path}: still open ${Date.now() - refusedAt} ms after the refusal`
+    : w.closedAt - refusedAt < 250
+      ? closedAtOnce(path)
+      : `${path}: closed only ${w.closedAt - refusedAt} ms after the refusal`;
+const closedAtOnce = (path: string) => `${path}: closed within 0.25 s of the refusal`;
+/** Wait until `ms` after `from`. */
+const until = (from: number, ms: number) => new Promise((r) => setTimeout(r, Math.max(0, from + ms - Date.now())));
+
 /** What the stand-in server does for each path; every request it gets is recorded. */
 const seen: string[] = [];
 let server: http.Server;
@@ -33,6 +67,8 @@ beforeAll(async () => {
   server = http.createServer((req, res) => {
     seen.push(req.url ?? "");
     const path = new URL(req.url ?? "/", "http://x").pathname;
+    if (["/wrong-length-stall", "/refused-stall", "/stall", "/trickle", "/too-long"].includes(path)) watched.set(path, watch(req.socket));
+    if (refuseWithBodyOpen(path, res)) return;
     if (path === "/zip") {
       res.writeHead(200, { "content-length": BODY.length });
       res.end(BODY);
@@ -176,6 +212,46 @@ describe("fetching the approved browser zip (stand-in server, made-up bytes)", (
     expect(left(cache)).toEqual([]);
   });
 
+  it("a refused answer whose body stays open (a stated length other than the approved size; an answer other than 200) has its connection closed at once, not left open past both time limits; no file is left", async () => {
+    // The review bot on 1ebe1cc: such a refusal read on from the connection instead of closing it, after clearing both time limits.
+    const cases = [
+      ["/wrong-length-stall", new RegExp(`says the file is ${4 * SOURCE.bytes} bytes, not the approved ${SOURCE.bytes}\\. Nothing was put in place\\.$`)],
+      ["/refused-stall", /answered 503 Service Unavailable\. Nothing was put in place\.$/],
+    ] as const;
+    const stood: string[] = [];
+    for (const [path, refusal] of cases) {
+      const cache = freshCache();
+      const asked = Date.now();
+      await expect(fetchFrom(path, cache, { silenceLimitMs: 300, timeLimitMs: 600 })).rejects.toThrow(refusal);
+      const refusedAt = Date.now();
+      expect(left(cache)).toEqual([]);
+      await until(asked, 1500); // past both limits (0.3 s of silence, 0.6 s in all)
+      const conn = watched.get(path)!;
+      stood.push(howItStood(path, conn, refusedAt));
+      conn.socket.destroy();
+    }
+    expect(stood).toEqual(cases.map(([path]) => closedAtOnce(path)));
+  });
+
+  it("every other way a fetch ends while the body is open closes its connection too: silence, the whole time limit, more bytes than approved", async () => {
+    const stood: string[] = [];
+    for (const [path, extra] of [
+      ["/stall", { silenceLimitMs: 300 }],
+      ["/trickle", { timeLimitMs: 400, silenceLimitMs: 10_000 }],
+      ["/too-long", { timeLimitMs: 30_000 }],
+    ] as const) {
+      const cache = freshCache();
+      await expect(fetchFrom(path, cache, extra)).rejects.toThrow(FetchRefused);
+      const refusedAt = Date.now();
+      expect(left(cache)).toEqual([]);
+      await until(refusedAt, 300);
+      const conn = watched.get(path)!;
+      stood.push(howItStood(path, conn, refusedAt));
+      conn.socket.destroy();
+    }
+    expect(stood).toEqual(["/stall", "/trickle", "/too-long"].map(closedAtOnce));
+  });
+
   it("never replaces what is at the zip's place: another file, a link or a folder is refused, left as it was, and the server is not asked", async () => {
     const asked = seen.length;
     const other = freshCache();
@@ -221,6 +297,8 @@ describe("fetching through the environment's proxy (stand-in proxy)", () => {
   const open = new Set<net.Socket>();
   /** Bytes the client sent inside each tunnel the proxy let through. */
   const tunnelled: number[] = [];
+  /** The proxy's own side of each tunnel to zip.test: whether, and when, the fetch closed it. */
+  const tunnels: Watched[] = [];
   beforeAll(async () => {
     proxy = http.createServer((req, res) => {
       // A plain address through the proxy: the request's path is the whole address. It serves the zip itself.
@@ -233,6 +311,7 @@ describe("fetching through the environment's proxy (stand-in proxy)", () => {
       asked.push({ method: "CONNECT", url: req.url ?? "", auth: req.headers["proxy-authorization"] });
       if (req.url === "zip.test:443") {
         // Lets the tunnel through to the stand-in TLS server, counting the bytes each way.
+        tunnels.push(watch(socket as net.Socket));
         const upstream = net.connect(tlsPort, "127.0.0.1", () => {
           open.add(upstream);
           socket.write("HTTP/1.1 200 Connection established\r\n\r\n");
@@ -264,6 +343,7 @@ describe("fetching through the environment's proxy (stand-in proxy)", () => {
     execFileSync("openssl", ["req", "-x509", "-newkey", "ec", "-pkeyopt", "ec_paramgen_curve:prime256v1", "-nodes", "-keyout", join(certDir, "key.pem"), "-out", join(certDir, "cert.pem"), "-subj", "/CN=zip.test", "-addext", "subjectAltName=DNS:zip.test", "-days", "1"], { stdio: "ignore" });
     testCert = readFileSync(join(certDir, "cert.pem"), "utf8");
     tlsServer = https.createServer({ key: readFileSync(join(certDir, "key.pem")), cert: testCert }, (req, res) => {
+      if (refuseWithBodyOpen(new URL(req.url ?? "/", "https://zip.test").pathname, res)) return;
       res.writeHead(200, { "content-length": BODY.length });
       res.end(BODY);
     });
@@ -300,6 +380,39 @@ describe("fetching through the environment's proxy (stand-in proxy)", () => {
       tls.setDefaultCACertificates(before);
     }
   });
+
+  it("through the tunnel too: a refused answer whose body stays open, and a certificate Node does not trust, close the tunnel at once, not left open past both time limits; no file is left", async () => {
+    const env = { HTTPS_PROXY: `http://127.0.0.1:${proxyPort}` };
+    const limits = { silenceLimitMs: 300, timeLimitMs: 600 };
+    const cases: Array<[string, RegExp]> = [
+      ["/zip", /SELF_SIGNED|UNABLE_TO_VERIFY|CERT/], // not yet trusted
+      ["/wrong-length-stall", new RegExp(`says the file is ${4 * SOURCE.bytes} bytes, not the approved ${SOURCE.bytes}\\. Nothing was put in place\\.$`)],
+      ["/refused-stall", /answered 503 Service Unavailable\. Nothing was put in place\.$/],
+    ];
+    const before = tls.getCACertificates("default");
+    const stood: string[] = [];
+    try {
+      for (const [path, refusal] of cases) {
+        if (path !== "/zip") tls.setDefaultCACertificates([...before, testCert]);
+        const cache = freshCache();
+        const start = Date.now();
+        const err = await fetchBrowserZip({ cacheDir: cache, testSource: { url: `https://zip.test${path}`, ...SOURCE }, env, ...limits }).catch((e: unknown) => e);
+        const refusedAt = Date.now();
+        expect(err).toBeInstanceOf(Error);
+        expect(`${(err as Error & { code?: string }).code ?? ""} ${(err as Error).message}`).toMatch(refusal);
+        expect(asked.at(-1)).toMatchObject({ method: "CONNECT", url: "zip.test:443" });
+        expect(left(cache)).toEqual([]);
+        await until(start, 1500); // past both limits (0.3 s of silence, 0.6 s in all)
+        const tunnel = tunnels.at(-1)!;
+        stood.push(howItStood(path, tunnel, refusedAt));
+        tunnel.socket.destroy();
+      }
+    } finally {
+      tls.setDefaultCACertificates(before);
+    }
+    expect(stood).toEqual(cases.map(([path]) => closedAtOnce(path)));
+  });
+
   const withCredentials = () => `http://made-up-user:made-up-pass@127.0.0.1:${proxyPort}`;
   const basic = `Basic ${Buffer.from("made-up-user:made-up-pass").toString("base64")}`;
 
