@@ -4,14 +4,15 @@
  * address instead of a `check` container. No container, no database. The front runs as it does in the interface:
  * forked from its copied files, under its own user when the tests run as root.
  */
-import { existsSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from "node:fs";
+import { chownSync, existsSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import http from "node:http";
 import net, { type AddressInfo } from "node:net";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import type { AppStream, StreamingEnd } from "../src/sandbox/manager.js";
+import { RUNNER_UID } from "../src/acceptance/runner-image.js";
 import { SignInLimiter } from "../src/web/auth.js";
-import { DEFAULT_PREVIEW_UID, LivePreview, previewUidRefusal, removeStaleFolders } from "../src/web/preview.js";
+import { DEFAULT_PREVIEW_UID, LivePreview, MAX_FRONT_RESTARTS, previewUidRefusal, removeStaleFolders } from "../src/web/preview.js";
 import { FRONT_TEXT_KEYS, type Texts } from "../src/web/preview-rules.ts";
 
 const texts = (): Texts => {
@@ -69,7 +70,7 @@ afterEach(async () => {
 });
 
 /** A preview whose streams go to the made-up app; `streams` counts them, `appRunning` stands for the project's app. */
-async function preview(o: { passValidMs?: number; sessionMaxMs?: number } = {}) {
+async function preview(o: { passValidMs?: number; sessionMaxMs?: number; onFault?: (message: string, detail: unknown) => void } = {}) {
   const port = await freePort();
   const events: Array<{ project: string; kind: string; payload: Record<string, unknown> }> = [];
   const state = { appRunning: true, streams: 0, killed: 0 };
@@ -345,6 +346,35 @@ describe("the preview front: requests and answers", () => {
     expect(t.state.killed).toBe(before + 1);
   });
 
+  it("a GET or HEAD that says it has a body reaches the app with no Content-Length, and the next request on the same connection reaches it as a request of its own (J3's review)", async () => {
+    const t = await preview();
+    const o = await t.open();
+    const cookie = t.cookieOf(await t.enter(o.shown));
+    await pause(50);
+    seen.length = 0;
+    const c = net.connect(t.port, "127.0.0.1");
+    c.on("error", () => undefined);
+    let got = "";
+    c.on("data", (d: Buffer) => (got += d.toString("latin1")));
+    const waitFor = async (text: string) => {
+      for (let i = 0; i < 40 && !got.includes(text); i++) await pause(50);
+      return got.includes(text);
+    };
+    // A raw client: a GET that states a 5-byte body and sends it, then a HEAD that states one, then a plain GET, on one connection.
+    c.write(`GET /first HTTP/1.1\r\nHost: x\r\nCookie: ${cookie}\r\nContent-Length: 5\r\n\r\nhello`);
+    expect(await waitFor("app page /first")).toBe(true);
+    c.write(`HEAD /head HTTP/1.1\r\nHost: x\r\nCookie: ${cookie}\r\nContent-Length: 7\r\n\r\nheadbdy`);
+    await pause(300);
+    c.write(`GET /second HTTP/1.1\r\nHost: x\r\nCookie: ${cookie}\r\n\r\n`);
+    expect(await waitFor("app page /second")).toBe(true);
+    c.destroy();
+    expect(seen.map((q) => `${q.method} ${q.url}`)).toEqual(["GET /first", "HEAD /head", "GET /second"]);
+    for (const q of seen) {
+      expect(q.headers["content-length"], q.url).toBeUndefined();
+      expect(q.bodyBytes, q.url).toBe(0);
+    }
+  });
+
   it("listens on 127.0.0.1 only", async () => {
     const t = await preview();
     const hex = t.port.toString(16).toUpperCase().padStart(4, "0");
@@ -446,6 +476,23 @@ describe("the live session's ends (section 4.4)", () => {
     await gateAfter(t);
   });
 
+  it("the session ends when the builder sign-in session that opened it expires, if that comes before its 8 hours (J3's review)", async () => {
+    const t = await preview();
+    const before = Date.now();
+    const opened = await t.p.open({ projectId: "j1-0000000000aa", builderSession: "builder-session-1", builderSessionEndsAt: before + 1500, appStartEventId: "7", appPort: 3161 });
+    expect(t.p.session()!.endsAt).toBeLessThanOrEqual(before + 1500);
+    const cookie = t.cookieOf(await t.enter(opened.shown));
+    await pause(50);
+    expect((await t.get("/en/home", cookie)).status).toBe(200);
+    await pause(1700);
+    expect(t.events.at(-1)).toMatchObject({ kind: "journey.preview.live_closed", payload: { reason: "builder_session_expired" } });
+    expect(await (await t.get("/en/home", cookie)).text()).toContain("[no_live]");
+    expect(t.p.activeStreams()).toBe(0);
+    // A sign-in session that outlives the 8 hours does not lengthen them.
+    await t.p.open({ projectId: "j1-0000000000aa", builderSession: "builder-session-2", builderSessionEndsAt: Date.now() + 10 * 60 * 60 * 1000, appStartEventId: "7", appPort: 3161 });
+    expect(t.p.session()!.endsAt).toBeLessThanOrEqual(Date.now() + 8 * 60 * 60 * 1000);
+  });
+
   it("after its longest life (8 hours in the interface; shortened here), the session ends", async () => {
     const t = await entered({ sessionMaxMs: 1500 });
     await pause(1700);
@@ -475,6 +522,39 @@ describe("the live session's ends (section 4.4)", () => {
   });
 });
 
+describe("the front's restarts (J3's review: the cap added in c8c4b23 had no test)", () => {
+  it(`a front that stops is started again at most ${MAX_FRONT_RESTARTS} times in one interface's life; each stop ends the open session; then the live app stays off`, { timeout: 60_000 }, async () => {
+    const faults: string[] = [];
+    const t = await preview({ onFault: (m) => void faults.push(m) });
+    const listening = async () => fetch(`${t.base}/`).then((r) => r.status === 200, () => false);
+    const pids = [t.p.frontPid!];
+    await t.open();
+    for (let i = 1; i <= MAX_FRONT_RESTARTS + 1; i++) {
+      process.kill(pids.at(-1)!, "SIGKILL");
+      if (i === 1) {
+        await pause(200);
+        expect(t.events.at(-1)).toMatchObject({ kind: "journey.preview.live_closed", payload: { reason: "front_stopped" } });
+      }
+      if (i <= MAX_FRONT_RESTARTS) {
+        let up = false;
+        for (let k = 0; k < 100 && !up; k++) {
+          await pause(100);
+          up = t.p.frontPid !== pids.at(-1) && (await listening());
+        }
+        expect(up, `started again after stop ${i}`).toBe(true);
+        pids.push(t.p.frontPid!);
+      }
+    }
+    await pause(2500);
+    expect(new Set(pids).size).toBe(MAX_FRONT_RESTARTS + 1);
+    expect(t.p.frontPid).toBe(pids.at(-1));
+    expect(await listening()).toBe(false);
+    expect(faults.filter((m) => m === "The preview front stopped; it is started again.")).toHaveLength(MAX_FRONT_RESTARTS);
+    expect(faults.at(-1)).toBe(`The preview front stopped ${MAX_FRONT_RESTARTS + 1} times; it is not started again until the interface restarts.`);
+    await expect(t.open()).rejects.toThrow(/not running/);
+  });
+});
+
 describe("stale short folders", () => {
   it("removes a folder left by a killed interface (older than a minute, its socket answers nobody), never a running preview's", async () => {
     const t = await preview();
@@ -491,5 +571,26 @@ describe("stale short folders", () => {
     rmSync(young, { recursive: true, force: true });
     // The running preview's folder is kept, and it still answers.
     expect((await fetch(`${t.base}/`)).status).toBe(200);
+  });
+
+  it.skipIf(process.getuid?.() !== 0)("run as root, also removes a stale camera folder, which the interface gave to the runner's user (J3's review)", () => {
+    const stale = mkdtempSync("/tmp/bpc-");
+    writeFileSync(join(stale, "c.sock"), "not a socket");
+    chownSync(stale, RUNNER_UID, RUNNER_UID);
+    const old = new Date(Date.now() - 120_000);
+    utimesSync(stale, old, old);
+    // A stale folder of another user (neither root nor the runner's) is left alone.
+    const other = mkdtempSync("/tmp/bpc-");
+    chownSync(other, 4242, 4242);
+    utimesSync(other, old, old);
+    try {
+      const removed = removeStaleFolders("/tmp");
+      expect(removed).toContain(stale.split("/").pop());
+      expect(existsSync(stale)).toBe(false);
+      expect(existsSync(other)).toBe(true);
+    } finally {
+      rmSync(stale, { recursive: true, force: true });
+      rmSync(other, { recursive: true, force: true });
+    }
   });
 });

@@ -554,6 +554,11 @@ describe("J1 interface: first run and start checks", () => {
       expect(() => readSettings({ ...full, BUILDER_UI_PASSWORD: "elevenchars" })).toThrow(/12 characters or more/);
       expect(() => readSettings({ ...full, BUILDER_DATA_DIR: join(builderDir, "tmp-data") })).toThrow(/inside/);
       expect(readSettings({ ...full, BUILDER_UI_PASSWORD: undefined, BUILDER_UI_FIRST_RUN: "1" }).password.source).toBe("first_run");
+      // Package J3, after its review: the live preview is off unless BUILDER_LIVE_PREVIEW is 1.
+      expect(readSettings({ ...full }).livePreview).toBe(false);
+      expect(readSettings({ ...full, BUILDER_LIVE_PREVIEW: "0" }).livePreview).toBe(false);
+      expect(readSettings({ ...full, BUILDER_LIVE_PREVIEW: "1" }).livePreview).toBe(true);
+      for (const bad of ["yes", "true", "on", " 1"]) expect(() => readSettings({ ...full, BUILDER_LIVE_PREVIEW: bad }), bad).toThrow(/BUILDER_LIVE_PREVIEW must be 1/);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -1194,6 +1199,96 @@ describe("J1 interface: the instance lock lost while the interface serves (revie
     await j2.waitForJob();
   });
 
+  it("the real interface (src/web/main.ts, on a database of its own) starts no live preview front unless BUILDER_LIVE_PREVIEW=1: off, nothing listens on its port and Open the live app is refused; on, the front listens (J3's review)", { timeout: 90_000 }, async () => {
+    const base = new URL(TEST_DB_URL);
+    const dbName = `${decodeURIComponent(base.pathname.slice(1))}_lp_${randomBytes(3).toString("hex")}`;
+    expect(dbName).toMatch(/^[a-z0-9_]{1,63}$/);
+    await pool.query(`create database "${dbName}"`);
+    base.pathname = `/${dbName}`;
+    const url = base.toString();
+    const dir = mkdtempSync(join(tmpdir(), "builder-web-live-"));
+    const procs: ChildProcess[] = [];
+    const freePort = () =>
+      new Promise<number>((resolve, reject) => {
+        const srv = net.createServer();
+        srv.once("error", reject);
+        srv.listen(0, "127.0.0.1", () => {
+          const port = (srv.address() as net.AddressInfo).port;
+          srv.close(() => resolve(port));
+        });
+      });
+    const answers = (port: number) =>
+      new Promise<boolean>((resolve) => {
+        const c = net.connect(port, "127.0.0.1");
+        c.once("connect", () => (c.destroy(), resolve(true)));
+        c.once("error", () => resolve(false));
+      });
+    const start = async (extra: Record<string, string>) => {
+      const port = await freePort();
+      const previewPort = await freePort();
+      const env = { PATH: process.env.PATH ?? "", HOME: process.env.HOME ?? "/root", PGUSER: process.env.PGUSER ?? "", BUILDER_DATABASE_URL: url, BUILDER_DATA_DIR: dir, BUILDER_UI_PASSWORD: PASSWORD, BUILDER_UI_PORT: String(port), BUILDER_PREVIEW_PORT: String(previewPort), ...extra };
+      const child = spawn(process.execPath, ["--import", "tsx", "src/web/main.ts"], { cwd: builderDir, env, stdio: ["ignore", "pipe", "pipe"] });
+      procs.push(child);
+      const out = { stdout: "", stderr: "" };
+      child.stdout!.on("data", (d: Buffer) => (out.stdout += d.toString("utf8")));
+      child.stderr!.on("data", (d: Buffer) => (out.stderr += d.toString("utf8")));
+      const exited = new Promise<number | null>((r) => child.on("exit", (code) => r(code)));
+      expect(await until(() => out.stdout.includes("Interface listening on"), 30_000), `${out.stdout}\n${out.stderr}`).toBe(true);
+      return { port, previewPort, out, exited, child };
+    };
+    const projectIdIn = async (u: string) => {
+      const db = createPool(u);
+      try {
+        return (await db.query<{ id: string }>("select id from projects order by created_at limit 1")).rows[0]!.id;
+      } finally {
+        await db.end();
+      }
+    };
+    /** A form POST over HTTP, on a connection of its own. */
+    const postTo = (port: number, path: string, form: Record<string, string>, cookie?: string) =>
+      new Promise<{ status: number; text: string; setCookie: string }>((resolve, reject) => {
+        const body = new URLSearchParams(form).toString();
+        const headers = { "content-type": "application/x-www-form-urlencoded", "content-length": Buffer.byteLength(body), origin: `http://127.0.0.1:${port}`, ...(cookie ? { cookie } : {}) };
+        const req = http.request({ host: "127.0.0.1", port, method: "POST", path, headers, agent: false }, (res) => {
+          let text = "";
+          res.setEncoding("utf8");
+          res.on("data", (d: string) => (text += d));
+          res.on("end", () => resolve({ status: res.statusCode ?? 0, text, setCookie: String(res.headers["set-cookie"] ?? "") }));
+        });
+        req.on("error", reject);
+        req.end(body);
+      });
+    try {
+      const off = await start({});
+      expect(off.out.stdout).toContain(`Live preview: off (BUILDER_LIVE_PREVIEW is not 1). Nothing listens on 127.0.0.1:${off.previewPort}`);
+      expect(off.out.stdout).not.toContain("Live preview front listening");
+      expect(await answers(off.previewPort)).toBe(false);
+      // Open the live app is refused by the interface itself, before any job.
+      const signedIn = await postTo(off.port, "/sign-in", { password: PASSWORD });
+      expect(signedIn.status).toBe(303);
+      const cookie = /builder_session=[^;]+/.exec(signedIn.setCookie)![0];
+      const made = await postTo(off.port, "/projects", { name: "Live off (made-up)", cap: "5", brief: "Made-up brief." }, cookie);
+      expect(made.status).toBe(303);
+      const id = await projectIdIn(url);
+      expect(id).toMatch(/^j1-[0-9a-f]{12}$/);
+      const refused = await postTo(off.port, `/projects/${id}/live`, {}, cookie);
+      expect(refused.status).toBe(409);
+      expect(refused.text).toContain("This interface was started without the live preview.");
+      off.child.kill("SIGTERM");
+      expect(await off.exited).toBe(0);
+      const on = await start({ BUILDER_LIVE_PREVIEW: "1" });
+      expect(on.out.stdout).toContain(`Live preview front listening on http://127.0.0.1:${on.previewPort}`);
+      expect(await answers(on.previewPort)).toBe(true);
+      on.child.kill("SIGTERM");
+      expect(await on.exited).toBe(0);
+      expect(await answers(on.previewPort)).toBe(false);
+    } finally {
+      for (const p of procs) if (p.exitCode === null && p.signalCode === null) p.kill("SIGKILL");
+      await pool.query(`drop database if exists "${dbName}" with (force)`);
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it("the real interface (src/web/main.ts, as npm run web starts it, on a database of its own): when PostgreSQL ends its lock's connection, it accepts no more work and exits with code 1 and a line saying why; a second interface on the same database then starts and runs its recovery (review bot on defb9c4)", { timeout: 90_000 }, async () => {
     const base = new URL(TEST_DB_URL);
     const dbName = `${decodeURIComponent(base.pathname.slice(1))}_lk_${randomBytes(3).toString("hex")}`;
@@ -1364,6 +1459,45 @@ describe("J3 interface: the live app's screens (stand-in sandbox, the real front
     expect((await post(app, "/sign-out", {}, { cookie })).status).toBe(303);
     expect(preview.status(id)).toBeNull();
     expect((await listEvents(pool, id, EV.liveClosed)).at(-1)!.payload).toMatchObject({ reason: "sign_out" });
+    await j.closeProject(id);
+  }, 60_000);
+
+  it("a live session ends no later than the builder sign-in session that opened it: it is opened to end by that session's expiry, and a new sign-in in the same browser ends it (J3's review)", async () => {
+    const box: { jobs?: JourneyJobs } = {};
+    const j = new Journey({ pool, dataDir, cleanupProject: (id, rec) => box.jobs!.cleanup(id, rec) });
+    const jobs = new JourneyJobs({ journey: j, sandboxes, measureFree: () => 50 * 1024 ** 3 });
+    box.jobs = jobs;
+    const net = await import("node:net");
+    const s = net.createServer();
+    await new Promise<void>((r) => s.listen(0, "127.0.0.1", r));
+    const port = (s.address() as import("node:net").AddressInfo).port;
+    await new Promise((r) => s.close(r));
+    await preview?.stop().catch(() => undefined);
+    preview = new LivePreview({ port, texts: frontTexts(), base: "/tmp", openStream: (id) => jobs.openStream(id), onEvent: async (id, kind, payload) => void (await appendEvent(pool, id, kind, payload)) });
+    await preview.start();
+    jobs.attachPreview(preview);
+    // Sign-in sessions of ten minutes here (eight hours in the interface).
+    const app = createWebApp({ journey: j, jobs, password: new PasswordState("env", digestPassword(PASSWORD), null), sessions: new Sessions(10 * 60 * 1000), limiter: new SignInLimiter(), dataDir, preview });
+    const cookie = await signIn(app);
+    const signedInAt = Date.now();
+    const made = await post(app, "/projects", { name: "Leave requests (made-up, J3 review)", cap: "5.00", brief: "I need an app where staff can request leave and managers approve it" }, { cookie });
+    const id = /\/projects\/(j1-[0-9a-f]{12})\//.exec(made.headers.get("location") ?? "")![1]!;
+    for (const a of ["continue", "answer-rest", "confirm-brief", "confirm-plan"]) expect((await post(app, `/projects/${id}/${a}`, {}, { cookie })).status).toBe(303);
+    for (const [a, step] of [["build", "01-data"], ["approve", "01-data"], ["approve", "02-submitter-screen"]] as const) {
+      expect((await post(app, `/projects/${id}/${a}`, { step }, { cookie })).status).toBe(303);
+      await j.waitForJob();
+    }
+    expect((await post(app, `/projects/${id}/live`, {}, { cookie })).status).toBe(200);
+    await j.waitForJob();
+    const live = preview.status(id)!;
+    expect(live).not.toBeNull();
+    expect(live.endsAt).toBeLessThanOrEqual(signedInAt + 10 * 60 * 1000 + 1000);
+    expect(live.endsAt).toBeLessThan(Date.now() + 60 * 60 * 1000);
+    // A new sign-in in the same browser (its old cookie sent) ends that sign-in session, and the live session with it.
+    const again = await post(app, "/sign-in", { password: PASSWORD }, { cookie });
+    expect(again.status).toBe(303);
+    expect(preview.status(id)).toBeNull();
+    expect((await listEvents(pool, id, EV.liveClosed)).at(-1)!.payload).toMatchObject({ reason: "signed_in_again" });
     await j.closeProject(id);
   }, 60_000);
 });

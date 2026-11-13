@@ -185,6 +185,8 @@ async function main(): Promise<number> {
       BUILDER_UI_PASSWORD: uiPassword,
       BUILDER_UI_PORT: String(UI_PORT),
       BUILDER_PREVIEW_PORT: String(FRONT_PORT),
+      // After J3's review the front starts only when turned on.
+      BUILDER_LIVE_PREVIEW: "1",
       NO_COLOR: "1",
     };
     for (const k of ["HTTPS_PROXY", "HTTP_PROXY", "NO_PROXY", "https_proxy", "http_proxy", "no_proxy", "DOCKER_HOST"]) if (process.env[k]) env[k] = process.env[k];

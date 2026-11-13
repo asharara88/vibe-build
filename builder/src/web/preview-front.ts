@@ -236,7 +236,7 @@ async function leave(req: http.IncomingMessage, res: http.ServerResponse): Promi
 
 function forward(req: http.IncomingMessage, res: http.ServerResponse, s: Session, retried = false): void {
   const method = req.method ?? "GET";
-  const headers = upstreamHeaders(req.headers, { appPort: s.appPort, storedOrigin: s.origin, prefix: s.prefix, controls });
+  const headers = upstreamHeaders(req.headers, { method, appPort: s.appPort, storedOrigin: s.origin, prefix: s.prefix, controls });
   let answered = false;
   const fail = (key: "no_answer" | "too_large") => {
     if (answered || res.headersSent) {

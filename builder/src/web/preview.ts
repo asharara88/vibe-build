@@ -12,8 +12,9 @@
  *   only, never parsed. A connection is taken only while a live session is open and its pass has been used.
  * - One session at a time. `open` makes a pass (8 symbols, 40 bits; preview-rules.ts), sends only its digest to the
  *   front, and binds it to the builder's sign-in session, the project and the app's start. The session ends on leave,
- *   app stop, project close, the builder's sign-out, a pass unused or voided, the checklist, a halt or a lost lock,
- *   or after 8 hours; its streams are then killed.
+ *   app stop, project close, the end of the builder sign-in session that opened it (its sign-out, a new sign-in in
+ *   the same browser, or its expiry; after J3's review), a pass unused or voided, the checklist, a halt or a lost
+ *   lock, or after 8 hours, whichever comes first; its streams are then killed.
  * - Events (`journey.preview.live_entered`, `.live_closed`) go through `onEvent`; `.live_opened` is the live job's.
  * - The live camera's socket (`cameraSocket`): a folder of the runner's user 1001 (mode 750) with one socket (mode
  *   600), whose connections are passed, byte for byte, to the front's port on 127.0.0.1 (forwarder.ts).
@@ -96,7 +97,11 @@ export function removeStaleFolders(base: string, minAgeMs = 60_000): string[] {
     try {
       const st = lstatSync(dir);
       // Not a folder of this user, or made in the last minute (another interface may be starting in it): left alone.
-      if (!st.isDirectory() || st.uid !== (process.getuid?.() ?? st.uid) || Date.now() - st.mtimeMs < minAgeMs) continue;
+      // After J3's review: run as root, the interface gives each camera folder to the runner's user (`cameraSocket`),
+      // so a bpc- folder of that user is the interface's own too.
+      const me = process.getuid?.() ?? st.uid;
+      const owned = st.uid === me || (me === 0 && m[1] === "bpc" && st.uid === RUNNER_UID);
+      if (!st.isDirectory() || !owned || Date.now() - st.mtimeMs < minAgeMs) continue;
     } catch {
       continue;
     }
@@ -156,6 +161,8 @@ export class LivePreview {
   private front: ChildProcess | null = null;
   private pump: net.Server | null = null;
   private current: LiveSession | null = null;
+  /** Why the open session ends at its `endsAt`: its own 8 hours, or the builder sign-in session's expiry. */
+  private expiryReason: "expiry" | "builder_session_expired" = "expiry";
   private readonly streams = new Set<{ sock: net.Socket; stream: AppStream }>();
   private timers: NodeJS.Timeout[] = [];
   private stopping = false;
@@ -279,7 +286,7 @@ export class LivePreview {
       await this.event(c.projectId, LIVE_EVENTS.entered, { session: c.sessionId, sec_fetch_site_sent: m.secFetchSite });
     } else if (m.type === "closed") {
       if (!c || c.sessionId !== m.sessionId) return;
-      await this.closeCurrent(m.reason === "leave" ? "leave" : "expiry", false);
+      await this.closeCurrent(m.reason === "leave" ? "leave" : this.expiryReason, false);
     } else if (m.type === "refused") {
       if (m.voided && c && !c.entered) await this.closeCurrent("pass_voided");
       else if (m.reason === "expired" && c && !c.entered) await this.closeCurrent("pass_unused");
@@ -306,9 +313,11 @@ export class LivePreview {
 
   /**
    * A new session and its pass (section 4.4): any open session ends first ("replaced"). The pass is returned once,
-   * to be shown; only its digest is kept, by the front.
+   * to be shown; only its digest is kept, by the front. After J3's review: `builderSessionEndsAt`, when the interface
+   * knows it, is when the builder sign-in session that opens this one expires; the live session then ends no later
+   * ("builder_session_expired"), as it ends with that session's sign-out.
    */
-  async open(o: { projectId: string; builderSession: string; appStartEventId: string; appPort: number }): Promise<{ pass: string; shown: string; expiresAt: Date; sessionId: string }> {
+  async open(o: { projectId: string; builderSession: string; builderSessionEndsAt?: number | null; appStartEventId: string; appPort: number }): Promise<{ pass: string; shown: string; expiresAt: Date; sessionId: string }> {
     if (!this.front?.connected) throw new Error("The preview front is not running.");
     if (this.current) await this.closeCurrent("replaced");
     const now = Date.now();
@@ -317,7 +326,22 @@ export class LivePreview {
     const prefix = `bp${randomBytes(4).toString("hex")}_`;
     const passMs = this.o.passValidMs ?? PASS_VALID_MS;
     const sessionMs = this.o.sessionMaxMs ?? SESSION_MAX_MS;
-    const s: LiveSession = { ...o, sessionId, openedAt: now, passExpiresAt: now + passMs, endsAt: now + sessionMs, entered: false, enteredAt: null };
+    const bound = typeof o.builderSessionEndsAt === "number" && o.builderSessionEndsAt < now + sessionMs;
+    const endsAt = bound ? Math.max(now + 1, o.builderSessionEndsAt as number) : now + sessionMs;
+    const endReason = bound ? "builder_session_expired" : "expiry";
+    this.expiryReason = endReason;
+    const s: LiveSession = {
+      projectId: o.projectId,
+      builderSession: o.builderSession,
+      appStartEventId: o.appStartEventId,
+      appPort: o.appPort,
+      sessionId,
+      openedAt: now,
+      passExpiresAt: now + passMs,
+      endsAt,
+      entered: false,
+      enteredAt: null,
+    };
     this.current = s;
     this.send({ type: "pass", digest: passDigest(pass), expiresAt: s.passExpiresAt, sessionId, prefix, appPort: o.appPort, sessionEndsAt: s.endsAt });
     this.timers.push(
@@ -325,8 +349,8 @@ export class LivePreview {
         if (this.current?.sessionId === sessionId && !this.current.entered) void this.closeCurrent("pass_unused");
       }, passMs + 1000),
       setTimeout(() => {
-        if (this.current?.sessionId === sessionId) void this.closeCurrent("expiry");
-      }, sessionMs),
+        if (this.current?.sessionId === sessionId) void this.closeCurrent(endReason);
+      }, endsAt - now),
     );
     for (const t of this.timers) t.unref();
     return { pass, shown: showPass(pass), expiresAt: new Date(s.passExpiresAt), sessionId };
@@ -339,9 +363,12 @@ export class LivePreview {
     return true;
   }
 
-  /** End the session if it belongs to this builder sign-in session (its sign-out). */
-  async signedOut(builderSession: string | undefined): Promise<void> {
-    if (builderSession && this.current?.builderSession === builderSession) await this.closeCurrent("sign_out");
+  /**
+   * End the session if it belongs to this builder sign-in session: its sign-out ("sign_out"), or, after J3's review,
+   * a new sign-in in the same browser that ends it ("signed_in_again").
+   */
+  async signedOut(builderSession: string | undefined, reason: "sign_out" | "signed_in_again" = "sign_out"): Promise<void> {
+    if (builderSession && this.current?.builderSession === builderSession) await this.closeCurrent(reason);
   }
 
   /** End any session (a halt, a lost lock, the interface stopping). */

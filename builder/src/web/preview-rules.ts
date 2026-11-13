@@ -221,16 +221,21 @@ export function cookieValues(cookieHeader: string, name: string): string[] {
  * The headers sent to the app (section 4.5): the allowlist; Host becomes app:<port>; an Origin becomes
  * http://app:<port>; a Referer keeps its path with its origin replaced if that origin is the stored one, and is
  * dropped otherwise; the cookies of `appCookies`. Each mapping can be turned off for the measurements (`controls`).
+ * After J3's review: a GET or a HEAD is sent with no Content-Length. The front never sends their body, so a stated
+ * length would make the app wait for one, or read the next request on a kept-alive stream as that body (a way to
+ * pass headers that are not on the allowlist).
  */
 export function upstreamHeaders(
   headers: Record<string, string | string[] | undefined>,
-  o: { appPort: number; storedOrigin: string | null; prefix: string; controls?: MappingControls },
+  o: { method: string; appPort: number; storedOrigin: string | null; prefix: string; controls?: MappingControls },
 ): Record<string, string> {
   const c = o.controls ?? {};
   const app = `http://app:${o.appPort}`;
+  const bodiless = o.method === "GET" || o.method === "HEAD";
   const out: Record<string, string> = {};
   for (const [name, value] of Object.entries(headers)) {
     if (value === undefined || !forwardedRequestHeader(name)) continue;
+    if (bodiless && name === "content-length") continue;
     // The control for Sec-Fetch-*: those headers are not passed on.
     if (c.secFetch && name.startsWith("sec-fetch-")) continue;
     out[name] = one(value);
@@ -267,6 +272,18 @@ const DROPPED_EXACT = new Set([
   "alt-svc",
   "service-worker-allowed",
   "content-location",
+  // After J3's review: headers that make the browser fetch, or prepare connections to, other addresses without the
+  // page navigating (prefetch and prerender rules, DNS prefetching, source maps), change what it sends (client hints,
+  // a retry for them), or turn on browser features for the origin (login status, credentialed prerender, trials).
+  "speculation-rules",
+  "x-dns-prefetch-control",
+  "sourcemap",
+  "x-sourcemap",
+  "accept-ch",
+  "critical-ch",
+  "set-login",
+  "supports-loading-mode",
+  "origin-trial",
   // hop by hop
   "connection",
   "keep-alive",
@@ -289,7 +306,7 @@ const DROPPED_EXACT = new Set([
 ]);
 export function droppedResponseHeader(name: string): boolean {
   const n = name.toLowerCase();
-  return DROPPED_EXACT.has(n) || n.startsWith("access-control-");
+  return DROPPED_EXACT.has(n) || n.startsWith("access-control-") || n.startsWith("attribution-reporting-");
 }
 
 /** A cookie name as RFC 6265 allows it: a token (no separators, spaces or control characters). */

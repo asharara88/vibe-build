@@ -132,8 +132,9 @@ export class JourneyJobs {
    * change sets alone (`JOB_RULES.live`); Compose must read the `check` service as on `front` alone. Then a session is
    * opened, bound to this builder sign-in session, this project and this start of the app, and
    * `journey.preview.live_opened` written, without the pass. Resolves with the pass, to be shown once.
+   * `builderSessionEndsAt`: when that sign-in session expires, if known; the live session ends no later (J3's review).
    */
-  async openLive(projectId: string, builderSession: string): Promise<{ pass: string; shown: string; expiresAt: Date; sessionId: string }> {
+  async openLive(projectId: string, builderSession: string, builderSessionEndsAt: number | null = null): Promise<{ pass: string; shown: string; expiresAt: Date; sessionId: string }> {
     const preview = this.live;
     if (!preview) throw new JourneyRefused("This interface was started without the live preview.");
     let give!: (v: { pass: string; shown: string; expiresAt: Date; sessionId: string }) => void;
@@ -153,7 +154,7 @@ export class JourneyJobs {
         const network = await this.o.sandboxes.streamNetworkProblem(x);
         if (network) throw new JourneyRefused(`The live app was not opened: ${network}.`);
         stillOwned(signal);
-        const r = await preview.open({ projectId, builderSession, appStartEventId: state.appStartedEventId, appPort: x.appPort });
+        const r = await preview.open({ projectId, builderSession, builderSessionEndsAt, appStartEventId: state.appStartedEventId, appPort: x.appPort });
         try {
           await appendEvent(this.j.pool, projectId, EV.liveOpened, {
             session: r.sessionId,

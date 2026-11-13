@@ -193,7 +193,11 @@ export function createWebApp(d: WebDeps): Hono<Env> {
       return c.html(now > 0 ? signInPage(lang, { message: "locked", lockedSeconds: Math.ceil(now / 1000) }) : signInPage(lang, { message: "wrong" }), now > 0 ? 429 : 401);
     }
     d.limiter.succeed();
-    for (const v of cookieValues(c.req.header("cookie") ?? "", SESSION_COOKIE)) d.sessions.end(v);
+    // After J3's review: a live session opened from a sign-in session this one replaces ends with it.
+    for (const v of cookieValues(c.req.header("cookie") ?? "", SESSION_COOKIE)) {
+      await d.preview?.signedOut(v, "signed_in_again");
+      d.sessions.end(v);
+    }
     setCookie(c, SESSION_COOKIE, d.sessions.create(), cookieOpts);
     return c.redirect("/projects", 303);
   });
@@ -349,7 +353,8 @@ export function createWebApp(d: WebDeps): Hono<Env> {
     await c.req.parseBody();
     const session = c.get("session");
     if (!session) return c.redirect("/sign-in", 303);
-    const r = await jobs().openLive(id, session);
+    // After J3's review: the live session ends no later than this sign-in session expires.
+    const r = await jobs().openLive(id, session, d.sessions.expiresAt(session));
     const s = await j.state(id);
     return c.html(livePassPage(c.get("lang"), s, { shown: r.shown, expiresAt: r.expiresAt, port: jobs().livePort() ?? 0 }));
   });

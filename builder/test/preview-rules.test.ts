@@ -147,7 +147,7 @@ describe("request headers: the allowlist and the mappings (section 4.5)", () => 
     "x-middleware-subrequest": "made-up",
   };
   it("passes only the allowlist; Host becomes app:3161 and Origin http://app:3161; Referer keeps its path on the app's origin", () => {
-    const h = upstreamHeaders(sent, { appPort: 3161, storedOrigin: ORIGIN, prefix: PREFIX });
+    const h = upstreamHeaders(sent, { method: "POST", appPort: 3161, storedOrigin: ORIGIN, prefix: PREFIX });
     expect(Object.keys(h).sort()).toEqual(
       ["accept", "accept-encoding", "accept-language", "cache-control", "content-length", "content-type", "cookie", "host", "if-none-match", "next-action", "next-router-prefetch", "next-router-segment-prefetch", "next-router-state-tree", "next-url", "origin", "pragma", "range", "referer", "rsc", "sec-fetch-mode", "sec-fetch-site", "user-agent"].sort(),
     );
@@ -159,12 +159,12 @@ describe("request headers: the allowlist and the mappings (section 4.5)", () => 
     for (const name of ["authorization", "cookie", "host", "origin", "referer", "x-forwarded-host", "forwarded", "connection", "upgrade", "te"]) expect(forwardedRequestHeader(name), name).toBe(false);
   });
   it("a Referer from another origin is dropped; with no stored origin, every Referer is", () => {
-    expect(upstreamHeaders({ ...sent, referer: "https://other.example/x" }, { appPort: 3161, storedOrigin: ORIGIN, prefix: PREFIX }).referer).toBeUndefined();
-    expect(upstreamHeaders(sent, { appPort: 3161, storedOrigin: null, prefix: PREFIX }).referer).toBeUndefined();
+    expect(upstreamHeaders({ ...sent, referer: "https://other.example/x" }, { method: "POST", appPort: 3161, storedOrigin: ORIGIN, prefix: PREFIX }).referer).toBeUndefined();
+    expect(upstreamHeaders(sent, { method: "POST", appPort: 3161, storedOrigin: null, prefix: PREFIX }).referer).toBeUndefined();
   });
   it("no Origin is added when none was sent", () => {
     const { origin: _o, ...noOrigin } = sent;
-    expect(upstreamHeaders(noOrigin, { appPort: 3161, storedOrigin: ORIGIN, prefix: PREFIX }).origin).toBeUndefined();
+    expect(upstreamHeaders(noOrigin, { method: "POST", appPort: 3161, storedOrigin: ORIGIN, prefix: PREFIX }).origin).toBeUndefined();
   });
   it("cookies: only this session's prefix, removed; the front's own cookie, another session's prefix and any other cookie stay behind", () => {
     expect(appCookies(sent.cookie, PREFIX)).toBe("better-auth.session_token=tok");
@@ -175,8 +175,16 @@ describe("request headers: the allowlist and the mappings (section 4.5)", () => 
     expect(cookieValues("builder_preview=a; x=1; builder_preview=b", "builder_preview")).toEqual(["a", "b"]);
     expect(cookieValues("", "builder_preview")).toEqual([]);
   });
+  it("a GET or a HEAD is sent with no Content-Length, so a stated body the front never sends cannot desynchronise a kept-alive stream; a POST keeps its own (J3's review)", () => {
+    for (const method of ["GET", "HEAD"]) {
+      const h = upstreamHeaders({ ...sent, "content-length": "100" }, { method, appPort: 3161, storedOrigin: ORIGIN, prefix: PREFIX });
+      expect(h["content-length"], method).toBeUndefined();
+      expect(h.accept, method).toBe(sent.accept);
+    }
+    expect(upstreamHeaders({ ...sent, "content-length": "5" }, { method: "POST", appPort: 3161, storedOrigin: ORIGIN, prefix: PREFIX })["content-length"]).toBe("5");
+  });
   it("the measurements' controls turn each mapping off, one at a time", () => {
-    const o = { appPort: 3161, storedOrigin: ORIGIN, prefix: PREFIX };
+    const o = { method: "POST", appPort: 3161, storedOrigin: ORIGIN, prefix: PREFIX };
     expect(upstreamHeaders(sent, { ...o, controls: { host: true } }).host).toBe("made-up-preview.example");
     expect(upstreamHeaders(sent, { ...o, controls: { origin: true } }).origin).toBe(ORIGIN);
     expect(upstreamHeaders(sent, { ...o, controls: { referer: true } }).referer).toBe(sent.referer);
@@ -215,6 +223,25 @@ describe("answers: Set-Cookie, Location, dropped and refused (section 4.6)", () 
     for (const n of ["Refresh", "Link", "Report-To", "Reporting-Endpoints", "NEL", "Content-Security-Policy", "Content-Security-Policy-Report-Only", "Clear-Site-Data", "Strict-Transport-Security", "Access-Control-Allow-Origin", "Access-Control-Allow-Credentials", "Alt-Svc", "Service-Worker-Allowed", "Content-Location", "Connection", "Keep-Alive", "Transfer-Encoding", "Cache-Control", "X-Frame-Options"])
       expect(droppedResponseHeader(n), n).toBe(true);
     for (const n of ["Content-Type", "Content-Length", "Content-Encoding", "Vary", "ETag", "Last-Modified", "Date"]) expect(droppedResponseHeader(n), n).toBe(false);
+  });
+  it("headers that make the browser fetch or prepare other addresses quietly, change what it sends, or turn on features are dropped (J3's review)", () => {
+    const quiet = {
+      "speculation-rules": '"https://evil.example/rules.json"',
+      "x-dns-prefetch-control": "on",
+      sourcemap: "https://evil.example/app.js.map",
+      "x-sourcemap": "https://evil.example/app.js.map",
+      "accept-ch": "Sec-CH-UA-Model, Sec-CH-UA-Platform-Version",
+      "critical-ch": "Sec-CH-UA-Model",
+      "set-login": "logged-in",
+      "supports-loading-mode": "credentialed-prerender",
+      "origin-trial": "made-up-token",
+      "attribution-reporting-register-source": '{"destination":"https://evil.example"}',
+      "attribution-reporting-register-trigger": "{}",
+    };
+    const d = downstreamHeaders({ "content-type": "text/html", "x-kept": "1", ...quiet }, { appPort: 3161, prefix: PREFIX });
+    for (const n of Object.keys(quiet)) expect(d.headers[n], n).toBeUndefined();
+    expect(d.headers["x-kept"]).toBe("1");
+    for (const n of ["Speculation-Rules", "X-DNS-Prefetch-Control", "SourceMap", "Origin-Trial", "Attribution-Reporting-Info"]) expect(droppedResponseHeader(n), n).toBe(true);
   });
   it("content types: html, css, javascript, json, text/x-component, image/*, font/*, text/plain; nothing else", () => {
     for (const ok of ["text/html; charset=utf-8", "text/css", "application/javascript; charset=UTF-8", "text/javascript", "application/json", "application/manifest+json", "text/x-component", "image/png", "image/svg+xml", "image/x-icon", "font/woff2", "text/plain"]) expect(contentTypeAllowed(ok), ok).toBe(true);
