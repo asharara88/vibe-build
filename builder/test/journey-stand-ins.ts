@@ -40,8 +40,11 @@ export class StandInSandboxes implements Sandboxes {
   cameraImage: string | null = null;
   /** Set as cameraImage once the app is started: a problem that appears while the app is built. */
   cameraImageAfterStart: string | null = null;
-  /** How many times the camera's image was checked, and how many times the camera ran. */
+  /** What the camera's network check answers (package 0.6c: its service on the project's front network alone): null, or a problem. */
+  cameraNetwork: string | null = null;
+  /** How many times the camera's image and network were checked, and how many times the camera ran. */
   cameraImageChecks = 0;
+  cameraNetworkChecks = 0;
   cameraRuns = 0;
   /** The acceptance run's outcome: passed (item 1 passed) or did not run. */
   acceptanceOutcome: "passed" | "did not run" = "passed";
@@ -53,6 +56,8 @@ export class StandInSandboxes implements Sandboxes {
   outcomeWord: string | "absent" | null = null;
   /** The acceptance job fails after the runner has written its events (as a later fault in the job would). */
   acceptanceFailsAfterRun = false;
+  /** The acceptance job fails before the runner has written any event (as a fault before or inside the runner would). */
+  acceptanceFailsBeforeRun = false;
   private dirs: string[] = [];
 
   constructor(private readonly pool: pg.Pool) {}
@@ -69,7 +74,7 @@ export class StandInSandboxes implements Sandboxes {
     await initProjectRepo(repo, "Template copy (stand-in sandbox)");
     this.made.push(projectId);
     const sb = { dir, composeFile: join(dir, "compose.yaml"), projectName: `builder_${projectId}` } as Sandbox;
-    return { projectId, dir, workspace, changeSets: CHANGE_SETS_DIR, repo, sb, appPort: 3161, dbPort: 5591, appUrl: "http://127.0.0.1:3161", samplePassword: "made-up-sample-password", appStarted: false };
+    return { projectId, dir, workspace, changeSets: CHANGE_SETS_DIR, repo, sb, appPort: 3161, buildProxyPort: 13161, appUrl: "http://app:3161", samplePassword: "made-up-sample-password", appStarted: false };
   }
 
   engineRunner(x: ProjectSandbox): EngineRunner {
@@ -112,6 +117,11 @@ export class StandInSandboxes implements Sandboxes {
     return this.cameraImage;
   }
 
+  async cameraNetworkProblem(): Promise<string | null> {
+    this.cameraNetworkChecks++;
+    return this.cameraNetwork;
+  }
+
   async appCamera(_x: ProjectSandbox, a: { outDir: string; secretFile: string; onLine: (line: string) => void }): Promise<StreamingEnd> {
     // The password file is there while the camera runs.
     if (readFileSync(a.secretFile, "utf8") !== "made-up-sample-password") throw new Error("the stand-in camera did not find the sample password file");
@@ -122,6 +132,7 @@ export class StandInSandboxes implements Sandboxes {
   }
 
   async runAcceptance(input: AcceptanceRunInput): Promise<AcceptanceReport> {
+    if (this.acceptanceFailsBeforeRun) throw new Error("stand-in: the job failed before the runner wrote any event");
     const runId = `run-standin-${Date.now().toString(36)}`;
     const passed = this.acceptanceOutcome === "passed";
     const summary = passed ? PASSED_SUMMARY : "did not run: the stand-in said so";

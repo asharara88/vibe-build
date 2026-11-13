@@ -11,6 +11,12 @@
  * browser and photographs each screen. The interface's jobs build the app in the project's sandbox and its app
  * camera photographs the running app.
  *
+ * Package 0.6c: the project's containers sit on its private networks; the app is reached only at http://app:3161,
+ * from containers on its `front` network, and has no port on the machine. While the camera runs, Docker's list of
+ * J1's containers is read every second (`docker ps`: name, networks, published ports), and the run checks from it
+ * that none published a port on the machine, that only the door's machine side (`egress-host`) was on the
+ * machine's network, and that the app camera and the acceptance runner ran on the project's `front` network alone.
+ *
  * Then: the screenshots are copied into <evidence>/screens/, the downloaded export is checked against its event,
  * every event of the run is written to <evidence>/events.json, the interface is stopped, and everything the run
  * made is removed: J1's containers, images, volumes and networks, the sandbox folders, the data folder, the camera's
@@ -30,8 +36,10 @@ import { join, resolve } from "node:path";
 import { promisify } from "node:util";
 import { BROWSER_ZIP_LABEL, RUNNER_IMAGE, RUNNER_UID, runnerImageProblem } from "../src/acceptance/runner-image.js";
 import { sha256 } from "../src/acceptance/store.js";
+import { J1_BUILD_PROXY_PORT } from "../src/orchestrator/example-1-adapter.js";
 import { createPool } from "../src/store/db.js";
 import { portFree } from "./example-1-sandbox.js";
+import { networkChecks } from "./journey-network-checks.js";
 
 const run = promisify(execFile);
 const builderDir = resolve(import.meta.dirname, "..");
@@ -42,10 +50,11 @@ const UI_PORT = uiPort(process.env.J1_DEMO_UI_PORT);
 function uiPort(v: string | undefined): number {
   if (v === undefined || v === "") return 4020;
   const n = Number(v);
-  if (!/^[0-9]{4,5}$/.test(v) || n < 1024 || n > 65535 || n === 3161 || n === 5591) throw new Error(`J1_DEMO_UI_PORT must be a port from 1024 to 65535, not the app's 3161 or 5591; it is ${JSON.stringify(v)}.`);
+  if (!/^[0-9]{4,5}$/.test(v) || n < 1024 || n > 65535 || n === J1_BUILD_PROXY_PORT) throw new Error(`J1_DEMO_UI_PORT must be a port from 1024 to 65535, not ${J1_BUILD_PROXY_PORT}, the image build's port of J1's sandboxes; it is ${JSON.stringify(v)}.`);
   return n;
 }
-const PORTS = [UI_PORT, 3161, 5591];
+/** The two ports of the run on the machine: the interface's, and the image build's (package 0.6c's machine side). The app and its database have none. */
+const PORTS = [UI_PORT, J1_BUILD_PROXY_PORT];
 const runId = `${new Date().toISOString().slice(0, 10).replace(/-/g, "")}_${randomBytes(3).toString("hex")}`;
 const dbName = `builder_j1_${runId}`;
 const dbUrl = `postgres:///${dbName}?host=/var/run/postgresql`;
@@ -69,6 +78,16 @@ async function j1Leftovers(): Promise<string[]> {
   for (const v of (await sh("docker", ["volume", "ls", "--format", "{{.Name}}"])).split("\n")) if (v.startsWith("builder_j1-")) out.push(`volume ${v}`);
   for (const n of (await sh("docker", ["network", "ls", "--format", "{{.Name}}"])).split("\n")) if (n.startsWith("builder_j1-")) out.push(`network ${n}`);
   return out;
+}
+
+/** J1's project containers as Docker lists them at one moment: name, networks (sorted), published ports. */
+async function j1Containers(): Promise<Array<{ name: string; networks: string; ports: string }>> {
+  const out = await sh("docker", ["ps", "--format", "{{.Names}}\t{{.Networks}}\t{{.Ports}}"]).catch(() => "");
+  return out
+    .split("\n")
+    .map((l) => l.split("\t"))
+    .filter(([name]) => (name ?? "").startsWith("builder_j1-"))
+    .map(([name, networks, ports]) => ({ name: name!, networks: (networks ?? "").split(",").filter(Boolean).sort().join(","), ports: ports ?? "" }));
 }
 
 /** makeExample1's sandbox folders in the temporary folder (the tests' stand-in folders, "builder-acceptance-standin-", are not the run's). */
@@ -125,7 +144,7 @@ async function main(): Promise<number> {
     say(`Refused: something already listens on 127.0.0.1:${p}; nothing was started.`);
     return 2;
   }
-  say(`Ports ${PORTS.join(", ")} on 127.0.0.1: free before the run (checked by a connection attempt, refused).`);
+  say(`Ports ${PORTS.join(" and ")} on 127.0.0.1 (the interface's, and the image build's port of J1's sandboxes; the app and its database have none on the machine since package 0.6c): free before the run (checked by a connection attempt, refused).`);
 
   // A fresh database and data folder, and the camera's folders.
   execFileSync("createdb", ["-h", "/var/run/postgresql", dbName]);
@@ -164,6 +183,7 @@ async function main(): Promise<number> {
   const ifaceLog: string[] = [];
   const projects: string[] = [];
   const recordedSandboxes: string[] = [];
+  const allChecks: Array<{ name: string; ok: boolean; detail: string }> = [];
   try {
     // The interface, with a narrow environment: no model key, no gateway.
     const env: NodeJS.ProcessEnv = {
@@ -176,7 +196,7 @@ async function main(): Promise<number> {
       BUILDER_UI_PORT: String(UI_PORT),
       NO_COLOR: "1",
     };
-    // The image build reaches the package registry through the session's proxy (example-1-sandbox.ts).
+    // The sandbox's machine side goes out only through the session's proxy (package 0.6c; example-1-sandbox.ts reads HTTPS_PROXY).
     for (const k of ["HTTPS_PROXY", "HTTP_PROXY", "NO_PROXY", "https_proxy", "http_proxy", "no_proxy", "DOCKER_HOST"]) if (process.env[k]) env[k] = process.env[k];
     iface = spawn(join(builderDir, "node_modules", ".bin", "tsx"), ["src/web/main.ts"], { cwd: builderDir, env, stdio: ["ignore", "pipe", "pipe"] });
     const started = new Promise<boolean>((ok) => {
@@ -215,7 +235,16 @@ async function main(): Promise<number> {
     ];
     say(`The builder camera: docker ${camArgs.join(" ").replace(work, "<run folder>").replace(work, "<run folder>")}`);
     const cam = spawn("docker", camArgs, { env: dockerEnv(), stdio: ["ignore", "pipe", "pipe"] });
-    const checks: Array<{ name: string; ok: boolean; detail: string }> = [];
+    // Package 0.6c: Docker's list of J1's containers, every second while the camera runs.
+    const seen = new Map<string, { networks: string; ports: string }>();
+    let sampling = true;
+    const containerSampler = (async () => {
+      while (sampling) {
+        for (const r of await j1Containers()) seen.set(r.name, { networks: r.networks, ports: r.ports });
+        await new Promise((r) => setTimeout(r, 1000));
+      }
+    })();
+    const checks = allChecks;
     const shots: Array<{ file: string; path: string; lang: string; width: number }> = [];
     let exportSeen: { sha256: string; bytes: number; file: string } | null = null;
     let camErr = "";
@@ -250,7 +279,15 @@ async function main(): Promise<number> {
         ok(c);
       });
     });
-    say(`The builder camera ended with exit code ${camCode}; checks: ${checks.filter((c) => c.ok).length} passed, ${checks.filter((c) => !c.ok).length} failed.`);
+    sampling = false;
+    await containerSampler;
+    say(`The builder camera ended with exit code ${camCode}; its checks: ${checks.filter((c) => c.ok).length} passed, ${checks.filter((c) => !c.ok).length} failed.`);
+    say(`J1's containers Docker listed while the camera ran (sampled every second; name [networks], published ports if any): ${seen.size}`);
+    for (const [name, v] of seen) say(`  ${name} [${v.networks}]${v.ports ? ` ports: ${v.ports}` : ""}`);
+    for (const c of networkChecks(seen)) {
+      checks.push(c);
+      say(`  ${c.ok ? "PASSED" : "FAILED"}: ${c.name}${c.ok ? "" : ` (${c.detail})`}`);
+    }
     if (camErr.trim()) say(`The camera's error output (end): ${camErr.trim().split("\n").slice(-3).join(" | ")}`);
 
     // The screenshots, copied as the camera named them.
@@ -352,6 +389,7 @@ async function main(): Promise<number> {
     say("docker system df after:");
     say(await sh("docker", ["system", "df"]));
     say(`Projects the camera made: ${projects.join(", ") || "none"}.`);
+    say(`Checks in all (the builder camera's, the export's and Docker's list of J1's containers): ${allChecks.filter((c) => c.ok).length} passed, ${allChecks.filter((c) => !c.ok).length} failed.`);
     say(`Result: ${code === 0 ? "every check passed" : "NOT every check passed"} (exit code ${code}).`);
     writeFileSync(join(evidence, "run-demo.txt"), log.join("\n").replaceAll(work, "<run folder>") + "\n");
   }

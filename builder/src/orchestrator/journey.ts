@@ -54,7 +54,7 @@ export const EV = {
   jobFailed: "journey.job.failed",
   jobInterrupted: "journey.job.interrupted",
   engineEvent: "engine.event",
-  /** The project's sandbox folder and ports (example-1-adapter.ts): files only, no container yet. */
+  /** The project's sandbox folder, the app's address and the build's port (example-1-adapter.ts): files only, no container yet. */
   sandboxMade: "journey.sandbox.made",
   /** The sandbox's containers, images and folder removed: closed, or found at start from an interface that stopped. */
   sandboxRemoved: "journey.sandbox.removed",
@@ -136,11 +136,12 @@ export interface JourneyState {
   exportEventId: string | null;
 }
 
-/** Where a project's sandbox is, as `journey.sandbox.made` records it. */
+/**
+ * Where a project's sandbox is, as `journey.sandbox.made` records it: its folder (all that removing it needs). Records
+ * written before package 0.6c also named the app's and the database's ports on the machine; they are not read.
+ */
 export interface SandboxRecord {
   dir: string;
-  appPort: number;
-  dbPort: number;
 }
 
 /** The plan's steps: the scripted change sets of example 1, in order. */
@@ -211,7 +212,7 @@ export function journeyState(project: Project, events: Event[], intake: Intake, 
         if (typeof p.step === "string") s.approved.add(p.step);
         break;
       case EV.sandboxMade:
-        s.sandbox = typeof p.dir === "string" ? { dir: p.dir, appPort: Number(p.app_port), dbPort: Number(p.db_port) } : null;
+        s.sandbox = typeof p.dir === "string" ? { dir: p.dir } : null;
         break;
       case EV.sandboxRemoved:
         // A removal that failed (`removed: false`) leaves the sandbox recorded, so the next start tries again.

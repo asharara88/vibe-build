@@ -10,11 +10,16 @@
  *   stays closed, no gateway is started, and the step's token is passed to nothing.
  * - Before a step and before the app is built, the free disk space is measured; below the floor (4 GB, a
  *   figure assumed, not measured) the job is refused before anything is made.
+ * - Package 0.6c: the project's containers sit on its private networks. The app is reached only at
+ *   http://app:3161, from containers on its `front` network; nothing here connects to it from the machine. The
+ *   only port of the project on the machine is the image build's (127.0.0.1:13161), checked free before the app
+ *   is built (`Sandboxes.portsBusy`).
  * - After a failed step, the workspace is put back to its last commit (`resetToLastCommit`).
  * - The app is built once, after the last step is approved (the preview), through example-1-adapter.ts. Before
  *   it is built, and again just before the app camera starts, the runner image the camera uses is checked with
  *   package 3.1b's `runnerImageProblem` (`Sandboxes.cameraImageProblem`): with a problem, nothing is built or
- *   started, or the app is stopped, and no screenshot is recorded.
+ *   started, or the app is stopped, and no screenshot is recorded. Just before the camera starts, its service is
+ *   checked to be on the project's `front` network alone (`Sandboxes.cameraNetworkProblem`), with the same result.
  * - The handles of this process's sandboxes are kept in memory. A sandbox left by an interface that stopped is
  *   not resumed: it is removed at the next start (journey.ts, `recoverInterrupted`).
  */
@@ -44,6 +49,8 @@ export const STEP_TIME_LIMIT_MS = 660_000;
 /** The extra sentence under a refused step (final design, section 1, item 10). */
 export const REFUSAL_EXTRA =
   "Scripted steps spend $0; this is a reservation sized from a real model's price. To go on, ask Claude Code to change the cap (a recorded change), or start a new project.";
+/** Where the running app is reached from (package 0.6c), as `journey.app.started` records it. */
+export const APP_REACHED_FROM = "containers on the project's front network only; no port of the app or its database on the machine";
 /** The caption under a screenshot of the running app (final design, section 1, item 7). */
 export const appShotCaption = (at: Date) => `Screenshot of the running app at ${at.toISOString().replace("T", " ").slice(0, 19)} UTC. Not live. Sample data.`;
 
@@ -103,7 +110,7 @@ export class JourneyJobs {
           if (state.sandbox) throw new JourneyRefused("This project's sandbox was made by an interface that has since stopped. It is not resumed. Close the project, or start a new one.");
           x = await this.o.sandboxes.make(projectId);
           this.handles.set(projectId, x);
-          await appendEvent(this.j.pool, projectId, EV.sandboxMade, { dir: x.dir, app_port: x.appPort, db_port: x.dbPort, compose_project: x.sb.projectName, containers: 0 }, step);
+          await appendEvent(this.j.pool, projectId, EV.sandboxMade, { dir: x.dir, app_url: x.appUrl, build_proxy_port: x.buildProxyPort, compose_project: x.sb.projectName, containers: 0 }, step);
         }
         const sandboxNow = x;
         const files = readManifest(CHANGE_SETS_DIR, EXAMPLE, step).files.length;
@@ -163,7 +170,7 @@ export class JourneyJobs {
         x.appStarted = true;
         await this.o.sandboxes.buildAndStart(x, (line) => queue.push(EV.previewLine, { line: line.trim() }));
         await queue.drain();
-        await appendEvent(this.j.pool, projectId, EV.appStarted, { app_url: x.appUrl, app_port: x.appPort, db_port: x.dbPort, live_view: false });
+        await appendEvent(this.j.pool, projectId, EV.appStarted, { app_url: x.appUrl, reached_from: APP_REACHED_FROM, live_view: false });
         recordedStarted = true;
         const shots = await this.appShots(projectId, x, (line) => queue.push(EV.previewLine, { line: `app camera: ${line.slice(0, 300)}` }));
         await queue.drain();
@@ -194,6 +201,9 @@ export class JourneyJobs {
       // Package 3.1b: the runner image again, just before the camera starts (the app's build can take minutes).
       const imageProblem = await this.o.sandboxes.cameraImageProblem(x);
       if (imageProblem) throw new JourneyRefused(`The app camera did not start: ${imageProblem}. No screenshot was recorded.`);
+      // Package 0.6c: the camera's browser loads the app's pages, so its service must be on the project's front network alone.
+      const networkProblem = await this.o.sandboxes.cameraNetworkProblem(x);
+      if (networkProblem) throw new JourneyRefused(`The app camera did not start: ${networkProblem}. No screenshot was recorded.`);
       writeFileSync(secretFile, x.samplePassword, { mode: 0o400 });
       if (process.getuid?.() === 0) {
         chownSync(outDir, RUNNER_UID, RUNNER_UID);
@@ -220,7 +230,7 @@ export class JourneyJobs {
           name: shot.name,
           page: shot.page,
           lang: shot.lang,
-          camera: "app camera (approved runner image, project's acceptance service; no video, no trace)",
+          camera: "app camera (approved runner image, project's acceptance service on its front network; no video, no trace)",
           caption: appShotCaption(at),
           taken_at: at.toISOString(),
           live: false,

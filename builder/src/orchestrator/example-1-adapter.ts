@@ -2,21 +2,29 @@
  * The thin adapter between the journey and example 1's sandbox (package J1; final design, section 4,
  * "Sandboxes"). It calls `makeExample1`, `buildAndStart`, `destroyExample1` and `portFree` from
  * scripts/example-1-sandbox.ts unchanged, and the sandbox manager's `runStreaming`, `destroy` and
- * `removeImage`. It moves into src only after package 0.6c rewrites those (0.6c's measurements change what
- * example-1-sandbox.ts does).
+ * `removeImage`. Since package 0.6c it uses 0.6c's development-profile sandbox as it is:
  *
- * - One project with live containers at a time, on fixed ports: the app on 3161, its database on 5591, each
- *   checked free first. No other script or test uses them.
+ * - The project's containers sit on its private networks (`data`, `front`, `out`), with no route to the machine
+ *   and no port on it. The app listens on 3161 inside its container and is reached only at http://app:3161, from
+ *   containers on `front`: the check that nothing answers there before the app starts and the "right app
+ *   answers" check before a checklist run (0.6c's `askApp`), the acceptance runner and the app camera. Nothing
+ *   this process runs on the machine connects to the app or its database.
+ * - The image build goes through the door's machine side: npm through its port on the machine's loopback address,
+ *   127.0.0.1:13161 (the package registry only), every step that runs the workspace's code with no network
+ *   (templates/next/Dockerfile). That port is the project's one port on the machine, held while its machine side
+ *   runs (known gap 121), so it is checked free before a sandbox is made and before the app is built
+ *   (`buildPortRefusal`); one project's app runs at a time (journey-jobs.ts).
  * - Project ids start "j1-", so Compose names start "builder_j1-". Nothing here removes a Compose project, an
  *   image or a folder of another name (`checkJourneyId`, `recordedSandboxRefusal`).
- * - The app camera (camera/app-shots.mjs) runs in the project's own `acceptance` service: the approved runner
- *   image, its unprivileged user, its read-only root and its hardening; the script read-only, one output
- *   folder, the sample password as one read-only file. No video and no trace: the script records neither.
- *   Before it starts, the image the service names is checked with package 3.1b's `runnerImageProblem` (Docker
- *   answers, the image is on this machine, labelled with the approved browser zip's fingerprint), as an
- *   acceptance run checks it (`cameraImageProblem`; journey-jobs.ts asks it first).
+ * - The app camera (camera/app-shots.mjs) runs in the project's own `acceptance` service, on `front` only: the
+ *   approved runner image, its unprivileged user, its read-only root and its hardening; the script read-only, one
+ *   output folder, the sample password as one read-only file. No video and no trace: the script records neither.
+ *   It loads only http://app:<port>, the address the service gives it. Before it starts, the image the service
+ *   names is checked with package 3.1b's `runnerImageProblem` (`cameraImageProblem`), and Compose's own reading of
+ *   the service is checked to put it on the project's `front` network and nothing else (`cameraNetworkProblem`);
+ *   journey-jobs.ts asks both first.
  *
- * Development profile only: the app and runner containers share the machine's network (known gaps 1 and 60).
+ * Development profile only (the server profile is 0.6b's).
  */
 import { execFile } from "node:child_process";
 import { randomBytes } from "node:crypto";
@@ -28,12 +36,14 @@ import { RUNNER_IMAGE, runnerImageProblem } from "../acceptance/runner-image.js"
 import type { EngineRunner } from "../engine/scripted.js";
 import { appImageName, composeProjectName, dockerEnv, sandbox, toolsImageName, type Sandbox, type StreamingEnd } from "../sandbox/manager.js";
 import { buildAndStart, destroyExample1, makeExample1, portFree, type Example1 } from "../../scripts/example-1-sandbox.js";
-import type { SandboxRecord } from "./journey.js";
+import { JourneyRefused, type SandboxRecord } from "./journey.js";
 
 const run = promisify(execFile);
 
+/** The port the app listens on inside its container: it is reached at http://app:3161, never on the machine. */
 export const J1_APP_PORT = 3161;
-export const J1_DB_PORT = 5591;
+/** The image build's port on the machine's loopback address (package 0.6c's machine side, `buildProxyPort`). No other script or test uses it. */
+export const J1_BUILD_PROXY_PORT = 13161;
 /** The folder of the two cameras' scripts. */
 export const CAMERA_DIR = resolve(import.meta.dirname, "..", "..", "camera");
 /** The app camera's time limit. */
@@ -51,7 +61,7 @@ export interface Sandboxes {
   make(projectId: string): Promise<ProjectSandbox>;
   /** How the engine's container is started; undefined for the sandbox manager's own (`runStreaming`, service `engine`). */
   engineRunner(x: ProjectSandbox): EngineRunner | undefined;
-  /** Why the app cannot be started now (a port already in use), or null. */
+  /** Why the app's images cannot be built now (the build's port on the machine already in use), or null. */
   portsBusy(x: ProjectSandbox): Promise<string | null>;
   /** Build the images, make the tables and sample users in the tools container, start the app. */
   buildAndStart(x: ProjectSandbox, log: (line: string) => void): Promise<void>;
@@ -61,6 +71,12 @@ export interface Sandboxes {
    * browser zip's fingerprint). Asked before the app is built and again just before the camera starts.
    */
   cameraImageProblem(x: ProjectSandbox): Promise<string | null>;
+  /**
+   * Why the app camera may not run in the project's `acceptance` service, or null: Compose's own reading of that
+   * service must put it on the project's `front` network and on no other (package 0.6c), so that no page of the
+   * app is ever loaded on the machine's network. Asked just before the camera starts.
+   */
+  cameraNetworkProblem(x: ProjectSandbox): Promise<string | null>;
   /** Run the app camera in the project's `acceptance` service. */
   appCamera(x: ProjectSandbox, a: { outDir: string; secretFile: string; onLine: (line: string) => void }): Promise<StreamingEnd>;
   /** One acceptance run (package 3.1's `runAcceptance`). */
@@ -118,23 +134,62 @@ export async function cameraImageProblem(sb: Pick<Sandbox, "dir" | "acceptanceIm
   }
 }
 
+/**
+ * Why the build's port on the machine cannot be used, or null: something already listens on 127.0.0.1:`port` (another
+ * project's machine side, which holds it while that project runs, or another program). `then` says what was not done.
+ */
+export async function buildPortRefusal(port: number, then: string): Promise<string | null> {
+  if (await portFree(port)) return null;
+  return `Something already listens on 127.0.0.1:${port}, the port this machine gives a project's image build (another project's running sandbox, or another program); ${then}`;
+}
+
+/**
+ * Why a service, as Compose reads it (`docker compose config --format json`), is not on the project's `front`
+ * network and on nothing else, or null. Compose names a service's networks by their key in the file (`front`) and
+ * gives `network_mode` for the machine's network ("host") or none.
+ */
+export function frontOnlyProblem(config: unknown, service: string): string | null {
+  const s = (config as { services?: Record<string, { networks?: Record<string, unknown> | string[]; network_mode?: string }> } | null)?.services?.[service];
+  if (!s) return `Compose's reading of the sandbox has no ${service} service`;
+  if (s.network_mode !== undefined) return `Compose puts the ${service} service on network_mode "${s.network_mode}", not on the project's front network`;
+  const names = Array.isArray(s.networks) ? s.networks : Object.keys(s.networks ?? {});
+  if (names.length !== 1 || names[0] !== "front") return `Compose puts the ${service} service on ${names.length ? names.join(", ") : "no named network"}, not on the project's front network alone`;
+  return null;
+}
+
+/**
+ * Why the app camera may not run in a sandbox's `acceptance` service, or null: Compose's own reading of the sandbox's
+ * compose file, with the service's profile on, must put the service on `front` and nothing else (`frontOnlyProblem`).
+ */
+export async function cameraNetworkProblem(sb: Pick<Sandbox, "dir" | "composeFile">): Promise<string | null> {
+  let config: unknown;
+  try {
+    const { stdout } = await run("docker", ["compose", "-f", sb.composeFile, "--profile", "acceptance", "config", "--format", "json"], { env: dockerEnv(sb), maxBuffer: 4 * 1024 * 1024, timeout: 60_000 });
+    config = JSON.parse(stdout);
+  } catch (err) {
+    return `Compose could not read the sandbox's services (${(err as Error).message.split("\n")[0]})`;
+  }
+  return frontOnlyProblem(config, "acceptance");
+}
+
 /** The real sandboxes: Docker, on the development profile, through example-1-sandbox.ts. */
-export function example1Sandboxes(o: { runnerImage?: string } = {}): Sandboxes {
+export function example1Sandboxes(o: { runnerImage?: string; buildProxyPort?: number } = {}): Sandboxes {
   const runnerImage = o.runnerImage ?? RUNNER_IMAGE;
+  const buildProxyPort = o.buildProxyPort ?? J1_BUILD_PROXY_PORT;
   return {
     async make(projectId) {
       checkJourneyId(projectId);
-      const x = await makeExample1({ projectId, appPort: J1_APP_PORT, dbPort: J1_DB_PORT, runnerImage });
+      // makeExample1 refuses a port in use too, but with an error the screens do not show; this says why, first.
+      const busy = await buildPortRefusal(buildProxyPort, "the sandbox was not made. Close the other project, then try again.");
+      if (busy) throw new JourneyRefused(busy);
+      const x = await makeExample1({ projectId, appPort: J1_APP_PORT, buildProxyPort, runnerImage });
       return { ...x, appStarted: false };
     },
     engineRunner: () => undefined,
-    async portsBusy(x) {
-      const busy: string[] = [];
-      for (const p of [x.appPort, x.dbPort]) if (!(await portFree(p))) busy.push(String(p));
-      return busy.length ? `Something already listens on 127.0.0.1 port ${busy.join(" and ")}; the app is not started.` : null;
-    },
+    portsBusy: (x) => buildPortRefusal(x.buildProxyPort, "the app's images are not built and the app is not started."),
     buildAndStart: (x, log) => buildAndStart(x, log),
     cameraImageProblem: (x) => cameraImageProblem(x.sb),
+    cameraNetworkProblem: (x) => cameraNetworkProblem(x.sb),
     async appCamera(x, a) {
       const r = sandbox.runStreaming(x.sb, "acceptance", ["node", "/camera/app-shots.mjs"], {
         container: `${x.sb.projectName}-app-camera-${randomBytes(3).toString("hex")}`.slice(0, 120),
@@ -166,7 +221,7 @@ export function example1Sandboxes(o: { runnerImage?: string } = {}): Sandboxes {
           dir: rec.dir,
           composeFile: join(rec.dir, "compose.yaml"),
           projectName: name,
-          appBuild: { context: join(rec.dir, "workspace"), image: appImageName(projectId), toolsImage: toolsImageName(projectId), hostNetwork: true, args: {} },
+          appBuild: { context: join(rec.dir, "workspace"), image: appImageName(projectId), toolsImage: toolsImageName(projectId), hostNetwork: true, args: {}, before: ["egress-host"] },
         };
         await sandbox.destroy(sb).catch(() => undefined);
         await sandbox.removeImage(sb).catch(() => undefined);

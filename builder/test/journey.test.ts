@@ -6,6 +6,7 @@
  * workspace and history, no container.
  */
 import { execFileSync, spawnSync } from "node:child_process";
+import net from "node:net";
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -14,7 +15,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { BROWSER_ZIP_LABEL, BROWSER_ZIP_SHA256, RUNNER_IMAGE } from "../src/acceptance/runner-image.js";
 import { openStore, sha256 } from "../src/acceptance/store.js";
 import { git, workspaceChanges } from "../src/engine/project-repo.js";
-import { cameraImageProblem, checkJourneyId, recordedSandboxRefusal } from "../src/orchestrator/example-1-adapter.js";
+import { buildPortRefusal, cameraImageProblem, cameraNetworkProblem, checkJourneyId, example1Sandboxes, frontOnlyProblem, J1_APP_PORT, recordedSandboxRefusal, type ProjectSandbox } from "../src/orchestrator/example-1-adapter.js";
 import { secretLikePath } from "../src/orchestrator/export.js";
 import { APP_SHOTS, JourneyJobs, REFUSAL_EXTRA } from "../src/orchestrator/journey-jobs.js";
 import { journeyFolder } from "../src/web/files.js";
@@ -24,7 +25,8 @@ import { ScriptedEngine } from "../src/engine/scripted.js";
 import { DEFAULT_PROFILES } from "../src/gateway/hold.js";
 import { diskRefusal, EV, EventQueue, EXPORT_LABEL, Journey, JourneyRefused, JOURNEY_STAND_IN_LABEL, orderedEngine, runOutcome, scriptedEngineFor, engineEventHandler, SIGN_OFF_LABEL } from "../src/orchestrator/journey.js";
 import { runBudgetedStep } from "../src/orchestrator/steps.js";
-import type { Sandbox } from "../src/sandbox/manager.js";
+import { sandbox as sandboxManager, type Sandbox, type StreamingOptions } from "../src/sandbox/manager.js";
+import { networkChecks } from "../scripts/journey-network-checks.js";
 import { appendEvent, listEvents } from "../src/store/events.js";
 import { getBudget, listStepHolds, openStepHold } from "../src/store/holds.js";
 import { createProject } from "../src/store/projects.js";
@@ -486,14 +488,16 @@ describe("J1 journey, part 2: the build, preview, checklist and export jobs (sta
     expect((await j.state(b)).jobs.at(-1)).toMatchObject({ kind: "preview", state: "failed", reason: "Another project's app is running. One project's app runs at a time: close that project first." });
     await j.closeProject(a);
     // A port already in use: the app is not started.
-    sandboxes.ports = "Something already listens on 127.0.0.1 port 3161; the app is not started.";
+    // The build's port on the machine already in use (package 0.6c: the project's one port there): the app is not built.
+    const busy = "Something already listens on 127.0.0.1:13161, the port this machine gives a project's image build (another project's running sandbox, or another program); the app's images are not built and the app is not started.";
+    sandboxes.ports = busy;
     try {
       await jobs.preview(b);
       await j.waitForJob();
     } finally {
       sandboxes.ports = null;
     }
-    expect((await j.state(b)).jobs.at(-1)).toMatchObject({ kind: "preview", state: "failed", reason: "Something already listens on 127.0.0.1 port 3161; the app is not started." });
+    expect((await j.state(b)).jobs.at(-1)).toMatchObject({ kind: "preview", state: "failed", reason: busy });
     expect(sandboxes.started.filter((p) => p === b)).toEqual([]);
     expect(sandboxes.destroyed).toContain(a);
     expect((await listEvents(pool, a, EV.sandboxRemoved)).map((e) => e.payload.interrupted)).toEqual([false]);
@@ -682,6 +686,7 @@ describe("J1 journey, part 2: the build, preview, checklist and export jobs (sta
     const id = await ready(j);
     const other = uniqueId("p_recover_sandbox");
     await createProject(pool, { id: other, name: "Not a journey project (made-up)", capUsd: 5 });
+    // A record written before package 0.6c, with the ports the app and database had on the machine then: only its folder is read.
     const rec = { dir: "/made-up/builder-acceptance-left", app_port: 3161, db_port: 5591 };
     await appendEvent(pool, id, EV.sandboxMade, rec, "01-data");
     await appendEvent(pool, other, EV.sandboxMade, rec, "01-data");
@@ -690,7 +695,7 @@ describe("J1 journey, part 2: the build, preview, checklist and export jobs (sta
     const touched = await fresh.recoverInterrupted();
     expect(touched).toContain(id);
     expect(touched).not.toContain(other);
-    expect(cleaned.find(([p]) => p === id)?.[1]).toEqual({ dir: rec.dir, appPort: 3161, dbPort: 5591 });
+    expect(cleaned.find(([p]) => p === id)?.[1]).toEqual({ dir: rec.dir });
     expect(cleaned.map(([p]) => p).every((p) => p.startsWith("j1-"))).toBe(true);
     expect((await listEvents(pool, id, EV.sandboxRemoved)).map((e) => e.payload)).toEqual([expect.objectContaining({ interrupted: true, removed: true })]);
     expect(await listEvents(pool, other, EV.sandboxRemoved)).toEqual([]);
@@ -814,6 +819,45 @@ describe("J1 journey, part 2: the build, preview, checklist and export jobs (sta
     expect(sandboxes.cameraRuns).toBe(runsBefore + 1);
     await j.closeProject(id);
   });
+
+  it("on 0.6c's networks: just before the app camera starts, its service is checked to be on the project's front network alone; with a problem the app is stopped, the camera does not run and no screenshot is recorded", async () => {
+    const { j, jobs } = make();
+    const id = await ready(j);
+    await jobs.buildStep(id, "01-data");
+    await j.waitForJob();
+    await jobs.approve(id, "01-data");
+    await j.waitForJob();
+    const problem = 'Compose puts the acceptance service on network_mode "host", not on the project\'s front network';
+    const runsBefore = sandboxes.cameraRuns;
+    const checksBefore = sandboxes.cameraNetworkChecks;
+    sandboxes.cameraNetwork = problem;
+    try {
+      await jobs.approve(id, "02-submitter-screen");
+      await j.waitForJob();
+    } finally {
+      sandboxes.cameraNetwork = null;
+    }
+    const s = await j.state(id);
+    expect(s.jobs.at(-1)).toMatchObject({ kind: "preview", state: "failed", reason: `The app camera did not start: ${problem}. No screenshot was recorded.` });
+    expect(sandboxes.cameraNetworkChecks - checksBefore).toBe(1);
+    expect(sandboxes.cameraRuns).toBe(runsBefore);
+    expect(sandboxes.stoppedApps).toContain(id);
+    expect(s.appRunning).toBe(false);
+    expect(await listEvents(pool, id, EV.screenshot)).toEqual([]);
+    expect(existsSync(join(dataDir, "journey", id, "camera-runs")) ? readdirSync(join(dataDir, "journey", id, "camera-runs")) : []).toEqual([]);
+    // With the service on front alone, the preview is made; the app's start records where it is reached from.
+    await jobs.preview(id);
+    await j.waitForJob();
+    expect((await j.state(id)).previewFinished).toBe(true);
+    expect(sandboxes.cameraRuns).toBe(runsBefore + 1);
+    const started = (await listEvents(pool, id, EV.appStarted)).at(-1)!;
+    expect(started.payload).toEqual({ app_url: "http://app:3161", reached_from: "containers on the project's front network only; no port of the app or its database on the machine", live_view: false });
+    const made = (await listEvents(pool, id, EV.sandboxMade))[0]!;
+    expect(made.payload).toMatchObject({ app_url: "http://app:3161", build_proxy_port: 13161 });
+    expect(Object.keys(made.payload)).not.toContain("db_port");
+    await j.closeProject(id);
+  });
+
 });
 
 describe("J1 journey, part 2: the adapter removes only journey sandboxes", () => {
@@ -841,6 +885,177 @@ describe("J1 journey, part 2: the adapter removes only journey sandboxes", () =>
     } finally {
       rmSync(base, { recursive: true, force: true });
     }
+  });
+});
+
+describe("J1 journey on package 0.6c's private networks: the adapter, the app camera and the automated run's checks", () => {
+  const freePort = () =>
+    new Promise<number>((ok) => {
+      const s = net.createServer().listen(0, "127.0.0.1", () => {
+        const port = (s.address() as net.AddressInfo).port;
+        s.close(() => ok(port));
+      });
+    });
+  const hold = (port: number) => new Promise<net.Server>((ok) => { const s = net.createServer().listen(port, "127.0.0.1", () => ok(s)); });
+  /** A compose file's services, each as its block of text (the file is the sandbox manager's toYaml). */
+  const serviceBlocks = (yaml: string): Record<string, string> => {
+    const lines = yaml.slice(yaml.indexOf("\nservices:\n") + "\nservices:\n".length).split("\n");
+    const out: Record<string, string> = {};
+    let name: string | null = null;
+    for (const l of lines) {
+      const m = /^  ([a-z][a-z-]*):$/.exec(l);
+      if (m) name = m[1]!;
+      else if (/^\S/.test(l)) name = null;
+      else if (name) out[name] = (out[name] ?? "") + l + "\n";
+    }
+    return out;
+  };
+
+  it("a journey sandbox puts the app on the project's private networks: the app at http://app:3161, no port on the machine, the runner's service on front alone, only the machine side on the machine's network; Compose reads it the same", async () => {
+    const port = await freePort();
+    const savedProxy = process.env.HTTPS_PROXY;
+    process.env.HTTPS_PROXY = savedProxy || "http://127.0.0.1:9"; // makeExample1 names the session's proxy to the machine side; nothing is started here
+    let x: ProjectSandbox | null = null;
+    try {
+      x = await example1Sandboxes({ buildProxyPort: port }).make("j1-0123456789ab");
+      expect(x.appUrl).toBe(`http://app:${J1_APP_PORT}`);
+      expect(x.buildProxyPort).toBe(port);
+      const yaml = readFileSync(join(x.dir, "compose.yaml"), "utf8");
+      const s = serviceBlocks(yaml);
+      expect(Object.keys(s).sort()).toEqual(["acceptance", "app", "check", "db", "egress", "egress-host", "engine", "tools"]);
+      expect(yaml).not.toMatch(/^\s+ports:/m); // no port of any service published on the machine
+      expect(yaml.match(/network_mode: "host"/g)).toHaveLength(1);
+      expect(s["egress-host"]).toContain('network_mode: "host"');
+      expect(s["egress-host"]).toContain(`EGRESS_BUILD_PORT: "${port}"`);
+      expect(s.acceptance).toContain('    networks:\n      - "front"\n');
+      expect(s.acceptance).toContain('BASE_URL: "http://app:3161"');
+      expect(s.acceptance).not.toContain("network_mode");
+      expect(s.app).toContain('    networks:\n      - "data"\n      - "front"\n');
+      expect(s.app).not.toContain("network_mode");
+      // Compose's own reading of the file, as the camera's check asks it (no container is started by `config`).
+      expect(await cameraNetworkProblem(x.sb)).toBeNull();
+      // The build's port in use: no sandbox is made, and the preview is refused, each with a reason the screens show.
+      const held = await hold(port);
+      try {
+        const refused = await example1Sandboxes({ buildProxyPort: port }).make("j1-0123456789ac").then(() => null, (e: unknown) => e);
+        expect(refused).toBeInstanceOf(JourneyRefused);
+        expect((refused as Error).message).toBe(`Something already listens on 127.0.0.1:${port}, the port this machine gives a project's image build (another project's running sandbox, or another program); the sandbox was not made. Close the other project, then try again.`);
+        expect(await example1Sandboxes({ buildProxyPort: port }).portsBusy(x)).toBe(`Something already listens on 127.0.0.1:${port}, the port this machine gives a project's image build (another project's running sandbox, or another program); the app's images are not built and the app is not started.`);
+      } finally {
+        await new Promise((r) => held.close(r));
+      }
+      expect(await example1Sandboxes({ buildProxyPort: port }).portsBusy(x)).toBeNull();
+      expect(await buildPortRefusal(port, "x")).toBeNull();
+    } finally {
+      if (savedProxy === undefined) delete process.env.HTTPS_PROXY;
+      else process.env.HTTPS_PROXY = savedProxy;
+      if (x) rmSync(x.dir, { recursive: true, force: true });
+    }
+  });
+
+  it("the camera's network check: only a service on the project's front network and nothing else passes, as Compose reads it", async () => {
+    expect(frontOnlyProblem({ services: { acceptance: { networks: { front: null } } } }, "acceptance")).toBeNull();
+    expect(frontOnlyProblem({ services: { acceptance: { networks: ["front"] } } }, "acceptance")).toBeNull();
+    expect(frontOnlyProblem({ services: { acceptance: { network_mode: "host" } } }, "acceptance")).toBe('Compose puts the acceptance service on network_mode "host", not on the project\'s front network');
+    expect(frontOnlyProblem({ services: { acceptance: { networks: { front: null, data: null } } } }, "acceptance")).toBe("Compose puts the acceptance service on front, data, not on the project's front network alone");
+    expect(frontOnlyProblem({ services: { acceptance: { networks: { default: null } } } }, "acceptance")).toBe("Compose puts the acceptance service on default, not on the project's front network alone");
+    expect(frontOnlyProblem({ services: { acceptance: {} } }, "acceptance")).toBe("Compose puts the acceptance service on no named network, not on the project's front network alone");
+    expect(frontOnlyProblem({ services: {} }, "acceptance")).toBe("Compose's reading of the sandbox has no acceptance service");
+    // Through a made-up docker program: what Compose answers is what is judged, and a failure refuses.
+    const bin = mkdtempSync(join(tmpdir(), "builder-journey-standin-compose-"));
+    const sbDir = mkdtempSync(join(tmpdir(), "builder-journey-camera-network-"));
+    const savedPath = process.env.PATH;
+    try {
+      for (const [answer, expected] of [
+        ['{"services":{"acceptance":{"networks":{"front":null}}}}', null],
+        ['{"services":{"acceptance":{"network_mode":"host"}}}', 'Compose puts the acceptance service on network_mode "host", not on the project\'s front network'],
+        ["", "Compose could not read the sandbox's services"],
+      ] as const) {
+        writeFileSync(join(bin, "docker"), `#!/bin/sh\necho "$*" > "$(dirname "$0")/calls"\n${answer ? `echo '${answer}'` : "exit 1"}\n`, { mode: 0o755 });
+        process.env.PATH = `${bin}:${savedPath ?? ""}`;
+        const got = await cameraNetworkProblem({ dir: sbDir, composeFile: join(sbDir, "compose.yaml") });
+        if (expected === "Compose could not read the sandbox's services") expect(got, answer).toMatch(/^Compose could not read the sandbox's services \(/);
+        else expect(got, answer).toBe(expected);
+        expect(readFileSync(join(bin, "calls"), "utf8").trim()).toBe(`compose -f ${join(sbDir, "compose.yaml")} --profile acceptance config --format json`);
+      }
+    } finally {
+      process.env.PATH = savedPath;
+      rmSync(bin, { recursive: true, force: true });
+      rmSync(sbDir, { recursive: true, force: true });
+    }
+  });
+
+  it("the adapter runs the app camera in the project's acceptance service (on front), with its script read-only, its folder and the password file, and no address of its own", async () => {
+    const calls: Array<{ service: string; cmd: string[]; opts: StreamingOptions }> = [];
+    const saved = sandboxManager.runStreaming;
+    sandboxManager.runStreaming = ((_sb: Sandbox, service: string, cmd: string[], opts: StreamingOptions) => {
+      calls.push({ service, cmd, opts });
+      return { container: opts.container, done: Promise.resolve({ code: 0, stderrTail: "" }), kill: async () => undefined };
+    }) as typeof sandboxManager.runStreaming;
+    try {
+      const x = { projectId: "j1-0123456789ab", sb: { projectName: "builder_j1-0123456789ab" } } as unknown as ProjectSandbox;
+      const end = await example1Sandboxes().appCamera(x, { outDir: "/made-up/out", secretFile: "/made-up/secret/sample-password", onLine: () => undefined });
+      expect(end.code).toBe(0);
+      expect(calls).toHaveLength(1);
+      expect(calls[0]!.service).toBe("acceptance");
+      expect(calls[0]!.cmd).toEqual(["node", "/camera/app-shots.mjs"]);
+      expect(calls[0]!.opts.volumes).toEqual([`${join(builderDir, "camera", "app-shots.mjs")}:/camera/app-shots.mjs:ro`, "/made-up/out:/shots", "/made-up/secret/sample-password:/run/secrets/sample-password:ro"]);
+      expect(calls[0]!.opts.env).toBeUndefined(); // BASE_URL is the service's own, http://app:<port>
+      expect(calls[0]!.opts.container).toMatch(/^builder_j1-0123456789ab-app-camera-[0-9a-f]{6}$/);
+    } finally {
+      sandboxManager.runStreaming = saved;
+    }
+  });
+
+  it("the app camera loads its browser only for http://app:<port>, the app's address on the project's front network; any other address stops it first", () => {
+    const camera = join(builderDir, "camera", "app-shots.mjs");
+    const runWith = (base: string | undefined) =>
+      spawnSync(process.execPath, [camera], { env: { PATH: process.env.PATH ?? "", ...(base === undefined ? {} : { BASE_URL: base }) }, encoding: "utf8", timeout: 30_000 });
+    for (const base of [undefined, "", "http://127.0.0.1:3161", "http://localhost:3161", "https://app:3161", "http://app:3161/en", "http://app.example.test:3161", "http://app", "http://APP:3161"]) {
+      const r = runWith(base);
+      expect(r.status, String(base)).toBe(2);
+      expect(r.stdout.trim(), String(base)).toBe(JSON.stringify({ kind: "error", reason: "BASE_URL is not the app's address on the project's front network, http://app:<port>" }));
+      expect(r.stderr, String(base)).not.toContain("playwright"); // the browser was never loaded
+    }
+    // The app's address: past the check, it loads the browser (on this machine the runner image's copy is not there).
+    const r = runWith("http://app:3161");
+    expect(r.status).not.toBe(2);
+    expect(r.stderr).toContain("/runner/node_modules/playwright-core/index.mjs");
+  });
+
+  it("the automated run's checks on Docker's list of J1's containers: no published port, only the machine side on the machine's network, the app camera and the runner on front alone, the app on data and front", () => {
+    const p = "builder_j1-0123456789ab";
+    const good = (): Map<string, { networks: string; ports: string }> =>
+      new Map([
+        [`${p}-egress-host-1`, { networks: "host", ports: "" }],
+        [`${p}-egress-1`, { networks: `${p}_out`, ports: "" }],
+        [`${p}-db-1`, { networks: `${p}_data`, ports: "5432/tcp" }],
+        [`${p}-app-1`, { networks: `${p}_data,${p}_front`, ports: "" }],
+        [`${p}-app-camera-a1b2c3`, { networks: `${p}_front`, ports: "" }],
+        [`${p}-acceptance-run-1`, { networks: `${p}_front`, ports: "" }],
+        [`${p}-check-run-0f9e8d7c6b5a`, { networks: `${p}_front`, ports: "" }],
+      ]);
+    expect(networkChecks(good()).map((c) => [c.name, c.ok])).toEqual([
+      ["no J1 container published a port on the machine (Docker's list, every second)", true],
+      ["only the door's machine side (egress-host) was on the machine's network", true],
+      ["the app camera ran on the project's front network alone", true],
+      ["the acceptance runner ran on the project's front network alone", true],
+      ["the app was on the project's data and front networks alone", true],
+      ["every check container seen (it asks the app before a start or a run) was on the front network alone", true],
+    ]);
+    const failing = (change: (m: Map<string, { networks: string; ports: string }>) => void) => {
+      const m = good();
+      change(m);
+      return networkChecks(m).filter((c) => !c.ok).map((c) => c.name);
+    };
+    expect(failing((m) => m.set(`${p}-app-1`, { networks: `${p}_data,${p}_front`, ports: "127.0.0.1:3161->3161/tcp" }))).toEqual(["no J1 container published a port on the machine (Docker's list, every second)"]);
+    expect(failing((m) => m.set(`${p}-app-camera-a1b2c3`, { networks: "host", ports: "" }))).toEqual(["only the door's machine side (egress-host) was on the machine's network", "the app camera ran on the project's front network alone"]);
+    expect(failing((m) => m.set(`${p}-app-camera-a1b2c3`, { networks: `${p}_data,${p}_front`, ports: "" }))).toEqual(["the app camera ran on the project's front network alone"]);
+    expect(failing((m) => m.delete(`${p}-app-camera-a1b2c3`))).toEqual(["the app camera ran on the project's front network alone"]);
+    expect(failing((m) => m.set(`${p}-acceptance-run-1`, { networks: `${p}_front,${p}_out`, ports: "" }))).toEqual(["the acceptance runner ran on the project's front network alone"]);
+    expect(failing((m) => m.set(`${p}-app-1`, { networks: `${p}_data,${p}_front,bridge`, ports: "" }))).toEqual(["the app was on the project's data and front networks alone"]);
+    expect(failing((m) => m.set(`${p}-check-run-0f9e8d7c6b5a`, { networks: "host", ports: "" }))).toEqual(["only the door's machine side (egress-host) was on the machine's network", "every check container seen (it asks the app before a start or a run) was on the front network alone"]);
+    expect(failing((m) => m.clear())).toContain("no J1 container published a port on the machine (Docker's list, every second)");
   });
 });
 

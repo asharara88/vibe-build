@@ -205,6 +205,10 @@ async function run() {
   const loaded = await page.$$eval("[data-shots] img", (imgs) => imgs.map((i) => i.complete && i.naturalWidth > 0));
   check("four screenshots of the running app, each loaded", loaded.length === 4 && loaded.every(Boolean), JSON.stringify(loaded));
   check("each is captioned 'Not live. Sample data.'", (await page.locator("figcaption", { hasText: "Not live. Sample data." }).count()) === 4);
+  // Package 0.6c: the app is reached only at http://app:3161, from containers on the project's front network.
+  const previewLines = await text("details ol.lines");
+  check("the preview: before the app started, nothing answered at http://app:3161, asked from a container on the project's front network", previewLines.includes("Before the app was started, nothing answered at http://app:3161, asked from a container on the project's front network"), previewLines);
+  check("the app camera signed in at http://app:3161, the app's address on the project's front network", previewLines.includes('app camera: {"kind":"signed_in","at":"http://app:3161"'), previewLines);
   await photo(14, "preview", ["en"]);
 
   // 9. The checklist: run it; item 1 passed, items 2 to 6 did not run; the stand-in label; sign off.
