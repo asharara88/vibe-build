@@ -21,8 +21,8 @@
  *   output folder, the sample password as one read-only file. No video and no trace: the script records neither.
  *   It loads only http://app:<port>, the address the service gives it. Before it starts, the image the service
  *   names is checked with package 3.1b's `runnerImageProblem` (`cameraImageProblem`), and Compose's own reading of
- *   the service is checked to put it on the project's `front` network and nothing else (`cameraNetworkProblem`);
- *   journey-jobs.ts asks both first.
+ *   the sandbox is checked to put the service on the project's `front` network and nothing else, with `front`
+ *   internal and in 0.6c's "isolated" gateway mode (`cameraNetworkProblem`); journey-jobs.ts asks both first.
  *
  * Development profile only (the server profile is 0.6b's).
  */
@@ -34,7 +34,7 @@ import { promisify } from "node:util";
 import { runAcceptance, type AcceptanceReport, type AcceptanceRunInput } from "../acceptance/runner.js";
 import { RUNNER_IMAGE, runnerImageProblem } from "../acceptance/runner-image.js";
 import type { EngineRunner } from "../engine/scripted.js";
-import { appImageName, composeProjectName, dockerEnv, sandbox, toolsImageName, type Sandbox, type StreamingEnd } from "../sandbox/manager.js";
+import { appImageName, composeProjectName, dockerEnv, PROJECT_NETWORK, sandbox, toolsImageName, type Sandbox, type StreamingEnd } from "../sandbox/manager.js";
 import { buildAndStart, destroyExample1, makeExample1, portFree, type Example1 } from "../../scripts/example-1-sandbox.js";
 import { JourneyRefused, type SandboxRecord } from "./journey.js";
 
@@ -144,22 +144,42 @@ export async function buildPortRefusal(port: number, then: string): Promise<stri
 }
 
 /**
+ * 0.6c's gateway option on every project network, by the name the sandbox manager writes it (`PROJECT_NETWORK`):
+ * with it "isolated", Docker puts no address of the machine on the network. Typed against the manager's own
+ * constant, so a change of its name there does not typecheck here.
+ */
+const GATEWAY_MODE_OPTION = "com.docker.network.bridge.gateway_mode_ipv4" satisfies keyof typeof PROJECT_NETWORK.driver_opts;
+
+/**
  * Why a service, as Compose reads it (`docker compose config --format json`), is not on the project's `front`
- * network and on nothing else, or null. Compose names a service's networks by their key in the file (`front`) and
- * gives `network_mode` for the machine's network ("host") or none.
+ * network and on nothing else, or that network is not one of 0.6c's private networks, or null. Compose names a
+ * service's networks by their key in the file (`front`) and gives `network_mode` for the machine's network ("host")
+ * or none. In the same reading, the top-level `networks.front` must be `internal` (no route out) and carry 0.6c's
+ * gateway option "isolated" (no address of the machine on it), as the sandbox manager writes every project network.
  */
 export function frontOnlyProblem(config: unknown, service: string): string | null {
-  const s = (config as { services?: Record<string, { networks?: Record<string, unknown> | string[]; network_mode?: string }> } | null)?.services?.[service];
+  const c = config as {
+    services?: Record<string, { networks?: Record<string, unknown> | string[]; network_mode?: string }>;
+    networks?: Record<string, { internal?: unknown; driver_opts?: Record<string, unknown> } | null>;
+  } | null;
+  const s = c?.services?.[service];
   if (!s) return `Compose's reading of the sandbox has no ${service} service`;
   if (s.network_mode !== undefined) return `Compose puts the ${service} service on network_mode "${s.network_mode}", not on the project's front network`;
   const names = Array.isArray(s.networks) ? s.networks : Object.keys(s.networks ?? {});
   if (names.length !== 1 || names[0] !== "front") return `Compose puts the ${service} service on ${names.length ? names.join(", ") : "no named network"}, not on the project's front network alone`;
+  const front = c?.networks?.front;
+  if (!front) return "Compose's reading of the sandbox has no front network";
+  if (front.internal !== true) return "Compose reads the project's front network as not internal: Docker would give it a route out";
+  const isolated: string | undefined = PROJECT_NETWORK.driver_opts[GATEWAY_MODE_OPTION];
+  if (!isolated || front.driver_opts?.[GATEWAY_MODE_OPTION] !== isolated)
+    return `Compose reads the project's front network without ${GATEWAY_MODE_OPTION} "${isolated}": Docker would put an address of the machine on it`;
   return null;
 }
 
 /**
  * Why the app camera may not run in a sandbox's `acceptance` service, or null: Compose's own reading of the sandbox's
- * compose file, with the service's profile on, must put the service on `front` and nothing else (`frontOnlyProblem`).
+ * compose file, with the service's profile on, must put the service on `front` and nothing else, and read `front`
+ * as internal with the "isolated" gateway option (`frontOnlyProblem`).
  */
 export async function cameraNetworkProblem(sb: Pick<Sandbox, "dir" | "composeFile">): Promise<string | null> {
   let config: unknown;

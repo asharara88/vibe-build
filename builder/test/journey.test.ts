@@ -7,7 +7,7 @@
  */
 import { execFileSync, spawnSync } from "node:child_process";
 import net from "node:net";
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import type pg from "pg";
@@ -911,6 +911,9 @@ describe("J1 journey, part 2: the adapter removes only journey sandboxes", () =>
 });
 
 describe("J1 journey on package 0.6c's private networks: the adapter, the app camera and the automated run's checks", () => {
+  /** The camera's network check's refusals when front is not one of 0.6c's private networks (the option's name as 0.6c's manager writes it). */
+  const NOT_INTERNAL = "Compose reads the project's front network as not internal: Docker would give it a route out";
+  const NOT_ISOLATED = 'Compose reads the project\'s front network without com.docker.network.bridge.gateway_mode_ipv4 "isolated": Docker would put an address of the machine on it';
   const freePort = () =>
     new Promise<number>((ok) => {
       const s = net.createServer().listen(0, "127.0.0.1", () => {
@@ -956,6 +959,17 @@ describe("J1 journey on package 0.6c's private networks: the adapter, the app ca
       expect(s.app).not.toContain("network_mode");
       // Compose's own reading of the file, as the camera's check asks it (no container is started by `config`).
       expect(await cameraNetworkProblem(x.sb)).toBeNull();
+      // The same file with front an ordinary bridge (`internal` dropped), or without 0.6c's isolated gateway option:
+      // the service is still on front alone, and the real Compose's reading of each is refused.
+      const frontBlock = '  front:\n    internal: true\n    enable_ipv6: false\n    driver_opts:\n      com.docker.network.bridge.gateway_mode_ipv4: "isolated"\n';
+      expect(yaml.split(frontBlock)).toHaveLength(2);
+      for (const [file, block, expected] of [
+        ["compose-front-bridge.yaml", '  front:\n    enable_ipv6: false\n    driver_opts:\n      com.docker.network.bridge.gateway_mode_ipv4: "isolated"\n', NOT_INTERNAL],
+        ["compose-front-not-isolated.yaml", "  front:\n    internal: true\n    enable_ipv6: false\n", NOT_ISOLATED],
+      ] as const) {
+        writeFileSync(join(x.dir, file), yaml.replace(frontBlock, block));
+        expect(await cameraNetworkProblem({ dir: x.dir, composeFile: join(x.dir, file) }), file).toBe(expected);
+      }
       // The build's port in use: no sandbox is made, and the preview is refused, each with a reason the screens show.
       const held = await hold(port);
       try {
@@ -975,22 +989,41 @@ describe("J1 journey on package 0.6c's private networks: the adapter, the app ca
     }
   });
 
-  it("the camera's network check: only a service on the project's front network and nothing else passes, as Compose reads it", async () => {
-    expect(frontOnlyProblem({ services: { acceptance: { networks: { front: null } } } }, "acceptance")).toBeNull();
-    expect(frontOnlyProblem({ services: { acceptance: { networks: ["front"] } } }, "acceptance")).toBeNull();
-    expect(frontOnlyProblem({ services: { acceptance: { network_mode: "host" } } }, "acceptance")).toBe('Compose puts the acceptance service on network_mode "host", not on the project\'s front network');
-    expect(frontOnlyProblem({ services: { acceptance: { networks: { front: null, data: null } } } }, "acceptance")).toBe("Compose puts the acceptance service on front, data, not on the project's front network alone");
-    expect(frontOnlyProblem({ services: { acceptance: { networks: { default: null } } } }, "acceptance")).toBe("Compose puts the acceptance service on default, not on the project's front network alone");
-    expect(frontOnlyProblem({ services: { acceptance: {} } }, "acceptance")).toBe("Compose puts the acceptance service on no named network, not on the project's front network alone");
+  it("the camera's network check: only a service on the project's front network and nothing else passes, with front internal and in 0.6c's isolated gateway mode, as Compose reads it", async () => {
+    // front as 0.6c's manager writes it, in Compose's reading (`docker compose config --format json`).
+    const front = () => ({ name: "builder_j1-0123456789ab_front", driver_opts: { "com.docker.network.bridge.gateway_mode_ipv4": "isolated" } as Record<string, string>, ipam: {}, internal: true as boolean, enable_ipv6: false });
+    const reading = (service: object, f: object | null = front()) => ({ services: { acceptance: service }, networks: f === null ? {} : { front: f } });
+    const onFront = { networks: { front: null } };
+    expect(frontOnlyProblem(reading(onFront), "acceptance")).toBeNull();
+    expect(frontOnlyProblem(reading({ networks: ["front"] }), "acceptance")).toBeNull();
+    expect(frontOnlyProblem(reading({ network_mode: "host" }), "acceptance")).toBe('Compose puts the acceptance service on network_mode "host", not on the project\'s front network');
+    expect(frontOnlyProblem(reading({ networks: { front: null, data: null } }), "acceptance")).toBe("Compose puts the acceptance service on front, data, not on the project's front network alone");
+    expect(frontOnlyProblem(reading({ networks: { default: null } }), "acceptance")).toBe("Compose puts the acceptance service on default, not on the project's front network alone");
+    expect(frontOnlyProblem(reading({}), "acceptance")).toBe("Compose puts the acceptance service on no named network, not on the project's front network alone");
     expect(frontOnlyProblem({ services: {} }, "acceptance")).toBe("Compose's reading of the sandbox has no acceptance service");
+    // The service on front alone, but front is not one of 0.6c's private networks: refused.
+    const { internal: _dropped, ...bridge } = front(); // an ordinary bridge: Compose leaves `internal` out when it is not set
+    expect(frontOnlyProblem(reading(onFront, bridge), "acceptance")).toBe(NOT_INTERNAL);
+    expect(frontOnlyProblem(reading(onFront, { ...front(), internal: false }), "acceptance")).toBe(NOT_INTERNAL);
+    expect(frontOnlyProblem(reading(onFront, { ...bridge, driver_opts: {} }), "acceptance")).toBe(NOT_INTERNAL);
+    const { driver_opts: _none, ...noOptions } = front();
+    expect(frontOnlyProblem(reading(onFront, noOptions), "acceptance")).toBe(NOT_ISOLATED);
+    expect(frontOnlyProblem(reading(onFront, { ...front(), driver_opts: {} }), "acceptance")).toBe(NOT_ISOLATED);
+    expect(frontOnlyProblem(reading(onFront, { ...front(), driver_opts: { "com.docker.network.bridge.gateway_mode_ipv4": "nat" } }), "acceptance")).toBe(NOT_ISOLATED);
+    expect(frontOnlyProblem(reading(onFront, { ...front(), driver_opts: { "com.docker.network.bridge.gateway_mode_ipv6": "isolated" } }), "acceptance")).toBe(NOT_ISOLATED);
+    expect(frontOnlyProblem(reading(onFront, null), "acceptance")).toBe("Compose's reading of the sandbox has no front network");
+    expect(frontOnlyProblem({ services: { acceptance: onFront } }, "acceptance")).toBe("Compose's reading of the sandbox has no front network");
     // Through a made-up docker program: what Compose answers is what is judged, and a failure refuses.
     const bin = mkdtempSync(join(tmpdir(), "builder-journey-standin-compose-"));
     const sbDir = mkdtempSync(join(tmpdir(), "builder-journey-camera-network-"));
     const savedPath = process.env.PATH;
     try {
+      const frontJson = '"networks":{"front":{"name":"builder_j1-0123456789ab_front","driver_opts":{"com.docker.network.bridge.gateway_mode_ipv4":"isolated"},"ipam":{},"internal":true,"enable_ipv6":false}}';
       for (const [answer, expected] of [
-        ['{"services":{"acceptance":{"networks":{"front":null}}}}', null],
-        ['{"services":{"acceptance":{"network_mode":"host"}}}', 'Compose puts the acceptance service on network_mode "host", not on the project\'s front network'],
+        [`{"services":{"acceptance":{"networks":{"front":null}}},${frontJson}}`, null],
+        [`{"services":{"acceptance":{"network_mode":"host"}},${frontJson}}`, 'Compose puts the acceptance service on network_mode "host", not on the project\'s front network'],
+        [`{"services":{"acceptance":{"networks":{"front":null}}},${frontJson.replace('"internal":true,', "")}}`, NOT_INTERNAL],
+        [`{"services":{"acceptance":{"networks":{"front":null}}},${frontJson.replace('"isolated"', '"nat"')}}`, NOT_ISOLATED],
         ["", "Compose could not read the sandbox's services"],
       ] as const) {
         writeFileSync(join(bin, "docker"), `#!/bin/sh\necho "$*" > "$(dirname "$0")/calls"\n${answer ? `echo '${answer}'` : "exit 1"}\n`, { mode: 0o755 });
@@ -1031,6 +1064,14 @@ describe("J1 journey on package 0.6c's private networks: the adapter, the app ca
 
   it("the app camera loads its browser only for http://app:<port>, the app's address on the project's front network; any other address stops it first", () => {
     const camera = join(builderDir, "camera", "app-shots.mjs");
+    // Before the script is run on this machine: the runner's playwright must be absent here, at the path the script
+    // imports it from (its one import besides node:fs), so that running it here can never reach a browser. If it is
+    // present, the test fails here and the script is not run.
+    const source = readFileSync(camera, "utf8");
+    const browserImports = [...source.matchAll(/\bimport\s*\(\s*"([^"]+)"\s*\)/g)].map((m) => m[1]!);
+    expect(browserImports).toEqual(["/runner/node_modules/playwright-core/index.mjs"]);
+    expect(source.match(/\bimport\b.*$/gm)).toEqual(['import { readFileSync } from "node:fs";', 'import("/runner/node_modules/playwright-core/index.mjs");']);
+    for (const path of [browserImports[0]!, dirname(browserImports[0]!)]) expect(lstatSync(path, { throwIfNoEntry: false }), `${path} is on this machine`).toBeUndefined();
     const runWith = (base: string | undefined) =>
       spawnSync(process.execPath, [camera], { env: { PATH: process.env.PATH ?? "", ...(base === undefined ? {} : { BASE_URL: base }) }, encoding: "utf8", timeout: 30_000 });
     for (const base of [undefined, "", "http://127.0.0.1:3161", "http://localhost:3161", "https://app:3161", "http://app:3161/en", "http://app.example.test:3161", "http://app", "http://APP:3161"]) {
@@ -1042,6 +1083,7 @@ describe("J1 journey on package 0.6c's private networks: the adapter, the app ca
     // The app's address: past the check, it loads the browser (on this machine the runner image's copy is not there).
     const r = runWith("http://app:3161");
     expect(r.status).not.toBe(2);
+    expect(r.stderr).toContain("ERR_MODULE_NOT_FOUND");
     expect(r.stderr).toContain("/runner/node_modules/playwright-core/index.mjs");
   });
 

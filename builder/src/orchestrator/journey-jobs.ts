@@ -19,7 +19,8 @@
  *   it is built, and again just before the app camera starts, the runner image the camera uses is checked with
  *   package 3.1b's `runnerImageProblem` (`Sandboxes.cameraImageProblem`): with a problem, nothing is built or
  *   started, or the app is stopped, and no screenshot is recorded. Just before the camera starts, its service is
- *   checked to be on the project's `front` network alone (`Sandboxes.cameraNetworkProblem`), with the same result.
+ *   checked to be on the project's `front` network alone, and `front` to be internal and in 0.6c's "isolated"
+ *   gateway mode (`Sandboxes.cameraNetworkProblem`), with the same result.
  * - The handles of this process's sandboxes are kept in memory. A sandbox left by an interface that stopped is
  *   not resumed: it is removed at the next start (journey.ts, `recoverInterrupted`).
  */
@@ -201,7 +202,7 @@ export class JourneyJobs {
       // Package 3.1b: the runner image again, just before the camera starts (the app's build can take minutes).
       const imageProblem = await this.o.sandboxes.cameraImageProblem(x);
       if (imageProblem) throw new JourneyRefused(`The app camera did not start: ${imageProblem}. No screenshot was recorded.`);
-      // Package 0.6c: the camera's browser loads the app's pages, so its service must be on the project's front network alone.
+      // Package 0.6c: the camera's browser loads the app's pages, so its service must be on the project's front network alone, a private one.
       const networkProblem = await this.o.sandboxes.cameraNetworkProblem(x);
       if (networkProblem) throw new JourneyRefused(`The app camera did not start: ${networkProblem}. No screenshot was recorded.`);
       writeFileSync(secretFile, x.samplePassword, { mode: 0o400 });
