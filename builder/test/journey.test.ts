@@ -959,7 +959,12 @@ describe("J1 journey, part 2: the build, preview, checklist and export jobs (sta
     expect((await j.state(id)).previewFinished).toBe(true);
     expect(sandboxes.cameraRuns).toBe(runsBefore + 1);
     const started = (await listEvents(pool, id, EV.appStarted)).at(-1)!;
-    expect(started.payload).toEqual({ app_url: "http://app:3161", reached_from: "containers on the project's front network only; no port of the app or its database on the machine", live_view: false });
+    // Package J3: the record also says the live preview's streams reach it, and that a live view is offered.
+    expect(started.payload).toEqual({
+      app_url: "http://app:3161",
+      reached_from: "containers on the project's front network only; no port of the app or its database on the machine; the live preview's streams are check containers on that network, whose HTTP the builder's preview front reads on the machine",
+      live_view: true,
+    });
     const made = (await listEvents(pool, id, EV.sandboxMade))[0]!;
     expect(made.payload).toMatchObject({ app_url: "http://app:3161", build_proxy_port: 13161 });
     expect(Object.keys(made.payload)).not.toContain("db_port");
