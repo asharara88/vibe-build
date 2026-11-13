@@ -36,7 +36,7 @@ Commits: `20b9b26` (the code), `e37ebc0` (the tests), `acb5d5b` (the demonstrati
 | Test | Shows | Controls |
 | --- | --- | --- |
 | 1.4c (a1) not streamed | A call billed $0.012284 against its hold of $0.009960: charged in full; `hold.exceeded`; the project frozen naming that hold, with the bill, the hold and the difference ($0.002324). The cost, the settlement, `hold.exceeded`, the freeze's event and the freeze's row share one transaction id. The project's next call, streamed call and counting request: each refused (402), nothing forwarded, no counting call, no hold. A new step: refused. Another project's call: forwarded and settled. The checker: no rule 3 or 4 broken | Y1, Y5, Y7 |
-| 1.4c (a2) streamed | The same for a stream, settled when the provider's body ends (first written as "when its last event is read", which the review found not exact: the last bytes reach the caller first, gap 131) | Y2 |
+| 1.4c (a2) streamed | The same for a stream, settled when the provider's body ends (first written as "when its last event is read", which the review found not exact: the last bytes reach the caller first, gap 145) | Y2 |
 | 1.4c (a3) one transaction | With a test-only trigger refusing the freeze's insert: no cost, no settlement, no `hold.exceeded`, no freeze of this kind are written; the hold stays open at its full amount; package 1.4's journal path freezes the project; its next call is refused. The owner's reconciliation at the bill clears it, writes no new freeze, and the next call is forwarded | Y4 |
 | 1.4c (b) step-held | A call drawn from a step, billed above its hold: charged in full; the step's room takes the difference; the project frozen naming that hold, in one transaction; the step's next call refused with nothing forwarded; a new step refused; after the record, the step's next call forwarded and settled | Y3 |
 | 1.4c (c1) the record | Clears that freeze with who, why, the evidence, the bill and the hold; the budget unchanged; 1.5's reconciliation refuses the closed hold; the next call forwarded and settled | |
@@ -114,7 +114,7 @@ The same record again: refused, exit code 2.
 - **It does not stop the first such bill** (gap 114): the bill is known only once the answer is read. It is charged in full and can take spend above the cap. Calls already forwarded still settle, and may freeze the project again.
 - **It does not check** who asked, or the evidence, against the provider; a mistaken bill stays charged (gap 115).
 - **"The same transaction"** is shown by the rows' transaction ids and by a trigger refusing the freeze, not by a database failing on its own (gap 116).
-- **A late answer whose cost cannot be worked out** is not compared with its hold (gap 117); a kept call is compared only on usage figures the gateway read and trusts (gap 130).
+- **A late answer whose cost cannot be worked out** is not compared with its hold (gap 117); a kept call is compared only on usage figures the gateway read and trusts (gap 144).
 - **Design note 5.5** was not changed when this package was built; after the review, a dated note for 1.4c records the answer to question 17 (see "After the review").
 - **One adversarial review** has read this package; its blocking item and notes are answered under "After the review".
 
@@ -173,11 +173,11 @@ One adversarial review read the branch at `0784859` (the code as at `acb5d5b`). 
 | Note | What was done |
 | --- | --- |
 | 1. A stream is settled, and so frozen, only when the provider's body ends, after the end marker has reached the caller; the next call sent at once was forwarded before the freeze (the review's X2) | **Not fixed; known gap 131.** Holding back the last bytes until the settlement is written would make every caller wait for the provider's end; settling when the end marker is read would stop the gateway reading what follows it, which today's checks read. Each changes how every call is handled. The wording "settled when its last event is read" (test (a2) and the table above) is corrected |
-| 2. The freeze is read outside the project's lock before the counting call, and not again between the hold and the forward | **Known gap 132**, with gap 114's calls in flight. No test covers it |
-| 3. A settlement that reported failure but had been written leaves two freezes on a settled hold | **Known gap 133**, with gap 100. Read from the code, not shown by a test |
+| 2. The freeze is read outside the project's lock before the counting call, and not again between the hold and the forward | **Known gap 146**, with gap 114's calls in flight. No test covers it |
+| 3. A settlement that reported failure but had been written leaves two freezes on a settled hold | **Known gap 147**, with gap 100. Read from the code, not shown by a test |
 | 4. Decision row 118 says the freeze is cleared through 1.5's reconciliation; the branch adds a new action, not listed for the owner to confirm | **Fixed in the records:** a line in `docs/QUESTIONS.md`, "Yours to confirm" |
 | 5. The migration's check and its one-per-hold index are exercised by no test | **Fixed:** test (g), with controls Z8 to Z10 |
-| 6. Gap 62's sentence on late answers holds only when the cost can be worked out | **Fixed:** it now points to gap 117, and to gap 130 for kept calls |
+| 6. Gap 62's sentence on late answers holds only when the cost can be worked out | **Fixed:** it now points to gap 117, and to gap 144 for kept calls |
 | 7. Design note 5.5 still calls question 17 open; plan section 7.3 has no 1.4c row | **Fixed:** a dated note for 1.4c in 5.5 and a change-log row; a 1.4c row in plan section 7.3 |
 | 8. The branch's upstream was package 1.5's | Already pushed under its own name: `origin/claude/pkg-1.4c-overrun-freeze` |
 | 9. Found sound (one transaction, the clearings, concurrent records and calls) | Nothing to do |
@@ -192,6 +192,8 @@ At the files committed as `25b8bea` and `0842aaf` (run just before they were com
 
 ### Not shown
 
-- **Pricing at the lower rate** where the answer leaves the rate open is not shown by a test: the stand-in's requests ask for no one-hour cache, so both cache-write rates give the same figure (gap 130).
-- **The review's X2 window** (note 1) is not closed (gap 131).
+- **Pricing at the lower rate** where the answer leaves the rate open is not shown by a test: the stand-in's requests ask for no one-hour cache, so both cache-write rates give the same figure (gap 144).
+- **The review's X2 window** (note 1) is not closed (gap 145).
 - **No review has read the fix.** The review bot on the pull request is next.
+
+*Renumbered 13 Nov 2026, before the pull request left draft:* gaps 130 to 133 of this package are now **144 to 147** (130 to 139 are J1's, 140 and 141 are 3.1b's, 142 and 143 are 1.4b's). The run outputs kept in this folder were written before the renumbering and keep the old numbers; the test name that named gap 131 now names gap 145.

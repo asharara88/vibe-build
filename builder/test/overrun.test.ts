@@ -399,7 +399,7 @@ describe("package 1.4c: a bill above its hold freezes the project until the owne
     await billAboveHold(false);
   });
 
-  it("1.4c (a2) streamed: the same, for a stream, settled when the provider's body ends (its last bytes reach the caller first: known gap 131)", async () => {
+  it("1.4c (a2) streamed: the same, for a stream, settled when the provider's body ends (its last bytes reach the caller first: known gap 145)", async () => {
     await billAboveHold(true);
   });
 
