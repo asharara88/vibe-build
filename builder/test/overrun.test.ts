@@ -28,7 +28,7 @@ import { createGateway } from "../src/gateway/app.js";
 import { DEFAULT_PROFILES, type ProfileLimits } from "../src/gateway/hold.js";
 import { FaultGate, FaultJournal } from "../src/gateway/journal.js";
 import { listEvents } from "../src/store/events.js";
-import { activeFreeze, frozenMessage, listFreezes, recordFreeze, type UnrecordedEnding } from "../src/store/freezes.js";
+import { activeFreeze, freezeAfterOverrunIn, frozenMessage, KEPT_ABOVE_HOLD_REASON, listFreezes, recordFreeze, type UnrecordedEnding } from "../src/store/freezes.js";
 import { expireHolds, getBudget, listHolds, openHold, openStepHold, settleHold } from "../src/store/holds.js";
 import { holdLivenessLock, type Liveness } from "../src/store/liveness.js";
 import { createProject, issueProjectToken } from "../src/store/projects.js";
@@ -51,6 +51,12 @@ const HOLD_MICRO = 9960;
 const HOLD_USD = HOLD_MICRO / 1e6;
 /** $0.012284 - $0.009960. */
 const ABOVE_MICRO = FAST_BILL_MICRO - HOLD_MICRO;
+/** On a profile that allows fast mode, the same call's hold carries the fast-mode factor: twice $0.009960. */
+const FAST_HOLD_MICRO = 2 * HOLD_MICRO;
+/** The same usage with 1,000 output tokens, at the standard rates (no speed stated): 20,141.6 millionths, rounded up. */
+const BIG_BILL_MICRO = 20142;
+/** A profile that allows fast mode (as in test/gateway.test.ts). */
+const FAST_PROFILES: Record<string, ProfileLimits> = { ...DEFAULT_PROFILES, fast: { maxTokensCeiling: 16_000, allowFastMode: true } };
 /** A step of up to 3 calls of that size (the profile of test/step-hold.test.ts). */
 const STEP_PROFILE: ProfileLimits = { maxTokensCeiling: 400, allowFastMode: false, stepPromptTokens: 42 };
 /** A made-up usage record, standing in for the provider's own. */
@@ -101,19 +107,54 @@ async function standIn(req: IncomingMessage, res: ServerResponse): Promise<void>
   }
   forwarded++;
   const body = JSON.parse(text) as { model: string; stream?: boolean; metadata?: { test?: string; project?: string } };
-  const fast = body.metadata?.test === "fast";
+  // The mode: "ok" or "fast", then, for the endings added after the review of 1.4c, how the answer ends:
+  // "-hang" (the whole stream, its end marker included, then the body held open until the gateway lets go, at most 3 s),
+  // "-error" (an error event after the figures), "-nostop" (the body ends with no end marker), "-cut" (the connection
+  // dropped after the figures), "-fall" (a figure that falls, so the figures cannot be trusted: the input count goes from
+  // 30 to 10, while the rest would still price the call above its hold in fast mode). "big-nospeed": a plain
+  // answer with 1,000 output tokens and no speed stated.
+  const mode = body.metadata?.test ?? "ok";
+  const fast = mode === "fast" || mode.startsWith("fast-");
+  const ending = mode.includes("-") ? mode.slice(mode.indexOf("-") + 1) : "";
   const project = body.metadata?.project;
-  if (project) await bill(project, fast ? FAST_BILL_MICRO : BILL_MICRO);
+  if (project) await bill(project, mode === "big-nospeed" ? BIG_BILL_MICRO : fast ? FAST_BILL_MICRO : BILL_MICRO);
   const usage = fast ? { ...USAGE, speed: "fast" } : USAGE;
   if (body.stream) {
     res.writeHead(200, { "content-type": "text/event-stream" });
     res.write(frame("message_start", { type: "message_start", message: { model: body.model, usage: { ...usage, output_tokens: 1 } } }));
     res.write(frame("content_block_delta", { type: "content_block_delta", delta: { type: "text_delta", text: "hello" } }));
     res.write(frame("message_delta", { type: "message_delta", usage: { output_tokens: USAGE.output_tokens } }));
+    if (ending === "fall") res.write(frame("message_delta", { type: "message_delta", usage: { input_tokens: 10, output_tokens: USAGE.output_tokens } }));
+    if (ending === "error") {
+      res.end(frame("error", { type: "error", error: { type: "overloaded_error", message: "made up for this test" } }));
+      return;
+    }
+    if (ending === "nostop") {
+      res.end();
+      return;
+    }
+    if (ending === "cut") {
+      await new Promise((r) => setTimeout(r, 100));
+      res.socket?.destroy();
+      return;
+    }
+    if (ending === "hang") {
+      res.write(frame("message_stop", { type: "message_stop" }));
+      await new Promise<void>((resolve) => {
+        const t = setTimeout(resolve, 3_000);
+        res.once("close", () => {
+          clearTimeout(t);
+          resolve();
+        });
+      });
+      if (!res.destroyed) res.end();
+      return;
+    }
     res.end(frame("message_stop", { type: "message_stop" }));
     return;
   }
-  res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({ id: "msg_test", type: "message", model: body.model, content: [{ type: "text", text: "hello" }], usage }));
+  const plainUsage = mode === "big-nospeed" ? { ...USAGE, output_tokens: 1_000 } : usage;
+  res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({ id: "msg_test", type: "message", model: body.model, content: [{ type: "text", text: "hello" }], usage: plainUsage }));
 }
 
 /* ------------------------------------------------------------------ helpers */
@@ -125,21 +166,21 @@ function listen(app: { fetch: (r: Request) => Response | Promise<Response> }): P
   });
 }
 
-async function newProject(capUsd: number) {
+async function newProject(capUsd: number, profile?: string) {
   const id = uniqueId("p14c");
-  await createProject(pool, { id, name: "overrun freeze test (made-up data)", capUsd });
+  await createProject(pool, { id, name: "overrun freeze test (made-up data)", capUsd, profile });
   return { id, token: await issueProjectToken(pool, id) };
 }
 
 const body = (project: string, mode = "ok", more: Record<string, unknown> = {}) => ({ model: MODEL, max_tokens: 400, messages: [], metadata: { test: mode, project }, ...more });
-const callAt = (base: string, token: string, b: unknown, path = "/v1/messages") =>
-  fetch(base + path, { method: "POST", headers: { "content-type": "application/json", "x-api-key": token, "anthropic-version": "2023-06-01" }, body: JSON.stringify(b) });
+const callAt = (base: string, token: string, b: unknown, path = "/v1/messages", signal?: AbortSignal) =>
+  fetch(base + path, { method: "POST", headers: { "content-type": "application/json", "x-api-key": token, "anthropic-version": "2023-06-01" }, body: JSON.stringify(b), signal });
 const errorOf = async (res: Response) => ((await res.json()) as { error: { type: string; message: string } }).error;
 const later = () => new Date(Date.now() + 600_000);
 const earlier = () => new Date(Date.now() - 1_000);
 
 /** A gateway in this process, holding its liveness lock, with its own gate and journal; its faults are kept with their details. */
-async function inProcessGateway(name: string) {
+async function inProcessGateway(name: string, more: Partial<Parameters<typeof createGateway>[0]> = {}) {
   const gatewayId = uniqueId(name);
   const liveness = await holdLivenessLock(TEST_DB_URL, gatewayId);
   livenesses.push(liveness);
@@ -149,7 +190,7 @@ async function inProcessGateway(name: string) {
   const onFault = (message: string, detail: unknown) => faults.push({ message, detail: (detail ?? {}) as Record<string, unknown> });
   const journal = await FaultJournal.open(dir);
   const gate = new FaultGate({ pool, journal, onFault });
-  const app = createGateway({ pool, modelApiKey: MADE_UP_KEY, upstreamUrl: standUrl, profiles: DEFAULT_PROFILES, gatewayId, gate, liveness, onFault });
+  const app = createGateway({ pool, modelApiKey: MADE_UP_KEY, upstreamUrl: standUrl, profiles: DEFAULT_PROFILES, gatewayId, gate, liveness, onFault, ...more });
   const { url } = await listen(app);
   return { url, gatewayId, gate, faults };
 }
@@ -358,7 +399,7 @@ describe("package 1.4c: a bill above its hold freezes the project until the owne
     await billAboveHold(false);
   });
 
-  it("1.4c (a2) streamed: the same, for a stream settled when its last event is read", async () => {
+  it("1.4c (a2) streamed: the same, for a stream, settled when the provider's body ends (its last bytes reach the caller first: known gap 131)", async () => {
     await billAboveHold(true);
   });
 
@@ -654,6 +695,241 @@ describe("package 1.4c: a bill above its hold freezes the project until the owne
     expect(await activeFreeze(pool, p.id)).toBeNull();
     expect((await listFreezes(pool, p.id)).map((x) => x.kind)).toEqual(["late_answer_above_hold"]);
     expect(await rulesOf(p.id)).toEqual(["a settled call above its hold", "hold.exceeded written"]);
+  });
+
+  /* ---------------------------------------------------------------- after the review of 1.4c (13 Nov 2026) */
+
+  /** Why the gateway keeps a hold for each ending these tests use (the gateway's own wording, builder/src/gateway/app.ts). */
+  const KEPT = {
+    limit: ["the call reached its time limit"],
+    left: ["the client disconnected part-way", "the client cancelled part-way"],
+    error: ["the provider reported an error inside the stream"],
+    nostop: ["the stream ended without the provider's end-of-message marker, so its figures may be partial"],
+    cut: ["the provider's stream failed part-way"],
+  };
+  const SPEED_NOT_STATED = "the hold allowed for fast mode, and the usage does not state the speed that served the call";
+  const KEPT_ABOVE_FAULT = "A call whose hold was kept had already cost more than its hold, by the usage figures read before it ended.";
+  const RULE_3 = "3: a bill above its hold with no freeze in its transaction";
+  const RULE_4 = "4: a hold opened or a step started while its project was frozen";
+
+  /** Read a streamed answer until its end marker has arrived; the body may still be open, and its reader is returned with what was read. */
+  async function readToStop(res: Response): Promise<{ got: string; reader: ReadableStreamDefaultReader<Uint8Array> }> {
+    const reader = res.body!.getReader();
+    const decoder = new TextDecoder();
+    let got = "";
+    while (!got.includes("message_stop")) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      got += decoder.decode(value, { stream: true });
+    }
+    return { got, reader };
+  }
+  /** Read the rest of a body to its end, or until it fails (a body cut by the gateway's time limit fails). */
+  async function drain(reader: ReadableStreamDefaultReader<Uint8Array>): Promise<void> {
+    try {
+      while (!(await reader.read()).done);
+    } catch {
+      /* cut part-way: the caller had what it had read */
+    }
+  }
+
+  /**
+   * A call the gateway kept, whose usage figures as read already priced it above its hold: what it must leave
+   * behind. The hold stays open at its full amount; the project is frozen naming it, with the cost as read, the hold
+   * and the difference, in the transaction that wrote the hold.kept event; the next call is refused with nothing forwarded.
+   */
+  async function keptAboveItsHold(
+    g: { url: string; gatewayId: string; faults: Array<{ message: string; detail: Record<string, unknown> }> },
+    p: { id: string; token: string },
+    reasons: string[],
+    o: { holdMicro: number; costMicro: number; stream: boolean } = { holdMicro: HOLD_MICRO, costMicro: FAST_BILL_MICRO, stream: true },
+  ) {
+    await until("the project's freeze", async () => (await listEvents(pool, p.id, "project.frozen")).length === 1);
+    const [h] = await listHolds(pool, p.id);
+    expect(h).toMatchObject({ state: "open", unreconciled: true, actual_usd: null });
+    expect(reasons).toContain(h!.kept_reason);
+    expect(micro(Number(h!.amount_usd))).toBe(o.holdMicro);
+    const budget = await getBudget(pool, p.id);
+    expect(micro(budget.spent)).toBe(0); // nothing charged: the hold is counted at its full amount instead
+    expect(micro(budget.openHolds)).toBe(o.holdMicro);
+    const kept = await listEvents(pool, p.id, "hold.kept");
+    expect(kept.map((e) => e.payload["reason"])).toEqual([h!.kept_reason]);
+    const freezes = await listFreezes(pool, p.id);
+    expect(freezes).toHaveLength(1);
+    const f = freezes[0]!;
+    expect(f).toMatchObject({ kind: "kept_above_hold", hold_id: String(h!.id), journal_id: null, reason: KEPT_ABOVE_HOLD_REASON, gateway: g.gatewayId, cleared_at: null });
+    expect(micro(Number(f.hold_amount_usd))).toBe(o.holdMicro);
+    expect(micro(Number(f.bill_usd))).toBe(o.costMicro);
+    expect(f.record).toMatchObject({ stream: o.stream, cost_usd_as_read: o.costMicro / 1e6 });
+    const frozenEv = (await listEvents(pool, p.id, "project.frozen"))[0]!;
+    expect(frozenEv.payload).toMatchObject({ freeze_id: Number(f.id), kind: "kept_above_hold", hold_id: Number(h!.id), hold_amount_usd: o.holdMicro / 1e6, bill_usd: o.costMicro / 1e6, above_by_usd: (o.costMicro - o.holdMicro) / 1e6, reason: KEPT_ABOVE_HOLD_REASON });
+    // One transaction: the hold.kept event, the freeze's event and the freeze's row.
+    expect(new Set([...(await txOf("events", [kept[0]!.id, frozenEv.id])), ...(await txOf("project_freezes", [f.id]))]).size).toBe(1);
+    const fault = g.faults.find((x) => x.message === KEPT_ABOVE_FAULT && x.detail["project"] === p.id);
+    expect(fault?.detail).toMatchObject({ hold: String(h!.id), project_frozen: true, freeze_id: Number(f.id), cost_usd_as_read: o.costMicro / 1e6 });
+    // The project's next call: refused as frozen, nothing forwarded, no counting call, no hold.
+    const sent = { forwarded, counted, holds: (await listHolds(pool, p.id)).length };
+    const next = await callAt(g.url, p.token, body(p.id, "ok"));
+    expect(next.status).toBe(402);
+    const e = await errorOf(next);
+    expect(e.type).toBe("project_frozen");
+    expect(e.message).toBe(frozenMessage(f));
+    expect(e.message).toContain(
+      `without a bill the gateway could settle, had already used at least $${(o.costMicro / 1e6).toFixed(6)} by the usage figures read before it ended, more than its hold of $${(o.holdMicro / 1e6).toFixed(6)} (above it by $${((o.costMicro - o.holdMicro) / 1e6).toFixed(6)}). The hold stays counted at its full amount. The gateway forwarded nothing, and no further call will be made for this project until the owner records what that call cost.`,
+    );
+    expect({ forwarded, counted, holds: (await listHolds(pool, p.id)).length }).toEqual(sent);
+    return { hold: h!, freeze: f };
+  }
+
+  /** A kept hold that must NOT freeze its project: kept with the reason given, no freeze, and the next call forwarded. */
+  async function keptNotFrozen(g: { url: string }, p: { id: string; token: string }, reason: string) {
+    await until("the hold kept", async () => (await listEvents(pool, p.id, "hold.kept")).length === 1);
+    expect((await listHolds(pool, p.id))[0]).toMatchObject({ state: "open", kept_reason: reason });
+    expect(await listFreezes(pool, p.id)).toEqual([]);
+    const sent = forwarded;
+    const next = await callAt(g.url, p.token, body(p.id, "ok"));
+    expect(next.status).toBe(200);
+    await next.text();
+    expect(forwarded).toBe(sent + 1);
+  }
+
+  // Each ending that keeps a streamed call, in a test of its own (the review asked for each with a control).
+  const E = "after its review: a streamed call the gateway keeps, whose usage figures read before it ended already price it above its hold ($0.012284 against $0.009960), freezes the project in the same transaction as its hold.kept, and the next call is refused with nothing forwarded";
+
+  it(`1.4c (e1) ${E}: the time limit, reached after the end marker while the provider's body stays open; the hold is listed as kept above it, the record of a bill refuses it, and the owner's reconciliation of the hold clears it`, async () => {
+    const short = await inProcessGateway("gw_p14c_limit", { callTimeLimitMs: { plain: 600_000, stream: 500 } });
+    const a = await newProject(1);
+    const ra = await callAt(short.url, a.token, body(a.id, "fast-hang", { stream: true }));
+    expect(ra.status).toBe(200);
+    const readA = await readToStop(ra);
+    expect(readA.got).toContain("message_stop"); // the caller has the whole answer; the provider's body is still open
+    await drain(readA.reader); // then the gateway's time limit (0.5 s here) cuts it
+    const limited = await keptAboveItsHold(short, a, KEPT.limit);
+
+    // Listed with its hold; the record of a bill refuses it; the owner's reconciliation of the hold clears it.
+    const list = await listUnreconciled(pool, { projectId: a.id });
+    expect(list.holds.map((h) => [h.holdId, h.kinds])).toEqual([[String(limited.hold.id), ["kept above its hold", "interrupted"]]]);
+    expect(list.holds[0]!.freezes).toEqual([expect.objectContaining({ freezeId: limited.freeze.id, kind: "kept_above_hold", cleared: false, costUsdAsRead: FAST_BILL_USD })]);
+    expect(list.overrunFreezes).toEqual([]);
+    expect(list.freezesWithNoOpenHold).toEqual([]);
+    const refused = await overrunRefused("no_overrun_freeze", { projectId: a.id, holdId: String(limited.hold.id), evidence: EVIDENCE, ...WHO });
+    expect(refused.message).toContain("another reason (the usage figures read before its call ended put it above its hold)");
+    const r = await reconcileHold(pool, { projectId: a.id, holdId: String(limited.hold.id), actualUsd: FAST_BILL_USD, evidence: EVIDENCE, ...WHO });
+    expect(r).toMatchObject({ aboveHold: true, freezesCleared: [limited.freeze.id], projectStillFrozen: false });
+    expect(await activeFreeze(pool, a.id)).toBeNull();
+    const sent = forwarded;
+    const again = await callAt(short.url, a.token, body(a.id, "ok"));
+    expect(again.status).toBe(200);
+    await again.text();
+    expect(forwarded).toBe(sent + 1);
+    // The checker: nothing opened while the project was frozen (rule 4); rule 3 concerns settlements only.
+    const rules = await rulesOf(a.id);
+    expect(rules).not.toContain(RULE_4);
+    expect(rules).not.toContain(RULE_3);
+    expect(rules).not.toContain("replay differs from the budget view");
+    expect(rules).not.toContain("an event the replay cannot read");
+  }, 30_000);
+
+  it(`1.4c (e2) ${E}: the caller leaves once it has read the end marker, before the provider's body ends`, async () => {
+    const g = await inProcessGateway("gw_p14c_left");
+    const b = await newProject(1);
+    const leave = new AbortController();
+    const rb = await callAt(g.url, b.token, body(b.id, "fast-hang", { stream: true }), "/v1/messages", leave.signal);
+    expect(rb.status).toBe(200);
+    expect((await readToStop(rb)).got).toContain("message_stop");
+    leave.abort();
+    await keptAboveItsHold(g, b, KEPT.left);
+  }, 30_000);
+
+  for (const [n, mode, what, reasons] of [
+    ["e3", "fast-error", "an error event after the figures", KEPT.error],
+    ["e4", "fast-nostop", "a body that ends with no end marker", KEPT.nostop],
+    ["e5", "fast-cut", "a connection dropped after the figures", KEPT.cut],
+  ] as const) {
+    it(`1.4c (${n}) ${E}: ${what}`, async () => {
+      const g = await inProcessGateway(`gw_p14c_${n}`);
+      const p = await newProject(1);
+      const r = await callAt(g.url, p.token, body(p.id, mode, { stream: true }));
+      expect(r.status).toBe(200);
+      await r.text().catch(() => "");
+      await keptAboveItsHold(g, p, [...reasons]);
+    }, 30_000);
+  }
+
+  it("1.4c (e6) after its review: a streamed call kept below its hold, or with figures that cannot be trusted, does not freeze its project", async () => {
+    // Below its hold: the same time limit at the standard rates ($0.006142): kept, not frozen.
+    const short = await inProcessGateway("gw_p14c_below", { callTimeLimitMs: { plain: 600_000, stream: 500 } });
+    const c = await newProject(1);
+    await drain((await callAt(short.url, c.token, body(c.id, "ok-hang", { stream: true }))).body!.getReader());
+    await keptNotFrozen(short, c, KEPT.limit[0]!);
+    // Figures that cannot be trusted (the input count falls from 30 to 10): kept, not frozen, though the figures, either
+    // way, would price it above its hold in fast mode ($0.012284 with 30, $0.012124 with 10).
+    const g = await inProcessGateway("gw_p14c_fall");
+    const d = await newProject(1);
+    await (await callAt(g.url, d.token, body(d.id, "fast-fall", { stream: true }))).text();
+    await keptNotFrozen(g, d, "the stream ended without usage figures that could be read");
+  }, 30_000);
+
+  it("1.4c (f) after its review: a plain answer kept because its usage does not state the speed, whose figures at the standard rates already price it above its hold (which allowed for fast mode), freezes the project in the same transaction as its hold.kept; one below its hold does not", async () => {
+    const g = await inProcessGateway("gw_p14c_nospeed", { profiles: FAST_PROFILES });
+    const p = await newProject(1, "fast");
+    const r = await callAt(g.url, p.token, body(p.id, "big-nospeed"));
+    expect(r.status).toBe(200);
+    await r.text();
+    const { freeze } = await keptAboveItsHold(g, p, [`the answer succeeded but its usage could not be read: ${SPEED_NOT_STATED}`], { holdMicro: FAST_HOLD_MICRO, costMicro: BIG_BILL_MICRO, stream: false });
+    expect(freeze.record).toMatchObject({ usage_as_read: { output_tokens: 1_000, speed: "standard" } });
+    // Below: 300 output tokens with no speed stated ($0.006142, below $0.019920): kept, not frozen.
+    const q = await newProject(1, "fast");
+    await (await callAt(g.url, q.token, body(q.id, "ok"))).text();
+    await keptNotFrozen(g, q, `the answer succeeded but its usage could not be read: ${SPEED_NOT_STATED}`);
+  });
+
+  it("1.4c (g) after its review: the database refuses a freeze of the three new kinds whose bill is not above its hold, is not a number, or names no hold, and a second one of the same kind for the same hold; writing one twice through the store adds nothing", async () => {
+    const p = await newProject(1);
+    const h = await hold(p.id);
+    const insert = (kind: string, bill: string | null, held: string | null, holdId: string | null = h, journal: string | null = null) =>
+      pool.query(
+        `insert into project_freezes(project_id, kind, hold_id, journal_id, gateway, reason, ended_at, hold_amount_usd, bill_usd, record)
+         values ($1, $2, $3, $4, 'gw_p14c_store', 'test (made up)', now(), $5, $6, '{}')`,
+        [p.id, kind, holdId, journal, held, bill],
+      );
+    const refusedBy = async (q: Promise<unknown>, code: string, constraint: string) => {
+      const err = await q.then(
+        () => null,
+        (e: unknown) => e,
+      );
+      expect(err, constraint).toMatchObject({ code, constraint });
+    };
+    for (const kind of ["bill_above_hold", "late_answer_above_hold", "kept_above_hold"]) {
+      for (const [bill, held, holdId] of [
+        ["0.009960", "0.009960", h], // equal to the hold
+        ["0.009959", "0.009960", h], // below it
+        ["NaN", "0.009960", h], // not a number (PostgreSQL ranks NaN above every number)
+        ["0.012284", "NaN", h],
+        [null, "0.009960", h],
+        ["0.012284", null, h],
+        ["0.012284", "0.009960", null], // no hold named
+      ] as const) {
+        await refusedBy(insert(kind, bill, held, holdId), "23514", "project_freezes_overrun_figures");
+      }
+    }
+    await refusedBy(insert("another_kind", "0.012284", "0.009960"), "23514", "project_freezes_kind_known");
+    await refusedBy(insert("unrecorded_ending", null, "0.009960"), "23514", "project_freezes_journal_line");
+    expect(await listFreezes(pool, p.id)).toEqual([]);
+    // One of each kind per hold: through the store, the second write returns the first and writes nothing more.
+    const freezeOf = (kind: "bill_above_hold" | "late_answer_above_hold" | "kept_above_hold") =>
+      freezeAfterOverrunIn(pool, { kind, projectId: p.id, holdId: h, holdAmountUsd: HOLD_USD, billUsd: FAST_BILL_USD, step: null, gateway: "gw_p14c_store", endedAt: new Date(), record: { made_up: true } });
+    const first = await freezeOf("kept_above_hold");
+    const events = (await listEvents(pool, p.id)).length;
+    const second = await freezeOf("kept_above_hold");
+    expect(second.id).toBe(first.id);
+    expect((await listEvents(pool, p.id)).length).toBe(events);
+    // Directly, the database refuses it.
+    await refusedBy(insert("kept_above_hold", "0.012284", "0.009960"), "23505", "project_freezes_one_overrun_per_hold");
+    // Another kind for the same hold is a freeze of its own.
+    const other = await freezeOf("late_answer_above_hold");
+    expect(other.id).not.toBe(first.id);
+    expect((await listFreezes(pool, p.id)).map((f) => f.kind)).toEqual(["kept_above_hold", "late_answer_above_hold"]);
   });
 
   it("1.4c (d) the invariant checker: rule 3 (a settlement's hold.exceeded needs a 'bill_above_hold' freeze of that hold, written in the same transaction) and rule 4 (nothing opens while a freeze is not cleared), on made-up traces", () => {
