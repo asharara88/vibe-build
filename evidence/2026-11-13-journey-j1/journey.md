@@ -5,7 +5,7 @@
 | Package | J1 (build plan section 7.7, shared work; the owner's message of 13 Nov 2026, `docs/DECISIONS.md`) |
 | Design | `docs/design/journey-j1.md` (final design after one independent critique; not approved by the owner) |
 | Branch | `claude/j1-journey`, from `claude/stage-1` at `b52e041` |
-| This file | Part 1 (its sections first, as written then), part 2 (from "Part 2" on), what changed after J1's review ("After the review") and after its merge with the integration branch ("Brought up to date with the integration branch", at the end), 13 Nov 2026 |
+| This file | Part 1 (its sections first, as written then), part 2 (from "Part 2" on), what changed after J1's review ("After the review"), after its merge with the integration branch ("Brought up to date with the integration branch") and when it was moved onto package 0.6c's private networks ("On the private networks (0.6c)", at the end), 13 Nov 2026 |
 | Machine | The development machine (a cloud session); test database `builder_test_j1`; no container started by J1's own tests; the automated run under the shared lock, with its own database and data folder |
 
 ## Part 1: what the owner can now do
@@ -205,7 +205,7 @@ Part 2's tests (no container; a stand-in sandbox, `test/journey-stand-ins.ts`): 
 - **Checked, by running it** (the automated run): every item of "Done means" above, in a browser, from a fresh database, with the real containers: the steps in their engine container, the image build and the app's start, the app camera, the acceptance run started from the screen, the export of the project's real history; the disk check refusing a build (the two earlier runs); that the camera loaded nothing but the interface; that nothing of J1 was left after the run.
 - **Checked by test** (stand-in sandbox, no container): the events in emission order with `step.hold_closed` after the last engine event (each write held 150 ms); the reset after a failed step; the camera's file checks; the export refused for a secret-like file; recovery of `j1-` projects only; no GET writing at any stage; each safeguard, by its control.
 - **Not checked:** the export started without the builder (package 3.2); recovery at start against real containers (shown only with the stand-in); how the app's own Arabic pages look at full size (the preview shows them small); the Arabic, by a reader of Arabic (gap 134); the owner's own use.
-- **Assumed:** the disk floor of 4 GB (gap 137).
+- **Assumed, not measured:** the disk floor of 4 GB (gap 137).
 
 ## Part 2: not reviewed yet
 
@@ -326,3 +326,109 @@ Only records conflicted; no code file did. Each kept both sides.
 ### Not reviewed yet
 
 No reviewer has read this merge or its changes.
+
+## On the private networks (0.6c)
+
+*13 Nov 2026.* `origin/claude/stage-1` at `6ddd0d6`, where pull request #36 merged package 0.6c (private networks for the development profile), was merged into this branch with `--no-ff`: merge commit `c94a144` (parents `df0ea43`, J1 after its last merge, and `6ddd0d6`). J1's changes are commits `1b4a5cb` (the journey on 0.6c's sandbox) and `f5618c9` (the checklist screen, the last independent check's point (c)); the records follow. Every output named here is in this folder. 0.6c's own account: `evidence/2026-11-13-package-0.6c/network-boundary.md`.
+
+### What the owner can now do
+
+The same journey as before, now on 0.6c's private networks. What he can see change:
+- The preview says where the app runs: in its sandbox on this machine, on the project's own networks, reached only by the project's own containers (`screens/14-preview-en.png`). Nothing on the machine, the builder included, connects to the app or its database; the screenshots and the checklist are taken from containers beside it.
+- The checklist screen shows the **latest checklist job**: its state, and its run if the runner recorded one; a job that failed before the runner wrote anything shows "None" and no outcome, never an earlier run. An item is shown green "Passed" only when the run's outcome is "Passed"; otherwise "Passed in this run, provisional", in grey, with the run's outcome next to it (`screens/16-checklist-en.png`, `-ar`, `-phone`, a run that passed).
+- While one project's app is running, a second project cannot start its first step: it is refused with the reason (the image build's port on the machine is in use) and asks him to close the other project first. Before, the second project's steps could be built; its preview was already refused.
+
+### The conflicts, and how each was resolved
+
+Only records conflicted; no code file did. Each kept both sides.
+
+| File | Resolution |
+| --- | --- |
+| `docs/DECISIONS.md` | 0.6c's "built as follows" row (the integration branch's), then J1's 13 Nov rows, all of one date. One row added after them for this work |
+| `docs/KNOWN-GAPS.md` | In number order: 0.6c's 118 to 128, then J1's 130 to 139, then 140 to 147. No number collides; none renumbered |
+| `docs/STATUS.md` | Rewritten from both: 0.6c merged (#36) and what it gives; J1 then not yet run on its networks (rewritten again at the end of this work) |
+
+Also merged without a conflict, and checked by reading: 0.6c's changes to gaps 1, 60 and 70, its `docs/BUILD-PLAN.md` rows, `docs/SOURCES.md` and `docs/design/stage-1.md`. The merge commit alone does not typecheck: J1's adapter still called `makeExample1` with the database port 0.6c removed (6 errors, all in J1's files); `1b4a5cb` is the fix.
+
+### What 0.6c changed under J1, and each adaptation
+
+0.6c changed `scripts/example-1-sandbox.ts` and `src/sandbox/manager.ts`: `makeExample1` takes the image build's port (`buildProxyPort`) instead of a database port, and the app's address is `http://app:<port>`; `buildAndStart` starts the door's machine side before the image build, the build's code steps run with no network, and the check that nothing answers before the app starts asks from a container on `front`; the acceptance runner checks the right app from `front`. J1 calls all of these unchanged. Its own changes (lines at `f5618c9`; tests in `builder/test/`):
+
+| Adaptation | Where | Shown by |
+| --- | --- | --- |
+| The image build's port fixed at 127.0.0.1:13161 for journey projects (no other script or test uses it); the app listens on 3161 inside its container only | `src/orchestrator/example-1-adapter.ts:46` | `journey.test.ts:936`, "a journey sandbox puts the app on the project's private networks …": the app at `http://app:3161`, no `ports:` in the compose file, `network_mode: "host"` once (the machine side), the runner's service on `front` alone with `BASE_URL` `http://app:3161`, the app on `data` and `front` |
+| A sandbox is made only if the build's port is free, refused before `makeExample1` with a reason the screens show (`makeExample1`'s own refusal is a plain error, which a job reports as "the job stopped with an error") | `example-1-adapter.ts:141` (`buildPortRefusal`), `:183` | `journey.test.ts:936` (the port held: `JourneyRefused`, its words). Control J1-C70 |
+| The checks of the machine's ports 3161 and 5591 before the preview are gone with the ports; the build's port is checked instead (`portsBusy`) | `example-1-adapter.ts:189`; `src/orchestrator/journey-jobs.ts:163` (unchanged call) | `journey.test.ts:936`; "one project's app at a time" (its port message updated). Controls J1-C71, J1-C34 |
+| Just before the app camera starts, Compose's own reading of the `acceptance` service (`docker compose config`) must put it on `front` alone; otherwise the app is stopped, the camera does not run, no screenshot is recorded | `example-1-adapter.ts:151` (`frontOnlyProblem`), `:164` (`cameraNetworkProblem`), `:192`; `journey-jobs.ts:205` | `journey.test.ts:978` (made-up readings, and a made-up `docker` program: the call it makes, a failure refused) and `:936` (the real file, read by the real Compose: no problem); `:823` (the preview refused, then made). Controls J1-C72, J1-C73, J1-C74 |
+| The app camera stays in the project's `acceptance` service (on `front` since 0.6c), with no address of its own | `example-1-adapter.ts:194` (unchanged) | `journey.test.ts:1010` (the manager's `runStreaming` stood in for: service, command, mounts, no setting). Control J1-C77 |
+| The app camera accepts only `BASE_URL` `http://app:<port>` (before: `http://127.0.0.1:<port>`) and loads its browser only after that check | `camera/app-shots.mjs:17`, `:22` | `journey.test.ts:1032` (nine other addresses: exit 2, the browser never loaded; `http://app:3161`: past the check). Controls J1-C75, J1-C76 |
+| The records: `journey.sandbox.made` names the app's address and the build's port, not machine ports; `journey.app.started` says where the app is reached from; a record written before 0.6c is read by its folder only | `journey-jobs.ts:53`, `:113`, `:173`; `src/orchestrator/journey.ts:143`, `:215` | `journey.test.ts:823` (the payloads); the recovery test (a pre-0.6c record, removed by its folder) |
+| `destroyRecorded` builds its handle with 0.6c's new field (`before: ["egress-host"]`) | `example-1-adapter.ts:224` | Typecheck only: it is used for a sandbox left by an interface that stopped, which the automated run does not make (gap 139) |
+| The automated run checks the interface's port and the build's port, not 3161 and 5591; while the camera walks the journey it reads Docker's list of J1's containers every second and checks it (no published port; only `egress-host` on the machine's network; the app camera and the runner on `front` alone; the app on `data` and `front`; every `check` container seen on `front` alone) | `scripts/demo-journey.ts:53`, `:57`, `:84`, `:243`, `:287`; `scripts/journey-network-checks.ts:11` | `journey.test.ts:1048` (made-up lists, each kind of wrong one). Controls J1-C78, J1-C79, J1-C80. The run's six checks, below |
+| The builder camera checks the preview's own lines: nothing answered at `http://app:3161` before the start, asked from `front`; the app camera signed in at `http://app:3161` | `camera/builder-shots.mjs:209` to `:211` | The run's two checks, below (no unit test: the builder camera runs only in the automated run) |
+| The preview's two sentences say where the app runs | `src/web/messages/en.json`, `ar.json` (`preview.app_running`, `preview.not_live`) | `screens/14-preview-en.png` |
+
+The builder camera is unchanged otherwise: a container of its own on the machine's network, loading only the interface on 127.0.0.1 (gap 138).
+
+### The last independent check's three points
+
+| Point | Done | Shown by |
+| --- | --- | --- |
+| (a) `docs/STATUS.md` says 0.6c is merged (#36), what it gives, and what the owner can now do | Rewritten, 400 words or fewer | `docs/STATUS.md` |
+| (b) "assumed, not measured" for the 4 GB disk floor wherever it was dropped | Restored in `docs/STATUS.md` ("What blocks it"), `docs/BUILD-PLAN.md` (J1's row) and this file's part 2 ("Checked and assumed"); kept in gap 137, the build screen's note and the refusal's words | `grep` of the records for the floor (every mention now says assumed and not measured, or cites gap 137, which does) |
+| (c) No green "Passed" for an item when the run's outcome word is not "passed"; the run table shows the latest checklist job, including one that failed before the runner wrote any event | `src/web/pages.ts:726` to `:760`; `src/orchestrator/journey.ts:295` (`jobRunFinished`: the runner's record written between the job's start and its end); 10 messages added in both languages (`docs/arabic-wording-list.md` regenerated, 272 each). An item whose test is written but has no result is no longer called "No test written yet" | `web.test.ts:857` (three runs whose item 1 passed but whose outcome is "not passed", "failed" or none: no `class="ok"`, provisional, the outcome next to it; then a run that passed: green), `web.test.ts:900` (a passed run, then a job that fails before the runner writes anything: the table shows that job, "None", no earlier run id, outcome or summary, item 1 "did not run" with its test written, no sign-off; then a new run), `journey.test.ts:861` (`jobRunFinished`), the whole journey test (`web.test.ts:695`). Controls J1-C81 to J1-C85 |
+
+### What was run, and the results
+
+| Check | Result | Output |
+| --- | --- | --- |
+| `npm run typecheck` | Passed, exit code 0, on `f5618c9` (`builder/` tree `1343da7`). Also: `1b4a5cb` alone, on a copy of its index (exit 0; J1's three test files there: 80 of 80); `scripts/demo-journey.ts` and `scripts/journey-network-checks.ts`, which `tsconfig.json` does not include, with a one-off settings file naming them (exit 0; removed after) | `run-typecheck-06c.txt` |
+| `npm run check:licences` | Passed, exit code 0; no dependency added | `run-licences-06c.txt` |
+| The whole suite, live tests included, under the shared lock, with the approved zip, a fresh database of its own | **600 of 600** in 26 files, none skipped, exit code 0, 617 s (lock held 15:51:44 to 16:02:06 UTC); no container before or after. Among them 0.6c's isolation and door tests, 3.1b's gate (its scan of the suite for skips included), and J1's own 83 (`journey.test.ts` 40, `web.test.ts` 32, `intake.test.ts` 11) | `run-tests-full-06c.txt` |
+| The automated run, under the shared lock, interface on port 4021 (4020 is the owner's own interface, not touched) | **54 of 54 checks passed** on `f5618c9`: the builder camera's 48 (two new: the app's address on `front`, before the start and at the camera's sign-in) and six on Docker's list of J1's containers (below); lock held 16:02:21 to 16:03:47 UTC; the runner image checked first and found labelled; 35 of 35 screenshots, replacing those of 15:12, which stay in the history at `df0ea43` (25 byte for byte the same; 10 differ: `14-preview` (its two new sentences), `15-checklist-before-run` (item 1's test written, not run yet), `16-checklist` in its three forms (the job's row in the run table), and `04`, `17`, `20`, `21`, `22`, whose project ids, times and run ids differ); 115 events for the 2 projects, in id order; the export 380,818 bytes, its SHA-256 the same in the browser and in its event, holding the tests and the note, no file that looks like a secret; the camera loaded nothing but 127.0.0.1:4021; nothing of J1 on the machine before or after; the database dropped, the folders removed. Disk: 12.39 GB free at the start, 11.33 GB at the lowest | `run-demo-wrapper.txt`, `run-demo.txt`, `screens/`, `events.json`, `camera-lines.jsonl`, `export-contents.txt`, `interface-log.txt` |
+| 0.6c's isolation run once more (`scripts/demo-isolation.ts`), under the shared lock, after the journey's run | **PASS**: every project container matched its list, both comparison containers got their answers, both misconfigurations failed (below); lock held 16:04:18 to 16:09:22 UTC; nothing left of its three projects; the machine's Docker objects after the same as before | `isolation-06c/run-isolation.txt`, and its probe lines, comparisons and table in `isolation-06c/` |
+| J1's controls, on a copy of `f5618c9` (no container) | **85 of 85** failed with their safeguard removed: the 16 new (J1-C70 to J1-C85) and the 69 earlier ones, unchanged but for the copy's path; the baseline before them 83 of 83; the copy compared with a fresh one afterwards: no difference. The 16 new ones run again printing the failing assertion: each failed for its own safeguard | `controls-06c.txt`, `controls-06c-why.txt`; scripts in `controls-06c-scripts/` |
+
+**Docker's list of J1's containers during the automated run** (`docker ps`, every second while the camera walked the journey; `run-demo.txt`), 9 containers of the first project (`builder_j1-9e0e9df3aec0`; the $1.00 project made none):
+
+| Container | Networks | Published on the machine |
+| --- | --- | --- |
+| `egress-host-1`, the door's machine side | the machine's (`host`) | none |
+| `db-1` | `data` | none (`5432/tcp` is the image's own, not published) |
+| `tools-run-…`, twice (tables, sample users) | `data` | none |
+| `check-run-…`, twice (nothing answers before the start; the right app answers before the checklist) | `front` | none |
+| `app-1` | `data`, `front` | none (`3000/tcp` is the image's own, not published; the app listens on 3161) |
+| `app-camera-164012` | `front` | none |
+| `acceptance-run-…`, the runner | `front` | none |
+
+The six checks on it, each passed: no J1 container published a port on the machine; only the door's machine side was on the machine's network; the app camera ran on `front` alone; the runner ran on `front` alone; the app was on `data` and `front` alone; every `check` container seen was on `front` alone. The door itself (`egress`, on `out`) was not started: nothing in J1 needs a way out while it runs (the scripted engine has no network), and its machine side served the image build only. The engine's containers (the two steps, no network) live for about a second and were not caught by the one-second sample; the checks do not ask for them.
+
+**0.6c's isolation run, per container** (`isolation-06c/run-isolation.txt`; each project container's probe made 55 attempts: the machine had 8 listening ports at the run, 127.0.0.1:4020, the owner's interface, among them):
+
+| Container | Networks | Attempts | Got an answer (each on its list) | Compared with its list |
+| --- | --- | --- | --- | --- |
+| app | `data`, `front` | 55 | 4: Docker's name server; `db` found; the database and the app by name | PASS: 55 rows PASS, 0 FAIL |
+| tools | `data` | 55 | the same 4 | PASS: 55 rows PASS, 0 FAIL |
+| database (the probe in its network namespace) | `data` | 55 | 6: its own loopback (twice), and the same 4 | PASS: 55 rows PASS, 0 FAIL |
+| runner | `front` | 55 | 2: Docker's name server; the app by name | PASS: 55 rows PASS, 0 FAIL |
+| engine, as package 2.2 would place it | `out` | 55 | 9: the registry through the door's proxy; example.com refused in the proxy's own words; the stand-in gateway at the door's port; the door's two ports by name | PASS: 55 rows PASS, 0 FAIL |
+| the door (a one-off container of its service) | `out` | 55 | the same 9 | PASS: 55 rows PASS, 0 FAIL |
+| comparison: the machine's own network | — | 59 | 26, the canary at every machine address among them | PASS: its answers came |
+| comparison: Docker's default network | — | 54 | 13, the canary at that network's address among them | PASS: its answers came |
+| misconfiguration 1: the app also on an ordinary bridge | — | 63 | 19 | **FAIL, as it must:** 15 rows (outside hosts and names, the machine's port 2024 and the canary) |
+| misconfiguration 2: `data` internal without the "isolated" mode | — | 71 | 6 | **FAIL, as it must:** 2 rows (the machine's port 2024 and the canary, at the machine's address on that network) |
+
+From every project container, the owner's interface's port 4020 at each address the machine holds got no answer ("network unreachable"). The comparison container on the machine's own network opened a TCP connection to 127.0.0.1:4020 and closed it, as it does to every port listening on the machine and as 0.6c's own runs did; nothing was sent to it. The isolation run uses stand-in images and its own projects, not J1's sandbox: it shows that J1's changes, none of which touches 0.6c's files, left the boundary as 0.6c built it; J1's own containers on those networks are shown by the automated run's Docker list above.
+
+**Order and overlap.** The suite, the automated run and the isolation run each held the shared lock in turn. The controls, which start no container, ran from 16:02:28 to 16:04:30 UTC, at the same time as the automated run and the start of the isolation run; the automated run's checks all passed.
+
+### Checked and assumed
+
+- **Checked:** each adaptation and each of point (c)'s changes by a test that fails without it (its control, 16 new); the app camera and the runner on `front` alone, and no J1 container with a published port, by Docker's own list during the automated run; the real compose file read by the real Compose (`docker compose config`) by a test; the boundary itself by 0.6c's isolation run; the screens, by looking at `14-preview-en` and `16-checklist-en`.
+- **Not shown by a run:** removing a sandbox left by an interface that stopped (`destroyRecorded`) against real containers, since 0.6c; the refusal of a second project's first step while another's app runs, with real Docker (a test holds the port; the automated run closes its first project before the second starts); the app camera refused for a wrong network with real Docker (the test gives Compose's reading).
+- **Assumed, not measured:** the disk floor of 4 GB (gap 137); this run used at most 1.06 GB at once, with its images from Docker's cache.
+- **Not touched:** the owner's own interface on 127.0.0.1:4020, its folder, database and projects, started from an older copy of the builder: it was not stopped, read or used, apart from the isolation run's comparison container opening and closing a connection to its port, as above. A project in it made before 0.6c uses the old arrangement (the app on the machine's port 3161) until that interface is started again from this code.
+
+### Not reviewed yet
+
+No reviewer has read this merge or these changes.

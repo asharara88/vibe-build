@@ -3,7 +3,7 @@ The interface's own output during the run (stdout and stderr), with this run's f
 Projects with a job or a sandbox left by an interface that stopped, marked interrupted and removed at start: 0.
 Interface listening on http://127.0.0.1:4021 (password from: env).
 [interface fault] A build_step job failed. {
-  project: 'j1-4782a916878e',
-  job: 'job-9dec9223',
+  project: 'j1-24ac0c6cf323',
+  job: 'job-caef32a0',
   error: 'This step needs up to $1.56 to finish (4 turns); this project has $1.00 left of its budget of $1.00 (spent $0.00, with $0.00 held for work in progress or awaiting reconciliation). The step was not started. A cap of at least $1.56 would let it start now.'
 }

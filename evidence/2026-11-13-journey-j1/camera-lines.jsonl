@@ -11,74 +11,76 @@
 {"kind":"check","name":"signed in, at the projects page","ok":true,"detail":"/projects"}
 {"kind":"shot","file":"03-projects-en.png","path":"/projects","lang":"en","width":1280}
 {"kind":"shot","file":"04-new-project-en.png","path":"/projects/new","lang":"en","width":1280}
-{"kind":"check","name":"the project is made, at its brief","ok":true,"detail":"/projects/j1-4b2ed98ed0eb/brief"}
-{"kind":"project","id":"j1-4b2ed98ed0eb","name":"Leave requests (made-up)","cap":"5.00"}
+{"kind":"check","name":"the project is made, at its brief","ok":true,"detail":"/projects/j1-9e0e9df3aec0/brief"}
+{"kind":"project","id":"j1-9e0e9df3aec0","name":"Leave requests (made-up)","cap":"5.00"}
 {"kind":"check","name":"the brief is shown as typed","ok":true,"detail":""}
-{"kind":"shot","file":"05-brief-en.png","path":"/projects/j1-4b2ed98ed0eb/brief","lang":"en","width":1280}
-{"kind":"check","name":"continued as example 1, at the questions","ok":true,"detail":"/projects/j1-4b2ed98ed0eb/questions"}
-{"kind":"shot","file":"06-questions-en.png","path":"/projects/j1-4b2ed98ed0eb/questions","lang":"en","width":1280}
-{"kind":"shot","file":"06-questions-ar.png","path":"/projects/j1-4b2ed98ed0eb/questions","lang":"ar","width":1280}
-{"kind":"shot","file":"06-questions-phone.png","path":"/projects/j1-4b2ed98ed0eb/questions","lang":"en","width":390}
+{"kind":"shot","file":"05-brief-en.png","path":"/projects/j1-9e0e9df3aec0/brief","lang":"en","width":1280}
+{"kind":"check","name":"continued as example 1, at the questions","ok":true,"detail":"/projects/j1-9e0e9df3aec0/questions"}
+{"kind":"shot","file":"06-questions-en.png","path":"/projects/j1-9e0e9df3aec0/questions","lang":"en","width":1280}
+{"kind":"shot","file":"06-questions-ar.png","path":"/projects/j1-9e0e9df3aec0/questions","lang":"ar","width":1280}
+{"kind":"shot","file":"06-questions-phone.png","path":"/projects/j1-9e0e9df3aec0/questions","lang":"en","width":390}
 {"kind":"check","name":"every turn answered in the chat, 8 turns","ok":true,"detail":"8 turns"}
-{"kind":"shot","file":"07-questions-answered-en.png","path":"/projects/j1-4b2ed98ed0eb/questions","lang":"en","width":1280}
+{"kind":"shot","file":"07-questions-answered-en.png","path":"/projects/j1-9e0e9df3aec0/questions","lang":"en","width":1280}
 {"kind":"check","name":"the proposed app shows its seven sections, the Later list and the assumed choice","ok":true,"detail":""}
-{"kind":"shot","file":"08-proposal-en.png","path":"/projects/j1-4b2ed98ed0eb/proposal","lang":"en","width":1280}
-{"kind":"check","name":"brief confirmed, at the build steps","ok":true,"detail":"/projects/j1-4b2ed98ed0eb/plan"}
+{"kind":"shot","file":"08-proposal-en.png","path":"/projects/j1-9e0e9df3aec0/proposal","lang":"en","width":1280}
+{"kind":"check","name":"brief confirmed, at the build steps","ok":true,"detail":"/projects/j1-9e0e9df3aec0/plan"}
 {"kind":"check","name":"the plan has the two steps","ok":true,"detail":""}
-{"kind":"shot","file":"09-plan-en.png","path":"/projects/j1-4b2ed98ed0eb/plan","lang":"en","width":1280}
+{"kind":"shot","file":"09-plan-en.png","path":"/projects/j1-9e0e9df3aec0/plan","lang":"en","width":1280}
 {"kind":"check","name":"plan confirmed; tests fixed as v001, stand-in test, not independent acceptance","ok":true,"detail":""}
-{"kind":"shot","file":"10-plan-confirmed-en.png","path":"/projects/j1-4b2ed98ed0eb/plan","lang":"en","width":1280}
-{"kind":"shot","file":"11-build-en.png","path":"/projects/j1-4b2ed98ed0eb/build","lang":"en","width":1280}
+{"kind":"shot","file":"10-plan-confirmed-en.png","path":"/projects/j1-9e0e9df3aec0/plan","lang":"en","width":1280}
+{"kind":"shot","file":"11-build-en.png","path":"/projects/j1-9e0e9df3aec0/build","lang":"en","width":1280}
 {"kind":"check","name":"step 1 built","ok":true,"detail":"What you will be shown: The data step: the leave-request table, the configuration that names it, and the banner sentence that labels the app as built by the scripted engine Started.Sandbox made: the template copied and its history started. No container yet.Reserved $1.5552 for up to 4 turns, sized at claude-opus-5-5's prices.Scripted engine: fixed change example-1/01-data. The instruction (117 cha"}
 {"kind":"check","name":"step 1: $1.5552 reserved while it ran, released, $0.00 spent","ok":true,"detail":"Scripted: fixed change, no model call. Reserved while it ran: $1.5552, sized at claude-opus-5-5's prices, released. Spent: $0.00."}
 {"kind":"check","name":"step 1's live lines: one line per file written (4)","ok":true,"detail":""}
-{"kind":"shot","file":"12-build-step-1-en.png","path":"/projects/j1-4b2ed98ed0eb/build","lang":"en","width":1280}
+{"kind":"shot","file":"12-build-step-1-en.png","path":"/projects/j1-9e0e9df3aec0/build","lang":"en","width":1280}
 {"kind":"check","name":"step 1 approved; step 2 built","ok":true,"detail":"What you will be shown: The submitter's screen: an employee's list of their own requests, and a form to add one, with validation Started.Reserved $3.1104 for up to 8 turns, sized at claude-opus-5-5's prices.Scripted engine: fixed change example-1/02-submitter-screen. The instruction (117 characters) is not read. No model is called.Scripted engine: The submitter's screen: an employee's list of thei"}
 {"kind":"check","name":"step 2: $3.1104 reserved while it ran, released, $0.00 spent","ok":true,"detail":"Scripted: fixed change, no model call. Reserved while it ran: $3.1104, sized at claude-opus-5-5's prices, released. Spent: $0.00."}
-{"kind":"shot","file":"13-build-step-2-en.png","path":"/projects/j1-4b2ed98ed0eb/build","lang":"en","width":1280}
-{"kind":"shot","file":"13-build-step-2-ar.png","path":"/projects/j1-4b2ed98ed0eb/build","lang":"ar","width":1280}
-{"kind":"shot","file":"13-build-step-2-phone.png","path":"/projects/j1-4b2ed98ed0eb/build","lang":"en","width":390}
-{"kind":"check","name":"step 2 approved; the app is being built for the preview","ok":true,"detail":"/projects/j1-4b2ed98ed0eb/preview"}
-{"kind":"check","name":"the preview's screenshots are there","ok":true,"detail":"Leave requests (made-up) Stage: Checklist BriefQuestionsProposed appBuild stepsBuildPreviewChecklistCostRecord PreviewReal The app is running on this machine. What the preview job didApp and tools images built (the template's guard check and next build ran in the build).Tables created and sample users added in the tools container (3 lines from the seed).Before the app was started, nothing listened"}
+{"kind":"shot","file":"13-build-step-2-en.png","path":"/projects/j1-9e0e9df3aec0/build","lang":"en","width":1280}
+{"kind":"shot","file":"13-build-step-2-ar.png","path":"/projects/j1-9e0e9df3aec0/build","lang":"ar","width":1280}
+{"kind":"shot","file":"13-build-step-2-phone.png","path":"/projects/j1-9e0e9df3aec0/build","lang":"en","width":390}
+{"kind":"check","name":"step 2 approved; the app is being built for the preview","ok":true,"detail":"/projects/j1-9e0e9df3aec0/preview"}
+{"kind":"check","name":"the preview's screenshots are there","ok":true,"detail":"Leave requests (made-up) Stage: Checklist BriefQuestionsProposed appBuild stepsBuildPreviewChecklistCostRecord PreviewReal The app is running in its sandbox on this machine, on the project's own private networks: only the project's own containers reach it. What the preview job didApp and tools images built (the template's guard check and next build ran in the build).Tables created and sample users"}
 {"kind":"check","name":"four screenshots of the running app, each loaded","ok":true,"detail":"[true,true,true,true]"}
 {"kind":"check","name":"each is captioned 'Not live. Sample data.'","ok":true,"detail":""}
-{"kind":"shot","file":"14-preview-en.png","path":"/projects/j1-4b2ed98ed0eb/preview","lang":"en","width":1280}
-{"kind":"shot","file":"15-checklist-before-run-en.png","path":"/projects/j1-4b2ed98ed0eb/acceptance","lang":"en","width":1280}
-{"kind":"check","name":"the checklist ran","ok":true,"detail":"Leave requests (made-up) Stage: Checklist BriefQuestionsProposed appBuild stepsBuildPreviewChecklistCostRecord The checklist runReal The acceptance runner runs the fixed tests in its own container, against the running app. Run the checklist Runrun-20261113t151241-608a6133Tests versionv001Runner's exit code0Outcome, as the run's record gives itPassedSummary, as the runner's reading wrote itversion "}
+{"kind":"check","name":"the preview: before the app started, nothing answered at http://app:3161, asked from a container on the project's front network","ok":true,"detail":"App and tools images built (the template's guard check and next build ran in the build).Tables created and sample users added in the tools container (3 lines from the seed).Before the app was started, nothing answered at http://app:3161, asked from a container on the project's front network (EAI_AGAIN).App container started and healthy.app camera: {\"kind\":\"signed_in\",\"at\":\"http://app:3161\",\"as\":\"e"}
+{"kind":"check","name":"the app camera signed in at http://app:3161, the app's address on the project's front network","ok":true,"detail":"App and tools images built (the template's guard check and next build ran in the build).Tables created and sample users added in the tools container (3 lines from the seed).Before the app was started, nothing answered at http://app:3161, asked from a container on the project's front network (EAI_AGAIN).App container started and healthy.app camera: {\"kind\":\"signed_in\",\"at\":\"http://app:3161\",\"as\":\"e"}
+{"kind":"shot","file":"14-preview-en.png","path":"/projects/j1-9e0e9df3aec0/preview","lang":"en","width":1280}
+{"kind":"shot","file":"15-checklist-before-run-en.png","path":"/projects/j1-9e0e9df3aec0/acceptance","lang":"en","width":1280}
+{"kind":"check","name":"the checklist ran","ok":true,"detail":"Leave requests (made-up) Stage: Checklist BriefQuestionsProposed appBuild stepsBuildPreviewChecklistCostRecord The checklist runReal The acceptance runner runs the fixed tests in its own container, against the running app. Run the checklist Latest checklist jobEndedRunrun-20261113t160304-7cbfeb3dTests versionv001Runner's exit code0Outcome, as the run's record gives itPassedSummary, as the runner's"}
 {"kind":"check","name":"item 1 passed","ok":true,"detail":""}
 {"kind":"check","name":"items 2 to 6: did not run (no test written yet)","ok":true,"detail":""}
 {"kind":"check","name":"labelled 'stand-in test, not independent acceptance'","ok":true,"detail":"stand-in test, not independent acceptance"}
 {"kind":"check","name":"the summary as the runner's reading wrote it","ok":true,"detail":"version passed; checklist incomplete (5 of the app spec's 6 checklist items have no test)"}
-{"kind":"check","name":"the outcome word, as the run's record gives it: Passed","ok":true,"detail":"Runrun-20261113t151241-608a6133Tests versionv001Runner's exit code0Outcome, as the run's record gives itPassedSummary, as the runner's reading wrote itversion passed; checklist incomplete (5 of the app spec's 6 checklist items have no test)"}
+{"kind":"check","name":"the outcome word, as the run's record gives it: Passed","ok":true,"detail":"Latest checklist jobEndedRunrun-20261113t160304-7cbfeb3dTests versionv001Runner's exit code0Outcome, as the run's record gives itPassedSummary, as the runner's reading wrote itversion passed; checklist incomplete (5 of the app spec's 6 checklist items have no test)"}
 {"kind":"check","name":"item 1's screenshot, taken by the runner, is shown","ok":true,"detail":"[true]"}
-{"kind":"shot","file":"16-checklist-en.png","path":"/projects/j1-4b2ed98ed0eb/acceptance","lang":"en","width":1280}
-{"kind":"shot","file":"16-checklist-ar.png","path":"/projects/j1-4b2ed98ed0eb/acceptance","lang":"ar","width":1280}
-{"kind":"shot","file":"16-checklist-phone.png","path":"/projects/j1-4b2ed98ed0eb/acceptance","lang":"en","width":390}
+{"kind":"shot","file":"16-checklist-en.png","path":"/projects/j1-9e0e9df3aec0/acceptance","lang":"en","width":1280}
+{"kind":"shot","file":"16-checklist-ar.png","path":"/projects/j1-9e0e9df3aec0/acceptance","lang":"ar","width":1280}
+{"kind":"shot","file":"16-checklist-phone.png","path":"/projects/j1-9e0e9df3aec0/acceptance","lang":"en","width":390}
 {"kind":"check","name":"signed off, labelled as a sign-off on a simulated build","ok":true,"detail":""}
-{"kind":"shot","file":"17-signed-off-en.png","path":"/projects/j1-4b2ed98ed0eb/acceptance","lang":"en","width":1280}
+{"kind":"shot","file":"17-signed-off-en.png","path":"/projects/j1-9e0e9df3aec0/acceptance","lang":"en","width":1280}
 {"kind":"check","name":"cost: $0.00 spent, with its sentence","ok":true,"detail":"$0.00"}
 {"kind":"check","name":"cost: no freeze","ok":true,"detail":""}
 {"kind":"check","name":"cost: the unreconciled list is empty","ok":true,"detail":""}
 {"kind":"check","name":"cost: the two step reservations, $1.5552 and $3.1104, closed","ok":true,"detail":"StepReservedState 01-data$1.5552closed (step_ended)02-submitter-screen$3.1104closed (step_ended)"}
-{"kind":"shot","file":"18-cost-en.png","path":"/projects/j1-4b2ed98ed0eb/cost","lang":"en","width":1280}
-{"kind":"shot","file":"18-cost-ar.png","path":"/projects/j1-4b2ed98ed0eb/cost","lang":"ar","width":1280}
-{"kind":"shot","file":"18-cost-phone.png","path":"/projects/j1-4b2ed98ed0eb/cost","lang":"en","width":390}
+{"kind":"shot","file":"18-cost-en.png","path":"/projects/j1-9e0e9df3aec0/cost","lang":"en","width":1280}
+{"kind":"shot","file":"18-cost-ar.png","path":"/projects/j1-9e0e9df3aec0/cost","lang":"ar","width":1280}
+{"kind":"shot","file":"18-cost-phone.png","path":"/projects/j1-9e0e9df3aec0/cost","lang":"en","width":390}
 {"kind":"check","name":"the export is labelled internal only and not yet shown to start without the builder","ok":true,"detail":""}
-{"kind":"shot","file":"19-export-before-en.png","path":"/projects/j1-4b2ed98ed0eb/export","lang":"en","width":1280}
-{"kind":"check","name":"the export is written","ok":true,"detail":"Leave requests (made-up) Stage: Signed off BriefQuestionsProposed appBuild stepsBuildPreviewChecklistExportCostRecord ExportReal Internal only, not for customers. Not yet shown to start without the builder (package 3.2): its tables are made by the builder's tools container, and it has no notices file. Filej1-4b2ed98ed0eb-export.tar.gz Size378,647 bytes SHA-2567edc42d4a6021fa5df64318a7e1ca88ac9b054"}
-{"kind":"shot","file":"20-export-en.png","path":"/projects/j1-4b2ed98ed0eb/export","lang":"en","width":1280}
-{"kind":"export_downloaded","file":"j1-4b2ed98ed0eb-export.tar.gz","bytes":378647,"sha256":"7edc42d4a6021fa5df64318a7e1ca88ac9b054054350e42784d8d0ec96672825"}
-{"kind":"check","name":"the downloaded export has the SHA-256 the page shows","ok":true,"detail":"7edc42d4a6021fa5df64318a7e1ca88ac9b054054350e42784d8d0ec96672825 / 7edc42d4a6021fa5df64318a7e1ca88ac9b054054350e42784d8d0ec96672825"}
+{"kind":"shot","file":"19-export-before-en.png","path":"/projects/j1-9e0e9df3aec0/export","lang":"en","width":1280}
+{"kind":"check","name":"the export is written","ok":true,"detail":"Leave requests (made-up) Stage: Signed off BriefQuestionsProposed appBuild stepsBuildPreviewChecklistExportCostRecord ExportReal Internal only, not for customers. Not yet shown to start without the builder (package 3.2): its tables are made by the builder's tools container, and it has no notices file. Filej1-9e0e9df3aec0-export.tar.gz Size380,818 bytes SHA-256287d663249521689132c80458aa2be1af9f127"}
+{"kind":"shot","file":"20-export-en.png","path":"/projects/j1-9e0e9df3aec0/export","lang":"en","width":1280}
+{"kind":"export_downloaded","file":"j1-9e0e9df3aec0-export.tar.gz","bytes":380818,"sha256":"287d663249521689132c80458aa2be1af9f127099e384c0a5065231751ad93f2"}
+{"kind":"check","name":"the downloaded export has the SHA-256 the page shows","ok":true,"detail":"287d663249521689132c80458aa2be1af9f127099e384c0a5065231751ad93f2 / 287d663249521689132c80458aa2be1af9f127099e384c0a5065231751ad93f2"}
 {"kind":"check","name":"the record lists every event in id order","ok":true,"detail":"80 events"}
-{"kind":"record","project":"j1-4b2ed98ed0eb","events":80}
-{"kind":"shot","file":"21-record-en.png","path":"/projects/j1-4b2ed98ed0eb/record","lang":"en","width":1280}
+{"kind":"record","project":"j1-9e0e9df3aec0","events":80}
+{"kind":"shot","file":"21-record-en.png","path":"/projects/j1-9e0e9df3aec0/record","lang":"en","width":1280}
 {"kind":"check","name":"the project is closed: its containers, images and folder removed","ok":true,"detail":""}
-{"kind":"shot","file":"22-closed-en.png","path":"/projects/j1-4b2ed98ed0eb/record","lang":"en","width":1280}
-{"kind":"check","name":"the second project is made","ok":true,"detail":"/projects/j1-4782a916878e/brief"}
-{"kind":"project","id":"j1-4782a916878e","name":"Leave requests, $1.00 cap (made-up)","cap":"1.00"}
+{"kind":"shot","file":"22-closed-en.png","path":"/projects/j1-9e0e9df3aec0/record","lang":"en","width":1280}
+{"kind":"check","name":"the second project is made","ok":true,"detail":"/projects/j1-24ac0c6cf323/brief"}
+{"kind":"project","id":"j1-24ac0c6cf323","name":"Leave requests, $1.00 cap (made-up)","cap":"1.00"}
 {"kind":"check","name":"a project capped at $1.00: step 1 refused with package 1.3's message and the sentence under it","ok":true,"detail":"This step needs up to $1.56 to finish (4 turns); this project has $1.00 left of its budget of $1.00 (spent $0.00, with $0.00 held for work in progress or awaiting reconciliation). The step was not started. A cap of at least $1.56 would let it start now.Scripted steps spend $0; this is a reservation sized from a real model's price. To go on, ask Claude Code to change the cap (a recorded change), or"}
-{"kind":"shot","file":"23-refused-en.png","path":"/projects/j1-4782a916878e/build","lang":"en","width":1280}
-{"kind":"shot","file":"23-refused-ar.png","path":"/projects/j1-4782a916878e/build","lang":"ar","width":1280}
+{"kind":"shot","file":"23-refused-en.png","path":"/projects/j1-24ac0c6cf323/build","lang":"en","width":1280}
+{"kind":"shot","file":"23-refused-ar.png","path":"/projects/j1-24ac0c6cf323/build","lang":"ar","width":1280}
 {"kind":"check","name":"the second project is closed","ok":true,"detail":""}
 {"kind":"shot","file":"24-projects-end-en.png","path":"/projects","lang":"en","width":1280}
 {"kind":"check","name":"signed out","ok":true,"detail":"/sign-in"}
