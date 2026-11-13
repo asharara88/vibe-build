@@ -68,7 +68,8 @@ CONTROLS = [
  ("J3-C30", "a live session not bounded by the builder sign-in session's expiry", "src/web/preview.ts",
   [('    const bound = typeof o.builderSessionEndsAt === "number" && o.builderSessionEndsAt < now + sessionMs;', "    const bound = false;")], "test/preview.test.ts", "the session ends when the builder sign-in session that opened it expires"),
  ("J3-C31", "the interface does not give the live session its sign-in session's expiry", "src/web/app.ts",
-  [("    const r = await jobs().openLive(id, session, d.sessions.expiresAt(session));", "    const r = await jobs().openLive(id, session);")], "test/web.test.ts", "a live session ends no later than the builder sign-in session"),
+  # The line as it stands after the review bot on af80dc9 (it also passes the sign-in session's validity, kept here).
+  [("    const r = await jobs().openLive(id, session, d.sessions.expiresAt(session), () => d.sessions.valid(session));", "    const r = await jobs().openLive(id, session, null, () => d.sessions.valid(session));")], "test/web.test.ts", "a live session ends no later than the builder sign-in session"),
  ("J3-C32", "a new sign-in in the same browser does not end the live session of the sign-in it replaces", "src/web/app.ts",
   [('      await d.preview?.signedOut(v, "signed_in_again");\n', "")], "test/web.test.ts", "a live session ends no later than the builder sign-in session"),
  ("J3-C33", "the front started again with no limit", "src/web/preview.ts",
@@ -79,6 +80,21 @@ CONTROLS = [
   [("  if (s.livePreview) {", "  if (true) {")], "test/web.test.ts", "starts no live preview front unless BUILDER_LIVE_PREVIEW=1"),
  ("J3-C36", "the live preview's setting not read (always off)", "src/web/main.ts",
   [('livePreview: live === "1" };', "livePreview: false };")], "test/web.test.ts", "start is refused without each setting"),
+ # After the review bot on af80dc9 (added 13 Nov 2026).
+ ("J3-C37", "a live open neither cancelled by a sign-out nor checked again for its sign-in session (open's two looks emptied)", "src/web/preview.ts",
+  [('    if (o.pending?.cancelled) throw new LiveOpenCancelled(o.pending.cancelled);\n    if (o.builderSessionValid && !o.builderSessionValid()) throw new LiveOpenCancelled("builder_session_ended");\n', "")], "test/web.test.ts", "a sign-out in another tab while Open the live app is pending"),
+ ("J3-C38", "a sign-out does not cancel an open its sign-in session asked for", "src/web/preview.ts",
+  [("    for (const p of this.pending) if (p.builderSession === builderSession) p.cancelled = reason;\n", "")], "test/preview.test.ts", "a sign-out of the builder sign-in session that asked for an open cancels it"),
+ ("J3-C39", "the interface does not give the open its sign-in session's validity", "src/web/app.ts",
+  [(", d.sessions.expiresAt(session), () => d.sessions.valid(session));", ", d.sessions.expiresAt(session));")], "test/web.test.ts", "the sign-in session ended without a sign-out"),
+ ("J3-C40", "open does not look again after its last await", "src/web/preview.ts",
+  [("    // After the review bot on af80dc9: looked at again after the last await; nothing is awaited from here until the\n    // session is set.\n    this.refuseIfEnded(o);\n", "")], "test/preview.test.ts", "open looks again after its last await"),
+ ("J3-C41", "the pass returned although the session ended while its opening was being recorded", "src/orchestrator/journey-jobs.ts",
+  [("        if (!stillOpen || ended) {", "        if (false) {")], "test/journey.test.ts", "a sign-out while live_opened is being written"),
+ ("J3-C42", "an answer the app cuts short not ended at the browser (the browser's response not destroyed)", "src/web/preview-rules.ts",
+  [("    if (!res.destroyed) res.destroy();\n", "")], "test/preview.test.ts", "an answer the app cuts short after its headers"),
+ ("J3-C43", "the idle timer not cleared when an answer is cut short or the browser's response closes", "src/web/preview-rules.ts",
+  [("    idle.clear();\n    if (!res.destroyed) res.destroy();", "    if (!res.destroyed) res.destroy();"), ('  res.on("close", () => {\n    idle.clear();\n', '  res.on("close", () => {\n')], "test/preview.test.ts", "relayAnswer, the front's own"),
 ]
 
 def run(cmd):
