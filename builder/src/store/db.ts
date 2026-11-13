@@ -11,6 +11,17 @@ export function databaseUrl(): string {
 }
 
 export function createPool(url: string = databaseUrl()): pg.Pool {
+  userFallback(url);
+  return new pg.Pool({ connectionString: url, max: 5 });
+}
+
+/** One connection of its own, outside the pool (package 1.4: the gateway's liveness lock is held on one). */
+export function createClient(url: string = databaseUrl()): pg.Client {
+  userFallback(url);
+  return new pg.Client({ connectionString: url });
+}
+
+function userFallback(url: string): void {
   // With peer authentication over the socket the URL carries no user, and the pg library
   // does not fill it in. Use the operating-system user, as psql does.
   // Values parsed from the URL take precedence over explicit options in the pg library, and its
@@ -18,5 +29,4 @@ export function createPool(url: string = databaseUrl()): pg.Pool {
   // fallback is given through PGUSER, which the library reads when the URL names no user.
   const hasUser = new URL(url).username !== "";
   if (!hasUser && !process.env.PGUSER) process.env.PGUSER = userInfo().username;
-  return new pg.Pool({ connectionString: url, max: 5 });
 }

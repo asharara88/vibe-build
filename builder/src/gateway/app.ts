@@ -16,16 +16,25 @@
  * - Refuses what a hold cannot bound: a prompt that cannot be counted, a model with no price,
  *   more output than the profile allows, routing or tools that are billed outside the token rates.
  *
- * Design note: docs/design/stage-1.md, sections 2.4 and 5.5. Build plan: package 1.2.
+ * - Since package 1.4: a call whose ending cannot be written closes this gateway's gate at once (it then
+ *   forwards nothing for any project) until the ending is recorded, with the project frozen
+ *   (gateway/journal.ts, store/freezes.ts); a frozen project gets nothing forwarded, not even its counting
+ *   call; a gateway that has lost its liveness lock forwards nothing; a database that cannot be reached
+ *   gets a 503 with the reason, not a bare 500. The gate and the liveness lock are checked on arrival and
+ *   again just before each forward (a passed-through request, a counting call, a metered call).
+ *
+ * Design note: docs/design/stage-1.md, sections 2.4 and 5.5. Build plan: packages 1.2 and 1.4.
  */
 import { randomBytes } from "node:crypto";
 import { Hono } from "hono";
 import type pg from "pg";
 import { appendEvent } from "../store/events.js";
+import { activeFreeze, frozenMessage, type UnrecordedEnding } from "../store/freezes.js";
 import { expireHolds, keepHold, openHold, recoverHolds, releaseUnsentHold, settleHold } from "../store/holds.js";
 import { tokenOwner, type Project } from "../store/projects.js";
 import { costUsd, emptyUsage, itemisedCacheWrites, mergeUsage, statesSpeed, USAGE_COUNTS, usageAsPriced, usageIsReadable, type ProviderUsage, type Usage } from "./cost.js";
 import { betasNotAllowed, computeHold, countRequestBody, DEFAULT_PROFILES, guardRequest, mayAskForOneHourCache, type MeteredRequest, type ProfileLimits } from "./hold.js";
+import { FaultGate, newJournalId, type FaultJournal } from "./journal.js";
 import { spellsKey } from "./key-reader.js";
 import { PRICE_TABLE_DATE, PRICES } from "./prices.js";
 
@@ -50,6 +59,15 @@ export interface GatewayOptions {
   holdDeadlineMarginMs?: { plain: number; stream: number };
   /** Values of the `anthropic-beta` header the gateway forwards. Default: none. */
   allowedBetas?: string[];
+  /**
+   * The gate closed while a call's ending is unrecorded (package 1.4). Default: one of its own, writing to
+   * `journal` if given, else keeping its records in memory only.
+   */
+  gate?: FaultGate;
+  /** Where the gate's own default keeps unrecorded endings on disk (package 1.4). Ignored when `gate` is given. */
+  journal?: FaultJournal | null;
+  /** Whether this gateway still holds its liveness lock (store/liveness.ts). Without it, it forwards nothing. Default: not checked. */
+  liveness?: { ok(): boolean };
 }
 
 /**
@@ -139,6 +157,7 @@ export function createGateway(opts: GatewayOptions) {
   const deadlineMargin = opts.holdDeadlineMarginMs ?? DEFAULT_DEADLINE_MARGIN;
   const allowedBetas = new Set(opts.allowedBetas ?? []);
   const key = opts.modelApiKey;
+  const gate = opts.gate ?? new FaultGate({ pool: opts.pool, journal: opts.journal ?? null, onFault: fault });
   /** Whether the key can be read out of a text, by the rules set out in key-reader.ts. */
   const carriesKey = (text: string): boolean => spellsKey(text, key);
   /**
@@ -207,9 +226,39 @@ export function createGateway(opts: GatewayOptions) {
   };
   const app = new Hono();
 
+  // A database that cannot be reached, or refuses a read or a write, gets a 503 with the reason, not the
+  // web framework's bare 500; only a fixed summary of the error is kept, never its text (package 1.4).
+  app.onError((err, c) => {
+    fault("The gateway could not use its database for a request; the request was stopped.", { path: c.req.path, error: errorSummary(err) });
+    return c.json(errorBody("gateway_unavailable", "The gateway could not use its database, so it stopped this request. If a model call was under way, its hold stays open at its full amount."), 503);
+  });
+
   app.get("/healthz", (c) => c.json({ ok: true }));
 
+  // Package 1.4: the two refusals of a gateway that must forward nothing, on arrival and again just before
+  // each forward (`sent` says what, if anything, reached the provider).
+  const livenessLost = (sent: string) =>
+    errorBody("gateway_unavailable", `This gateway has lost the database connection that shows it is running, so it forwards nothing until that connection is back. ${sent}`);
+  const gateClosed = (sent: string) =>
+    errorBody(
+      "gateway_unrecorded",
+      `This gateway has stopped forwarding: a model call that ended at ${gate.oldest()?.ended_at ?? "an unknown time"} could not be recorded in the event log, and until it is, the gateway forwards nothing for any project. ${sent}`,
+    );
+  /**
+   * Why this gateway must forward nothing now, if it must: its gate is closed, or it has lost its liveness lock.
+   * Checked again, with no await in between, just before each forward: a passed-through request, a metered call's
+   * counting call, and the metered call itself. A request that passed the checks on arrival may have waited for its
+   * token, its body or a database read while one closed (review of 1.4; review bot on 899cbf0).
+   */
+  const stoppedNow = (): "gate" | "liveness" | null => (gate.closed() ? "gate" : opts.liveness && !opts.liveness.ok() ? "liveness" : null);
+  const stoppedBody = (why: "gate" | "liveness", sent: string) => (why === "gate" ? gateClosed(sent) : livenessLost(sent));
+
   app.all("/v1/*", async (c) => {
+    // Package 1.4. These two refusals come before anything else, and write nothing to the database.
+    if (opts.liveness && !opts.liveness.ok()) return c.json(livenessLost("Nothing was forwarded."), 503);
+    // The gate: closed while a call's ending is unrecorded. It tries to record it first.
+    if (gate.closed()) await gate.drain();
+    if (gate.closed()) return c.json(gateClosed("Nothing was forwarded."), 503);
     const token = c.req.header("x-api-key") ?? bearer(c.req.header("authorization"));
     if (!token) return c.json(errorBody("authentication_error", "No project token was sent. The engine must send its project token as the API key."), 401);
     const owner = await tokenOwner(opts.pool, token);
@@ -283,7 +332,19 @@ export function createGateway(opts: GatewayOptions) {
       return c.json(errorBody("invalid_request_error", `The request switches on beta features the gateway does not forward (${badBetas.slice(0, 5).join(", ")}). A beta feature can change what a call costs.`), 400);
     }
 
+    // A frozen project (package 1.4) gets nothing forwarded, not even the counting call. The check under
+    // the project's lock in openHold is the one that decides; this one keeps the counting call from going.
+    const frozen = await activeFreeze(opts.pool, project.id);
+    if (frozen) {
+      await appendEvent(opts.pool, project.id, "gateway.refused", { reason: "project_frozen", freeze_id: Number(frozen.id), journal_id: frozen.journal_id, path }, step);
+      return c.json(errorBody("project_frozen", frozenMessage(frozen)), 402);
+    }
+
     if (passthrough) {
+      // The gate and the liveness lock checked again (review bot on 899cbf0). Nothing has been forwarded or held, so
+      // nothing is written. No await stands between this and the forward.
+      const stoppedBeforePassthrough = stoppedNow();
+      if (stoppedBeforePassthrough) return c.json(stoppedBody(stoppedBeforePassthrough, "Nothing was forwarded."), 503);
       let res: Response;
       try {
         res = await forward();
@@ -307,7 +368,11 @@ export function createGateway(opts: GatewayOptions) {
     const guard = guardRequest(body, profile);
     if (guard) return refuse(400, "invalid_request_error", guard.reason, guard.message, guard.detail);
 
-    // 2: count the prompt with the provider's own counting call. No count, no call.
+    // 2: count the prompt with the provider's own counting call. No count, no call. First the gate and the
+    // liveness lock are checked again (review bot on 899cbf0): nothing has been forwarded or held yet, so nothing
+    // is written. No await stands between this and the counting call.
+    const stoppedBeforeCount = stoppedNow();
+    if (stoppedBeforeCount) return c.json(stoppedBody(stoppedBeforeCount, "Nothing was forwarded."), 503);
     let counted: number;
     try {
       const countHeaders = new Headers(headers);
@@ -354,6 +419,7 @@ export function createGateway(opts: GatewayOptions) {
     if (!opened.ok) {
       const b = opened.budget;
       const s = opened.step;
+      if (opened.reason === "project_frozen" && opened.freeze) return c.json(errorBody("project_frozen", frozenMessage(opened.freeze)), 402);
       // A step call (package 1.3). Nothing was forwarded in any of these cases.
       if (opened.reason === "step_closed") {
         return c.json(errorBody("step_closed", "This step has ended, so its token no longer lets calls through. The gateway forwarded nothing."), 401);
@@ -391,6 +457,22 @@ export function createGateway(opts: GatewayOptions) {
 
     // 4: forward. Exactly one ending is recorded for the hold.
     let ended = false;
+    /**
+     * The write recording this call's ending failed (package 1.4). The gate closes at once, before anything
+     * is awaited; then the record goes to the journal (forced to disk) and, if the database takes it, the
+     * project is frozen and the gate reopens. Until then this gateway forwards nothing.
+     */
+    const unrecorded = async (
+      what: Pick<UnrecordedEnding, "ending" | "kept_reason" | "cost_usd_as_read" | "call" | "ended_at">,
+      err: unknown,
+      message: string,
+    ) => {
+      const rec: UnrecordedEnding = { journal_id: newJournalId(), gateway: gatewayId, project_id: project.id, hold_id: holdId, step, ...what, error: errorSummary(err) };
+      gate.note(rec);
+      fault(message, { project: project.id, hold: holdId, journal_id: rec.journal_id, error: rec.error });
+      await gate.persist(rec.journal_id);
+      await gate.drain();
+    };
     const callFields = (usage: Usage, status: number, servedModel: string, extra: Record<string, unknown> = {}) => {
       const priced = Object.hasOwn(PRICES, servedModel) ? servedModel : requestedModel;
       const fields = storable(
@@ -430,6 +512,7 @@ export function createGateway(opts: GatewayOptions) {
           : {};
       const { priced, fields } = callFields(usage, status, servedModel, { ...extra, ...note });
       const cost = costUsd(priced, asPriced.usage);
+      const endedAt = new Date().toISOString();
       try {
         if (servedModel && servedModel !== requestedModel && !Object.hasOwn(PRICES, servedModel)) {
           // Answered by a model the price table does not know: its cost would be a guess.
@@ -440,7 +523,7 @@ export function createGateway(opts: GatewayOptions) {
         if (r.exceeded) fault("A settled call cost more than its hold.", { project: project.id, hold: holdId, hold_usd: r.amountUsd, actual_usd: cost });
       } catch (err) {
         // The hold stays open in the database at its full amount: nothing was released.
-        fault("A finished model call could not be written to the event log. Its hold stays open at its full amount.", { project: project.id, hold: holdId, error: errorSummary(err) });
+        await unrecorded({ ending: "settle", kept_reason: null, cost_usd_as_read: cost ?? null, call: fields, ended_at: endedAt }, err, "A finished model call could not be written to the event log. Its hold stays open at its full amount.");
       }
     };
     /** The call ended in a way that does not say what it cost: the hold stays open at its full amount. */
@@ -448,13 +531,28 @@ export function createGateway(opts: GatewayOptions) {
       if (ended) return;
       ended = true;
       const { fields } = callFields(usage, status, servedModel, extra);
+      const endedAt = new Date().toISOString();
       try {
         await keepHold(opts.pool, { projectId: project.id, holdId, step, reason, seen: fields });
       } catch (err) {
-        fault("A model call that ended without readable usage could not be noted in the event log. Its hold stays open at its full amount.", { project: project.id, hold: holdId, error: errorSummary(err) });
+        await unrecorded({ ending: "keep", kept_reason: reason, cost_usd_as_read: null, call: fields, ended_at: endedAt }, err, "A model call that ended without readable usage could not be noted in the event log. Its hold stays open at its full amount.");
       }
     };
     const clientGone = c.req.raw.signal;
+    // The gate and the liveness lock checked again (review of 1.4): a call that passed them on arrival may
+    // have waited at its counting call or for the lock while one closed. Then it is not forwarded, and as
+    // only the counting call was sent, its hold is given back. No await stands between this and the forward.
+    const stoppedSince = stoppedNow();
+    if (stoppedSince) {
+      ended = true;
+      const why = stoppedSince === "gate" ? "a call's ending could not be recorded, so the gateway's gate closed" : "the gateway lost its liveness lock";
+      try {
+        await releaseUnsentHold(opts.pool, { projectId: project.id, holdId, step, reason: `${why} before this call was forwarded (only the counting call, assumed to cost nothing, was sent)` });
+      } catch (err) {
+        fault("A hold for a call that was never sent could not be closed. It stays open at its full amount.", { project: project.id, hold: holdId, error: errorSummary(err) });
+      }
+      return c.json(stoppedBody(stoppedSince, "This call was not forwarded (only the counting call, assumed to cost nothing, was sent)."), 503);
+    }
     // A caller that left before the call was forwarded: only the counting call has been sent, and
     // the call itself has not been forwarded, so the hold is settled at nothing with that reason. No
     // await stands between this check and the forward below, so the caller cannot leave in between
@@ -750,11 +848,18 @@ export const readUsageFromFrame = (frame: string, acc: Usage): Usage => readFram
  * holds left open in the database, and from then on it marks holds that pass their deadline.
  * Nothing here releases money. Returns a function that stops the timer.
  */
-export async function startHoldKeeper(pool: pg.Pool, gatewayId: string, everyMs = 30_000): Promise<{ found: number; expiredAtStart: number; stop: () => void }> {
+export async function startHoldKeeper(
+  pool: pg.Pool,
+  gatewayId: string,
+  everyMs = 30_000,
+  /** Package 1.4: the gate, whose unrecorded endings the keeper tries to record on each pass. */
+  gate?: FaultGate,
+): Promise<{ found: number; expiredAtStart: number; ownerGone: number; stop: () => void }> {
   const r = await recoverHolds(pool, gatewayId);
   const timer = setInterval(() => {
     expireHolds(pool).catch((err) => console.error("[gateway fault] holds past their deadline could not be marked", errorSummary(err)));
+    if (gate?.closed()) void gate.drain();
   }, everyMs);
   timer.unref();
-  return { found: r.found.length, expiredAtStart: r.expired.length, stop: () => clearInterval(timer) };
+  return { found: r.found.length, expiredAtStart: r.expired.length, ownerGone: r.ownerGone, stop: () => clearInterval(timer) };
 }

@@ -1,0 +1,766 @@
+Package 1.4, 13 Nov 2026, after its adversarial review: each new test (and each new check in an existing test) run once with its safeguard removed (controls C24 to C27)
+Development machine (a cloud session), in builder/, at commit c8be427. Test database builder_test_pkg14fix over the local socket (peer authentication, no password).
+Stand-in provider only; the key is made up; nothing spent. For each control: the change as git diff shows it, the test run (expected to FAIL),
+the file restored with git checkout --, and git diff --exit-code (expected 0, clean).
+
+== C24 (B10 (8)): the gate no longer checked again before the forward (the liveness check stays) ==
+$ git diff -- src/gateway/app.ts
+diff --git a/builder/src/gateway/app.ts b/builder/src/gateway/app.ts
+index 2fcbe6d..600375f 100644
+--- a/builder/src/gateway/app.ts
++++ b/builder/src/gateway/app.ts
+@@ -525,7 +525,7 @@ export function createGateway(opts: GatewayOptions) {
+     // The gate and the liveness lock checked again (review of 1.4): a call that passed them on arrival may
+     // have waited at its counting call or for the lock while one closed. Then it is not forwarded, and as
+     // only the counting call was sent, its hold is given back. No await stands between this and the forward.
+-    const stoppedSince = gate.closed() ? "gate" : opts.liveness && !opts.liveness.ok() ? "liveness" : null;
++    const stoppedSince = opts.liveness && !opts.liveness.ok() ? "liveness" : null; // CONTROL
+     if (stoppedSince) {
+       ended = true;
+       const why = stoppedSince === "gate" ? "a call's ending could not be recorded, so the gateway's gate closed" : "the gateway lost its liveness lock";
+
+$ TMPDIR=/tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/pkg14fix-tmp BUILDER_TEST_DATABASE_URL=postgres:///builder_test_pkg14fix?host=/var/run/postgresql npx vitest run test/failures.test.ts -t '^.*B10 \(8\): '
+ RUN  v5.1.0 /tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/wt-14/builder
+ ❯ test/failures.test.ts (19 tests | 1 failed | 18 skipped) 145ms
+   ❯ package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) (19)
+     × B10 (8): a call that passed the gate before it closed, and waits at its counting call, is not forwarded once the gate is closed: its hold is given back (only the counting call was sent) and it gets the 503 110ms
+ Test Files  1 failed (1)
+      Tests  1 failed | 18 skipped (19)
+   Start at  08:26:52
+   Duration  447ms (tests 41%, transform 38%, import 20%, worker 1%)
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B10 (8): a call that passed the gate before it closed, and waits at its counting call, is not forwarded once the gate is closed: its hold is given back (only the counting call was sent) and it gets the 503
+AssertionError: expected 200 to be 503 // Object.is equality
+- Expected
++ Received
+- 503
++ 200
+ ❯ test/failures.test.ts:729:23
+    727|     release("count:b10-8b");
+    728|     const rb = await b;
+    729|     expect(rb.status).toBe(503);
+       |                       ^
+    730|     expect((await errorOf(rb)).type).toBe("gateway_unrecorded");
+    731|     expect(stand.messages).toBe(before); // B never reached the stand-…
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+vitest exit code: 1
+$ git checkout -- src/gateway/app.ts; git diff --exit-code   -> exit 0
+
+== C25 (liveness, mid-call): the liveness lock no longer checked again before the forward (the gate check stays) ==
+$ git diff -- src/gateway/app.ts
+diff --git a/builder/src/gateway/app.ts b/builder/src/gateway/app.ts
+index 2fcbe6d..4c5c17a 100644
+--- a/builder/src/gateway/app.ts
++++ b/builder/src/gateway/app.ts
+@@ -525,7 +525,7 @@ export function createGateway(opts: GatewayOptions) {
+     // The gate and the liveness lock checked again (review of 1.4): a call that passed them on arrival may
+     // have waited at its counting call or for the lock while one closed. Then it is not forwarded, and as
+     // only the counting call was sent, its hold is given back. No await stands between this and the forward.
+-    const stoppedSince = gate.closed() ? "gate" : opts.liveness && !opts.liveness.ok() ? "liveness" : null;
++    const stoppedSince = gate.closed() ? "gate" : null; // CONTROL
+     if (stoppedSince) {
+       ended = true;
+       const why = stoppedSince === "gate" ? "a call's ending could not be recorded, so the gateway's gate closed" : "the gateway lost its liveness lock";
+
+$ TMPDIR=/tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/pkg14fix-tmp BUILDER_TEST_DATABASE_URL=postgres:///builder_test_pkg14fix?host=/var/run/postgresql npx vitest run test/failures.test.ts -t '^.*a call that passed the liveness check'
+ RUN  v5.1.0 /tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/wt-14/builder
+ ❯ test/failures.test.ts (19 tests | 1 failed | 18 skipped) 117ms
+   ❯ package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) (19)
+     × 1.4: a call that passed the liveness check, and waits at its counting call, is not forwarded once the gateway has lost its lock: its hold is given back and it gets the 503 88ms
+ Test Files  1 failed (1)
+      Tests  1 failed | 18 skipped (19)
+   Start at  08:26:53
+   Duration  404ms (tests 38%, transform 36%, import 25%, worker 1%)
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > 1.4: a call that passed the liveness check, and waits at its counting call, is not forwarded once the gateway has lost its lock: its hold is given back and it gets the 503
+AssertionError: expected 200 to be 503 // Object.is equality
+- Expected
++ Received
+- 503
++ 200
+ ❯ test/failures.test.ts:921:22
+    919|     release("count:live-mid");
+    920|     const r = await b;
+    921|     expect(r.status).toBe(503);
+       |                      ^
+    922|     expect((await errorOf(r)).type).toBe("gateway_unavailable");
+    923|     expect(stand.messages).toBe(before);
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+vitest exit code: 1
+$ git checkout -- src/gateway/app.ts; git diff --exit-code   -> exit 0
+
+== C26 (B10 (3)): the start-up file replays the journal after it starts listening, not before ==
+$ git diff -- src/gateway/main.ts
+diff --git a/builder/src/gateway/main.ts b/builder/src/gateway/main.ts
+index 6f71ade..cfbbc73 100644
+--- a/builder/src/gateway/main.ts
++++ b/builder/src/gateway/main.ts
+@@ -28,8 +28,6 @@ const journal = await FaultJournal.open(journalDir).catch((err: unknown) => {
+ const liveness = await holdLivenessLock(databaseUrl(), gatewayId, { onLost: (m) => fault(m, { gateway: gatewayId }) });
+ const gate = new FaultGate({ pool, journal, onFault: fault });
+ // Before taking any call: write what the journal still holds into the event log (a frozen project and its kept hold).
+-const replay = await gate.replay();
+-console.log(`journal lines replayed at start-up: ${replay.loaded}; all recorded: ${replay.recorded}`);
+ const app = createGateway({ pool, modelApiKey: key, upstreamUrl: process.env.BUILDER_UPSTREAM_URL, gatewayId, gate, liveness, onFault: fault });
+ // Then find the holds left open in the database and keep them; those of a gateway found gone are marked unreconciled.
+ const keeper = await startHoldKeeper(pool, gatewayId, 30_000, gate);
+@@ -37,3 +35,6 @@ console.log(`holds found open at start-up: ${keeper.found}; marked expired at st
+ serve({ fetch: app.fetch, port, hostname: process.env.BUILDER_GATEWAY_HOST ?? "127.0.0.1" }, (info) => {
+   console.log(`gateway ${gatewayId} listening on ${info.address}:${info.port}`);
+ });
++// CONTROL: the replay moved after the gateway starts listening
++const replay = await gate.replay();
++console.log(`journal lines replayed at start-up: ${replay.loaded}; all recorded: ${replay.recorded}`);
+
+$ TMPDIR=/tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/pkg14fix-tmp BUILDER_TEST_DATABASE_URL=postgres:///builder_test_pkg14fix?host=/var/run/postgresql npx vitest run test/failures.test.ts -t '^.*B10 \(3\): '
+ RUN  v5.1.0 /tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/wt-14/builder
+ ❯ test/failures.test.ts (19 tests | 1 failed | 18 skipped) 651ms
+   ❯ package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) (19)
+     × B10 (3): every write refused, then the gateway process killed: the journal line survives, and the gateway started afterwards writes it before it serves, so the project's first call is refused as frozen 620ms
+ Test Files  1 failed (1)
+      Tests  1 failed | 18 skipped (19)
+   Start at  08:26:53
+   Duration  853ms (tests 87%, import 9%, transform 4%)
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B10 (3): every write refused, then the gateway process killed: the journal line survives, and the gateway started afterwards writes it before it serves, so the project's first call is refused as frozen
+AssertionError: expected 2 to be less than 1
+ ❯ test/failures.test.ts:667:91
+    665|       expect(k2.out).toContain("journal lines replayed at start-up: 1;…
+    666|       // ... and before it began listening: the replay's line comes be…
+    667|       expect(k2.out.indexOf("journal lines replayed at start-up: 1; al…
+       |                                                                                           ^
+    668|       // The line survived the kill: it is now in the done file, and n…
+    669|       const journal = await FaultJournal.open(journalDir);
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+vitest exit code: 1
+$ git checkout -- src/gateway/main.ts; git diff --exit-code   -> exit 0
+
+== C27 (B13): the checker reads a cap change with no new cap as a NaN cap again ==
+$ git diff -- test/invariants.ts
+diff --git a/builder/test/invariants.ts b/builder/test/invariants.ts
+index 2641bb0..206e6b7 100644
+--- a/builder/test/invariants.ts
++++ b/builder/test/invariants.ts
+@@ -143,8 +143,7 @@ export function checkTrace(events: TraceEvent[], bills: Bill[], initialCapMicro:
+         break;
+       case "cap.changed":
+         // No readable new cap: flagged, and the cap kept, rather than a NaN cap that would switch rule (1) off (review of 1.4).
+-        if (num(p["new_cap_usd"]) === null) bad(e, "no new cap");
+-        else cap = micro(num(p["new_cap_usd"])!);
++        cap = micro(num(p["new_cap_usd"]) ?? Number.NaN); // CONTROL
+         break;
+       default:
+         // hold.kept, hold.expired, hold.found_at_startup, hold.unreconciled, gateway.*, project.frozen,
+
+$ TMPDIR=/tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/pkg14fix-tmp BUILDER_TEST_DATABASE_URL=postgres:///builder_test_pkg14fix?host=/var/run/postgresql npx vitest run test/failures.test.ts -t '^.*B13: '
+ RUN  v5.1.0 /tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/wt-14/builder
+ ❯ test/failures.test.ts (19 tests | 1 failed | 18 skipped) 40ms
+   ❯ package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) (19)
+     × B13: the invariant checker flags each kind of breach: above the cap, below what was owed, a settled call above its hold, hold.exceeded, and a hold row changed by hand with no event 12ms
+ Test Files  1 failed (1)
+      Tests  1 failed | 18 skipped (19)
+   Start at  08:26:55
+   Duration  329ms (transform 41%, import 35%, tests 22%, worker 2%)
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B13: the invariant checker flags each kind of breach: above the cap, below what was owed, a settled call above its hold, hold.exceeded, and a hold row changed by hand with no event
+AssertionError: expected [] to deeply equal [ …(2) ]
+- Expected
++ Received
+- [
+-   "an event the replay cannot read",
+-   "1: above the cap",
+- ]
++ []
+ ❯ test/failures.test.ts:880:117
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+vitest exit code: 1
+$ git checkout -- test/invariants.ts; git diff --exit-code   -> exit 0
+
+== Summary ==
+| Control | Row | Safeguard removed | Tests | Vitest exit | git diff clean after |
+| --- | --- | --- | --- | --- | --- |
+| C24 | B10 (8) | the gate no longer checked again before the forward (the liveness check stays) | Tests  1 failed , 18 skipped (19) | 1 | yes |
+| C25 | liveness, mid-call | the liveness lock no longer checked again before the forward (the gate check stays) | Tests  1 failed , 18 skipped (19) | 1 | yes |
+| C26 | B10 (3) | the start-up file replays the journal after it starts listening, not before | Tests  1 failed , 18 skipped (19) | 1 | yes |
+| C27 | B13 | the checker reads a cap change with no new cap as a NaN cap again | Tests  1 failed , 18 skipped (19) | 1 | yes |
+ended 2026-11-13T08:26:55Z
+
+Package 1.4, 13 Nov 2026, after the review bot's finding on 2ad751d (journal appends and the mark-done rewrite): each safeguard of the fix removed in turn, B10 (9) run (expected to FAIL)
+Development machine (a cloud session), in builder/, at commit 9962514. Test database builder_test_pkg14 over the local socket (peer authentication, no password).
+Stand-in provider only; the key is made up; nothing spent. For each control: the change as git diff shows it, the test run, the file restored with git checkout --, and git diff --exit-code (expected 0, clean).
+Started 2026-11-13T09:05:37Z. git diff --exit-code before: exit 0
+
+== C28 (B10 (9)): the journal's queue removed: each file operation runs at once, as at 2ad751d (the one-append guard stays) ==
+$ git diff -- src/gateway/journal.ts
+diff --git a/builder/src/gateway/journal.ts b/builder/src/gateway/journal.ts
+index ae56475..956c746 100644
+--- a/builder/src/gateway/journal.ts
++++ b/builder/src/gateway/journal.ts
+@@ -62,12 +62,7 @@ export class FaultJournal {
+ 
+   /** Run one operation on the journal's files once every one queued before it has ended. */
+   private serial<T>(op: () => Promise<T>): Promise<T> {
+-    const run = this.queue.then(op);
+-    this.queue = run.then(
+-      () => undefined,
+-      () => undefined,
+-    );
+-    return run;
++    return op(); // CONTROL: no queue
+   }
+ 
+   /** Append one record as a line and force it to disk. */
+
+$ TMPDIR=<scratchpad>/fix14-tmp BUILDER_TEST_DATABASE_URL=postgres:///builder_test_pkg14?host=/var/run/postgresql flock <scratchpad>/live-tests.lock npx vitest run test/failures.test.ts -t '^.*B10 \(9\): '
+
+ RUN  v5.1.0 <scratchpad>/wt-14/builder
+
+ ❯ test/failures.test.ts (20 tests | 1 failed | 19 skipped) 109ms
+   ❯ package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) (20)
+     × B10 (9): a second call's ending appended to the journal while the first one's line is being moved to the done file is kept: the move cannot drop it, and a gateway started afterwards still finds it (review bot on 2ad751d) 58ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B10 (9): a second call's ending appended to the journal while the first one's line is being moved to the done file is kept: the move cannot drop it, and a gateway started afterwards still finds it (review bot on 2ad751d)
+AssertionError: expected [] to deeply equal [ 'j_test_d91221e1' ]
+
+- Expected
++ Received
+
+- [
+-   "j_test_d91221e1",
+- ]
++ []
+
+ ❯ test/failures.test.ts:840:74
+    838|       const order = fsWatch.order.slice();
+    839|       // B is still waiting in the journal (once), and only A was move…
+    840|       expect((await journal.pending()).records.map((r) => r.journal_id…
+       |                                                                          ^
+    841|       const done = await readFile(journal.doneFile, "utf8");
+    842|       expect(done).toContain(a.journal_id);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 19 skipped (20)
+   Start at  09:05:38
+   Duration  428ms (tests 34%, transform 34%, import 31%, worker 1%)
+
+vitest exit code: 1
+$ git checkout -- src/gateway/journal.ts; git diff --exit-code   -> exit 0
+
+== C29 (B10 (9)): the one-append guard removed: a drain that reaches a record whose append waits in the queue appends it again (the queue stays) ==
+$ git diff -- src/gateway/journal.ts
+diff --git a/builder/src/gateway/journal.ts b/builder/src/gateway/journal.ts
+index ae56475..6e9847d 100644
+--- a/builder/src/gateway/journal.ts
++++ b/builder/src/gateway/journal.ts
+@@ -193,7 +193,7 @@ export class FaultGate {
+     const w = this.waiting.find((x) => x.rec.journal_id === journalId);
+     const journal = this.o.journal;
+     if (!w || w.journaled || !journal) return;
+-    w.appending ??= journal
++    w.appending = journal // CONTROL: a second append for the same record
+       .append(w.rec)
+       .then(
+         () => {
+
+$ TMPDIR=<scratchpad>/fix14-tmp BUILDER_TEST_DATABASE_URL=postgres:///builder_test_pkg14?host=/var/run/postgresql flock <scratchpad>/live-tests.lock npx vitest run test/failures.test.ts -t '^.*B10 \(9\): '
+
+ RUN  v5.1.0 <scratchpad>/wt-14/builder
+
+ ❯ test/failures.test.ts (20 tests | 1 failed | 19 skipped) 76ms
+   ❯ package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) (20)
+     × B10 (9): a second call's ending appended to the journal while the first one's line is being moved to the done file is kept: the move cannot drop it, and a gateway started afterwards still finds it (review bot on 2ad751d) 52ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B10 (9): a second call's ending appended to the journal while the first one's line is being moved to the done file is kept: the move cannot drop it, and a gateway started afterwards still finds it (review bot on 2ad751d)
+AssertionError: expected [ Array(2) ] to deeply equal [ 'j_test_7cdb938a' ]
+
+- Expected
++ Received
+
+  [
+    "j_test_7cdb938a",
++   "j_test_7cdb938a",
+  ]
+
+ ❯ test/failures.test.ts:840:74
+    838|       const order = fsWatch.order.slice();
+    839|       // B is still waiting in the journal (once), and only A was move…
+    840|       expect((await journal.pending()).records.map((r) => r.journal_id…
+       |                                                                          ^
+    841|       const done = await readFile(journal.doneFile, "utf8");
+    842|       expect(done).toContain(a.journal_id);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 19 skipped (20)
+   Start at  09:05:39
+   Duration  328ms (import 34%, transform 33%, tests 32%, worker 1%)
+
+vitest exit code: 1
+$ git checkout -- src/gateway/journal.ts; git diff --exit-code   -> exit 0
+
+== Summary (C28, C29) ==
+| Control | Row | Safeguard removed | Tests | Vitest exit | git diff clean after |
+| --- | --- | --- | --- | --- | --- |
+| C28 | B10 (9) | the journal's queue removed: each file operation runs at once, as at 2ad751d (the one-append guard stays) | Tests  1 failed , 19 skipped (20) | 1 | yes |
+| C29 | B10 (9) | the one-append guard removed: a drain that reaches a record whose append waits in the queue appends it again (the queue stays) | Tests  1 failed , 19 skipped (20) | 1 | yes |
+ended 2026-11-13T09:05:39Z
+
+Package 1.4, 13 Nov 2026, after the review bot's finding on 899cbf0 (app.ts ~:328: a request that passed the arrival checks still forwarded its counting request after the gate closed or the liveness lock was lost): each re-check of the fix removed in turn, the new tests run (expected to FAIL)
+Development machine (a cloud session), in builder/, at commit b561cae. Fresh test database builder_test_pkg14_bot899 over the local socket (peer authentication, no password).
+Stand-in provider only; the key is made up; nothing spent. For each control: the change as git diff shows it, the test run, the file restored with git checkout --, and git diff --exit-code (expected 0, clean).
+C30 and C31 run the two new tests; C32 and C33 change the one helper all three re-checks use, so they also run B10 (8) and the liveness test whose call waits at its counting call.
+Started 2026-11-13T09:22:33Z. git diff --exit-code before: exit 0
+
+== C30 (B10 (10), liveness at the token read): the re-check before the counting call removed (the passed-through request's and the metered call's stay) ==
+$ git diff -- src/gateway/app.ts
+diff --git a/builder/src/gateway/app.ts b/builder/src/gateway/app.ts
+index 29104c6..a185a11 100644
+--- a/builder/src/gateway/app.ts
++++ b/builder/src/gateway/app.ts
+@@ -371,8 +371,7 @@ export function createGateway(opts: GatewayOptions) {
+     // 2: count the prompt with the provider's own counting call. No count, no call. First the gate and the
+     // liveness lock are checked again (review bot on 899cbf0): nothing has been forwarded or held yet, so nothing
+     // is written. No await stands between this and the counting call.
+-    const stoppedBeforeCount = stoppedNow();
+-    if (stoppedBeforeCount) return c.json(stoppedBody(stoppedBeforeCount, "Nothing was forwarded."), 503);
++    // CONTROL: the counting call's re-check removed
+     let counted: number;
+     try {
+       const countHeaders = new Headers(headers);
+
+$ TMPDIR=<scratchpad>/fix14b-tmp BUILDER_TEST_DATABASE_URL=postgres:///builder_test_pkg14_bot899?host=/var/run/postgresql flock <scratchpad>/live-tests.lock npx vitest run test/failures.test.ts -t 'review bot on 899cbf0'
+
+ RUN  v5.1.0 <scratchpad>/wt-14/builder
+
+ ❯ test/failures.test.ts (22 tests | 2 failed | 20 skipped) 264ms
+   ❯ package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) (22)
+     × B10 (10): requests that passed the gate while it was open, and waited for their token to be read, forward nothing once it has closed: not a call's counting call, not a counting request passed through; each gets the 503 and nothing is written (review bot on 899cbf0) 146ms
+     × 1.4: requests that passed the liveness check, and waited for their token to be read, forward nothing once the gateway has lost its lock: not a call's counting call, not a counting request passed through; each gets the 503 and nothing is written (review bot on 899cbf0) 77ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B10 (10): requests that passed the gate while it was open, and waited for their token to be read, forward nothing once it has closed: not a call's counting call, not a counting request passed through; each gets the 503 and nothing is written (review bot on 899cbf0)
+AssertionError: expected { Object (metered, passthrough, ...) } to deeply equal { Object (metered, passthrough, ...) }
+
+- Expected
++ Received
+
+  {
+    "metered": {
+-     "nothing_forwarded": true,
++     "nothing_forwarded": false,
+      "status": 503,
+      "type": "gateway_unrecorded",
+    },
+    "passthrough": {
+      "nothing_forwarded": true,
+      "status": 503,
+      "type": "gateway_unrecorded",
+    },
+    "reached_the_stand_in": {
+-     "counts": 0,
++     "counts": 1,
+      "messages": 0,
+    },
+-   "written_for_q": [],
++   "written_for_q": [
++     "hold.opened",
++     "hold.settled",
++   ],
+  }
+
+ ❯ test/failures.test.ts:1111:10
+    1109|         reached_the_stand_in: { messages: stand.messages - before.mess…
+    1110|         written_for_q: await kinds(q.id),
+    1111|       }).toEqual({
+       |          ^
+    1112|         metered: { status: 503, type: "gateway_unrecorded", nothing_fo…
+    1113|         passthrough: { status: 503, type: "gateway_unrecorded", nothin…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > 1.4: requests that passed the liveness check, and waited for their token to be read, forward nothing once the gateway has lost its lock: not a call's counting call, not a counting request passed through; each gets the 503 and nothing is written (review bot on 899cbf0)
+AssertionError: expected { Object (metered, passthrough, ...) } to deeply equal { Object (metered, passthrough, ...) }
+
+- Expected
++ Received
+
+  {
+    "metered": {
+-     "nothing_forwarded": true,
++     "nothing_forwarded": false,
+      "status": 503,
+      "type": "gateway_unavailable",
+    },
+    "passthrough": {
+      "nothing_forwarded": true,
+      "status": 503,
+      "type": "gateway_unavailable",
+    },
+    "reached_the_stand_in": {
+-     "counts": 0,
++     "counts": 1,
+      "messages": 0,
+    },
+-   "written_for_p": [],
++   "written_for_p": [
++     "hold.opened",
++     "hold.settled",
++   ],
+  }
+
+ ❯ test/failures.test.ts:1147:10
+    1145|         reached_the_stand_in: { messages: stand.messages - before.mess…
+    1146|         written_for_p: await kinds(p.id),
+    1147|       }).toEqual({
+       |          ^
+    1148|         metered: { status: 503, type: "gateway_unavailable", nothing_f…
+    1149|         passthrough: { status: 503, type: "gateway_unavailable", nothi…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 20 skipped (22)
+   Start at  09:22:34
+   Duration  622ms (tests 53%, transform 30%, import 17%, worker 1%)
+vitest exit code: 1
+$ git checkout -- src/gateway/app.ts; git diff --exit-code   -> exit 0
+
+== C31 (B10 (10), liveness at the token read): the re-check before a passed-through request removed (the counting call's and the metered call's stay) ==
+$ git diff -- src/gateway/app.ts
+diff --git a/builder/src/gateway/app.ts b/builder/src/gateway/app.ts
+index 29104c6..f0a3d6e 100644
+--- a/builder/src/gateway/app.ts
++++ b/builder/src/gateway/app.ts
+@@ -343,8 +343,7 @@ export function createGateway(opts: GatewayOptions) {
+     if (passthrough) {
+       // The gate and the liveness lock checked again (review bot on 899cbf0). Nothing has been forwarded or held, so
+       // nothing is written. No await stands between this and the forward.
+-      const stoppedBeforePassthrough = stoppedNow();
+-      if (stoppedBeforePassthrough) return c.json(stoppedBody(stoppedBeforePassthrough, "Nothing was forwarded."), 503);
++      // CONTROL: the passed-through request's re-check removed
+       let res: Response;
+       try {
+         res = await forward();
+
+$ TMPDIR=<scratchpad>/fix14b-tmp BUILDER_TEST_DATABASE_URL=postgres:///builder_test_pkg14_bot899?host=/var/run/postgresql flock <scratchpad>/live-tests.lock npx vitest run test/failures.test.ts -t 'review bot on 899cbf0'
+
+ RUN  v5.1.0 <scratchpad>/wt-14/builder
+
+ ❯ test/failures.test.ts (22 tests | 2 failed | 20 skipped) 265ms
+   ❯ package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) (22)
+     × B10 (10): requests that passed the gate while it was open, and waited for their token to be read, forward nothing once it has closed: not a call's counting call, not a counting request passed through; each gets the 503 and nothing is written (review bot on 899cbf0) 146ms
+     × 1.4: requests that passed the liveness check, and waited for their token to be read, forward nothing once the gateway has lost its lock: not a call's counting call, not a counting request passed through; each gets the 503 and nothing is written (review bot on 899cbf0) 74ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B10 (10): requests that passed the gate while it was open, and waited for their token to be read, forward nothing once it has closed: not a call's counting call, not a counting request passed through; each gets the 503 and nothing is written (review bot on 899cbf0)
+AssertionError: expected { Object (metered, passthrough, ...) } to deeply equal { Object (metered, passthrough, ...) }
+
+- Expected
++ Received
+
+@@ -3,15 +3,17 @@
+      "nothing_forwarded": true,
+      "status": 503,
+      "type": "gateway_unrecorded",
+    },
+    "passthrough": {
+-     "nothing_forwarded": true,
+-     "status": 503,
+-     "type": "gateway_unrecorded",
++     "nothing_forwarded": false,
++     "status": 200,
++     "type": null,
+    },
+    "reached_the_stand_in": {
+-     "counts": 0,
++     "counts": 1,
+      "messages": 0,
+    },
+-   "written_for_q": [],
++   "written_for_q": [
++     "gateway.passthrough",
++   ],
+  }
+
+ ❯ test/failures.test.ts:1111:10
+    1109|         reached_the_stand_in: { messages: stand.messages - before.mess…
+    1110|         written_for_q: await kinds(q.id),
+    1111|       }).toEqual({
+       |          ^
+    1112|         metered: { status: 503, type: "gateway_unrecorded", nothing_fo…
+    1113|         passthrough: { status: 503, type: "gateway_unrecorded", nothin…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > 1.4: requests that passed the liveness check, and waited for their token to be read, forward nothing once the gateway has lost its lock: not a call's counting call, not a counting request passed through; each gets the 503 and nothing is written (review bot on 899cbf0)
+AssertionError: expected { Object (metered, passthrough, ...) } to deeply equal { Object (metered, passthrough, ...) }
+
+- Expected
++ Received
+
+@@ -3,15 +3,17 @@
+      "nothing_forwarded": true,
+      "status": 503,
+      "type": "gateway_unavailable",
+    },
+    "passthrough": {
+-     "nothing_forwarded": true,
+-     "status": 503,
+-     "type": "gateway_unavailable",
++     "nothing_forwarded": false,
++     "status": 200,
++     "type": null,
+    },
+    "reached_the_stand_in": {
+-     "counts": 0,
++     "counts": 1,
+      "messages": 0,
+    },
+-   "written_for_p": [],
++   "written_for_p": [
++     "gateway.passthrough",
++   ],
+  }
+
+ ❯ test/failures.test.ts:1147:10
+    1145|         reached_the_stand_in: { messages: stand.messages - before.mess…
+    1146|         written_for_p: await kinds(p.id),
+    1147|       }).toEqual({
+       |          ^
+    1148|         metered: { status: 503, type: "gateway_unavailable", nothing_f…
+    1149|         passthrough: { status: 503, type: "gateway_unavailable", nothi…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 20 skipped (22)
+   Start at  09:22:35
+   Duration  640ms (tests 57%, transform 23%, import 19%, worker 1%)
+vitest exit code: 1
+$ git checkout -- src/gateway/app.ts; git diff --exit-code   -> exit 0
+
+== C32 (B10 (10), B10 (8)): the gate no longer checked again, at all three places (the liveness lock still is) ==
+$ git diff -- src/gateway/app.ts
+diff --git a/builder/src/gateway/app.ts b/builder/src/gateway/app.ts
+index 29104c6..2578034 100644
+--- a/builder/src/gateway/app.ts
++++ b/builder/src/gateway/app.ts
+@@ -250,7 +250,7 @@ export function createGateway(opts: GatewayOptions) {
+    * counting call, and the metered call itself. A request that passed the checks on arrival may have waited for its
+    * token, its body or a database read while one closed (review of 1.4; review bot on 899cbf0).
+    */
+-  const stoppedNow = (): "gate" | "liveness" | null => (gate.closed() ? "gate" : opts.liveness && !opts.liveness.ok() ? "liveness" : null);
++  const stoppedNow = (): "gate" | "liveness" | null => (opts.liveness && !opts.liveness.ok() ? "liveness" : null); // CONTROL: the gate not checked again
+   const stoppedBody = (why: "gate" | "liveness", sent: string) => (why === "gate" ? gateClosed(sent) : livenessLost(sent));
+ 
+   app.all("/v1/*", async (c) => {
+
+$ TMPDIR=<scratchpad>/fix14b-tmp BUILDER_TEST_DATABASE_URL=postgres:///builder_test_pkg14_bot899?host=/var/run/postgresql flock <scratchpad>/live-tests.lock npx vitest run test/failures.test.ts -t 'review bot on 899cbf0|waits at its counting call'
+
+ RUN  v5.1.0 <scratchpad>/wt-14/builder
+
+ ❯ test/failures.test.ts (22 tests | 2 failed | 18 skipped) 368ms
+   ❯ package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) (22)
+     × B10 (8): a call that passed the gate before it closed, and waits at its counting call, is not forwarded once the gate is closed: its hold is given back (only the counting call was sent) and it gets the 503 120ms
+     × B10 (10): requests that passed the gate while it was open, and waited for their token to be read, forward nothing once it has closed: not a call's counting call, not a counting request passed through; each gets the 503 and nothing is written (review bot on 899cbf0) 86ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B10 (8): a call that passed the gate before it closed, and waits at its counting call, is not forwarded once the gate is closed: its hold is given back (only the counting call was sent) and it gets the 503
+AssertionError: expected 200 to be 503 // Object.is equality
+
+- Expected
++ Received
+
+- 503
++ 200
+
+ ❯ test/failures.test.ts:786:23
+    784|     release("count:b10-8b");
+    785|     const rb = await b;
+    786|     expect(rb.status).toBe(503);
+       |                       ^
+    787|     expect((await errorOf(rb)).type).toBe("gateway_unrecorded");
+    788|     expect(stand.messages).toBe(before); // B never reached the stand-…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B10 (10): requests that passed the gate while it was open, and waited for their token to be read, forward nothing once it has closed: not a call's counting call, not a counting request passed through; each gets the 503 and nothing is written (review bot on 899cbf0)
+AssertionError: expected { Object (metered, passthrough, ...) } to deeply equal { Object (metered, passthrough, ...) }
+
+- Expected
++ Received
+
+  {
+    "metered": {
+-     "nothing_forwarded": true,
+-     "status": 503,
+-     "type": "gateway_unrecorded",
++     "nothing_forwarded": false,
++     "status": 200,
++     "type": null,
+    },
+    "passthrough": {
+-     "nothing_forwarded": true,
+-     "status": 503,
+-     "type": "gateway_unrecorded",
++     "nothing_forwarded": false,
++     "status": 200,
++     "type": null,
+    },
+    "reached_the_stand_in": {
+-     "counts": 0,
+-     "messages": 0,
++     "counts": 2,
++     "messages": 1,
+    },
+-   "written_for_q": [],
++   "written_for_q": [
++     "gateway.passthrough",
++     "hold.opened",
++     "model.call",
++     "hold.settled",
++   ],
+  }
+
+ ❯ test/failures.test.ts:1111:10
+    1109|         reached_the_stand_in: { messages: stand.messages - before.mess…
+    1110|         written_for_q: await kinds(q.id),
+    1111|       }).toEqual({
+       |          ^
+    1112|         metered: { status: 503, type: "gateway_unrecorded", nothing_fo…
+    1113|         passthrough: { status: 503, type: "gateway_unrecorded", nothin…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 2 passed | 18 skipped (22)
+   Start at  09:22:36
+   Duration  670ms (tests 64%, transform 21%, import 14%, worker 1%)
+vitest exit code: 1
+$ git checkout -- src/gateway/app.ts; git diff --exit-code   -> exit 0
+
+== C33 (both liveness tests): the liveness lock no longer checked again, at all three places (the gate still is) ==
+$ git diff -- src/gateway/app.ts
+diff --git a/builder/src/gateway/app.ts b/builder/src/gateway/app.ts
+index 29104c6..beaa62d 100644
+--- a/builder/src/gateway/app.ts
++++ b/builder/src/gateway/app.ts
+@@ -250,7 +250,7 @@ export function createGateway(opts: GatewayOptions) {
+    * counting call, and the metered call itself. A request that passed the checks on arrival may have waited for its
+    * token, its body or a database read while one closed (review of 1.4; review bot on 899cbf0).
+    */
+-  const stoppedNow = (): "gate" | "liveness" | null => (gate.closed() ? "gate" : opts.liveness && !opts.liveness.ok() ? "liveness" : null);
++  const stoppedNow = (): "gate" | "liveness" | null => (gate.closed() ? "gate" : null); // CONTROL: the liveness lock not checked again
+   const stoppedBody = (why: "gate" | "liveness", sent: string) => (why === "gate" ? gateClosed(sent) : livenessLost(sent));
+ 
+   app.all("/v1/*", async (c) => {
+
+$ TMPDIR=<scratchpad>/fix14b-tmp BUILDER_TEST_DATABASE_URL=postgres:///builder_test_pkg14_bot899?host=/var/run/postgresql flock <scratchpad>/live-tests.lock npx vitest run test/failures.test.ts -t 'review bot on 899cbf0|waits at its counting call'
+
+ RUN  v5.1.0 <scratchpad>/wt-14/builder
+
+ ❯ test/failures.test.ts (22 tests | 2 failed | 18 skipped) 431ms
+   ❯ package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) (22)
+     × 1.4: a call that passed the liveness check, and waits at its counting call, is not forwarded once the gateway has lost its lock: its hold is given back and it gets the 503 72ms
+     × 1.4: requests that passed the liveness check, and waited for their token to be read, forward nothing once the gateway has lost its lock: not a call's counting call, not a counting request passed through; each gets the 503 and nothing is written (review bot on 899cbf0) 78ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > 1.4: a call that passed the liveness check, and waits at its counting call, is not forwarded once the gateway has lost its lock: its hold is given back and it gets the 503
+AssertionError: expected 200 to be 503 // Object.is equality
+
+- Expected
++ Received
+
+- 503
++ 200
+
+ ❯ test/failures.test.ts:1054:22
+    1052|     release("count:live-mid");
+    1053|     const r = await b;
+    1054|     expect(r.status).toBe(503);
+       |                      ^
+    1055|     expect((await errorOf(r)).type).toBe("gateway_unavailable");
+    1056|     expect(stand.messages).toBe(before);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > 1.4: requests that passed the liveness check, and waited for their token to be read, forward nothing once the gateway has lost its lock: not a call's counting call, not a counting request passed through; each gets the 503 and nothing is written (review bot on 899cbf0)
+AssertionError: expected { Object (metered, passthrough, ...) } to deeply equal { Object (metered, passthrough, ...) }
+
+- Expected
++ Received
+
+  {
+    "metered": {
+-     "nothing_forwarded": true,
+-     "status": 503,
+-     "type": "gateway_unavailable",
++     "nothing_forwarded": false,
++     "status": 200,
++     "type": null,
+    },
+    "passthrough": {
+-     "nothing_forwarded": true,
+-     "status": 503,
+-     "type": "gateway_unavailable",
++     "nothing_forwarded": false,
++     "status": 200,
++     "type": null,
+    },
+    "reached_the_stand_in": {
+-     "counts": 0,
+-     "messages": 0,
++     "counts": 2,
++     "messages": 1,
+    },
+-   "written_for_p": [],
++   "written_for_p": [
++     "gateway.passthrough",
++     "hold.opened",
++     "model.call",
++     "hold.settled",
++   ],
+  }
+
+ ❯ test/failures.test.ts:1147:10
+    1145|         reached_the_stand_in: { messages: stand.messages - before.mess…
+    1146|         written_for_p: await kinds(p.id),
+    1147|       }).toEqual({
+       |          ^
+    1148|         metered: { status: 503, type: "gateway_unavailable", nothing_f…
+    1149|         passthrough: { status: 503, type: "gateway_unavailable", nothi…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 2 passed | 18 skipped (22)
+   Start at  09:22:37
+   Duration  729ms (tests 68%, transform 18%, import 13%, worker 1%)
+vitest exit code: 1
+$ git checkout -- src/gateway/app.ts; git diff --exit-code   -> exit 0
+
+== Summary (C30 to C33) ==
+| Control | Row | Safeguard removed | Tests | Vitest exit | git diff clean after |
+| --- | --- | --- | --- | --- | --- |
+| C30 | B10 (10), liveness at the token read | the re-check before the counting call removed (the passed-through request's and the metered call's stay) | Tests 2 failed , 20 skipped (22) | 1 | yes |
+| C31 | B10 (10), liveness at the token read | the re-check before a passed-through request removed (the counting call's and the metered call's stay) | Tests 2 failed , 20 skipped (22) | 1 | yes |
+| C32 | B10 (10), B10 (8) | the gate no longer checked again, at all three places (the liveness lock still is) | Tests 2 failed , 2 passed , 18 skipped (22) | 1 | yes |
+| C33 | both liveness tests | the liveness lock no longer checked again, at all three places (the gate still is) | Tests 2 failed , 2 passed , 18 skipped (22) | 1 | yes |
+ended 2026-11-13T09:22:38Z

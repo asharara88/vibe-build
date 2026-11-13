@@ -1,0 +1,6 @@
+$ npm run typecheck   (in builder/, at commit c8be427, 2026-11-13T08:27:35Z)
+
+> builder@0.0.1 typecheck
+> tsc --noEmit
+
+exit code: 0

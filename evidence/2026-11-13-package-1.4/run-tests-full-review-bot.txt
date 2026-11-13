@@ -1,0 +1,22 @@
+Package 1.4, 13 Nov 2026, after the review bot's finding on 2ad751d: the whole suite once, live tests included, at commit 9962514
+Development machine (a cloud session), in builder/, under the lock shared with other sessions. TMPDIR <scratchpad>/fix14-tmp (removed after).
+BUILDER_TEST_DATABASE_URL=postgres:///builder_test_pkg14?host=/var/run/postgresql
+Containers on the machine before the run: 0
+
+$ flock <scratchpad>/live-tests.lock npx vitest run
+waiting for the lock from 09:06:36 UTC
+started 09:06:36 UTC
+
+ RUN  v5.1.0 <scratchpad>/wt-14/builder
+
+
+ Test Files  12 passed (12)
+      Tests  296 passed (296)
+   Start at  09:06:36
+   Duration  129.91s (tests 99%)
+
+
+exit code: 0
+ended 09:08:46 UTC
+Containers on the machine just after the run, before the lock is released: 0
+TMPDIR <scratchpad>/fix14-tmp removed after the run: yes

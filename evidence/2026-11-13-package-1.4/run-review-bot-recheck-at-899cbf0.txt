@@ -1,0 +1,111 @@
+Package 1.4, 13 Nov 2026, the review bot's finding on 899cbf0 (app.ts ~:328): the two new tests run with src/ exactly as at 899cbf0 (expected to FAIL)
+Development machine (a cloud session), in builder/. Fresh test database builder_test_pkg14_bot899 over the local socket (peer authentication, no password). Stand-in provider only; the key is made up; nothing spent.
+Each test holds requests at their token read (a separate connection holds the token table's lock), closes the gate (or drops the liveness lock), then lets the reads go.
+$ git diff --quiet 899cbf0 -- src/ && echo "src/ identical to 899cbf0"
+src/ identical to 899cbf0
+$ TMPDIR=<scratchpad>/fix14b-tmp BUILDER_TEST_DATABASE_URL='postgres:///builder_test_pkg14_bot899?host=/var/run/postgresql' flock <scratchpad>/live-tests.lock npx vitest run test/failures.test.ts -t 'review bot on 899cbf0'
+
+ RUN  v5.1.0 <scratchpad>/wt-14/builder
+
+ ❯ test/failures.test.ts (22 tests | 2 failed | 20 skipped) 302ms
+   ❯ package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) (22)
+     × B10 (10): requests that passed the gate while it was open, and waited for their token to be read, forward nothing once it has closed: not a call's counting call, not a counting request passed through; each gets the 503 and nothing is written (review bot on 899cbf0) 150ms
+     × 1.4: requests that passed the liveness check, and waited for their token to be read, forward nothing once the gateway has lost its lock: not a call's counting call, not a counting request passed through; each gets the 503 and nothing is written (review bot on 899cbf0) 72ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B10 (10): requests that passed the gate while it was open, and waited for their token to be read, forward nothing once it has closed: not a call's counting call, not a counting request passed through; each gets the 503 and nothing is written (review bot on 899cbf0)
+AssertionError: expected { Object (metered, passthrough, ...) } to deeply equal { Object (metered, passthrough, ...) }
+
+- Expected
++ Received
+
+  {
+    "metered": {
+-     "nothing_forwarded": true,
++     "nothing_forwarded": false,
+      "status": 503,
+      "type": "gateway_unrecorded",
+    },
+    "passthrough": {
+-     "nothing_forwarded": true,
+-     "status": 503,
+-     "type": "gateway_unrecorded",
++     "nothing_forwarded": false,
++     "status": 200,
++     "type": null,
+    },
+    "reached_the_stand_in": {
+-     "counts": 0,
++     "counts": 2,
+      "messages": 0,
+    },
+-   "written_for_q": [],
++   "written_for_q": [
++     "gateway.passthrough",
++     "hold.opened",
++     "hold.settled",
++   ],
+  }
+
+ ❯ test/failures.test.ts:1111:10
+    1109|         reached_the_stand_in: { messages: stand.messages - before.mess…
+    1110|         written_for_q: await kinds(q.id),
+    1111|       }).toEqual({
+       |          ^
+    1112|         metered: { status: 503, type: "gateway_unrecorded", nothing_fo…
+    1113|         passthrough: { status: 503, type: "gateway_unrecorded", nothin…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > 1.4: requests that passed the liveness check, and waited for their token to be read, forward nothing once the gateway has lost its lock: not a call's counting call, not a counting request passed through; each gets the 503 and nothing is written (review bot on 899cbf0)
+AssertionError: expected { Object (metered, passthrough, ...) } to deeply equal { Object (metered, passthrough, ...) }
+
+- Expected
++ Received
+
+  {
+    "metered": {
+-     "nothing_forwarded": true,
++     "nothing_forwarded": false,
+      "status": 503,
+      "type": "gateway_unavailable",
+    },
+    "passthrough": {
+-     "nothing_forwarded": true,
+-     "status": 503,
+-     "type": "gateway_unavailable",
++     "nothing_forwarded": false,
++     "status": 200,
++     "type": null,
+    },
+    "reached_the_stand_in": {
+-     "counts": 0,
++     "counts": 2,
+      "messages": 0,
+    },
+-   "written_for_p": [],
++   "written_for_p": [
++     "gateway.passthrough",
++     "hold.opened",
++     "hold.settled",
++   ],
+  }
+
+ ❯ test/failures.test.ts:1147:10
+    1145|         reached_the_stand_in: { messages: stand.messages - before.mess…
+    1146|         written_for_p: await kinds(p.id),
+    1147|       }).toEqual({
+       |          ^
+    1148|         metered: { status: 503, type: "gateway_unavailable", nothing_f…
+    1149|         passthrough: { status: 503, type: "gateway_unavailable", nothi…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 20 skipped (22)
+   Start at  09:20:59
+   Duration  712ms (tests 50%, transform 36%, import 13%, worker 1%)
+
+vitest exit code: 1

@@ -1,0 +1,25 @@
+Package 1.4, 13 Nov 2026, after the review bot's finding on 899cbf0: the whole suite once, live tests included, at commit b561cae
+Development machine (a cloud session), in builder/, under the lock shared with other sessions. TMPDIR <scratchpad>/fix14b-tmp (removed after).
+BUILDER_TEST_DATABASE_URL=postgres:///builder_test_pkg14_bot899_full?host=/var/run/postgresql (created fresh with createdb just before; dropped after)
+BUILDER_BROWSER_CACHE=<scratchpad>/p31-cache (so the live acceptance tests run); the approved zip in it: a9da028861a0cf789ff25c2fed45f5f1aaf969ed9247835b6a7821a4f7af9d1d
+git diff --exit-code before: exit 0
+Containers on the machine before the run: 0
+
+$ flock <scratchpad>/live-tests.lock npx vitest run
+waiting for the lock from 09:23:45 UTC
+started 09:23:45 UTC
+
+ RUN  v5.1.0 <scratchpad>/wt-14/builder
+
+
+ Test Files  14 passed (14)
+      Tests  390 passed (390)
+   Start at  09:23:45
+   Duration  198.92s (tests 99%)
+
+
+exit code: 0
+ended 09:27:04 UTC
+Containers on the machine just after the run, before the lock is released: 0
+TMPDIR <scratchpad>/fix14b-tmp removed after the run: yes
+Test databases builder_test_pkg14_bot899_full and builder_test_pkg14_bot899 dropped after (dropdb; none left by that name: 0)

@@ -32,3 +32,5 @@ tmp/
 
 # Builder
 builder/dist/
+# The gateway's journal of unrecorded call endings (package 1.4): machine state, never committed
+builder/.gateway-journal/

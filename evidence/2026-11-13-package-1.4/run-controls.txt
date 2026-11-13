@@ -1,0 +1,1242 @@
+Package 1.4, 13 Nov 2026: each new test run once with its safeguard removed (controls)
+Development machine (a cloud session), in builder/, at commit 81d5443. Test database builder_test_pkg14 over the local socket
+(peer authentication, no password); control C11 used a fresh database, builder_test_pkg14_control, created for it and dropped after it.
+Stand-in provider only; the key is made up; nothing spent. For each control: the change as git diff shows it, the test(s) run
+(each is expected to FAIL), the files restored with git checkout --, and git diff --exit-code (expected 0, clean).
+
+== C1 (B8): the lock on the project's row ('for update') removed from every budget decision ==
+$ git diff -- src/store/tx.ts
+diff --git a/builder/src/store/tx.ts b/builder/src/store/tx.ts
+index 313139b..7cee785 100644
+--- a/builder/src/store/tx.ts
++++ b/builder/src/store/tx.ts
+@@ -20,7 +20,7 @@ export async function inTransaction<T>(pool: pg.Pool, projectId: string, fn: (c:
+     // transaction would keep reading the budget as it stood before it waited for the lock.
+     await client.query("begin isolation level read committed");
+     // The lock that makes check-and-hold one step: every budget decision for a project waits here.
+-    await client.query("select id from projects where id = $1 for update", [projectId]);
++    await client.query("select id from projects where id = $1", [projectId]); // CONTROL
+     const out = await fn(client);
+     await client.query("commit");
+     return out;
+
+$ TMPDIR=/tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/pkg14-tmp BUILDER_TEST_DATABASE_URL=postgres:///builder_test_pkg14?host=/var/run/postgresql npx vitest run test/failures.test.ts -t '^.*B8: '
+ RUN  v5.1.0 /tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/wt-14/builder
+ ❯ test/failures.test.ts (17 tests | 1 failed | 16 skipped) 480ms
+   ❯ package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) (17)
+     × B8: six calls at once through two gateway processes, against room for one: exactly one forwarded, five refused, judged one after another under the project's row lock 438ms
+ Test Files  1 failed (1)
+      Tests  1 failed | 16 skipped (17)
+   Start at  08:03:17
+   Duration  700ms (tests 81%, import 12%, transform 6%, worker 1%)
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B8: six calls at once through two gateway processes, against room for one: exactly one forwarded, five refused, judged one after another under the project's row lock
+AssertionError: expected [ …(11) ] to deeply equal []
+- Expected
++ Received
+- []
++ [
++   "1: above the cap, after event 5292 hold.opened: {\"spent\":0,\"open\":19920,\"room\":0,\"cap\":14900}",
++   "1: above the cap, after event 5293 hold.opened: {\"spent\":0,\"open\":29880,\"room\":0,\"cap\":14900}",
++   "1: above the cap, after event 5294 hold.opened: {\"spent\":0,\"open\":39840,\"room\":0,\"cap\":14900}",
++   "1: above the cap, after event 5295 hold.opened: {\"spent\":0,\"open\":49800,\"room\":0,\"cap\":14900}",
++   "1: above the cap, after event 5296 hold.opened: {\"spent\":0,\"open\":59760,\"room\":0,\"cap\":14900}",
++   "1: above the cap, billing point 1: {\"spentMicro\":0,\"openMicro\":59760,\"roomMicro\":0,\"capMicro\":14900,\"owedMicro\":6142}",
++   "1: above the cap, billing point 2: {\"spentMicro\":0,\"openMicro\":59760,\"roomMicro\":0,\"capMicro\":14900,\"owedMicro\":12284}",
++   "1: above the cap, billing point 3: {\"spentMicro\":0,\"openMicro\":59760,\"roomMicro\":0,\"capMicro\":14900,\"owedMicro\":30710}",
++   "1: above the cap, billing point 4: {\"spentMicro\":0,\"openMicro\":59760,\"roomMicro\":0,\"capMicro\":14900,\"owedMicro\":30710}",
++   "1: above the cap, billing point 5: {\"spentMicro\":0,\"openMicro\":59760,\"roomMicro\":0,\"capMicro\":14900,\"owedMicro\":30710}",
++   "1: above the cap, billing point 6: {\"spentMicro\":0,\"openMicro\":59760,\"roomMicro\":0,\"capMicro\":14900,\"owedMicro\":36852}",
++ ]
+ ❯ invariantsHold test/failures.test.ts:310:86
+    308|   const out = process.env["PKG14_TRACE_OUT"];
+    309|   if (out) appendFileSync(out, traceTable(`${expect.getState().current…
+    310|   expect(r.violations.map((v) => `${v.rule}, ${v.at}: ${JSON.stringify…
+       |                                                                                      ^
+    311|   expect(r.states).toBeGreaterThan(1);
+    312|   return r.states;
+ ❯ test/failures.test.ts:395:7
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+exit code: 1
+$ git checkout -- src/store/tx.ts; git diff --exit-code
+exit code: 0
+
+== C2 (B9 (1), (2), (3)): a gateway found gone no longer has its holds marked unreconciled ==
+$ git diff -- src/store/holds.ts
+diff --git a/builder/src/store/holds.ts b/builder/src/store/holds.ts
+index 3145044..7da4ca8 100644
+--- a/builder/src/store/holds.ts
++++ b/builder/src/store/holds.ts
+@@ -417,7 +417,7 @@ export async function recoverHolds(
+       if (!cur || cur.state !== "open" || (cur.seen_at_startup && cur.unreconciled)) return;
+       // The probe takes the owner's lock only for this transaction: if it can, nobody holds it.
+       const gone = (await c.query<{ gone: boolean }>(`select pg_try_advisory_xact_lock(${gatewayLockKeySql("$1")}) as gone`, [cur.gateway])).rows[0]!.gone;
+-      if (gone && !cur.unreconciled) {
++      if (false) { // CONTROL
+         ownerGone++;
+         await c.query("update holds set unreconciled = true, kept_reason = coalesce(kept_reason, $2) where id = $1", [cur.id, OWNER_GONE]);
+       }
+
+$ TMPDIR=/tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/pkg14-tmp BUILDER_TEST_DATABASE_URL=postgres:///builder_test_pkg14?host=/var/run/postgresql npx vitest run test/failures.test.ts -t '^.*B9 '
+ RUN  v5.1.0 /tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/wt-14/builder
+ ❯ test/failures.test.ts (17 tests | 3 failed | 14 skipped) 2296ms
+   ❯ package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) (17)
+     × B9 (1): the gateway process killed while the provider has not answered: a gateway started afterwards finds the hold, keeps it at its full amount and marks it unreconciled; a running sibling's hold is left alone 657ms
+     × B9 (2): the gateway process killed mid-stream, after output began: the hold is kept at its full amount, unreconciled, by the gateway started afterwards 843ms
+     × B9 (3): the gateway process killed while it waits to write the settle (a third session holds the project's lock): nothing is written for the call, and the hold is kept, unreconciled, by the gateway started afterwards 736ms
+ Test Files  1 failed (1)
+      Tests  3 failed | 14 skipped (17)
+   Start at  08:03:18
+   Duration  2.52s (tests 95%, import 3%, transform 2%)
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B9 (1): the gateway process killed while the provider has not answered: a gateway started afterwards finds the hold, keeps it at its full amount and marks it unreconciled; a running sibling's hold is left alone
+AssertionError: expected { id: '1283', …(14) } to match object { state: 'open', …(4) }
+(10 matching properties omitted from actual)
+- Expected
++ Received
+  {
+    "actual_usd": null,
+    "gateway": "gw_6c4bd23d8b85",
+-   "kept_reason": "the gateway that opened it was found gone while the call was in flight, so whether the provider billed it is not known",
++   "kept_reason": null,
+    "state": "open",
+-   "unreconciled": true,
++   "unreconciled": false,
+  }
+ ❯ test/failures.test.ts:447:21
+    445|       // The killed gateway's hold: kept at its full amount, still ope…
+    446|       const pHold = (await listHolds(pool, p.id))[0]!;
+    447|       expect(pHold).toMatchObject({ state: "open", unreconciled: true,…
+       |                     ^
+    448|       expect(micro(Number(pHold.amount_usd))).toBe(micro(HOLD_USD));
+    449|       expect(await kinds(p.id)).toEqual(["hold.opened", "hold.found_at…
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯
+ FAIL  test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B9 (2): the gateway process killed mid-stream, after output began: the hold is kept at its full amount, unreconciled, by the gateway started afterwards
+AssertionError: expected { id: '1284', …(14) } to match object { state: 'open', …(3) }
+(11 matching properties omitted from actual)
+- Expected
++ Received
+  {
+    "actual_usd": null,
+-   "kept_reason": "the gateway that opened it was found gone while the call was in flight, so whether the provider billed it is not known",
++   "kept_reason": null,
+    "state": "open",
+-   "unreconciled": true,
++   "unreconciled": false,
+  }
+ ❯ test/failures.test.ts:486:17
+    484|       expect([beforeKill, whileDead, await committed(p.id)]).toEqual([…
+    485|       const h = (await listHolds(pool, p.id))[0]!;
+    486|       expect(h).toMatchObject({ state: "open", unreconciled: true, kep…
+       |                 ^
+    487|       expect(await kinds(p.id)).toEqual(["hold.opened", "hold.found_at…
+    488|       await invariantsHold(p.id);
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯
+ FAIL  test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B9 (3): the gateway process killed while it waits to write the settle (a third session holds the project's lock): nothing is written for the call, and the hold is kept, unreconciled, by the gateway started afterwards
+AssertionError: expected { id: '1285', …(14) } to match object { state: 'open', …(3) }
+(11 matching properties omitted from actual)
+- Expected
++ Received
+  {
+    "actual_usd": null,
+-   "kept_reason": "the gateway that opened it was found gone while the call was in flight, so whether the provider billed it is not known",
++   "kept_reason": null,
+    "state": "open",
+-   "unreconciled": true,
++   "unreconciled": false,
+  }
+ ❯ test/failures.test.ts:526:48
+    524|       k2 = await startMain(await newJournalDir());
+    525|       expect([beforeKill, whileDead, await committed(p.id)]).toEqual([…
+    526|       expect((await listHolds(pool, p.id))[0]).toMatchObject({ state: …
+       |                                                ^
+    527|       expect(await kinds(p.id)).toEqual(["hold.opened", "hold.found_at…
+    528|       await invariantsHold(p.id);
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/3]⎯
+exit code: 1
+$ git checkout -- src/store/holds.ts; git diff --exit-code
+exit code: 0
+
+== C3 (B9 (1)): the liveness lock not tried: every other gateway judged gone, a running sibling included ==
+$ git diff -- src/store/holds.ts
+diff --git a/builder/src/store/holds.ts b/builder/src/store/holds.ts
+index 3145044..537f4f7 100644
+--- a/builder/src/store/holds.ts
++++ b/builder/src/store/holds.ts
+@@ -416,7 +416,7 @@ export async function recoverHolds(
+       const cur = (await c.query<Hold>("select * from holds where id = $1 and project_id = $2 for update", [h.id, h.project_id])).rows[0];
+       if (!cur || cur.state !== "open" || (cur.seen_at_startup && cur.unreconciled)) return;
+       // The probe takes the owner's lock only for this transaction: if it can, nobody holds it.
+-      const gone = (await c.query<{ gone: boolean }>(`select pg_try_advisory_xact_lock(${gatewayLockKeySql("$1")}) as gone`, [cur.gateway])).rows[0]!.gone;
++      const gone = true; // CONTROL
+       if (gone && !cur.unreconciled) {
+         ownerGone++;
+         await c.query("update holds set unreconciled = true, kept_reason = coalesce(kept_reason, $2) where id = $1", [cur.id, OWNER_GONE]);
+
+$ TMPDIR=/tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/pkg14-tmp BUILDER_TEST_DATABASE_URL=postgres:///builder_test_pkg14?host=/var/run/postgresql npx vitest run test/failures.test.ts -t '^.*B9 \(1\)'
+ RUN  v5.1.0 /tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/wt-14/builder
+ ❯ test/failures.test.ts (17 tests | 1 failed | 16 skipped) 573ms
+   ❯ package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) (17)
+     × B9 (1): the gateway process killed while the provider has not answered: a gateway started afterwards finds the hold, keeps it at its full amount and marks it unreconciled; a running sibling's hold is left alone 535ms
+ Test Files  1 failed (1)
+      Tests  1 failed | 16 skipped (17)
+   Start at  08:03:21
+   Duration  783ms (tests 84%, import 10%, transform 5%)
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B9 (1): the gateway process killed while the provider has not answered: a gateway started afterwards finds the hold, keeps it at its full amount and marks it unreconciled; a running sibling's hold is left alone
+AssertionError: expected { id: '1286', …(14) } to match object { state: 'open', …(3) }
+(11 matching properties omitted from actual)
+- Expected
++ Received
+  {
+-   "kept_reason": null,
++   "kept_reason": "the gateway that opened it was found gone while the call was in flight, so whether the provider billed it is not known",
+    "seen_at_startup": true,
+    "state": "open",
+-   "unreconciled": false,
++   "unreconciled": true,
+  }
+ ❯ test/failures.test.ts:443:21
+    441|       // The running sibling's hold first: found, and left alone.
+    442|       const qHold = (await listHolds(pool, q.id))[0]!;
+    443|       expect(qHold).toMatchObject({ state: "open", unreconciled: false…
+       |                     ^
+    444|       expect((await listEvents(pool, q.id, "hold.found_at_startup"))[0…
+    445|       // The killed gateway's hold: kept at its full amount, still ope…
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+exit code: 1
+$ git checkout -- src/store/holds.ts; git diff --exit-code
+exit code: 0
+
+== C4 (B10 (1)): the gateway's freeze check before the counting call removed (openHold's stays) ==
+$ git diff -- src/gateway/app.ts
+diff --git a/builder/src/gateway/app.ts b/builder/src/gateway/app.ts
+index 00c5261..df77174 100644
+--- a/builder/src/gateway/app.ts
++++ b/builder/src/gateway/app.ts
+@@ -327,7 +327,7 @@ export function createGateway(opts: GatewayOptions) {
+     // A frozen project (package 1.4) gets nothing forwarded, not even the counting call. The check under
+     // the project's lock in openHold is the one that decides; this one keeps the counting call from going.
+     const frozen = await activeFreeze(opts.pool, project.id);
+-    if (frozen) {
++    if (false) { // CONTROL
+       await appendEvent(opts.pool, project.id, "gateway.refused", { reason: "project_frozen", freeze_id: Number(frozen.id), journal_id: frozen.journal_id, path }, step);
+       return c.json(errorBody("project_frozen", frozenMessage(frozen)), 402);
+     }
+
+$ TMPDIR=/tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/pkg14-tmp BUILDER_TEST_DATABASE_URL=postgres:///builder_test_pkg14?host=/var/run/postgresql npx vitest run test/failures.test.ts -t '^.*B10 \(1\)'
+ RUN  v5.1.0 /tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/wt-14/builder
+ ❯ test/failures.test.ts (17 tests | 1 failed | 16 skipped) 154ms
+   ❯ package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) (17)
+     × B10 (1): the database refuses the call's model.call write after the provider answered: the hold stays open, unreconciled; the project is frozen, the fault raised; its next call and its counting call are refused with the reason, nothing forwarded, also after a cap raise; another project is unaffected 116ms
+ Test Files  1 failed (1)
+      Tests  1 failed | 16 skipped (17)
+   Start at  08:03:23
+   Duration  381ms (tests 56%, import 26%, transform 17%, worker 1%)
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B10 (1): the database refuses the call's model.call write after the provider answered: the hold stays open, unreconciled; the project is frozen, the fault raised; its next call and its counting call are refused with the reason, nothing forwarded, also after a cap raise; another project is unaffected
+AssertionError: expected 200 to be 402 // Object.is equality
+- Expected
++ Received
+- 402
++ 200
+ ❯ test/failures.test.ts:575:26
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+exit code: 1
+$ git checkout -- src/gateway/app.ts; git diff --exit-code
+exit code: 0
+
+== C5 (B10 (2)): the gate removed: a gateway with an unrecorded ending goes on forwarding ==
+$ git diff -- src/gateway/app.ts
+diff --git a/builder/src/gateway/app.ts b/builder/src/gateway/app.ts
+index 00c5261..7a581c7 100644
+--- a/builder/src/gateway/app.ts
++++ b/builder/src/gateway/app.ts
+@@ -241,7 +241,7 @@ export function createGateway(opts: GatewayOptions) {
+     }
+     // The gate: closed while a call's ending is unrecorded. It tries to record it first.
+     if (gate.closed()) await gate.drain();
+-    if (gate.closed()) {
++    if (false) { // CONTROL
+       const o = gate.oldest();
+       return c.json(
+         errorBody(
+
+$ TMPDIR=/tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/pkg14-tmp BUILDER_TEST_DATABASE_URL=postgres:///builder_test_pkg14?host=/var/run/postgresql npx vitest run test/failures.test.ts -t '^.*B10 \(2\)'
+ RUN  v5.1.0 /tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/wt-14/builder
+ ❯ test/failures.test.ts (17 tests | 1 failed | 16 skipped) 123ms
+   ❯ package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) (17)
+     × B10 (2): the freeze itself cannot be written either: the gateway's gate stays closed and it forwards nothing for any project, writing nothing, until the freeze is written; then the project is frozen and the other resumes 93ms
+ Test Files  1 failed (1)
+      Tests  1 failed | 16 skipped (17)
+   Start at  08:03:24
+   Duration  351ms (tests 55%, import 28%, transform 15%, worker 1%)
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B10 (2): the freeze itself cannot be written either: the gateway's gate stays closed and it forwards nothing for any project, writing nothing, until the freeze is written; then the project is frozen and the other resumes
+AssertionError: expected 200 to be 503 // Object.is equality
+- Expected
++ Received
+- 503
++ 200
+ ❯ test/failures.test.ts:605:24
+    603|     for (const [who, path] of [[p, "/v1/messages"], [q, "/v1/messages"…
+    604|       const r = await callAt(g.url, who.token, body(who.id), path);
+    605|       expect(r.status).toBe(503);
+       |                        ^
+    606|       expect((await errorOf(r)).type).toBe("gateway_unrecorded");
+    607|     }
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+exit code: 1
+$ git checkout -- src/gateway/app.ts; git diff --exit-code
+exit code: 0
+
+== C6 (B10 (3)): the journal write skipped ==
+$ git diff -- src/gateway/journal.ts
+diff --git a/builder/src/gateway/journal.ts b/builder/src/gateway/journal.ts
+index 5c60e12..3030a2a 100644
+--- a/builder/src/gateway/journal.ts
++++ b/builder/src/gateway/journal.ts
+@@ -164,7 +164,7 @@ export class FaultGate {
+     const w = this.waiting.find((x) => x.rec.journal_id === journalId);
+     if (!w || w.journaled || !this.o.journal) return;
+     try {
+-      await this.o.journal.append(w.rec);
++      // CONTROL: the journal write skipped
+       w.journaled = true;
+     } catch (err) {
+       this.o.onFault?.("A call's ending could not be written to the gateway's journal file either. The gateway forwards nothing until it is written to the event log.", { journal_id: journalId, error: summary(err) });
+
+$ TMPDIR=/tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/pkg14-tmp BUILDER_TEST_DATABASE_URL=postgres:///builder_test_pkg14?host=/var/run/postgresql npx vitest run test/failures.test.ts -t '^.*B10 \(3\)'
+ RUN  v5.1.0 /tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/wt-14/builder
+ ❯ test/failures.test.ts (17 tests | 1 failed | 16 skipped) 641ms
+   ❯ package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) (17)
+     × B10 (3): every write refused, then the gateway process killed: the journal line survives, and the gateway started afterwards writes it before it serves, so the project's first call is refused as frozen 611ms
+ Test Files  1 failed (1)
+      Tests  1 failed | 16 skipped (17)
+   Start at  08:03:24
+   Duration  869ms (tests 86%, import 9%, transform 4%)
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B10 (3): every write refused, then the gateway process killed: the journal line survives, and the gateway started afterwards writes it before it serves, so the project's first call is refused as frozen
+AssertionError: expected 200 to be 402 // Object.is equality
+- Expected
++ Received
+- 402
++ 200
+ ❯ test/failures.test.ts:649:28
+    647|       // The project's first call after the restart is refused as froz…
+    648|       const first = await callAt(k2.url, p.token, body(p.id));
+    649|       expect(first.status).toBe(402);
+       |                            ^
+    650|       expect((await errorOf(first)).type).toBe("project_frozen");
+    651|       expect((await callAt(k2.url, q.token, body(q.id))).status).toBe(…
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+exit code: 1
+$ git checkout -- src/gateway/journal.ts; git diff --exit-code
+exit code: 0
+
+== C7 (B10 (4)): openHold's freeze check, under the lock, removed ==
+$ git diff -- src/store/holds.ts
+diff --git a/builder/src/store/holds.ts b/builder/src/store/holds.ts
+index 3145044..162738e 100644
+--- a/builder/src/store/holds.ts
++++ b/builder/src/store/holds.ts
+@@ -145,7 +145,7 @@ export async function openHold(
+ ): Promise<OpenResult> {
+   return inTransaction(pool, p.projectId, async (c) => {
+     const freeze = await activeFreezeIn(c, p.projectId);
+-    if (freeze) {
++    if (false) { // CONTROL
+       const budget = await readBudget(c, p.projectId);
+       await event(c, p.projectId, "gateway.refused", { reason: "project_frozen", freeze_id: Number(freeze.id), journal_id: freeze.journal_id, this_hold_usd: p.amountUsd, path: p.path, ...(p.stepHoldId ? { step_hold_id: Number(p.stepHoldId) } : {}) }, p.step);
+       return { ok: false as const, budget, reason: "project_frozen" as const, freeze };
+
+$ TMPDIR=/tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/pkg14-tmp BUILDER_TEST_DATABASE_URL=postgres:///builder_test_pkg14?host=/var/run/postgresql npx vitest run test/failures.test.ts -t '^.*B10 \(4\)'
+ RUN  v5.1.0 /tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/wt-14/builder
+ ❯ test/failures.test.ts (17 tests | 1 failed | 16 skipped) 57ms
+   ❯ package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) (17)
+     × B10 (4): under the project's lock, a frozen project opens no hold, starts no step, and a running step's calls are refused, whatever the cap 30ms
+ Test Files  1 failed (1)
+      Tests  1 failed | 16 skipped (17)
+   Start at  08:03:26
+   Duration  259ms (import 43%, tests 36%, transform 20%, worker 2%)
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B10 (4): under the project's lock, a frozen project opens no hold, starts no step, and a running step's calls are refused, whatever the cap
+AssertionError: expected { ok: true, …(2) } to match object { ok: false, reason: 'project_frozen' }
+(23 matching properties omitted from actual)
+- Expected
++ Received
+  {
+-   "ok": false,
+-   "reason": "project_frozen",
++   "ok": true,
+  }
+ ❯ test/failures.test.ts:709:19
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+exit code: 1
+$ git checkout -- src/store/holds.ts; git diff --exit-code
+exit code: 0
+
+== C8 (B10 (4)): openStepHold's freeze check, under the lock, removed ==
+$ git diff -- src/store/holds.ts
+diff --git a/builder/src/store/holds.ts b/builder/src/store/holds.ts
+index 3145044..c4b4d33 100644
+--- a/builder/src/store/holds.ts
++++ b/builder/src/store/holds.ts
+@@ -639,7 +639,7 @@ export async function openStepHold(
+   return inTransaction(pool, p.projectId, async (c) => {
+     // A frozen project starts no step (package 1.4), whatever its cap: refused first, under the lock.
+     const freeze = await activeFreezeIn(c, p.projectId);
+-    if (freeze) {
++    if (false) { // CONTROL
+       const budget = await readBudget(c, p.projectId);
+       const message = frozenMessage(freeze, "step");
+       const eventId = await event(c, p.projectId, "step.refused", { reason: "project_frozen", freeze_id: Number(freeze.id), journal_id: freeze.journal_id, step_budget_usd: sb.budgetUsd, message }, p.stepId);
+
+$ TMPDIR=/tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/pkg14-tmp BUILDER_TEST_DATABASE_URL=postgres:///builder_test_pkg14?host=/var/run/postgresql npx vitest run test/failures.test.ts -t '^.*B10 \(4\)'
+ RUN  v5.1.0 /tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/wt-14/builder
+ ❯ test/failures.test.ts (17 tests | 1 failed | 16 skipped) 72ms
+   ❯ package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) (17)
+     × B10 (4): under the project's lock, a frozen project opens no hold, starts no step, and a running step's calls are refused, whatever the cap 44ms
+ Test Files  1 failed (1)
+      Tests  1 failed | 16 skipped (17)
+   Start at  08:03:26
+   Duration  369ms (import 43%, tests 34%, transform 20%, worker 3%)
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B10 (4): under the project's lock, a frozen project opens no hold, starts no step, and a running step's calls are refused, whatever the cap
+AssertionError: expected { ok: true, …(4) } to match object { ok: false, reason: 'project_frozen' }
+(35 matching properties omitted from actual)
+- Expected
++ Received
+  {
+-   "ok": false,
+-   "reason": "project_frozen",
++   "ok": true,
+  }
+ ❯ test/failures.test.ts:713:21
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+exit code: 1
+$ git checkout -- src/store/holds.ts; git diff --exit-code
+exit code: 0
+
+== C9 (B10 (5)): the freeze's insert no longer ignores a journal line already written ==
+$ git diff -- src/store/freezes.ts
+diff --git a/builder/src/store/freezes.ts b/builder/src/store/freezes.ts
+index c8a9deb..8cdf641 100644
+--- a/builder/src/store/freezes.ts
++++ b/builder/src/store/freezes.ts
+@@ -92,7 +92,6 @@ export async function recordFreeze(pool: pg.Pool, rec: UnrecordedEnding): Promis
+     const ins = await c.query<Freeze>(
+       `insert into project_freezes(project_id, hold_id, journal_id, gateway, reason, ended_at, hold_amount_usd, record)
+        values ($1, $2, $3, $4, $5, $6, $7, $8)
+-       on conflict (journal_id) do nothing
+        returning *`,
+       [rec.project_id, hold ? hold.id : null, rec.journal_id, rec.gateway, FREEZE_REASON, rec.ended_at, hold ? hold.amount_usd : null, JSON.stringify(rec)],
+     );
+
+$ TMPDIR=/tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/pkg14-tmp BUILDER_TEST_DATABASE_URL=postgres:///builder_test_pkg14?host=/var/run/postgresql npx vitest run test/failures.test.ts -t '^.*B10 \(5\)'
+ RUN  v5.1.0 /tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/wt-14/builder
+ ❯ test/failures.test.ts (17 tests | 1 failed | 16 skipped) 60ms
+   ❯ package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) (17)
+     × B10 (5): writing the same journal line twice adds nothing, and a hold the failed write had in fact settled is left settled, with the project still frozen 28ms
+ Test Files  1 failed (1)
+      Tests  1 failed | 16 skipped (17)
+   Start at  08:03:27
+   Duration  315ms (import 51%, tests 29%, transform 18%, worker 1%)
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B10 (5): writing the same journal line twice adds nothing, and a hold the failed write had in fact settled is left settled, with the project still frozen
+error: duplicate key value violates unique constraint "project_freezes_journal_id_key"
+ ❯ node_modules/pg/lib/client.js:694:17
+ ❯ src/store/freezes.ts:92:17
+ ❯ inTransaction src/store/tx.ts:24:17
+ ❯ test/failures.test.ts:727:13
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+exit code: 1
+$ git checkout -- src/store/freezes.ts; git diff --exit-code
+exit code: 0
+
+== C10 (B10 (1)): the freeze no longer marks the kept hold unreconciled ==
+$ git diff -- src/store/freezes.ts
+diff --git a/builder/src/store/freezes.ts b/builder/src/store/freezes.ts
+index c8a9deb..69d308d 100644
+--- a/builder/src/store/freezes.ts
++++ b/builder/src/store/freezes.ts
+@@ -101,7 +101,7 @@ export async function recordFreeze(pool: pg.Pool, rec: UnrecordedEnding): Promis
+     const amount = hold ? Number(hold.amount_usd) : null;
+     const why = rec.ending === "settle" ? "the call's settlement could not be written to the event log" : `the call's ending could not be written to the event log (it was to be kept: ${rec.kept_reason ?? "no reason given"})`;
+     if (hold && hold.state === "open") {
+-      await c.query("update holds set unreconciled = true, kept_reason = coalesce(kept_reason, $2) where id = $1", [hold.id, why]);
++      await c.query("update holds set kept_reason = coalesce(kept_reason, $2) where id = $1", [hold.id, why]); // CONTROL
+       await event(
+         c,
+         rec.project_id,
+
+$ TMPDIR=/tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/pkg14-tmp BUILDER_TEST_DATABASE_URL=postgres:///builder_test_pkg14?host=/var/run/postgresql npx vitest run test/failures.test.ts -t '^.*B10 \(1\)'
+ RUN  v5.1.0 /tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/wt-14/builder
+ ❯ test/failures.test.ts (17 tests | 1 failed | 16 skipped) 116ms
+   ❯ package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) (17)
+     × B10 (1): the database refuses the call's model.call write after the provider answered: the hold stays open, unreconciled; the project is frozen, the fault raised; its next call and its counting call are refused with the reason, nothing forwarded, also after a cap raise; another project is unaffected 84ms
+ Test Files  1 failed (1)
+      Tests  1 failed | 16 skipped (17)
+   Start at  08:03:28
+   Duration  326ms (tests 51%, import 31%, transform 16%, worker 1%)
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B10 (1): the database refuses the call's model.call write after the provider answered: the hold stays open, unreconciled; the project is frozen, the fault raised; its next call and its counting call are refused with the reason, nothing forwarded, also after a cap raise; another project is unaffected
+AssertionError: expected { id: '1297', …(14) } to match object { state: 'open', …(2) }
+(12 matching properties omitted from actual)
+- Expected
++ Received
+  {
+    "actual_usd": null,
+    "state": "open",
+-   "unreconciled": true,
++   "unreconciled": false,
+  }
+ ❯ test/failures.test.ts:553:15
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+exit code: 1
+$ git checkout -- src/store/freezes.ts; git diff --exit-code
+exit code: 0
+
+== C11 (B10 (6)): migration 009's trigger made to let every update, delete and truncate through (a fresh database, so that the changed migration is applied) ==
+$ git diff -- src/store/migrations/009_project_freezes.sql
+diff --git a/builder/src/store/migrations/009_project_freezes.sql b/builder/src/store/migrations/009_project_freezes.sql
+index 95b39c9..18dd2cb 100644
+--- a/builder/src/store/migrations/009_project_freezes.sql
++++ b/builder/src/store/migrations/009_project_freezes.sql
+@@ -28,15 +28,7 @@ create index if not exists project_freezes_active on project_freezes(project_id)
+ -- The one change allowed is setting cleared_at once (package 1.5 does it, with an event).
+ create or replace function project_freezes_kept() returns trigger language plpgsql as $$
+ begin
+-  if tg_op = 'UPDATE' then
+-    if old.cleared_at is null
+-       and new.cleared_at is not null
+-       and (to_jsonb(new) - 'cleared_at') = (to_jsonb(old) - 'cleared_at') then
+-      return new;
+-    end if;
+-    raise exception 'A project''s freeze can only be cleared, once; nothing else in it changes.';
+-  end if;
+-  raise exception 'A project''s freeze is never deleted (% refused). It is cleared by the owner''s recorded action.', tg_op;
++  return coalesce(new, old); -- CONTROL
+ end $$;
+ 
+ drop trigger if exists project_freezes_no_update on project_freezes;
+
+$ TMPDIR=/tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/pkg14-tmp BUILDER_TEST_DATABASE_URL=postgres:///builder_test_pkg14_control?host=/var/run/postgresql npx vitest run test/failures.test.ts -t '^.*B10 \(6\)'
+ RUN  v5.1.0 /tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/wt-14/builder
+ ❯ test/failures.test.ts (17 tests | 1 failed | 16 skipped) 104ms
+   ❯ package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) (17)
+     × B10 (6): a freeze is never deleted, rewritten or emptied; it can only be cleared, once 22ms
+ Test Files  1 failed (1)
+      Tests  1 failed | 16 skipped (17)
+   Start at  08:03:29
+   Duration  342ms (tests 50%, import 32%, transform 16%, worker 2%)
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B10 (6): a freeze is never deleted, rewritten or emptied; it can only be cleared, once
+AssertionError: expected 'the database accepted it' to match /freeze/
+- Expected:
+/freeze/
++ Received:
+"the database accepted it"
+ ❯ refused test/failures.test.ts:748:49
+    746|     const refused = async (sql: string) => {
+    747|       const err = await pool.query(sql, [freeze!.id]).then(() => null,…
+    748|       expect(err ?? "the database accepted it").toMatch(/freeze/);
+       |                                                 ^
+    749|     };
+    750|     await refused("delete from project_freezes where id = $1");
+ ❯ test/failures.test.ts:750:5
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+exit code: 1
+$ git checkout -- src/store/migrations/009_project_freezes.sql; git diff --exit-code
+exit code: 0
+
+== C12 (B11 (1)): a stream cut part-way settled on the usage seen so far (amendment a undone) ==
+$ git diff -- src/gateway/app.ts
+diff --git a/builder/src/gateway/app.ts b/builder/src/gateway/app.ts
+index 00c5261..cd48b69 100644
+--- a/builder/src/gateway/app.ts
++++ b/builder/src/gateway/app.ts
+@@ -661,7 +661,7 @@ export function createGateway(opts: GatewayOptions) {
+             ctrl.enqueue(value);
+           } catch (err) {
+             stopTimer();
+-            await keep(limit.signal.aborted ? "the call reached its time limit" : "the provider's stream failed part-way", usage, res.status, servedModel, { error: errorSummary(err) });
++            await settle(usage, res.status, servedModel); // CONTROL
+             ctrl.error(err);
+           }
+         },
+
+$ TMPDIR=/tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/pkg14-tmp BUILDER_TEST_DATABASE_URL=postgres:///builder_test_pkg14?host=/var/run/postgresql npx vitest run test/failures.test.ts -t '^.*B11 \(1\)'
+ RUN  v5.1.0 /tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/wt-14/builder
+ ❯ test/failures.test.ts (17 tests | 1 failed | 16 skipped) 112ms
+   ❯ package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) (17)
+     × B11 (1): a stream cut after output began keeps its full hold, open and unreconciled; the usage seen is recorded for information only, and nothing is released 76ms
+ Test Files  1 failed (1)
+      Tests  1 failed | 16 skipped (17)
+   Start at  08:03:30
+   Duration  324ms (tests 49%, import 32%, transform 17%, worker 1%)
+stderr | test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B11 (1): a stream cut after output began keeps its full hold, open and unreconciled; the usage seen is recorded for information only, and nothing is released
+TypeError: terminated
+    at Fetch.onAborted (node:internal/deps/undici/undici:11581:53)
+    at Fetch.emit (node:events:519:28)
+    at Fetch.terminate (node:internal/deps/undici/undici:10738:14)
+    at Object.onError (node:internal/deps/undici/undici:11701:38)
+    at Request.onError (node:internal/deps/undici/undici:2304:31)
+    at Object.errorRequest (node:internal/deps/undici/undici:1742:17)
+    at Socket.<anonymous> (node:internal/deps/undici/undici:6595:16)
+    at Socket.emit (node:events:531:35)
+    at TCP.<anonymous> (node:net:347:12) {
+  [cause]: SocketError: other side closed
+      at Socket.<anonymous> (node:internal/deps/undici/undici:6569:28)
+      at Socket.emit (node:events:531:35)
+      at endReadableNT (node:internal/streams/readable:1698:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:89:21) {
+    code: 'UND_ERR_SOCKET',
+    socket: {
+      localAddress: '127.0.0.1',
+      localPort: 35208,
+      remoteAddress: '127.0.0.1',
+      remotePort: 45517,
+      remoteFamily: 'IPv4',
+      timeout: undefined,
+      bytesWritten: 833,
+      bytesRead: 681
+    },
+    [Symbol(undici.error.UND_ERR)]: true,
+    [Symbol(undici.error.UND_ERR_SOCKET)]: true
+  }
+}
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B11 (1): a stream cut after output began keeps its full hold, open and unreconciled; the usage seen is recorded for information only, and nothing is released
+AssertionError: expected [ Array(1) ] to deeply equal []
+- Expected
++ Received
+- []
++ [
++   "2: below what was owed, after event 5378 hold.settled: {\"spent\":162,\"open\":0,\"owed\":6142}",
++ ]
+ ❯ invariantsHold test/failures.test.ts:310:86
+    308|   const out = process.env["PKG14_TRACE_OUT"];
+    309|   if (out) appendFileSync(out, traceTable(`${expect.getState().current…
+    310|   expect(r.violations.map((v) => `${v.rule}, ${v.at}: ${JSON.stringify…
+       |                                                                                      ^
+    311|   expect(r.states).toBeGreaterThan(1);
+    312|   return r.states;
+ ❯ test/failures.test.ts:778:5
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+exit code: 1
+$ git checkout -- src/gateway/app.ts; git diff --exit-code
+exit code: 0
+
+== C13 (B11 (2)): a call with no answer settled at nothing ==
+$ git diff -- src/gateway/app.ts
+diff --git a/builder/src/gateway/app.ts b/builder/src/gateway/app.ts
+index 00c5261..24e47e3 100644
+--- a/builder/src/gateway/app.ts
++++ b/builder/src/gateway/app.ts
+@@ -567,7 +567,7 @@ export function createGateway(opts: GatewayOptions) {
+         await keep("the provider could not be reached", emptyUsage(), 0, "", { error: errorSummary(err) });
+         return c.json(errorBody("api_error", "The gateway could not reach the model provider."), 502);
+       }
+-      await keep("the connection failed after the request was sent, or may have been sent; the provider may have billed it", emptyUsage(), 0, "", { error: errorSummary(err) });
++      await settle(emptyUsage(), 0, ""); // CONTROL
+       return c.json(
+         errorBody("api_error", "The connection to the model provider failed after the request was sent, or may have been sent. The provider may have done the work and billed it."),
+         502,
+
+$ TMPDIR=/tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/pkg14-tmp BUILDER_TEST_DATABASE_URL=postgres:///builder_test_pkg14?host=/var/run/postgresql npx vitest run test/failures.test.ts -t '^.*B11 \(2\)'
+ RUN  v5.1.0 /tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/wt-14/builder
+ ❯ test/failures.test.ts (17 tests | 1 failed | 16 skipped) 117ms
+   ❯ package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) (17)
+     × B11 (2): a call that gets no answer at all (the provider read it and closed the connection) keeps its full hold, open and unreconciled 77ms
+ Test Files  1 failed (1)
+      Tests  1 failed | 16 skipped (17)
+   Start at  08:03:31
+   Duration  358ms (tests 48%, import 34%, transform 17%, worker 1%)
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B11 (2): a call that gets no answer at all (the provider read it and closed the connection) keeps its full hold, open and unreconciled
+AssertionError: expected [ Array(1) ] to deeply equal []
+- Expected
++ Received
+- []
++ [
++   "2: below what was owed, after event 5381 hold.settled: {\"spent\":0,\"open\":0,\"owed\":6142}",
++ ]
+ ❯ invariantsHold test/failures.test.ts:310:86
+    308|   const out = process.env["PKG14_TRACE_OUT"];
+    309|   if (out) appendFileSync(out, traceTable(`${expect.getState().current…
+    310|   expect(r.violations.map((v) => `${v.rule}, ${v.at}: ${JSON.stringify…
+       |                                                                                      ^
+    311|   expect(r.states).toBeGreaterThan(1);
+    312|   return r.states;
+ ❯ test/failures.test.ts:793:5
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+exit code: 1
+$ git checkout -- src/gateway/app.ts; git diff --exit-code
+exit code: 0
+
+== C14 (B12): a successful answer whose usage cannot be read settled at $0 (amendment d undone) ==
+$ git diff -- src/gateway/app.ts
+diff --git a/builder/src/gateway/app.ts b/builder/src/gateway/app.ts
+index 00c5261..9aa674d 100644
+--- a/builder/src/gateway/app.ts
++++ b/builder/src/gateway/app.ts
+@@ -710,8 +710,7 @@ export function createGateway(opts: GatewayOptions) {
+     } catch {
+       /* not JSON: usage stays unread */
+     }
+-    if (usage) await settle(usage, res.status, servedModel, {}, itemised);
+-    else await keep(`the answer succeeded but its usage could not be read${speedNotStated ? `: ${SPEED_NOT_STATED}` : ""}`, emptyUsage(), res.status, servedModel);
++    await settle(usage ?? emptyUsage(), res.status, servedModel, {}, itemised); // CONTROL
+     return new Response(safeBody(text), { status: res.status, headers: safeHeaders(res.headers) });
+   });
+
+$ TMPDIR=/tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/pkg14-tmp BUILDER_TEST_DATABASE_URL=postgres:///builder_test_pkg14?host=/var/run/postgresql npx vitest run test/failures.test.ts -t '^.*B12: '
+ RUN  v5.1.0 /tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/wt-14/builder
+ ❯ test/failures.test.ts (17 tests | 1 failed | 16 skipped) 91ms
+   ❯ package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) (17)
+     × B12: a successful answer that cannot be read (no usage block; a body that is not JSON) keeps its full hold, open, and the call marked unreconciled 60ms
+ Test Files  1 failed (1)
+      Tests  1 failed | 16 skipped (17)
+   Start at  08:03:32
+   Duration  303ms (tests 45%, import 35%, transform 18%, worker 1%)
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B12: a successful answer that cannot be read (no usage block; a body that is not JSON) keeps its full hold, open, and the call marked unreconciled
+AssertionError: expected [ Array(1) ] to deeply equal []
+- Expected
++ Received
+- []
++ [
++   "2: below what was owed, after event 5384 hold.settled: {\"spent\":0,\"open\":0,\"owed\":6142}",
++ ]
+ ❯ invariantsHold test/failures.test.ts:310:86
+    308|   const out = process.env["PKG14_TRACE_OUT"];
+    309|   if (out) appendFileSync(out, traceTable(`${expect.getState().current…
+    310|   expect(r.violations.map((v) => `${v.rule}, ${v.at}: ${JSON.stringify…
+       |                                                                                      ^
+    311|   expect(r.states).toBeGreaterThan(1);
+    312|   return r.states;
+ ❯ test/failures.test.ts:808:7
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+exit code: 1
+$ git checkout -- src/gateway/app.ts; git diff --exit-code
+exit code: 0
+
+== C15 (B11, B12): a kept hold no longer marked unreconciled ==
+$ git diff -- src/store/holds.ts
+diff --git a/builder/src/store/holds.ts b/builder/src/store/holds.ts
+index 3145044..f7b0bf1 100644
+--- a/builder/src/store/holds.ts
++++ b/builder/src/store/holds.ts
+@@ -331,7 +331,7 @@ export async function keepHold(
+     const r = await c.query<Hold>("select * from holds where id = $1 and project_id = $2 for update", [p.holdId, p.projectId]);
+     const hold = r.rows[0];
+     if (!hold || hold.state !== "open") return;
+-    await c.query("update holds set kept_reason = coalesce(kept_reason, $2), unreconciled = true where id = $1", [p.holdId, p.reason]);
++    await c.query("update holds set kept_reason = coalesce(kept_reason, $2) where id = $1", [p.holdId, p.reason]); // CONTROL
+     await event(c, p.projectId, "hold.kept", { hold_id: Number(hold.id), amount_usd: Number(hold.amount_usd), reason: p.reason, unreconciled: true, seen: p.seen }, p.step);
+   });
+ }
+
+$ TMPDIR=/tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/pkg14-tmp BUILDER_TEST_DATABASE_URL=postgres:///builder_test_pkg14?host=/var/run/postgresql npx vitest run test/failures.test.ts -t '^.*(B11|B12)'
+ RUN  v5.1.0 /tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/wt-14/builder
+ ❯ test/failures.test.ts (17 tests | 3 failed | 14 skipped) 170ms
+   ❯ package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) (17)
+     × B11 (1): a stream cut after output began keeps its full hold, open and unreconciled; the usage seen is recorded for information only, and nothing is released 77ms
+     × B11 (2): a call that gets no answer at all (the provider read it and closed the connection) keeps its full hold, open and unreconciled 26ms
+     × B12: a successful answer that cannot be read (no usage block; a body that is not JSON) keeps its full hold, open, and the call marked unreconciled 24ms
+ Test Files  1 failed (1)
+      Tests  3 failed | 14 skipped (17)
+   Start at  08:03:33
+   Duration  407ms (tests 59%, import 26%, transform 13%, worker 1%)
+stderr | test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B11 (1): a stream cut after output began keeps its full hold, open and unreconciled; the usage seen is recorded for information only, and nothing is released
+TypeError: terminated
+    at Fetch.onAborted (node:internal/deps/undici/undici:11581:53)
+    at Fetch.emit (node:events:519:28)
+    at Fetch.terminate (node:internal/deps/undici/undici:10738:14)
+    at Object.onError (node:internal/deps/undici/undici:11701:38)
+    at Request.onError (node:internal/deps/undici/undici:2304:31)
+    at Object.errorRequest (node:internal/deps/undici/undici:1742:17)
+    at Socket.<anonymous> (node:internal/deps/undici/undici:6595:16)
+    at Socket.emit (node:events:531:35)
+    at TCP.<anonymous> (node:net:347:12) {
+  [cause]: SocketError: other side closed
+      at Socket.<anonymous> (node:internal/deps/undici/undici:6569:28)
+      at Socket.emit (node:events:531:35)
+      at endReadableNT (node:internal/streams/readable:1698:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:89:21) {
+    code: 'UND_ERR_SOCKET',
+    socket: {
+      localAddress: '127.0.0.1',
+      localPort: 36684,
+      remoteAddress: '127.0.0.1',
+      remotePort: 41881,
+      remoteFamily: 'IPv4',
+      timeout: undefined,
+      bytesWritten: 833,
+      bytesRead: 681
+    },
+    [Symbol(undici.error.UND_ERR)]: true,
+    [Symbol(undici.error.UND_ERR_SOCKET)]: true
+  }
+}
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B11 (1): a stream cut after output began keeps its full hold, open and unreconciled; the usage seen is recorded for information only, and nothing is released
+AssertionError: expected { id: '1301', …(14) } to match object { state: 'open', …(2) }
+(12 matching properties omitted from actual)
+- Expected
++ Received
+  {
+    "actual_usd": null,
+    "state": "open",
+-   "unreconciled": true,
++   "unreconciled": false,
+  }
+ ❯ test/failures.test.ts:784:46
+    782|     expect(kept.seen.usage).toMatchObject({ input_tokens: 30, output_t…
+    783|     expect(await kinds(p.id)).toEqual(["hold.opened", "hold.kept"]);
+    784|     expect((await listHolds(pool, p.id))[0]).toMatchObject({ state: "o…
+       |                                              ^
+    785|     expect(await committed(p.id)).toBe(micro(HOLD_USD));
+    786|   });
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯
+ FAIL  test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B11 (2): a call that gets no answer at all (the provider read it and closed the connection) keeps its full hold, open and unreconciled
+AssertionError: expected { id: '1302', …(14) } to match object { state: 'open', …(2) }
+(12 matching properties omitted from actual)
+- Expected
++ Received
+  {
+    "actual_usd": null,
+    "state": "open",
+-   "unreconciled": true,
++   "unreconciled": false,
+  }
+ ❯ test/failures.test.ts:797:46
+    795|     expect(kept.reason).toBe("the connection failed after the request …
+    796|     expect(kept.unreconciled).toBe(true);
+    797|     expect((await listHolds(pool, p.id))[0]).toMatchObject({ state: "o…
+       |                                              ^
+    798|     expect(await committed(p.id)).toBe(micro(HOLD_USD));
+    799|   });
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯
+ FAIL  test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B12: a successful answer that cannot be read (no usage block; a body that is not JSON) keeps its full hold, open, and the call marked unreconciled
+AssertionError: expected { id: '1303', …(14) } to match object { state: 'open', …(2) }
+(12 matching properties omitted from actual)
+- Expected
++ Received
+  {
+    "actual_usd": null,
+    "state": "open",
+-   "unreconciled": true,
++   "unreconciled": false,
+  }
+ ❯ test/failures.test.ts:813:48
+    811|       expect(kept.reason).toBe("the answer succeeded but its usage cou…
+    812|       expect(kept.unreconciled).toBe(true);
+    813|       expect((await listHolds(pool, p.id))[0]).toMatchObject({ state: …
+       |                                                ^
+    814|       expect(await committed(p.id)).toBe(micro(HOLD_USD));
+    815|     }
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/3]⎯
+exit code: 1
+$ git checkout -- src/store/holds.ts; git diff --exit-code
+exit code: 0
+
+== C16 (B13): the checker's invariant (1) switched off ==
+$ git diff -- test/invariants.ts
+diff --git a/builder/test/invariants.ts b/builder/test/invariants.ts
+index 7d90586..1986823 100644
+--- a/builder/test/invariants.ts
++++ b/builder/test/invariants.ts
+@@ -83,7 +83,8 @@ export function checkTrace(events: TraceEvent[], bills: Bill[], initialCapMicro:
+   const check = (at: string, id: number) => {
+     states++;
+     const room = roomSum();
+-    if (spent + open + room > cap) violations.push({ rule: "1: above the cap", at, detail: { spent, open, room, cap } });
++    if (false) violations.push( // CONTROL
++{ rule: "1: above the cap", at, detail: { spent, open, room, cap } });
+     const owed = owedBy(id);
+     rows.push({ at, spent, open, room, cap, owed });
+     if (spent + open < owed) violations.push({ rule: "2: below what was owed", at, detail: { spent, open, owed } });
+
+$ TMPDIR=/tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/pkg14-tmp BUILDER_TEST_DATABASE_URL=postgres:///builder_test_pkg14?host=/var/run/postgresql npx vitest run test/failures.test.ts -t '^.*B13: '
+ RUN  v5.1.0 /tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/wt-14/builder
+ ❯ test/failures.test.ts (17 tests | 1 failed | 16 skipped) 48ms
+   ❯ package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) (17)
+     × B13: the invariant checker flags each kind of breach: above the cap, below what was owed, a settled call above its hold, hold.exceeded, and a hold row changed by hand with no event 14ms
+ Test Files  1 failed (1)
+      Tests  1 failed | 16 skipped (17)
+   Start at  08:03:34
+   Duration  291ms (import 45%, tests 27%, transform 26%, worker 2%)
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B13: the invariant checker flags each kind of breach: above the cap, below what was owed, a settled call above its hold, hold.exceeded, and a hold row changed by hand with no event
+AssertionError: expected [] to deeply equal [ '1: above the cap' ]
+- Expected
++ Received
+- [
+-   "1: above the cap",
+- ]
++ []
+ ❯ test/failures.test.ts:829:91
+    827|     expect(rules(checkTrace([opened(1, 1, 0.01), called(2, 1, 0.006), …
+    828|     // (1) two holds above the cap.
+    829|     expect(rules(checkTrace([opened(1, 1, 0.01), opened(2, 2, 0.01)], …
+       |                                                                                           ^
+    830|     // (2) settled below what the provider billed.
+    831|     expect(rules(checkTrace([opened(1, 1, 0.01), called(2, 1, 0.001), …
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+exit code: 1
+$ git checkout -- test/invariants.ts; git diff --exit-code
+exit code: 0
+
+== C17 (B13): the checker's invariant (2) switched off (the replay) ==
+$ git diff -- test/invariants.ts
+diff --git a/builder/test/invariants.ts b/builder/test/invariants.ts
+index 7d90586..05a7cdd 100644
+--- a/builder/test/invariants.ts
++++ b/builder/test/invariants.ts
+@@ -86,7 +86,8 @@ export function checkTrace(events: TraceEvent[], bills: Bill[], initialCapMicro:
+     if (spent + open + room > cap) violations.push({ rule: "1: above the cap", at, detail: { spent, open, room, cap } });
+     const owed = owedBy(id);
+     rows.push({ at, spent, open, room, cap, owed });
+-    if (spent + open < owed) violations.push({ rule: "2: below what was owed", at, detail: { spent, open, owed } });
++    if (false) violations.push( // CONTROL
++{ rule: "2: below what was owed", at, detail: { spent, open, owed } });
+   };
+   const bad = (e: TraceEvent, why: string) => violations.push({ rule: "an event the replay cannot read", at: `event ${e.id} ${e.kind}`, detail: { why } });
+
+$ TMPDIR=/tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/pkg14-tmp BUILDER_TEST_DATABASE_URL=postgres:///builder_test_pkg14?host=/var/run/postgresql npx vitest run test/failures.test.ts -t '^.*B13: '
+ RUN  v5.1.0 /tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/wt-14/builder
+ ❯ test/failures.test.ts (17 tests | 1 failed | 16 skipped) 44ms
+   ❯ package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) (17)
+     × B13: the invariant checker flags each kind of breach: above the cap, below what was owed, a settled call above its hold, hold.exceeded, and a hold row changed by hand with no event 12ms
+ Test Files  1 failed (1)
+      Tests  1 failed | 16 skipped (17)
+   Start at  08:03:34
+   Duration  293ms (import 47%, tests 26%, transform 24%, worker 2%)
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B13: the invariant checker flags each kind of breach: above the cap, below what was owed, a settled call above its hold, hold.exceeded, and a hold row changed by hand with no event
+AssertionError: expected [] to deeply equal [ '2: below what was owed' ]
+- Expected
++ Received
+- [
+-   "2: below what was owed",
+- ]
++ []
+ ❯ test/failures.test.ts:831:148
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+exit code: 1
+$ git checkout -- test/invariants.ts; git diff --exit-code
+exit code: 0
+
+== C18 (B13): the checker's invariant (2) switched off at billing points ==
+$ git diff -- test/invariants.ts
+diff --git a/builder/test/invariants.ts b/builder/test/invariants.ts
+index 7d90586..86ce827 100644
+--- a/builder/test/invariants.ts
++++ b/builder/test/invariants.ts
+@@ -159,7 +159,8 @@ export function checkSamples(samples: Sample[]): Violation[] {
+   const out: Violation[] = [];
+   samples.forEach((s, i) => {
+     if (s.spentMicro + s.openMicro + s.roomMicro > s.capMicro) out.push({ rule: "1: above the cap", at: `billing point ${i + 1}`, detail: { ...s } });
+-    if (s.spentMicro + s.openMicro < s.owedMicro) out.push({ rule: "2: below what was owed", at: `billing point ${i + 1}`, detail: { ...s } });
++    if (false) out.push( // CONTROL
++{ rule: "2: below what was owed", at: `billing point ${i + 1}`, detail: { ...s } });
+   });
+   return out;
+ }
+
+$ TMPDIR=/tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/pkg14-tmp BUILDER_TEST_DATABASE_URL=postgres:///builder_test_pkg14?host=/var/run/postgresql npx vitest run test/failures.test.ts -t '^.*B13: '
+ RUN  v5.1.0 /tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/wt-14/builder
+ ❯ test/failures.test.ts (17 tests | 1 failed | 16 skipped) 58ms
+   ❯ package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) (17)
+     × B13: the invariant checker flags each kind of breach: above the cap, below what was owed, a settled call above its hold, hold.exceeded, and a hold row changed by hand with no event 23ms
+ Test Files  1 failed (1)
+      Tests  1 failed | 16 skipped (17)
+   Start at  08:03:35
+   Duration  300ms (import 41%, tests 31%, transform 26%, worker 2%)
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B13: the invariant checker flags each kind of breach: above the cap, below what was owed, a settled call above its hold, hold.exceeded, and a hold row changed by hand with no event
+AssertionError: expected [] to deeply equal [ '2: below what was owed' ]
+- Expected
++ Received
+- [
+-   "2: below what was owed",
+- ]
++ []
+ ❯ test/failures.test.ts:835:119
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+exit code: 1
+$ git checkout -- test/invariants.ts; git diff --exit-code
+exit code: 0
+
+== C19 (B13): the checker's 'no settled call above its hold' switched off ==
+$ git diff -- test/invariants.ts
+diff --git a/builder/test/invariants.ts b/builder/test/invariants.ts
+index 7d90586..c91bb1b 100644
+--- a/builder/test/invariants.ts
++++ b/builder/test/invariants.ts
+@@ -127,7 +127,8 @@ export function checkTrace(events: TraceEvent[], bills: Bill[], initialCapMicro:
+         costOfOpenHold.delete(holdId!);
+         spent += cost;
+         const actual = num(p["actual_usd"]);
+-        if (actual !== null && micro(actual) > h.amount) violations.push({ rule: "a settled call above its hold", at: `event ${e.id}`, detail: { hold: h.amount, actual: micro(actual) } });
++        if (false) violations.push( // CONTROL
++{ rule: "a settled call above its hold", at: `event ${e.id}`, detail: { hold: h.amount, actual: micro(actual) } });
+         if (micro(actual ?? 0) !== cost) bad(e, "the settled amount differs from its call's cost");
+         if (stepHold && stepHold["step_open"] === true) rooms.set(String(stepHold["step_hold_id"]), micro(num(stepHold["room_after_usd"]) ?? 0));
+         break;
+
+$ TMPDIR=/tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/pkg14-tmp BUILDER_TEST_DATABASE_URL=postgres:///builder_test_pkg14?host=/var/run/postgresql npx vitest run test/failures.test.ts -t '^.*B13: '
+ RUN  v5.1.0 /tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/wt-14/builder
+ ❯ test/failures.test.ts (17 tests | 1 failed | 16 skipped) 61ms
+   ❯ package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) (17)
+     × B13: the invariant checker flags each kind of breach: above the cap, below what was owed, a settled call above its hold, hold.exceeded, and a hold row changed by hand with no event 16ms
+ Test Files  1 failed (1)
+      Tests  1 failed | 16 skipped (17)
+   Start at  08:03:36
+   Duration  321ms (import 42%, tests 33%, transform 23%, worker 2%)
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B13: the invariant checker flags each kind of breach: above the cap, below what was owed, a settled call above its hold, hold.exceeded, and a hold row changed by hand with no event
+AssertionError: expected [ 'hold.exceeded written' ] to deeply equal [ …(2) ]
+- Expected
++ Received
+  [
+-   "a settled call above its hold",
+    "hold.exceeded written",
+  ]
+ ❯ test/failures.test.ts:833:142
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+exit code: 1
+$ git checkout -- test/invariants.ts; git diff --exit-code
+exit code: 0
+
+== C20 (B13): the checker's final comparison with the budget view switched off ==
+$ git diff -- test/invariants.ts
+diff --git a/builder/test/invariants.ts b/builder/test/invariants.ts
+index 7d90586..673878f 100644
+--- a/builder/test/invariants.ts
++++ b/builder/test/invariants.ts
+@@ -186,7 +186,7 @@ export async function checkProject(pool: pg.Pool, projectId: string, bills: Bill
+   const out = checkTrace(events, bills, initialCap);
+   const v = [...out.violations, ...checkSamples(samples)];
+   const f = out.final;
+-  if (f.spent !== view.spent || f.open !== view.open || f.room !== view.room || f.cap !== view.cap) {
++  if (false) { // CONTROL
+     v.push({ rule: "replay differs from the budget view", at: "end", detail: { replay: f, view } });
+   }
+   return { violations: v, states: out.states, final: f, rows: out.rows };
+
+$ TMPDIR=/tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/pkg14-tmp BUILDER_TEST_DATABASE_URL=postgres:///builder_test_pkg14?host=/var/run/postgresql npx vitest run test/failures.test.ts -t '^.*B13: '
+ RUN  v5.1.0 /tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/wt-14/builder
+ ❯ test/failures.test.ts (17 tests | 1 failed | 16 skipped) 57ms
+   ❯ package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) (17)
+     × B13: the invariant checker flags each kind of breach: above the cap, below what was owed, a settled call above its hold, hold.exceeded, and a hold row changed by hand with no event 26ms
+ Test Files  1 failed (1)
+      Tests  1 failed | 16 skipped (17)
+   Start at  08:03:37
+   Duration  279ms (import 42%, tests 31%, transform 25%, worker 2%)
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B13: the invariant checker flags each kind of breach: above the cap, below what was owed, a settled call above its hold, hold.exceeded, and a hold row changed by hand with no event
+AssertionError: expected [] to deeply equal [ Array(1) ]
+- Expected
++ Received
+- [
+-   "replay differs from the budget view",
+- ]
++ []
+ ❯ test/failures.test.ts:842:57
+    840|     expect((await checkProject(pool, id, [], [])).violations).toEqual(…
+    841|     await pool.query("update holds set amount_usd = 0 where id = $1", …
+    842|     expect(rules(await checkProject(pool, id, [], []))).toEqual(["repl…
+       |                                                         ^
+    843|   });
+    844|
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+exit code: 1
+$ git checkout -- test/invariants.ts; git diff --exit-code
+exit code: 0
+
+== C21 (liveness): the gateway's liveness check removed ==
+$ git diff -- src/gateway/app.ts
+diff --git a/builder/src/gateway/app.ts b/builder/src/gateway/app.ts
+index 00c5261..7c79415 100644
+--- a/builder/src/gateway/app.ts
++++ b/builder/src/gateway/app.ts
+@@ -236,7 +236,7 @@ export function createGateway(opts: GatewayOptions) {
+ 
+   app.all("/v1/*", async (c) => {
+     // Package 1.4. These two refusals come before anything else, and write nothing to the database.
+-    if (opts.liveness && !opts.liveness.ok()) {
++    if (false) { // CONTROL
+       return c.json(errorBody("gateway_unavailable", "This gateway has lost the database connection that shows it is running, so it forwards nothing until that connection is back. Nothing was forwarded."), 503);
+     }
+     // The gate: closed while a call's ending is unrecorded. It tries to record it first.
+
+$ TMPDIR=/tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/pkg14-tmp BUILDER_TEST_DATABASE_URL=postgres:///builder_test_pkg14?host=/var/run/postgresql npx vitest run test/failures.test.ts -t 'liveness connection'
+ RUN  v5.1.0 /tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/wt-14/builder
+ ❯ test/failures.test.ts (17 tests | 1 failed | 16 skipped) 126ms
+   ❯ package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) (17)
+     × 1.4: a gateway that loses its liveness connection forwards nothing until it holds its lock again 99ms
+ Test Files  1 failed (1)
+      Tests  1 failed | 16 skipped (17)
+   Start at  08:03:38
+   Duration  319ms (tests 56%, import 29%, transform 13%, worker 1%)
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > 1.4: a gateway that loses its liveness connection forwards nothing until it holds its lock again
+AssertionError: expected 200 to be 503 // Object.is equality
+- Expected
++ Received
+- 503
++ 200
+ ❯ test/failures.test.ts:856:22
+    854|     const before = { messages: stand.messages, counts: stand.counts, e…
+    855|     const r = await callAt(g.url, p.token, body(p.id));
+    856|     expect(r.status).toBe(503);
+       |                      ^
+    857|     expect((await errorOf(r)).type).toBe("gateway_unavailable");
+    858|     expect({ messages: stand.messages, counts: stand.counts, events: (…
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+exit code: 1
+$ git checkout -- src/gateway/app.ts; git diff --exit-code
+exit code: 0
+
+== C23 (B10 (7)): a record whose journal write failed is dropped, so the gate opens ==
+$ git diff -- src/gateway/journal.ts
+diff --git a/builder/src/gateway/journal.ts b/builder/src/gateway/journal.ts
+index 5c60e12..bedea7c 100644
+--- a/builder/src/gateway/journal.ts
++++ b/builder/src/gateway/journal.ts
+@@ -167,6 +167,7 @@ export class FaultGate {
+       await this.o.journal.append(w.rec);
+       w.journaled = true;
+     } catch (err) {
++      this.waiting.splice(this.waiting.indexOf(w), 1); // CONTROL
+       this.o.onFault?.("A call's ending could not be written to the gateway's journal file either. The gateway forwards nothing until it is written to the event log.", { journal_id: journalId, error: summary(err) });
+     }
+   }
+
+$ TMPDIR=/tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/pkg14-tmp BUILDER_TEST_DATABASE_URL=postgres:///builder_test_pkg14?host=/var/run/postgresql npx vitest run test/failures.test.ts -t '^.*B10 \(7\)'
+ RUN  v5.1.0 /tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/wt-14/builder
+ ❯ test/failures.test.ts (17 tests | 1 failed | 16 skipped) 167ms
+   ❯ package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) (17)
+     × B10 (7): the journal file cannot be written either: the gate stays closed, with the record kept in memory, until the database takes it 128ms
+ Test Files  1 failed (1)
+      Tests  1 failed | 16 skipped (17)
+   Start at  08:03:39
+   Duration  431ms (tests 55%, import 24%, transform 19%, worker 2%)
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > B10 (7): the journal file cannot be written either: the gate stays closed, with the record kept in memory, until the database takes it
+AssertionError: expected 200 to be 503 // Object.is equality
+- Expected
++ Received
+- 503
++ 200
+ ❯ test/failures.test.ts:685:22
+    683|     const before = { messages: stand.messages, counts: stand.counts };
+    684|     const r = await callAt(g.url, q.token, body(q.id));
+    685|     expect(r.status).toBe(503);
+       |                      ^
+    686|     expect((await errorOf(r)).type).toBe("gateway_unrecorded");
+    687|     expect({ messages: stand.messages, counts: stand.counts }).toEqual…
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+exit code: 1
+$ git checkout -- src/gateway/journal.ts; git diff --exit-code
+exit code: 0
+
+== C22 (503): the gateway's own error answer removed (the web framework's default answers) ==
+$ git diff -- src/gateway/app.ts
+diff --git a/builder/src/gateway/app.ts b/builder/src/gateway/app.ts
+index 00c5261..135cd1c 100644
+--- a/builder/src/gateway/app.ts
++++ b/builder/src/gateway/app.ts
+@@ -227,7 +227,7 @@ export function createGateway(opts: GatewayOptions) {
+ 
+   // A database that cannot be reached, or refuses a read or a write, gets a 503 with the reason, not the
+   // web framework's bare 500; only a fixed summary of the error is kept, never its text (package 1.4).
+-  app.onError((err, c) => {
++  if (false) app.onError((err, c) => { // CONTROL
+     fault("The gateway could not use its database for a request; the request was stopped.", { path: c.req.path, error: errorSummary(err) });
+     return c.json(errorBody("gateway_unavailable", "The gateway could not use its database, so it stopped this request. If a model call was under way, its hold stays open at its full amount."), 503);
+   });
+
+$ TMPDIR=/tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/pkg14-tmp BUILDER_TEST_DATABASE_URL=postgres:///builder_test_pkg14?host=/var/run/postgresql npx vitest run test/failures.test.ts -t 'cannot be reached gets a 503'
+ RUN  v5.1.0 /tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/wt-14/builder
+ ❯ test/failures.test.ts (17 tests | 1 failed | 16 skipped) 64ms
+   ❯ package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) (17)
+     × 1.4: a database that cannot be reached gets a 503 that names the reason, not a bare 500, and the error's text is not passed on 35ms
+ Test Files  1 failed (1)
+      Tests  1 failed | 16 skipped (17)
+   Start at  08:03:40
+   Duration  299ms (import 43%, tests 33%, transform 22%, worker 2%)
+stderr | test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > 1.4: a database that cannot be reached gets a 503 that names the reason, not a bare 500, and the error's text is not passed on
+error: database "no_such_database_pkg14" does not exist
+    at /tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/wt-14/builder/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at tokenOwner (/tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/wt-14/builder/src/store/projects.ts:64:13)
+    at Array.<anonymous> (/tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/wt-14/builder/src/gateway/app.ts:256:19)
+    at async responseViaResponseObject (file:///tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/wt-14/builder/node_modules/@hono/node-server/dist/index.mjs:980:13)
+    at async Server.<anonymous> (file:///tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/wt-14/builder/node_modules/@hono/node-server/dist/index.mjs:1078:11) {
+  length: 108,
+  severity: 'FATAL',
+  code: '3D000',
+  detail: undefined,
+  hint: undefined,
+  position: undefined,
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'postinit.c',
+  line: '1021',
+  routine: 'InitPostgres'
+}
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  test/failures.test.ts > package 1.4: failure tests, proof rows B8 to B13 (against a stand-in provider) > 1.4: a database that cannot be reached gets a 503 that names the reason, not a bare 500, and the error's text is not passed on
+AssertionError: expected 500 to be 503 // Object.is equality
+- Expected
++ Received
+- 503
++ 500
+ ❯ test/failures.test.ts:872:24
+    870|       const before = { messages: stand.messages, counts: stand.counts …
+    871|       const r = await callAt(url, "bpt_made_up_token", { model: MODEL,…
+    872|       expect(r.status).toBe(503);
+       |                        ^
+    873|       const e = await errorOf(r);
+    874|       expect(e.type).toBe("gateway_unavailable");
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+exit code: 1
+$ git checkout -- src/gateway/app.ts; git diff --exit-code
+exit code: 0
+
+== Summary ==
+| Control | Row | Safeguard removed | Tests | Vitest exit | git diff clean after |
+| --- | --- | --- | --- | --- | --- |
+| C1 | B8 | the lock on the project's row ('for update') removed from every budget decision | Tests  1 failed , 16 skipped (17) | 1 | yes |
+| C2 | B9 (1), (2), (3) | a gateway found gone no longer has its holds marked unreconciled | Tests  3 failed , 14 skipped (17) | 1 | yes |
+| C3 | B9 (1) | the liveness lock not tried: every other gateway judged gone, a running sibling included | Tests  1 failed , 16 skipped (17) | 1 | yes |
+| C4 | B10 (1) | the gateway's freeze check before the counting call removed (openHold's stays) | Tests  1 failed , 16 skipped (17) | 1 | yes |
+| C5 | B10 (2) | the gate removed: a gateway with an unrecorded ending goes on forwarding | Tests  1 failed , 16 skipped (17) | 1 | yes |
+| C6 | B10 (3) | the journal write skipped | Tests  1 failed , 16 skipped (17) | 1 | yes |
+| C7 | B10 (4) | openHold's freeze check, under the lock, removed | Tests  1 failed , 16 skipped (17) | 1 | yes |
+| C8 | B10 (4) | openStepHold's freeze check, under the lock, removed | Tests  1 failed , 16 skipped (17) | 1 | yes |
+| C9 | B10 (5) | the freeze's insert no longer ignores a journal line already written | Tests  1 failed , 16 skipped (17) | 1 | yes |
+| C10 | B10 (1) | the freeze no longer marks the kept hold unreconciled | Tests  1 failed , 16 skipped (17) | 1 | yes |
+| C11 | B10 (6) | migration 009's trigger made to let every update, delete and truncate through (a fresh database, so that the changed migration is applied) | Tests  1 failed , 16 skipped (17) | 1 | yes |
+| C12 | B11 (1) | a stream cut part-way settled on the usage seen so far (amendment a undone) | Tests  1 failed , 16 skipped (17) | 1 | yes |
+| C13 | B11 (2) | a call with no answer settled at nothing | Tests  1 failed , 16 skipped (17) | 1 | yes |
+| C14 | B12 | a successful answer whose usage cannot be read settled at $0 (amendment d undone) | Tests  1 failed , 16 skipped (17) | 1 | yes |
+| C15 | B11, B12 | a kept hold no longer marked unreconciled | Tests  3 failed , 14 skipped (17) | 1 | yes |
+| C16 | B13 | the checker's invariant (1) switched off | Tests  1 failed , 16 skipped (17) | 1 | yes |
+| C17 | B13 | the checker's invariant (2) switched off (the replay) | Tests  1 failed , 16 skipped (17) | 1 | yes |
+| C18 | B13 | the checker's invariant (2) switched off at billing points | Tests  1 failed , 16 skipped (17) | 1 | yes |
+| C19 | B13 | the checker's 'no settled call above its hold' switched off | Tests  1 failed , 16 skipped (17) | 1 | yes |
+| C20 | B13 | the checker's final comparison with the budget view switched off | Tests  1 failed , 16 skipped (17) | 1 | yes |
+| C21 | liveness | the gateway's liveness check removed | Tests  1 failed , 16 skipped (17) | 1 | yes |
+| C23 | B10 (7) | a record whose journal write failed is dropped, so the gate opens | Tests  1 failed , 16 skipped (17) | 1 | yes |
+| C22 | 503 | the gateway's own error answer removed (the web framework's default answers) | Tests  1 failed , 16 skipped (17) | 1 | yes |
