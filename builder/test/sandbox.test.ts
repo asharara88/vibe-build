@@ -3,12 +3,35 @@ import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readlinkSy
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { promisify } from "node:util";
-import { afterAll, describe, expect, it, onTestFinished } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, onTestFinished } from "vitest";
 import { RUNNER_IMAGE } from "../src/acceptance/runner-image.js";
 import { composeDocument, createSandbox, DEFAULT_IMAGES, dockerEnv, sandbox, toYaml, type SandboxSpec } from "../src/sandbox/manager.js";
 
 const run = promisify(execFile);
 const builderDir = resolve(import.meta.dirname, "..");
+
+/**
+ * A Dockerfile's instructions as Docker reads them (its reference, "Format"): comment lines dropped, also inside a
+ * continued step; a line ending in a backslash joined to the next; leading space ignored; the keyword, which Docker
+ * reads in any case, given in capitals. Assumes the default escape character, which the test checks.
+ */
+function dockerfileInstructions(text: string): string[] {
+  const out: string[] = [];
+  let current = "";
+  for (const raw of text.split("\n")) {
+    const line = raw.trim();
+    if (line.startsWith("#") || (!current && line === "")) continue;
+    const continued = line.endsWith("\\");
+    const part = continued ? line.slice(0, -1).trim() : line;
+    current = current ? `${current} ${part}`.trim() : part;
+    if (!continued) {
+      out.push(current);
+      current = "";
+    }
+  }
+  if (current) out.push(current);
+  return out.map((i) => i.replace(/^(\S+)/, (k) => k.toUpperCase()));
+}
 
 /**
  * Ask until the answer is the one wanted, every `everyMs`, for at most `forMs`; returns the last answer.
@@ -184,7 +207,9 @@ describe("sandbox manager: compose documents", () => {
 
   it("the template's image build (package 0.6c): install scripts off, the workspace's code with no network, no certificate, no build front end fetched", () => {
     const df = readFileSync(resolve(builderDir, "..", "templates", "next", "Dockerfile"), "utf8");
-    const runs = df.split("\n").filter((l) => /^RUN /.test(l));
+    // Read as Docker reads it (after the review): an instruction's keyword in any case, with any leading space, and
+    // a step continued over several lines, so that `run npm run build` cannot pass unseen.
+    const runs = dockerfileInstructions(df).filter((l) => /^RUN\s/.test(l));
     // npm ci is the one step with the network (through the project's egress proxy, registry only), with install scripts off.
     expect(runs.filter((l) => /npm ci/.test(l))).toEqual(["RUN npm ci --ignore-scripts --no-fund --no-audit"]);
     // Every other step of the build stage that runs code has no network at all: the guard check and next build.
@@ -192,9 +217,19 @@ describe("sandbox manager: compose documents", () => {
     expect(runs.filter((l) => /npm run build/.test(l)).length).toBe(1);
     // No step but npm ci and the run stage's user set-up runs without --network=none.
     expect(runs.filter((l) => !l.startsWith("RUN --network=none ") && !/npm ci/.test(l))).toEqual(["RUN addgroup -S app && adduser -S app -G app"]);
-    // No certificate copied or configured; no "# syntax=" line (it would fetch a build front end that is not approved).
+    // No certificate copied or configured; no "# syntax=" line (it would fetch a build front end that is not approved),
+    // and no "# escape=" line (it would change how the lines above are joined); Docker reads these in any case.
     expect(df).not.toMatch(/certs\/|cafile|NODE_EXTRA_CA_CERTS/);
-    expect(df).not.toMatch(/^# *syntax *=/m);
+    expect(df).not.toMatch(/^\s*#\s*(syntax|escape)\s*=/im);
+  });
+
+  it("the Dockerfile reading used above (after the review): keywords in any case, leading space, continued lines, comment lines dropped", () => {
+    expect(dockerfileInstructions("WORKDIR /app\n  run npm run build\nRun --network=none a \\\n# a comment inside\n  b\n# RUN not this\nCOPY . .\n")).toEqual([
+      "WORKDIR /app",
+      "RUN npm run build",
+      "RUN --network=none a b",
+      "COPY . .",
+    ]);
   });
 
   it("askApp (package 0.6c) takes only http://<service>:<port>/<path>; up refuses the check service", async () => {
@@ -411,20 +446,24 @@ describe("sandbox manager: compose documents", () => {
 });
 
 describe("sandbox manager: live, development profile", () => {
-  const dir = mkdtempSync(join(tmpdir(), "builder-live-"));
-  const sb = createSandbox({ ...base, projectId: "p_live", profile: "development-cloud-session", dir }, "sample-only-password");
-  afterAll(() => rmSync(dir, { recursive: true, force: true }));
-
+  // Made when the block runs, not when the file is read, so that a run that leaves this block out leaves no folder.
+  let dir = "";
+  let sb: ReturnType<typeof createSandbox> | undefined;
+  beforeAll(() => {
+    dir = mkdtempSync(join(tmpdir(), "builder-live-"));
+    sb = createSandbox({ ...base, projectId: "p_live", profile: "development-cloud-session", dir }, "sample-only-password");
+  });
   afterAll(async () => {
-    await sandbox.destroy(sb).catch(() => undefined);
+    if (sb) await sandbox.destroy(sb).catch(() => undefined);
+    if (dir) rmSync(dir, { recursive: true, force: true });
   });
 
   it("starts the project's database and its door; from a container on `out`, the egress proxy behind the door lets the registry through and refuses a host not on the list (package 0.6c)", async () => {
-    await sandbox.up(sb, ["db", "egress"]);
+    await sandbox.up(sb!, ["db", "egress"]);
     // `up --wait` returns once the health checks have passed; the database's asks over TCP, so the real
     // server listens on its network port by then (known gap 69). It is asked once more, the same way.
     const ready = await askUntil(
-      () => sandbox.exec(sb, "db", ["pg_isready", "-h", "127.0.0.1", "-p", "5432", "-U", "app", "-d", "app"]),
+      () => sandbox.exec(sb!, "db", ["pg_isready", "-h", "127.0.0.1", "-p", "5432", "-U", "app", "-d", "app"]),
       (answer) => /accepting connections/.test(answer),
       { everyMs: 500, forMs: 30_000 },
     );
@@ -435,9 +474,9 @@ describe("sandbox manager: live, development profile", () => {
       "const net=require('net');const one=(t)=>new Promise((r)=>{const s=net.connect(3128,'egress',()=>s.write('CONNECT '+t+' HTTP/1.1\\r\\nHost: '+t+'\\r\\n\\r\\n'));" +
       "let b='';s.on('data',(d)=>{b+=d;if(b.includes('\\r\\n')){r(t+' '+b.split('\\r\\n')[0]);s.destroy();}});s.on('error',(e)=>r(t+' '+e.code));setTimeout(()=>{r(t+' no answer');s.destroy()},20000);});" +
       "(async()=>{for(const t of ['registry.npmjs.org:443','example.com:443'])console.log(await one(t));})();";
-    const out = (await sandbox.runOnce(sb, "egress", ["node", "-e", ask])).trim().split("\n");
+    const out = (await sandbox.runOnce(sb!, "egress", ["node", "-e", ask])).trim().split("\n");
     expect(out).toEqual(["registry.npmjs.org:443 HTTP/1.1 200 Connection Established", "example.com:443 HTTP/1.1 403 Forbidden"]);
-    const logs = await sandbox.logs(sb, "egress-host");
+    const logs = await sandbox.logs(sb!, "egress-host");
     expect(logs).toContain('"host":"example.com"');
     expect(logs).toContain('"decision":"refused"');
     expect(logs).toContain('"host":"registry.npmjs.org","port":443,"decision":"allowed"');
@@ -447,9 +486,15 @@ describe("sandbox manager: live, development profile", () => {
 describe("sandbox manager: live, the tools container (package 0.5)", () => {
   // A small tools image made from the base image the template uses, started without its shell script,
   // as the template's tools stage is. Nothing is fetched: the base image is already on this machine.
-  const dir = mkdtempSync(join(tmpdir(), "builder-tools-"));
+  // Both folders are made when the block runs and removed after it (package 0.6c, after its review: before, a run
+  // left them behind, and a run that left this block out made them too).
+  let dir = "";
   // A user's home folder whose Docker client configuration adds made-up proxies to every container.
-  const userHome = mkdtempSync(join(tmpdir(), "builder-home-"));
+  let userHome = "";
+  beforeAll(() => {
+    dir = mkdtempSync(join(tmpdir(), "builder-tools-"));
+    userHome = mkdtempSync(join(tmpdir(), "builder-home-"));
+  });
   const savedHome = process.env.HOME;
   let sb: ReturnType<typeof createSandbox>;
   const names = 'console.log(JSON.stringify(Object.keys(process.env).sort()))';
@@ -463,6 +508,7 @@ describe("sandbox manager: live, the tools container (package 0.5)", () => {
       await sandbox.removeImage(sb);
     }
     process.env.HOME = savedHome;
+    for (const d of [dir, userHome]) if (d) rmSync(d, { recursive: true, force: true });
   });
 
   it("a Docker client configuration that adds proxy settings to containers does not reach the tools container", async () => {

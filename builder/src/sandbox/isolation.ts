@@ -5,7 +5,8 @@
  * fact. This module turns those lines into a report, says which attempts got an answer (ANSWER_WORDING), and
  * draws the table of every attempt per container. It makes no connection itself: `readMachineSide` only
  * reads files on the machine and asks Docker for its default network's gateway address, for group G, and
- * `readMachineAddresses` lists the machine's own addresses with `ip`, for group M.
+ * `readMachineAddresses` lists the machine's own addresses from the kernel's tables (/proc/net/fib_trie and
+ * /proc/net/if_inet6), for group M.
  *
  * Package 0.6c adds the comparison with an expected list (`compareWithExpected`): for each container, the
  * attempts design note 2.5 lets it get an answer to, with who must answer (the result's words and, where it
