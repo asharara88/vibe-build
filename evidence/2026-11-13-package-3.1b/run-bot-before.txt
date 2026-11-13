@@ -1,0 +1,128 @@
+# After the review bot on 1ebe1cc: the reproduction, before the fix
+# 2026-11-13 12:34:15 UTC; Node v22.23.4
+# The code: commit 1ebe1cc (builder/src unchanged: 'git diff --stat -- builder/src' prints nothing below).
+# Added, not yet committed: three tests in builder/test/browser-fetch.test.ts (git diff --stat below).
+$ git diff --stat -- builder/src
+$ git diff --stat
+ builder/test/browser-fetch.test.ts | 113 +++++++++++++++++++++++++++++++++++++
+ 1 file changed, 113 insertions(+)
+
+## 1. The test file (stand-in server and stand-in proxy on 127.0.0.1, made-up bytes)
+$ npx vitest run test/browser-fetch.test.ts
+
+ RUN  v5.1.0 <worktree>/builder
+
+ ❯ test/browser-fetch.test.ts (20 tests | 2 failed) 10279ms
+   ❯ fetching the approved browser zip (stand-in server, made-up bytes) (13)
+     × a refused answer whose body stays open (a stated length other than the approved size; an answer other than 200) has its connection closed at once, not left open past both time limits; no file is left 3016ms
+   ❯ fetching through the environment's proxy (stand-in proxy) (7)
+     × through the tunnel too: a refused answer whose body stays open, and a certificate Node does not trust, close the tunnel at once, not left open past both time limits; no file is left 4527ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/browser-fetch.test.ts > fetching the approved browser zip (stand-in server, made-up bytes) > a refused answer whose body stays open (a stated length other than the approved size; an answer other than 200) has its connection closed at once, not left open past both time limits; no file is left
+AssertionError: expected [ …(2) ] to deeply equal [ …(2) ]
+
+- Expected
++ Received
+
+  [
+-   "/wrong-length-stall: closed within 0.25 s of the refusal",
+-   "/refused-stall: closed within 0.25 s of the refusal",
++   "/wrong-length-stall: still open 1500 ms after the refusal",
++   "/refused-stall: still open 1498 ms after the refusal",
+  ]
+
+ ❯ test/browser-fetch.test.ts:233:19
+    231|       conn.socket.destroy();
+    232|     }
+    233|     expect(stood).toEqual(cases.map(([path]) => closedAtOnce(path)));
+       |                   ^
+    234|   });
+    235|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  test/browser-fetch.test.ts > fetching through the environment's proxy (stand-in proxy) > through the tunnel too: a refused answer whose body stays open, and a certificate Node does not trust, close the tunnel at once, not left open past both time limits; no file is left
+AssertionError: expected [ …(3) ] to deeply equal [ …(3) ]
+
+- Expected
++ Received
+
+  [
+    "/zip: closed within 0.25 s of the refusal",
+-   "/wrong-length-stall: closed within 0.25 s of the refusal",
+-   "/refused-stall: closed within 0.25 s of the refusal",
++   "/wrong-length-stall: still open 1496 ms after the refusal",
++   "/refused-stall: still open 1493 ms after the refusal",
+  ]
+
+ ❯ test/browser-fetch.test.ts:413:19
+    411|       tls.setDefaultCACertificates(before);
+    412|     }
+    413|     expect(stood).toEqual(cases.map(([path]) => closedAtOnce(path)));
+       |                   ^
+    414|   });
+    415|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 18 passed (20)
+   Start at  12:34:15
+   Duration  10.44s (tests 99%)
+
+exit code: 1
+
+## 2. A probe of the same refusals, counting what the connection takes after the refusal
+# The probe (kept outside the repository, run with npx tsx from builder/), as text:
+  | // Probe for the review bot's note on 1ebe1cc: after a refusal at the headers, does the fetch go on reading the body?
+  | // A stand-in on 127.0.0.1 answers (a) 200 stating 10^12 bytes, (b) 503 with no stated length; then it sends made-up
+  | // bytes as fast as the connection takes them. Counted: the bytes the connection took in the 2 s after the refusal,
+  | // and whether it is still open then. Limits given to the fetch: 0.3 s of silence, 0.6 s in all.
+  | import http from "node:http";
+  | import { mkdtempSync, readdirSync, rmSync } from "node:fs";
+  | import { tmpdir } from "node:os";
+  | import { join } from "node:path";
+  | const { fetchBrowserZip } = await import(join(process.argv[2]!, "src/acceptance/browser-fetch.ts"));
+  | const chunk = Buffer.alloc(64 * 1024, 7);
+  | let taken = 0;
+  | let closed = false;
+  | const server = http.createServer((req, res) => {
+  |   closed = false;
+  |   req.socket.once("close", () => (closed = true));
+  |   if (req.url === "/wrong-length") res.writeHead(200, { "content-length": String(10 ** 12) });
+  |   else res.writeHead(503);
+  |   const more = () => {
+  |     while (!res.destroyed) {
+  |       taken += chunk.length;
+  |       if (!res.write(chunk)) return void res.once("drain", more);
+  |     }
+  |   };
+  |   more();
+  | });
+  | await new Promise<void>((ok) => server.listen(0, "127.0.0.1", ok));
+  | const port = (server.address() as import("node:net").AddressInfo).port;
+  | const scratch = mkdtempSync(join(tmpdir(), "drain-probe-"));
+  | for (const path of ["/wrong-length", "/refused"]) {
+  |   const cache = join(scratch, path.slice(1));
+  |   const t0 = Date.now();
+  |   const err = await fetchBrowserZip({ cacheDir: cache, testSource: { url: `http://127.0.0.1:${port}${path}`, sha256: "0".repeat(64), bytes: 1000 }, env: {}, silenceLimitMs: 300, timeLimitMs: 600 }).catch((e: Error) => e);
+  |   const refusedAt = Date.now();
+  |   const atRefusal = taken;
+  |   await new Promise((r) => setTimeout(r, 2000));
+  |   console.log(`${path}: refused after ${refusedAt - t0} ms: ${err.message}`);
+  |   console.log(`  in the 2 s after the refusal the connection took ${((taken - atRefusal) / 1e6).toFixed(1)} MB more; still open at the end: ${!closed}; files left in the cache folder: ${JSON.stringify(readdirSync(cache))}`);
+  |   server.closeAllConnections();
+  |   await new Promise((r) => setTimeout(r, 100));
+  | }
+  | rmSync(scratch, { recursive: true, force: true });
+  | server.close();
+  | process.exit(0);
+$ npx tsx <scratch>/drain-probe.mts "$PWD"
+/wrong-length: refused after 11 ms: 127.0.0.1:41415 says the file is 1000000000000 bytes, not the approved 1000. Nothing was put in place.
+  in the 2 s after the refusal the connection took 2605.4 MB more; still open at the end: true; files left in the cache folder: []
+/refused: refused after 9 ms: 127.0.0.1:41415 answered 503 Service Unavailable. Nothing was put in place.
+  in the 2 s after the refusal the connection took 2987.9 MB more; still open at the end: true; files left in the cache folder: []
+exit code: 0

@@ -99,7 +99,7 @@ Each control: a fresh copy of the commit (`git archive` into the scratch folder)
 
 ## Not done, and not shown
 
-- **Reviewed once** ("After the review", below); the review bot on the pull request has not read it yet.
+- **Reviewed once** ("After the review", below); the review bot on the pull request read `1ebe1cc` and made one note, answered in "After the review bot on 1ebe1cc", below. It has not read the fix.
 - **A new session's network** (known gap 110): whether it lets `storage.googleapis.com` through depends on the owner's cloud environment, and nothing fetches the zip when a session starts.
 - **That a passing test opened the browser** (known gap 111): "passed" means every test the version names ran and passed.
 - **The scan is of words** (known gap 112), and a test with no check still passes.
@@ -123,6 +123,10 @@ Each control: a fresh copy of the commit (`git archive` into the scratch folder)
 | `run-review-r5b-at-9c525a3.txt` | After the review: control R5b on the commit before `c3a7570`: no test failed |
 | `run-review-tests-full.txt`, `run-review-typecheck.txt`, `run-review-licences.txt` | After the review: the three checks again |
 | `run-tunnel-issuer.txt` | After the review: who issued the certificate, through the fetch's own code and directly; the script, as text |
+| `run-bot-before.txt` | After the review bot: the new tests and a probe against the code as it was at `1ebe1cc`; the probe's text |
+| `run-bot-after.txt` | After the review bot: the same at `0f46808`, the test file three times in a row |
+| `run-bot-controls.txt` | After the review bot: controls K1 to K3 |
+| `run-bot-tests-full.txt`, `run-bot-typecheck.txt`, `run-bot-licences.txt` | After the review bot: the three checks at `0f46808` |
 
 ## After the review (13 Nov 2026)
 
@@ -171,3 +175,45 @@ Each: a fresh copy of the commit (`git archive` into the scratch folder), one ne
 The three checks ran at `c3a7570` itself (`builder/` unchanged from the commit). The code after the review is in three commits: `a8338b5` (the scan), `9c525a3` (Docker's message) and `c3a7570` (a made-up `workspace` setting in the settings test, and the scan's comment).
 
 **Still not shown:** that a new session's network lets the zip's host through (gap 110); that a passing test opened the browser (gap 111); a skip given as a test's options, `{ skip: true }`, or a test that checks nothing (gap 112); that the image run is the image checked (gap 140).
+
+## After the review bot on 1ebe1cc (13 Nov 2026)
+
+The review bot made one note (P2), on `builder/src/acceptance/browser-fetch.ts` near `:220`: a refused answer was drained instead of closed, and the refusal cleared both time limits, so a server that kept the body open kept the connection open, and could keep sending, without end.
+
+**Checked against the code: it held.** At `1ebe1cc` both refusals made at the headers, an answer other than 200 (`:212-216`) and a stated length other than the approved size (`:217-221`), called `res.resume()` (read the body and throw it away) and then threw; the `finally` (`:268-273`) cleared both time limits, and nothing else closed the connection.
+
+**Reproduced** (`run-bot-before.txt`: three new tests in `builder/test/browser-fetch.test.ts`, run against `1ebe1cc`'s code). A stand-in answers 200 stating four times the approved size, or 503, sends 1,000 bytes, then nothing, its body left open; the fetch is given 0.3 s of silence and 0.6 s in all.
+
+- `:215` (directly) and `:384` (through the stand-in proxy's tunnel): **both failed**: every such connection was "still open" about 1,500 ms after the refusal, well past both limits. The refusal itself, and no file left, held.
+- `:236`: every other way the fetch ends with the body open (silence, the whole time limit, more bytes than approved): **passed**; those already closed their connection.
+- A probe (its text is in the file), with a stand-in that sends as fast as the connection takes: in the 2 s after the refusal the connection took **2,605 MB** more (a stated length of 10^12 bytes) and **2,988 MB** more (503), and was still open.
+
+**The fix** (`0f46808`): both refusals destroy the answer, and with it its connection (and the tunnel, through a proxy), before the refusal is given (`:216`, `:222`; the rule in the file's header, `:20-21`). After it (`run-bot-after.txt`): the test file passed, 20 of 20, three runs in a row; the probe: 0.0 MB after the refusal, the connection closed, no file left.
+
+**Every other early end of the fetch, checked for the same pattern:**
+
+| Where (at `0f46808`) | What happens to the connection | Shown by |
+| --- | --- | --- |
+| The tunnel request's `response` branch (`:137-141`) | Was `res.resume()`; now `res.destroy()`. Not reached: Node v22.23.4 gives every answer to `CONNECT` as `connect` (its own `_http_client.js:707-716`, `:625-662`, read on this machine) | `run-bot-after.txt`, section 3 (not testable for that reason) |
+| A tunnel the proxy refuses (`:129-136`) | Node gives that answer without a body; the connection is destroyed (`sock.destroy()`) | Existing test, `:419` |
+| Silence, the whole time limit, more bytes than approved (`:245-251`) | The pipeline destroys the answer, and with it the connection | New test `:236`: closed within 0.25 s |
+| A certificate Node does not trust, a reset tunnel | The request is destroyed by its own error | New test `:384` (the certificate case): the tunnel closed within 0.25 s |
+| After the whole body: size, SHA-256, a file appeared at the zip's place (`:257-268`) | The answer has been read to its end; nothing more is read | — |
+
+**Controls** (`run-bot-controls.txt`; each a fresh copy of `0f46808`, the fix taken out, the test file run, the copy removed):
+
+| # | Taken out | Result |
+| --- | --- | --- |
+| K1 | `res.resume()` back in both refusals, as at `1ebe1cc` | **Failed:** `:215` and `:384`, each connection "still open" about 1,500 ms after the refusal |
+| K2 | `res.resume()` back in the refusal of an answer other than 200 only | **Failed:** the same two tests, at the 503 case only |
+| K3 | `res.resume()` back in the refusal of a stated length only | **Failed:** the same two tests, at the stated length only |
+
+**Checks** (at `0f46808`):
+
+| Check | Result | Output |
+| --- | --- | --- |
+| `npm run typecheck` | Passed, exit code 0 | `run-bot-typecheck.txt` |
+| The whole suite, under the shared lock, live tests included, the zip present | 17 files, **437 tests, 437 passed**, none skipped, the 7 live tests and the 3 new fetch tests among them, exit code 0 (12:49 to 12:53 UTC; one container on the machine before the run, started before it, `builder_p_test-check-1`; none just after) | `run-bot-tests-full.txt` |
+| `npm run check:licences` | Passed; no package added | `run-bot-licences.txt` |
+
+**Still not shown:** a real server answering this way (only stand-ins on this machine); the review bot has not read the fix.
