@@ -2,7 +2,8 @@
 // container of its own started by builder/scripts/demo-journey.ts: the image's unprivileged user, a read-only
 // root, every capability dropped, this script read-only at /camera, one output folder at /shots, and the
 // interface's password as one read-only file at /run/secrets/ui-password. It shares the machine's network so that
-// it can reach the interface on 127.0.0.1:4020, and it loads nothing else: every other address is refused below.
+// it can reach the interface on 127.0.0.1:4020 (or the loopback port BUILDER_CAMERA_BASE names, when the automated
+// run had to use another), and it loads nothing else: every other address is refused below.
 //
 // It walks J1's "Done means" as the owner would, in the browser, and photographs each screen
 // (NN-<screen>-<en|ar|phone>.png; "phone" is 390 px wide). No video is recorded and no trace is kept: the browser
@@ -14,7 +15,12 @@ import { createHash, randomBytes } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { chromium } from "/runner/node_modules/playwright-core/index.mjs";
 
-const BASE = "http://127.0.0.1:4020";
+// Only http://127.0.0.1:<port> is accepted; anything else stops the camera before the browser starts.
+const BASE = process.env.BUILDER_CAMERA_BASE ?? "http://127.0.0.1:4020";
+if (!/^http:\/\/127\.0\.0\.1:[0-9]{4,5}$/.test(BASE)) {
+  console.log(JSON.stringify({ kind: "check", name: "the camera's address is 127.0.0.1", ok: false, detail: "BUILDER_CAMERA_BASE is not http://127.0.0.1:<port>" }));
+  process.exit(1);
+}
 const ASK = "I need an app where staff can request leave and managers approve it";
 const password = readFileSync("/run/secrets/ui-password", "utf8").trim();
 const say = (o) => console.log(JSON.stringify(o));
@@ -296,7 +302,7 @@ try {
 } catch (err) {
   check("the walk ran to its end without an error", false, String(err && err.message ? err.message : err).split("\n")[0]);
 } finally {
-  check("nothing but 127.0.0.1:4020 was loaded", outside.length === 0, outside.slice(0, 3).join(" "));
+  check(`nothing but ${BASE.slice("http://".length)} was loaded`, outside.length === 0, outside.slice(0, 3).join(" "));
   await context.close();
   await browser.close();
 }

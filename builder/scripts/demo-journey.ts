@@ -5,7 +5,7 @@
  *   flock <scratchpad>/live-tests.lock npx tsx scripts/demo-journey.ts <evidence folder>
  *
  * From a fresh database (builder_j1_<run>) and a fresh data folder it starts the builder's own interface on
- * 127.0.0.1:4020 with a random password, given only to the interface (its environment) and, as a read-only secret
+ * 127.0.0.1:4020 (or the port J1_DEMO_UI_PORT names, when 4020 is taken by another interface) with a random password, given only to the interface (its environment) and, as a read-only secret
  * file, to the builder camera; the password is never printed or written anywhere else. The builder camera
  * (camera/builder-shots.mjs, in the approved runner image, no video, no trace) walks J1's "Done means" in the
  * browser and photographs each screen. The interface's jobs build the app in the project's sandbox and its app
@@ -33,7 +33,14 @@ const run = promisify(execFile);
 const builderDir = resolve(import.meta.dirname, "..");
 const evidence = resolve(process.argv[2] ?? join(builderDir, "..", "evidence", "2026-11-13-journey-j1"));
 const screensDir = join(evidence, "screens");
-const UI_PORT = 4020;
+/** The interface's port: 4020, or J1_DEMO_UI_PORT (1024 to 65535) when 4020 is taken by another interface on the machine. */
+const UI_PORT = uiPort(process.env.J1_DEMO_UI_PORT);
+function uiPort(v: string | undefined): number {
+  if (v === undefined || v === "") return 4020;
+  const n = Number(v);
+  if (!/^[0-9]{4,5}$/.test(v) || n < 1024 || n > 65535 || n === 3161 || n === 5591) throw new Error(`J1_DEMO_UI_PORT must be a port from 1024 to 65535, not the app's 3161 or 5591; it is ${JSON.stringify(v)}.`);
+  return n;
+}
 const PORTS = [UI_PORT, 3161, 5591];
 const runId = `${new Date().toISOString().slice(0, 10).replace(/-/g, "")}_${randomBytes(3).toString("hex")}`;
 const dbName = `builder_j1_${runId}`;
@@ -185,7 +192,8 @@ async function main(): Promise<number> {
     }
     say(`The interface started: ${ifaceLog.filter((l) => l.startsWith("Interface listening")).join("")}`);
 
-    // The builder camera, in the approved runner image, on the machine's network so that it reaches 127.0.0.1:4020.
+    // The builder camera, in the approved runner image, on the machine's network so that it reaches the interface
+    // on 127.0.0.1:UI_PORT, the one address it is given (BUILDER_CAMERA_BASE) and the only one it loads.
     const camName = `j1-builder-camera-${runId}`;
     const camArgs = [
       "run", "--rm", "--name", camName,
@@ -193,6 +201,7 @@ async function main(): Promise<number> {
       "--read-only", "--tmpfs", "/tmp:rw,noexec,nosuid,size=512m",
       "--cap-drop", "ALL", "--security-opt", "no-new-privileges:true", "--pids-limit", "256", "--memory", "1g",
       "--user", "runner", "--workdir", "/runner", "--entrypoint", "node",
+      "--env", `BUILDER_CAMERA_BASE=http://127.0.0.1:${UI_PORT}`,
       "--volume", `${join(builderDir, "camera", "builder-shots.mjs")}:/camera/builder-shots.mjs:ro`,
       "--volume", `${cameraOut}:/shots`,
       "--volume", `${secretFile}:/run/secrets/ui-password:ro`,
