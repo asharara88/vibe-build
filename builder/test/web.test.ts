@@ -1607,4 +1607,176 @@ describe("J3 interface: the live app's screens (stand-in sandbox, the real front
       await t.j.closeProject(t.id);
     }
   }, 60_000);
+
+  /*
+   * Own check after the review bot on af80dc9 (a fresh reader of 4e41340): a sign-out, or a new sign-in, whose close of
+   * the live session already open is slow (its streams killed, its record written). While that close is held, the
+   * same sign-in session must not be able to open a new live session from another tab.
+   */
+
+  /** An interface with the real front, a project previewed, a live session open for its sign-in, and a way to hold the next close. */
+  const heldCloseInterface = async (name: string) => {
+    const box: { jobs?: JourneyJobs } = {};
+    const j = new Journey({ pool, dataDir, cleanupProject: (id, rec) => box.jobs!.cleanup(id, rec) });
+    const jobs = new JourneyJobs({ journey: j, sandboxes, measureFree: () => 50 * 1024 ** 3 });
+    box.jobs = jobs;
+    sandboxes.streamNetworkHold = null;
+    const net = await import("node:net");
+    const s = net.createServer();
+    await new Promise<void>((r) => s.listen(0, "127.0.0.1", r));
+    const port = (s.address() as import("node:net").AddressInfo).port;
+    await new Promise((r) => s.close(r));
+    await preview?.stop().catch(() => undefined);
+    // The record of a live session's close waits while a hold is set: the close (and whatever awaits it) is then held.
+    const gate: { hold: { started: () => void; release: Promise<void> } | null } = { hold: null };
+    preview = new LivePreview({
+      port,
+      texts: frontTexts(),
+      base: "/tmp",
+      openStream: (id) => jobs.openStream(id),
+      onEvent: async (id, kind, payload) => {
+        const hold = kind === EV.liveClosed ? gate.hold : null;
+        if (hold) {
+          gate.hold = null;
+          hold.started();
+          await hold.release;
+        }
+        await appendEvent(pool, id, kind, payload);
+      },
+    });
+    await preview.start();
+    jobs.attachPreview(preview);
+    const sessions = new Sessions();
+    const app = createWebApp({ journey: j, jobs, password: new PasswordState("env", digestPassword(PASSWORD), null), sessions, limiter: new SignInLimiter(), dataDir, preview });
+    const cookie = await signIn(app);
+    const made = await post(app, "/projects", { name, cap: "5.00", brief: "I need an app where staff can request leave and managers approve it" }, { cookie });
+    const id = /\/projects\/(j1-[0-9a-f]{12})\//.exec(made.headers.get("location") ?? "")![1]!;
+    for (const a of ["continue", "answer-rest", "confirm-brief", "confirm-plan"]) expect((await post(app, `/projects/${id}/${a}`, {}, { cookie })).status).toBe(303);
+    for (const [a, step] of [["build", "01-data"], ["approve", "01-data"], ["approve", "02-submitter-screen"]] as const) {
+      expect((await post(app, `/projects/${id}/${a}`, { step }, { cookie })).status).toBe(303);
+      await j.waitForJob();
+    }
+    // A live session open for this sign-in session.
+    expect((await post(app, `/projects/${id}/live`, {}, { cookie })).status).toBe(200);
+    await j.waitForJob();
+    expect(preview.session()?.builderSession).toBe(cookie.slice("builder_session=".length));
+    /** The next close of a live session is held at its record: `asked` resolves once it is held, `release` lets it go on. */
+    const holdNextClose = () => {
+      let started!: () => void;
+      let release!: () => void;
+      const asked = new Promise<void>((r) => (started = r));
+      gate.hold = { started, release: new Promise<void>((r) => (release = r)) };
+      return { asked, release };
+    };
+    return { j, app, sessions, cookie, value: cookie.slice("builder_session=".length), id, port, holdNextClose };
+  };
+  const reasonsClosed = async (id: string) => (await listEvents(pool, id, EV.liveClosed)).map((e) => (e.payload as { reason?: unknown }).reason);
+
+  it("a sign-out whose close of its live session is held: Open the live app asked for meanwhile from another tab under the same sign-in shows no pass and opens nothing; afterwards no live session is open and the sign-in session is ended (own check after the review bot on af80dc9)", async () => {
+    const t = await heldCloseInterface("Leave requests (made-up, own check, sign-out)");
+    const held = t.holdNextClose();
+    try {
+      const signingOut = post(t.app, "/sign-out", {}, { cookie: t.cookie });
+      await held.asked;
+      // The close of the live session is held. Another tab asks for the live app under the same sign-in session.
+      const r = await post(t.app, `/projects/${t.id}/live`, {}, { cookie: t.cookie });
+      const html = await r.text();
+      held.release();
+      expect((await signingOut).status).toBe(303);
+      await t.j.waitForJob();
+      // Soft: each of the three is reported, whichever fails first.
+      expect.soft(passOn(html), "a pass was shown under a sign-in session that was signing out").toBeUndefined();
+      expect.soft(preview.session(), "a live session is open after its sign-in session signed out").toBeNull();
+      expect.soft(t.sessions.valid(t.value), "the sign-in session still reads as valid").toBe(false);
+      expect(r.status).toBe(303);
+      expect(r.headers.get("location")).toBe("/sign-in");
+      expect(await listEvents(pool, t.id, EV.liveOpened)).toHaveLength(1);
+      expect(await reasonsClosed(t.id)).toEqual(["sign_out"]);
+      expect(await (await fetch(`http://127.0.0.1:${t.port}/`)).text()).toContain("data-no-live");
+    } finally {
+      held.release();
+      await t.j.waitForJob();
+      await t.j.closeProject(t.id);
+    }
+  }, 60_000);
+
+  it("a new sign-in in the same browser whose close of the replaced sign-in's live session is held: Open the live app asked for meanwhile under the replaced sign-in shows no pass and opens nothing; afterwards no live session is open (own check after the review bot on af80dc9)", async () => {
+    const t = await heldCloseInterface("Leave requests (made-up, own check, sign-in again)");
+    const held = t.holdNextClose();
+    try {
+      const signingIn = post(t.app, "/sign-in", { password: PASSWORD }, { cookie: t.cookie });
+      await held.asked;
+      const r = await post(t.app, `/projects/${t.id}/live`, {}, { cookie: t.cookie });
+      const html = await r.text();
+      held.release();
+      const again = await signingIn;
+      expect(again.status).toBe(303);
+      await t.j.waitForJob();
+      expect.soft(passOn(html), "a pass was shown under a sign-in session that a new sign-in was ending").toBeUndefined();
+      expect.soft(preview.session(), "a live session is open after its sign-in session was replaced").toBeNull();
+      expect.soft(t.sessions.valid(t.value), "the replaced sign-in session still reads as valid").toBe(false);
+      expect(r.status).toBe(303);
+      expect(r.headers.get("location")).toBe("/sign-in");
+      // The new sign-in session is valid and has no live session.
+      const fresh = /builder_session=([^;]+)/.exec(again.headers.get("set-cookie") ?? "")?.[1];
+      expect(t.sessions.valid(fresh)).toBe(true);
+      expect(await listEvents(pool, t.id, EV.liveOpened)).toHaveLength(1);
+      expect(await reasonsClosed(t.id)).toEqual(["signed_in_again"]);
+    } finally {
+      held.release();
+      await t.j.waitForJob();
+      await t.j.closeProject(t.id);
+    }
+  }, 60_000);
+
+  it("control: with the same held close, Open the live app asked for meanwhile under another valid sign-in session is not refused: its pass is shown and its live session stays open after the sign-out (own check after the review bot on af80dc9)", async () => {
+    const t = await heldCloseInterface("Leave requests (made-up, own check, control)");
+    const other = await signIn(t.app);
+    const otherValue = other.slice("builder_session=".length);
+    const held = t.holdNextClose();
+    try {
+      const signingOut = post(t.app, "/sign-out", {}, { cookie: t.cookie });
+      await held.asked;
+      const r = await post(t.app, `/projects/${t.id}/live`, {}, { cookie: other });
+      const html = await r.text();
+      held.release();
+      expect((await signingOut).status).toBe(303);
+      await t.j.waitForJob();
+      expect(r.status).toBe(200);
+      expect(passOn(html)).toBeDefined();
+      expect(preview.session()?.builderSession).toBe(otherValue);
+      expect(t.sessions.valid(otherValue)).toBe(true);
+      expect(t.sessions.valid(t.value)).toBe(false);
+      expect(await listEvents(pool, t.id, EV.liveOpened)).toHaveLength(2);
+      expect(await reasonsClosed(t.id)).toEqual(["sign_out"]);
+      // Its own sign-out then ends it.
+      expect((await post(t.app, "/sign-out", {}, { cookie: other })).status).toBe(303);
+      expect(preview.session()).toBeNull();
+    } finally {
+      held.release();
+      await t.j.waitForJob();
+      await t.j.closeProject(t.id);
+    }
+  }, 60_000);
+
+  it("a sign-out from a browser that sends two valid values of the sign-in cookie ends both, and closes the live session opened under the second value too, not only one opened under the first (own check after the review bot on af80dc9)", async () => {
+    const t = await heldCloseInterface("Leave requests (made-up, own check, every value)");
+    const other = await signIn(t.app);
+    const otherValue = other.slice("builder_session=".length);
+    try {
+      // A live session opened under the other value (it replaces the first).
+      expect((await post(t.app, `/projects/${t.id}/live`, {}, { cookie: other })).status).toBe(200);
+      await t.j.waitForJob();
+      expect(preview.session()?.builderSession).toBe(otherValue);
+      // The browser sends both values, the first sign-in's first: the interface reads that one as the request's session.
+      expect((await post(t.app, "/sign-out", {}, { cookie: `${t.cookie}; ${other}` })).status).toBe(303);
+      expect(t.sessions.valid(t.value)).toBe(false);
+      expect(t.sessions.valid(otherValue)).toBe(false);
+      expect(preview.session(), "a live session is open under a sign-in value the sign-out ended").toBeNull();
+      expect(await reasonsClosed(t.id)).toEqual(["replaced", "sign_out"]);
+    } finally {
+      await t.j.waitForJob();
+      await t.j.closeProject(t.id);
+    }
+  }, 60_000);
 });

@@ -15,6 +15,8 @@
  *   behind sign-in and csrf(); the pass and the sample password are on the page that answers the POST only, never on
  *   a GET page or in a record. Sign-out ends the live session bound to it, and cancels an open it asked for that is
  *   not made yet; the open is made only if its sign-in session is still valid then (after the review bot on af80dc9).
+ *   Sign-out, and a new sign-in, end every sign-in session the browser sent before anything is awaited, then close the
+ *   live session of each: no open can come between the two (own check after the review bot on af80dc9).
  */
 import { Hono, type Context } from "hono";
 import { bodyLimit } from "hono/body-limit";
@@ -194,11 +196,12 @@ export function createWebApp(d: WebDeps): Hono<Env> {
       return c.html(now > 0 ? signInPage(lang, { message: "locked", lockedSeconds: Math.ceil(now / 1000) }) : signInPage(lang, { message: "wrong" }), now > 0 ? 429 : 401);
     }
     d.limiter.succeed();
-    // After J3's review: a live session opened from a sign-in session this one replaces ends with it.
-    for (const v of cookieValues(c.req.header("cookie") ?? "", SESSION_COOKIE)) {
-      await d.preview?.signedOut(v, "signed_in_again");
-      d.sessions.end(v);
-    }
+    // After J3's review: a live session opened from a sign-in session this one replaces ends with it. Own check after
+    // the review bot on af80dc9: every value is ended first, with nothing awaited before, and only then is its live
+    // session closed; an open asked for under one of them earlier is cancelled there, one asked for later is refused.
+    const replaced = cookieValues(c.req.header("cookie") ?? "", SESSION_COOKIE);
+    for (const v of replaced) d.sessions.end(v);
+    for (const v of replaced) await d.preview?.signedOut(v, "signed_in_again");
     setCookie(c, SESSION_COOKIE, d.sessions.create(), cookieOpts);
     return c.redirect("/projects", 303);
   });
@@ -223,9 +226,12 @@ export function createWebApp(d: WebDeps): Hono<Env> {
   /* ---------------------------------------------------------------- behind the guard */
 
   app.post("/sign-out", async (c) => {
-    // Package J3: the live session opened from this sign-in ends with it.
-    await d.preview?.signedOut(c.get("session") ?? undefined);
-    for (const v of cookieValues(c.req.header("cookie") ?? "", SESSION_COOKIE)) d.sessions.end(v);
+    // Package J3: the live session opened from this sign-in ends with it. Own check after the review bot on af80dc9:
+    // every value of the cookie is ended first, with nothing awaited before (an open asked for under one of them later
+    // is then refused), and then the live session of each is closed, whichever value opened it.
+    const ended = cookieValues(c.req.header("cookie") ?? "", SESSION_COOKIE);
+    for (const v of ended) d.sessions.end(v);
+    for (const v of ended) await d.preview?.signedOut(v);
     deleteCookie(c, SESSION_COOKIE, { path: "/" });
     return c.redirect("/sign-in?m=signed_out", 303);
   });
