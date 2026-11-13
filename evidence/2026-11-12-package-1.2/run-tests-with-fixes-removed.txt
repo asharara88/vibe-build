@@ -1400,3 +1400,125 @@ Restored with `git checkout -- builder/src/store/holds.ts`; `git diff --exit-cod
 ====================================================================================================
 Controls 21 and 22 (four changes) whose test failed with the safeguard removed: 4 of 4.
 Tracked files changed after the last control: none
+
+====================================================================================================
+====================================================================================================
+Control 19 run again, and control 23, added 13 Nov 2026 after the second re-read (the merge candidate)
+
+Commit: 02d16bb. Run on the development machine (a cloud session), on the host, against the stand-in provider and the test database builder_test_pkg12.
+Control 19 again: since commit 5732947 its test is named "a caller that leaves before the call is forwarded ..."; the command recorded
+above filters by the old name, which no longer matches any test (a re-reader saw it report every test skipped, exit code 0).
+The same change as above is run here with the new name. Control 23: the new check in the B6 test, that a call sent to the
+gateway process once it says it is stopping has its connection refused; the safeguard removed is the closing of its server.
+The method is the same as above: one change at a time, by an exact text change shown as git shows it; the test run with
+`npx vitest run test/gateway.test.ts -t <the test>` (it is expected to FAIL); the file restored with `git checkout --`; and
+`git diff --exit-code` run to show that nothing is left changed. No control was committed.
+Tracked files changed before the first control: none
+
+====================================================================================================
+Control 19: re-run under the test's new name (the second re-read's note on control 19)
+Safeguard removed: No check that the caller has left before the call is forwarded (control 19's change, as recorded above)
+File: builder/src/gateway/app.ts
+
+The change, as `git diff` shows it:
+diff --git a/builder/src/gateway/app.ts b/builder/src/gateway/app.ts
+index aba69c9..ea535a2 100644
+--- a/builder/src/gateway/app.ts
++++ b/builder/src/gateway/app.ts
+@@ -423,7 +423,7 @@ export function createGateway(opts: GatewayOptions) {
+     // the call itself has not been forwarded, so the hold is settled at nothing with that reason. No
+     // await stands between this check and the forward below, so the caller cannot leave in between
+     // unseen; once the forward has begun, any ending keeps the hold as below (review of 13 Nov 2026).
+-    if (clientGone.aborted) {
++    if (false) { // CONTROL: the caller's leaving not checked before forwarding
+       ended = true;
+       try {
+         await releaseUnsentHold(opts.pool, { projectId: project.id, holdId, step, reason: "the caller left before the call was forwarded to the provider (only the counting call, assumed to cost nothing, was sent)" });
+
+$ cd builder && npx vitest run test/gateway.test.ts -t 'a caller that leaves before the call is forwarded' --reporter=verbose   (skipped tests left out below)
+
+ RUN  v5.1.0 /home/user/vibe-build/builder
+
+ × test/gateway.test.ts > holds: found by the review of 13 Nov 2026, and kept fixed > a caller that leaves before the call is forwarded: the hold is settled at nothing, with the reason, and the call itself is not forwarded 2205ms
+   → expected [] to have a length of 1 but got +0
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 85 skipped (86)
+   Start at  05:21:43
+   Duration  2.51s (tests 93%, transform 4%, import 3%)
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/gateway.test.ts > holds: found by the review of 13 Nov 2026, and kept fixed > a caller that leaves before the call is forwarded: the hold is settled at nothing, with the reason, and the call itself is not forwarded
+AssertionError: expected [] to have a length of 1 but got +0
+
+- Expected
++ Received
+
+- 1
++ 0
+
+ ❯ test/gateway.test.ts:1575:23
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+exit code: 1  (FAILED, as expected)
+Restored with `git checkout -- builder/src/gateway/app.ts`; `git diff --exit-code`: exit code 0 (clean)
+
+====================================================================================================
+Control 23: proof row B6: the stopped gateway process stops taking calls (the second re-read's note on row B6)
+Safeguard removed: The gateway process's server is not closed when it is told to stop, so it keeps taking calls after the signal
+File: builder/test/b6-gateway-process.ts
+
+The change, as `git diff` shows it:
+diff --git a/builder/test/b6-gateway-process.ts b/builder/test/b6-gateway-process.ts
+index 1ad737f..780d5da 100644
+--- a/builder/test/b6-gateway-process.ts
++++ b/builder/test/b6-gateway-process.ts
+@@ -71,7 +71,7 @@ process.once("SIGTERM", () => {
+   void (async () => {
+     // Closed to new connections at once; the callback comes only once every open connection has ended.
+     // "stopping" is printed after the close has begun, so a call sent on reading it meets a closed server.
+-    const everyConnectionEnded = new Promise<boolean>((resolve) => server.close(() => resolve(true)));
++    const everyConnectionEnded = new Promise<boolean>(() => {}); // CONTROL: the server is not closed; it keeps taking calls after the signal
+     say({ stopping: { calls_in_progress: inProgress } });
+     const allEnded = await Promise.race([everyConnectionEnded, new Promise<boolean>((resolve) => setTimeout(() => resolve(false), graceMs))]);
+     await pool.end();
+
+$ cd builder && npx vitest run test/gateway.test.ts -t 'a gateway process that stops cleanly' --reporter=verbose   (skipped tests left out below)
+
+ RUN  v5.1.0 /home/user/vibe-build/builder
+
+ × test/gateway.test.ts > holds: proof rows B1 to B6 of the design note > B6: a gateway process that stops cleanly with a call in flight leaves its hold open; a gateway started afterwards finds it, keeps it at its full amount and still counts it 363ms
+   → expected 'answered 402' to be 'refused (ECONNREFUSED)' // Object.is equality
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 85 skipped (86)
+   Start at  05:21:46
+   Duration  569ms (tests 81%, import 13%, transform 5%, worker 1%)
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/gateway.test.ts > holds: proof rows B1 to B6 of the design note > B6: a gateway process that stops cleanly with a call in flight leaves its hold open; a gateway started afterwards finds it, keeps it at its full amount and still counts it
+AssertionError: expected 'answered 402' to be 'refused (ECONNREFUSED)' // Object.is equality
+
+Expected: "refused (ECONNREFUSED)"
+Received: "answered 402"
+
+ ❯ test/gateway.test.ts:709:25
+    707|       );
+    708|       const stoppedAlreadySaid = said.some((s) => s["stopped"]);
+    709|       expect(afterStop).toBe("refused (ECONNREFUSED)");
+       |                         ^
+    710|       expect(stoppedAlreadySaid).toBe(false);
+    711|       expect(await exited).toBe(0);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+exit code: 1  (FAILED, as expected)
+Restored with `git checkout -- builder/test/b6-gateway-process.ts`; `git diff --exit-code`: exit code 0 (clean)
+
+====================================================================================================
+Control 19 run again and control 23 (two changes) whose test failed with the safeguard removed: 2 of 2.
+Tracked files changed after the last control: none
