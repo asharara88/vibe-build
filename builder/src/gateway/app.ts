@@ -10,9 +10,9 @@
  *   If it does not fit, nothing is forwarded.
  * - A hold is settled in three cases only: the call ended with usage figures that could be read
  *   and trusted (settled to the actual cost); the provider's own error says it turned the
- *   request away before doing any work (settled at nothing); or the caller left before anything
- *   was forwarded (settled at nothing). Any other ending keeps the hold open at its full amount:
- *   money is not released on a guess.
+ *   request away before doing any work (settled at nothing); or the caller left before the call
+ *   was forwarded (settled at nothing; only the counting call had been sent). Any other ending
+ *   keeps the hold open at its full amount: money is not released on a guess.
  * - Refuses what a hold cannot bound: a prompt that cannot be counted, a model with no price,
  *   more output than the profile allows, routing or tools that are billed outside the token rates.
  *
@@ -419,18 +419,18 @@ export function createGateway(opts: GatewayOptions) {
       }
     };
     const clientGone = c.req.raw.signal;
-    // A caller that left before anything was sent: only the counting call has been made, and the
-    // call itself has not been forwarded, so the hold is settled at nothing with that reason. No
+    // A caller that left before the call was forwarded: only the counting call has been sent, and
+    // the call itself has not been forwarded, so the hold is settled at nothing with that reason. No
     // await stands between this check and the forward below, so the caller cannot leave in between
     // unseen; once the forward has begun, any ending keeps the hold as below (review of 13 Nov 2026).
     if (clientGone.aborted) {
       ended = true;
       try {
-        await releaseUnsentHold(opts.pool, { projectId: project.id, holdId, step, reason: "the caller left before anything was sent to the provider" });
+        await releaseUnsentHold(opts.pool, { projectId: project.id, holdId, step, reason: "the caller left before the call was forwarded to the provider (only the counting call, assumed to cost nothing, was sent)" });
       } catch (err) {
         fault("A hold for a call that was never sent could not be closed. It stays open at its full amount.", { project: project.id, hold: holdId, error: errorSummary(err) });
       }
-      return c.json(errorBody("api_error", "The caller went away before anything was sent to the model provider."), 502);
+      return c.json(errorBody("api_error", "The caller went away before the call was forwarded to the model provider (only the counting call, assumed to cost nothing, was sent)."), 502);
     }
     const limit = new AbortController();
     const limitTimer = setTimeout(() => limit.abort(new Error("time limit reached")), limitMs);

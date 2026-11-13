@@ -188,7 +188,8 @@ export async function settleHold(
 
 /**
  * Close a hold at nothing for a call that was never sent: the caller left after the hold was
- * opened and before anything was forwarded to the provider (review of 13 Nov 2026). One
+ * opened and before the call was forwarded to the provider; only the counting call, assumed to
+ * cost nothing, had been sent (review of 13 Nov 2026). One
  * transaction: the hold closed at nothing and a `hold.settled` event that says nothing was
  * forwarded, and why. No `model.call` event is written, because no call was made. A hold already
  * kept, expired or closed is left as it is. Returns whether the hold was closed.

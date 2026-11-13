@@ -1459,7 +1459,7 @@ describe("holds: found by the review of 13 Nov 2026, and kept fixed", () => {
     }
   });
 
-  it("a caller that leaves before anything is forwarded: the hold is settled at nothing, with the reason, and nothing reaches the provider", async () => {
+  it("a caller that leaves before the call is forwarded: the hold is settled at nothing, with the reason, and the call itself is not forwarded", async () => {
     for (const body of [plain(undefined, { system: "count-slow" }), { ...streamed(), system: "count-slow" }]) {
       const { id, token } = await newProject(5);
       const before = forwarded;
@@ -1469,9 +1469,9 @@ describe("holds: found by the review of 13 Nov 2026, and kept fixed", () => {
       await leaving;
       const settled = await waitForEvents(id, "hold.settled", 1);
       expect(settled).toHaveLength(1);
-      expect(settled[0]!.payload).toMatchObject({ actual_usd: 0, forwarded: false, reason: "the caller left before anything was sent to the provider" });
+      expect(settled[0]!.payload).toMatchObject({ actual_usd: 0, forwarded: false, reason: "the caller left before the call was forwarded to the provider (only the counting call, assumed to cost nothing, was sent)" });
       expect(await kinds(id)).toEqual(["hold.opened", "hold.settled"]); // no model.call: no call was made
-      expect(forwarded).toBe(before); // nothing reached the provider
+      expect(forwarded).toBe(before); // the call itself did not reach the stand-in (the counting call did: that is what was slowed)
       expect((await listHolds(pool, id))[0]).toMatchObject({ state: "settled" });
       const b = await getBudget(pool, id);
       expect(b.openHolds).toBe(0);
