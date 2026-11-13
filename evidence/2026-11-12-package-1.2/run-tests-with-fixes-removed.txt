@@ -1522,3 +1522,184 @@ Restored with `git checkout -- builder/test/b6-gateway-process.ts`; `git diff --
 ====================================================================================================
 Control 19 run again and control 23 (two changes) whose test failed with the safeguard removed: 2 of 2.
 Tracked files changed after the last control: none
+
+====================================================================================================
+====================================================================================================
+Control 24, added 13 Nov 2026 after the review bot's finding on 7ce5a33 (P2, builder/src/store/holds.ts:155, settleHold)
+
+Commit: fde88aa (its code is that of 9dc236d). Run on the development machine (a cloud session), on the host, against the test database builder_test_pkg12.
+Control 24: the deadline check that settleHold and releaseUnsentHold now make in their own transaction, under the project's lock,
+before they read the hold (the sweep's own function, expireHoldsIn, by the gateway's clock). (a) removes it from settleHold and
+runs the new test of an answer that comes after the deadline; (b) removes it from releaseUnsentHold and runs the new test of a
+release. In both tests the deadline is moved into the past in the database and no sweep runs.
+The method is the same as above: one change at a time, by an exact text change shown as git shows it; the test run with
+`npx vitest run test/gateway.test.ts -t <the test>` (it is expected to FAIL); the file restored with `git checkout --`; and
+`git diff --exit-code` run to show that nothing is left changed. No control was committed.
+Tracked files changed before the first control: none
+
+====================================================================================================
+Control 24 (a): settleHold without the deadline check under the project's lock (review bot on 7ce5a33)
+Safeguard removed: settleHold no longer marks the project's holds past their deadline before it reads the hold, so a hold the sweep has not yet marked is settled
+File: builder/src/store/holds.ts
+
+The change, as `git diff` shows it:
+diff --git a/builder/src/store/holds.ts b/builder/src/store/holds.ts
+index 60b6d95..d1eeaf4 100644
+--- a/builder/src/store/holds.ts
++++ b/builder/src/store/holds.ts
+@@ -144,8 +144,7 @@ export async function settleHold(
+   p: { projectId: string; holdId: string; step: string | null; actualUsd: number; call: Record<string, unknown> },
+ ): Promise<{ settled: boolean; exceeded: boolean; amountUsd: number }> {
+   return inTransaction(pool, p.projectId, async (c) => {
+-    // Under the project's lock, before the hold is read: a deadline that passed while this waited counts.
+-    await expireHoldsIn(c, p.projectId, new Date());
++    // CONTROL: no deadline check here; only the sweep marks holds past their deadline
+     const r = await c.query<Hold>("select * from holds where id = $1 and project_id = $2 for update", [p.holdId, p.projectId]);
+     const hold = r.rows[0];
+     if (!hold) throw new Error(`Hold ${p.holdId} does not exist for project ${p.projectId}`);
+
+$ cd builder && npx vitest run test/gateway.test.ts -t 'before the sweep has marked it' --reporter=verbose   (skipped tests left out below)
+
+ RUN  v5.1.0 /home/user/vibe-build/builder
+
+ × test/gateway.test.ts > holds: proof rows B1 to B6 of the design note > B5: an answer that comes after the hold's deadline, before the sweep has marked it, does not settle it: the hold is marked expired there and then and kept at its full amount 27ms
+   → expected { settled: true, hold: { …(5) }, …(3) } to deeply equal { Object (settled, hold, ...) }
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/gateway.test.ts > holds: proof rows B1 to B6 of the design note > B5: an answer that comes after the hold's deadline, before the sweep has marked it, does not settle it: the hold is marked expired there and then and kept at its full amount
+AssertionError: expected { settled: true, hold: { …(5) }, …(3) } to deeply equal { Object (settled, hold, ...) }
+
+- Expected
++ Received
+
+  {
+    "events": [
+      "hold.opened",
+-     "hold.expired",
+-     "hold.kept",
++     "model.call",
++     "hold.settled",
+    ],
+    "hold": {
+-     "actual_usd": null,
+-     "closed": false,
+-     "expired": true,
+-     "state": "open",
+-     "unreconciled": true,
++     "actual_usd": "0.001000",
++     "closed": true,
++     "expired": false,
++     "state": "settled",
++     "unreconciled": false,
+    },
+-   "open_holds_usd": 0.03,
+-   "settled": false,
+-   "spent_usd": 0,
++   "open_holds_usd": 0,
++   "settled": true,
++   "spent_usd": 0.001,
+  }
+
+ ❯ test/gateway.test.ts:650:60
+    648|     const hold = await holdPastItsDeadline(id, 0.03);
+    649|     const r = await settleHold(pool, { projectId: id, holdId: hold.id,…
+    650|     expect({ settled: r.settled, ...(await outcome(id)) }).toEqual({
+       |                                                            ^
+    651|       settled: false,
+    652|       hold: { state: "open", expired: true, unreconciled: true, actual…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 87 skipped (88)
+   Start at  05:53:13
+   Duration  278ms (import 36%, transform 33%, tests 29%, worker 2%)
+
+exit code: 1  (FAILED, as expected)
+Restored with `git checkout -- builder/src/store/holds.ts`; `git diff --exit-code`: exit code 0 (clean)
+
+====================================================================================================
+Control 24 (b): releaseUnsentHold without the deadline check under the project's lock (review bot on 7ce5a33)
+Safeguard removed: releaseUnsentHold no longer marks the project's holds past their deadline before it reads the hold, so a hold the sweep has not yet marked is closed at nothing
+File: builder/src/store/holds.ts
+
+The change, as `git diff` shows it:
+diff --git a/builder/src/store/holds.ts b/builder/src/store/holds.ts
+index 60b6d95..84cff2b 100644
+--- a/builder/src/store/holds.ts
++++ b/builder/src/store/holds.ts
+@@ -207,8 +207,7 @@ export async function settleHold(
+  */
+ export async function releaseUnsentHold(pool: pg.Pool, p: { projectId: string; holdId: string; step: string | null; reason: string }): Promise<boolean> {
+   return inTransaction(pool, p.projectId, async (c) => {
+-    // Under the project's lock, before the hold is read: a deadline that passed while this waited counts.
+-    await expireHoldsIn(c, p.projectId, new Date());
++    // CONTROL: no deadline check here; only the sweep marks holds past their deadline
+     const r = await c.query<Hold>("select * from holds where id = $1 and project_id = $2 for update", [p.holdId, p.projectId]);
+     const hold = r.rows[0];
+     if (!hold || hold.state !== "open" || hold.kept_reason !== null || hold.expired || hold.unreconciled) return false;
+
+$ cd builder && npx vitest run test/gateway.test.ts -t 'that the sweep has not yet marked' --reporter=verbose   (skipped tests left out below)
+
+ RUN  v5.1.0 /home/user/vibe-build/builder
+
+ × test/gateway.test.ts > holds: proof rows B1 to B6 of the design note > B5: a hold past its deadline that the sweep has not yet marked is not released as never sent either: it is marked expired there and then and kept at its full amount 30ms
+   → expected { Object (released, hold, ...) } to deeply equal { released: false, …(4) }
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/gateway.test.ts > holds: proof rows B1 to B6 of the design note > B5: a hold past its deadline that the sweep has not yet marked is not released as never sent either: it is marked expired there and then and kept at its full amount
+AssertionError: expected { Object (released, hold, ...) } to deeply equal { released: false, …(4) }
+
+- Expected
++ Received
+
+  {
+    "events": [
+      "hold.opened",
+-     "hold.expired",
++     "hold.settled",
+    ],
+    "hold": {
+-     "actual_usd": null,
+-     "closed": false,
+-     "expired": true,
+-     "state": "open",
+-     "unreconciled": true,
++     "actual_usd": "0.000000",
++     "closed": true,
++     "expired": false,
++     "state": "settled",
++     "unreconciled": false,
+    },
+-   "open_holds_usd": 0.02,
+-   "released": false,
++   "open_holds_usd": 0,
++   "released": true,
+    "spent_usd": 0,
+  }
+
+ ❯ test/gateway.test.ts:667:50
+    665|     const hold = await holdPastItsDeadline(id, 0.02);
+    666|     const released = await releaseUnsentHold(pool, { projectId: id, ho…
+    667|     expect({ released, ...(await outcome(id)) }).toEqual({
+       |                                                  ^
+    668|       released: false,
+    669|       hold: { state: "open", expired: true, unreconciled: true, actual…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 87 skipped (88)
+   Start at  05:53:14
+   Duration  305ms (import 38%, tests 31%, transform 30%, worker 2%)
+
+exit code: 1  (FAILED, as expected)
+Restored with `git checkout -- builder/src/store/holds.ts`; `git diff --exit-code`: exit code 0 (clean)
+
+====================================================================================================
+Control 24 (two changes) whose test failed with the safeguard removed: 2 of 2.
+Tracked files changed after the last control: none
