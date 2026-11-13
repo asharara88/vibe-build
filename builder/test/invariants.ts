@@ -115,7 +115,9 @@ export function checkTrace(events: TraceEvent[], bills: Bill[], initialCapMicro:
         else spent += micro(cost);
         break;
       }
-      case "hold.settled": {
+      case "hold.settled":
+      // The owner's reconciliation (package 1.5) closes a kept hold at the actual cost its model.call carries, as a settlement does.
+      case "hold.reconciled": {
         const h = holdId === null ? undefined : holds.get(holdId);
         if (!h || !h.open) {
           bad(e, "settles a hold the replay does not have open");
@@ -148,7 +150,7 @@ export function checkTrace(events: TraceEvent[], bills: Bill[], initialCapMicro:
         break;
       default:
         // hold.kept, hold.expired, hold.found_at_startup, hold.unreconciled, gateway.*, project.frozen,
-        // step.refused, ...: none moves money.
+        // project.freeze_cleared, step.refused, ...: none moves money.
         break;
     }
     check(`after event ${e.id} ${e.kind}`, id);

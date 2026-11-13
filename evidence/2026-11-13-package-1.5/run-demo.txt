@@ -1,0 +1,120 @@
+$ git rev-parse --short HEAD
+ca7f226
+$ BUILDER_TEST_DATABASE_URL=postgres:///builder_demo_pkg15?host=/var/run/postgresql npx tsx scripts/demo-reconcile.ts   (a database made empty for this run)
+Database: builder_demo_pkg15 (its name only). Stand-in provider; made-up key; nothing is spent.
+
+== 1. Holds kept at their full amount, one of each kind ==
+Project demo15_mwern0r2_a, cap $1:
+  through the gateway, the stand-in answers with a server error (500): HTTP 500
+  through the gateway, the stand-in reads the call and closes the connection with no answer: HTTP 502
+  through the gateway, the stand-in answers 200 with no usage figures: HTTP 200
+  through the gateway, an ordinary call, answered and settled (not on the list): HTTP 200
+  through the store: holds 5 and 6 opened with their deadlines already passed; marked expired now: 5 and 6 (by the second hold's admission and by the 30-second pass, run once)
+  through the store: hold 7 opened by a gateway that holds no liveness lock (as if killed); a gateway starting finds 1 hold(s) whose gateway is gone
+  through the store: an answer for hold 6 arrives after its deadline, costing $0.004000 as read: settled false (written down, kept open)
+  through the store: hold 8, a call still in flight on the running gateway (not on the list)
+Project demo15_mwern0r2_b, cap $0.03: a test-only trigger refuses its next model.call write (the database cannot record the call's ending):
+  [gateway fault] A finished model call could not be written to the event log. Its hold stays open at its full amount.
+  through the gateway, an ordinary call, answered by the stand-in: HTTP 200
+  the test-only trigger dropped
+  its next call: HTTP 402: This project is stopped: a model call that ended at 2026-11-13T09:19:55.145Z could not be recorded, so what it cost is not known. Its hold of up to $0.01 stays counted against the budget. The gateway forwarded nothing, and no further call will be made for this project until the owner records what that call cost.
+
+== 2. The list ==
+$ npx tsx scripts/reconcile.ts --list
+  Database: builder_demo_pkg15 (its name only; the address is not printed)
+  The unreconciled list, as of 2026-11-13T09:19:55.484Z: 7 hold(s) kept at their full amount
+  
+  Project demo15_mwern0r2_a: 6 kept hold(s), $0.059760 held; not frozen
+    budget: cap $1.0000; spent $0.006142; open holds $0.069720 (7); reserved for running steps $0.000000
+    hold 1: $0.009960 held, counted in full until reconciled
+      kind:        error answer
+      reason kept: the provider answered with a server error
+      model:       claude-opus-5-5; step: (none)
+      opened:      2026-11-13T09:19:55.055Z by gateway gw_demo15_mwern0r2; deadline 2026-11-13T09:39:55.054Z
+      found open when a gateway started
+      seen:        status 500; usage seen input 0, cache writes 0, cache reads 0, output 0 (for information only)
+    hold 2: $0.009960 held, counted in full until reconciled
+      kind:        interrupted
+      reason kept: the connection failed after the request was sent, or may have been sent; the provider may have billed it
+      model:       claude-opus-5-5; step: (none)
+      opened:      2026-11-13T09:19:55.070Z by gateway gw_demo15_mwern0r2; deadline 2026-11-13T09:39:55.070Z
+      found open when a gateway started
+      seen:        status 0 (error TypeError UND_ERR_SOCKET); usage seen input 0, cache writes 0, cache reads 0, output 0 (for information only)
+    hold 3: $0.009960 held, counted in full until reconciled
+      kind:        unreadable answer
+      reason kept: the answer succeeded but its usage could not be read
+      model:       claude-opus-5-5; step: (none)
+      opened:      2026-11-13T09:19:55.081Z by gateway gw_demo15_mwern0r2; deadline 2026-11-13T09:39:55.081Z
+      found open when a gateway started
+      seen:        status 200; usage seen input 0, cache writes 0, cache reads 0, output 0 (for information only)
+    hold 5: $0.009960 held, counted in full until reconciled
+      kind:        expired
+      reason kept: (none: past its deadline)
+      model:       claude-opus-5-5; step: (none)
+      opened:      2026-11-13T09:19:55.103Z by gateway gw_demo15_mwern0r2; deadline 2026-11-13T09:19:54.103Z (passed; marked expired)
+      found open when a gateway started
+    hold 6: $0.009960 held, counted in full until reconciled
+      kind:        expired; late answer written down
+      reason kept: (none: past its deadline)
+      model:       claude-opus-5-5; step: (none)
+      opened:      2026-11-13T09:19:55.106Z by gateway gw_demo15_mwern0r2; deadline 2026-11-13T09:19:54.106Z (passed; marked expired)
+      found open when a gateway started
+      late answer: 2026-11-13T09:19:55.127Z, cost as read $0.004000; answer arrived after the hold expired
+    hold 7: $0.009960 held, counted in full until reconciled
+      kind:        gateway gone
+      reason kept: the gateway that opened it was found gone while the call was in flight, so whether the provider billed it is not known
+      model:       claude-opus-5-5; step: (none)
+      opened:      2026-11-13T09:19:55.113Z by gateway gw_demo15_mwern0r2_killed; deadline 2026-11-13T09:29:55.113Z
+      found open when a gateway started
+  
+  Project demo15_mwern0r2_b: 1 kept hold(s), $0.009960 held; FROZEN (freeze 1)
+    budget: cap $0.0300; spent $0.000000; open holds $0.009960 (1); reserved for running steps $0.000000
+    hold 9: $0.009960 held, counted in full until reconciled
+      kind:        froze its project
+      reason kept: the call's settlement could not be written to the event log
+      model:       claude-opus-5-5; step: (none)
+      opened:      2026-11-13T09:19:55.140Z by gateway gw_demo15_mwern0r2; deadline 2026-11-13T09:39:55.140Z
+      seen:        status 200; usage seen input 30, cache writes 4, cache reads 8, output 300 (for information only)
+      froze its project: freeze 1 (journal line j_mwern0uj_dffd47e6fd0471b1), call ended 2026-11-13T09:19:55.145Z; not cleared; cost as read $0.006142
+  (exit code 0)
+
+== 3. One reconciliation, with its evidence (a made-up usage record) ==
+$ npx tsx scripts/reconcile.ts --hold 9 --actual 0.006142 --evidence "Provider usage record (made up for this demonstration): request req_demo_0001, Claude Opus 5.5, 30 input, 4 cache-write, 8 cache-read and 300 output tokens, billed $0.006142" --asked-by "the owner (demonstration; made up)" --by "Claude Code" --reason "package 1.5 demonstration: the usage record gives the call's actual cost"
+  Database: builder_demo_pkg15 (its name only; the address is not printed)
+  Hold 9 of project demo15_mwern0r2_b reconciled
+    kind:          froze its project
+    held:          $0.009960
+    actual cost:   $0.006142, now charged; $0.003818 back to the budget
+    evidence:      Provider usage record (made up for this demonstration): request req_demo_0001, Claude Opus 5.5, 30 input, 4 cache-write, 8 cache-read and 300 output tokens, billed $0.006142
+    asked by:      the owner (demonstration; made up)
+    recorded by:   Claude Code
+    reason:        package 1.5 demonstration: the usage record gives the call's actual cost
+    events:        model.call 29; hold.reconciled 30
+    recorded at:   2026-11-13T09:19:55.905Z (the database's clock, under the project's lock)
+    budget before: spent $0.000000; open holds $0.009960; cap $0.0300
+    budget after:  spent $0.006142; open holds $0.000000; cap $0.0300
+    freezes:       cleared 1; the project is not frozen
+  (exit code 0)
+
+== 4. The frozen project runs again ==
+  its next call: HTTP 200; forwarded to the stand-in: yes
+  budget: cap $0.0300; spent $0.012284 (the reconciled $0.006142 and this call's $0.006142); open holds $0.000000
+  its event log:
+    23 hold.opened hold_id=9 amount_usd=0.00996
+    25 hold.kept hold_id=9 amount_usd=0.00996 reason="the call's settlement could not be written to the event log"
+    26 gateway.fault hold_id=9
+    27 project.frozen hold_id=9 reason="a model call ended and the gateway could not write its ending to the event log" freeze_id=1
+    28 gateway.refused reason="project_frozen" freeze_id=1
+    29 model.call hold_id=9 cost_usd=0.006142
+    30 hold.reconciled hold_id=9 amount_usd=0.00996 actual_usd=0.006142 reason="package 1.5 demonstration: the usage record gives the call's actual cost" evidence="Provider usage record (made up for this demonstration): request req_demo_0001, Claude Opus 5.5, 30 input, 4 cache-write, 8 cache-read and 300 output tokens, billed $0.006142" asked_by="the owner (demonstration; made up)" recorded_by="Claude Code" project_still_frozen=false
+    31 project.freeze_cleared hold_id=9 freeze_id=1 project_still_frozen=false
+    32 hold.opened hold_id=10 amount_usd=0.00996
+    33 model.call hold_id=10 cost_usd=0.006142
+    34 hold.settled hold_id=10 amount_usd=0.00996 actual_usd=0.006142
+
+== 5. The same reconciliation again ==
+$ npx tsx scripts/reconcile.ts --hold 9 --actual 0.006142 --evidence "Provider usage record (made up for this demonstration): request req_demo_0001, Claude Opus 5.5, 30 input, 4 cache-write, 8 cache-read and 300 output tokens, billed $0.006142" --asked-by "the owner (demonstration; made up)" --by "Claude Code" --reason "package 1.5 demonstration: the usage record gives the call's actual cost"
+  Database: builder_demo_pkg15 (its name only; the address is not printed)
+  Refused by the store (hold_already_closed): Hold 9 is already closed (at $0.006142, 2026-11-13T09:19:55.896Z). Nothing was changed and nothing was written.
+  (exit code 2)
+exit code: 0
