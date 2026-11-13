@@ -17,6 +17,15 @@
  * hold was committed before the call was forwarded). From that event on, the bill counts as owed, which is
  * stricter than from the moment the provider answers. At the same moment it reads the budget view, and
  * that sample is checked too. At the end, the replay must equal the budget view.
+ *
+ * Package 1.4c (the owner's answer to question 17, "(a) Yes, freeze") adds two rules, and keeps every earlier one:
+ * a bill above its hold is still flagged as before ("a settled call above its hold", "hold.exceeded written");
+ *   (3) a `hold.exceeded` written by a settlement (not by the owner's reconciliation, which does not freeze) must
+ *       have, in the same database transaction, a `project.frozen` event of kind 'bill_above_hold' naming that hold.
+ *       "The same transaction" is read from each event row's `xmin`, the id of the transaction that inserted it;
+ *       a trace that does not carry it is judged by the hold alone;
+ *   (4) no hold opens and no step starts in a project from a `project.frozen` event until its
+ *       `project.freeze_cleared`.
  */
 import type pg from "pg";
 
@@ -26,6 +35,8 @@ export interface TraceEvent {
   id: string | number;
   kind: string;
   payload: Record<string, unknown>;
+  /** The id of the database transaction that wrote the event (its row's `xmin`), when read from the database. */
+  tx?: string;
 }
 
 /** A bill the stand-in stands for: owed from the event `pinnedAt` on. */
@@ -44,7 +55,15 @@ export interface Sample {
 }
 
 export interface Violation {
-  rule: "1: above the cap" | "2: below what was owed" | "a settled call above its hold" | "hold.exceeded written" | "replay differs from the budget view" | "an event the replay cannot read";
+  rule:
+    | "1: above the cap"
+    | "2: below what was owed"
+    | "a settled call above its hold"
+    | "hold.exceeded written"
+    | "3: a bill above its hold with no freeze in its transaction"
+    | "4: a hold opened or a step started while its project was frozen"
+    | "replay differs from the budget view"
+    | "an event the replay cannot read";
   at: string;
   detail: Record<string, unknown>;
 }
@@ -89,6 +108,11 @@ export function checkTrace(events: TraceEvent[], bills: Bill[], initialCapMicro:
     if (spent + open < owed) violations.push({ rule: "2: below what was owed", at, detail: { spent, open, owed } });
   };
   const bad = (e: TraceEvent, why: string) => violations.push({ rule: "an event the replay cannot read", at: `event ${e.id} ${e.kind}`, detail: { why } });
+  /** Package 1.4c: the project's freezes not yet cleared, by the id their `project.frozen` event names. */
+  const frozen = new Set<string>();
+  const whileFrozen = (e: TraceEvent) => {
+    if (frozen.size > 0) violations.push({ rule: "4: a hold opened or a step started while its project was frozen", at: `event ${e.id} ${e.kind}`, detail: { freezes: [...frozen] } });
+  };
 
   check("before the first event", 0);
   for (const e of events) {
@@ -97,7 +121,14 @@ export function checkTrace(events: TraceEvent[], bills: Bill[], initialCapMicro:
     const holdId = p["hold_id"] === undefined ? null : String(p["hold_id"]);
     const stepHold = (p["step_hold"] ?? null) as Record<string, unknown> | null;
     switch (e.kind) {
+      case "project.frozen":
+        frozen.add(String(p["freeze_id"]));
+        break;
+      case "project.freeze_cleared":
+        frozen.delete(String(p["freeze_id"]));
+        break;
       case "hold.opened": {
+        whileFrozen(e);
         const amount = num(p["amount_usd"]);
         if (holdId === null || amount === null) {
           bad(e, "no hold id or amount");
@@ -134,10 +165,24 @@ export function checkTrace(events: TraceEvent[], bills: Bill[], initialCapMicro:
         if (stepHold && stepHold["step_open"] === true) rooms.set(String(stepHold["step_hold_id"]), micro(num(stepHold["room_after_usd"]) ?? 0));
         break;
       }
-      case "hold.exceeded":
+      case "hold.exceeded": {
         violations.push({ rule: "hold.exceeded written", at: `event ${e.id}`, detail: p });
+        // Rule (3), package 1.4c: a settlement's bill above its hold froze the project in the same transaction.
+        if (p["reconciled"] !== true) {
+          const freeze = events.find(
+            (f) =>
+              f.kind === "project.frozen" &&
+              f.payload["kind"] === "bill_above_hold" &&
+              holdId !== null &&
+              String(f.payload["hold_id"]) === holdId &&
+              (e.tx === undefined || f.tx === e.tx),
+          );
+          if (!freeze) violations.push({ rule: "3: a bill above its hold with no freeze in its transaction", at: `event ${e.id}`, detail: { ...p, tx: e.tx ?? null } });
+        }
         break;
+      }
       case "step.hold_opened":
+        whileFrozen(e);
         rooms.set(String(p["step_hold_id"]), micro(num(p["step_budget_usd"]) ?? 0));
         break;
       case "step.hold_closed":
@@ -149,8 +194,8 @@ export function checkTrace(events: TraceEvent[], bills: Bill[], initialCapMicro:
         else cap = micro(num(p["new_cap_usd"])!);
         break;
       default:
-        // hold.kept, hold.expired, hold.found_at_startup, hold.unreconciled, gateway.*, project.frozen,
-        // project.freeze_cleared, step.refused, ...: none moves money.
+        // hold.kept, hold.expired, hold.found_at_startup, hold.unreconciled, hold.overrun_recorded, gateway.*,
+        // step.refused, ...: none moves money. (project.frozen and project.freeze_cleared are read above, for rule 4.)
         break;
     }
     check(`after event ${e.id} ${e.kind}`, id);
@@ -183,7 +228,8 @@ export async function viewOf(q: Pick<pg.Pool, "query">, projectId: string): Prom
  * compare the replay's end with the budget view.
  */
 export async function checkProject(pool: pg.Pool, projectId: string, bills: Bill[], samples: Sample[]): Promise<{ violations: Violation[]; states: number; final: Replayed; rows: TraceRow[] }> {
-  const events = (await pool.query<TraceEvent>("select id, kind, payload from events where project_id = $1 order by id", [projectId])).rows;
+  // xmin: the transaction that wrote each event row, for rule (3) (package 1.4c). Event rows are never updated (migration 001).
+  const events = (await pool.query<TraceEvent>("select id, kind, payload, xmin::text as tx from events where project_id = $1 order by id", [projectId])).rows;
   const view = await viewOf(pool, projectId);
   const firstChange = events.find((e) => e.kind === "cap.changed");
   const initialCap = firstChange ? micro(Number(firstChange.payload["old_cap_usd"])) : view.cap;
