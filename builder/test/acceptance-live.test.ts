@@ -20,7 +20,7 @@ import { runAcceptance } from "../src/acceptance/runner.js";
 import { exampleChecklist, writeStandInVersion } from "../src/acceptance/stand-in.js";
 import { openStore, projectDir, sha256, type AcceptanceStore, type WrittenVersion } from "../src/acceptance/store.js";
 import { git } from "../src/engine/project-repo.js";
-import { dockerEnv, sandbox, type StreamingRun } from "../src/sandbox/manager.js";
+import { DATA_DIR_SETTING, dockerEnv, sandbox, type StreamingRun } from "../src/sandbox/manager.js";
 import { listEvents } from "../src/store/events.js";
 import { createProject } from "../src/store/projects.js";
 import { buildAndStart, destroyExample1, makeExample1, runStep, stageBrokenStep, type Example1 } from "../scripts/example-1-sandbox.js";
@@ -54,11 +54,17 @@ describe.skipIf(!dockerThere || !zipThere)(`acceptance runner: live, development
   const checklistItems = exampleChecklist("example-1").items.length;
   const go = (timeoutMs?: number) => runAcceptance({ pool, sandbox: x!.sb, store, projectId, version: version.version, appUrl: x!.appUrl, samplePassword: x!.samplePassword, checklistItems, timeoutMs });
 
+  // The engine mount rule reads BUILDER_DATA_DIR (known gap 72): set to this test's data folder, so that the rule
+  // is on for every engine run here, as it is in the demonstration (review of 13 Nov 2026).
+  const savedDataDir = process.env[DATA_DIR_SETTING];
   beforeAll(async () => {
     pool = await testPool();
     dataDir = mkdtempSync(join(tmpdir(), "builder-acceptance-data-"));
+    process.env[DATA_DIR_SETTING] = dataDir;
   });
   afterAll(async () => {
+    if (savedDataDir === undefined) delete process.env[DATA_DIR_SETTING];
+    else process.env[DATA_DIR_SETTING] = savedDataDir;
     if (x) await destroyExample1(x).catch(() => undefined);
     if (dataDir && existsSync(dataDir)) {
       const open = (d: string) => {
@@ -123,6 +129,9 @@ describe.skipIf(!dockerThere || !zipThere)(`acceptance runner: live, development
       { label: "marker", text: version.manifest.marker },
       { label: "phrase", text: "the AI assistant building this project), not by the builder's acceptance writer" },
     ];
+    // The mount rule is on in this test: an engine run given the store's folder is refused before anything starts.
+    expect(process.env[DATA_DIR_SETTING]).toBe(dataDir);
+    expect(() => sandbox.runStreaming(x!.sb, "engine", ["true"], { container: `${x!.sb.projectName}-engine-never-started`, volumes: [`${store.root}:/x:ro`], onLine: () => undefined })).toThrow(/The engine run is refused: the mount source .* is the acceptance store's data folder or inside it/);
     const probeDir = mkdtempSync(join(tmpdir(), "builder-acceptance-probe-"));
     // The engine runs as the user node: the probe's folder (made 0700 by mkdtemp) must be readable by it.
   chmodSync(probeDir, 0o755);
