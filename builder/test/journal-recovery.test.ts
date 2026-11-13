@@ -23,7 +23,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { createGateway } from "../src/gateway/app.js";
 import { DEFAULT_PROFILES } from "../src/gateway/hold.js";
 import { FaultGate, FaultJournal, fingerprintOf } from "../src/gateway/journal.js";
-import { RecoveryRefused, setAsideLine } from "../src/gateway/journal-recovery.js";
+import { LISTED_BYTES, listJournal, RecoveryRefused, setAsideLine } from "../src/gateway/journal-recovery.js";
 import { createClient } from "../src/store/db.js";
 import { listEvents } from "../src/store/events.js";
 import { activeFreeze, listFreezes, SET_ASIDE_FREEZE_REASON, type UnrecordedEnding } from "../src/store/freezes.js";
@@ -364,6 +364,10 @@ describe("the third outside review, item 1: an unreadable journal line keeps the
         got.push({ status: o.status, type: o.type, nothing_forwarded: o.nothing_forwarded, says_what_to_do: o.message.includes("An operator has to recover the journal (builder/scripts/journal-recover.ts) and then restart the gateway") });
       }
       expect(got).toEqual(Array(4).fill({ status: 503, type: "gateway_journal_unreadable", nothing_forwarded: true, says_what_to_do: true }));
+      // After 1.4b's review: its health check says so too.
+      const health = await fetch(k2.url + "/healthz");
+      const hb = (await health.json()) as { ok?: boolean; error?: { type?: string } };
+      expect({ status: health.status, ok: hb.ok, type: hb.error?.type }).toEqual({ status: 503, ok: false, type: "gateway_journal_unreadable" });
       expect({ messages: stand.messages, counts: stand.counts, p: await kinds(p.id), q: await kinds(q.id), holdsP: (await listHolds(pool, p.id)).length, holdsQ: (await listHolds(pool, q.id)).length }).toEqual({
         ...before,
         holdsQ: 0,
@@ -518,6 +522,10 @@ describe("the third outside review, item 1: an unreadable journal line keeps the
       const busy = await recover(setAside);
       expect(busy.code).toBe(2);
       expect(busy.err).toContain("Refused (folder_in_use)");
+      // --list reads which locks are held, without taking one (1.4b's review).
+      const listBusy = await recover(["--list", "--dir", dir]);
+      expect(listBusy.code).toBe(0);
+      expect(listBusy.out).toContain("In use now: YES.");
       await kill9(k2);
 
       const list = await recover(["--list", "--dir", dir]);
@@ -545,7 +553,7 @@ describe("the third outside review, item 1: an unreadable journal line keeps the
       expect((await readFile(join(dir, PENDING))).length).toBe(0);
       const entry = JSON.parse(await readFile(join(dir, SET_ASIDE_FILE), "utf8")) as Record<string, unknown>;
       expect(Buffer.from(String(entry["line_base64"]), "base64").equals(cut)).toBe(true);
-      for (const r of [busy, list, done]) {
+      for (const r of [busy, listBusy, list, done]) {
         expect(r.out + r.err).not.toContain("/var/run/postgresql");
         expect(r.out + r.err).not.toContain(MADE_UP_KEY);
       }
@@ -553,6 +561,8 @@ describe("the third outside review, item 1: an unreadable journal line keeps the
       // The restart: the journal has no unreadable line; the named project is refused as frozen, another forwarded and settled.
       k3 = await startMain(dir);
       expect(k3.out).toContain("journal lines that could not be read at start-up: 0");
+      const health = await fetch(k3.url + "/healthz");
+      expect({ status: health.status, body: await health.json() }).toEqual({ status: 200, body: { ok: true } });
       const sent = { messages: stand.messages, counts: stand.counts };
       const frozen = await outcome(await callAt(k3.url, p.token, body(p.id)));
       expect(frozen).toMatchObject({ status: 402, type: "project_frozen" });
@@ -694,7 +704,7 @@ describe("the third outside review, item 1: an unreadable journal line keeps the
     }
   }, 120_000);
 
-  it("(g) the folder's lock: a gateway that loses its connection does not take the folder back while a recovery holds it (it stays stopped meanwhile), and its journal writes nothing while it does not hold the lock", async () => {
+  it("(g) the folder's lock: a gateway that loses its connection does not take the folder back while a recovery holds it (it stays stopped meanwhile); its journal moves nothing in its file while it does not hold the lock, and still appends (1.4b's review)", async () => {
     const dir = await newDir();
     const journal = await FaultJournal.open(dir);
     const gw = await holdLivenessLock(TEST_DB_URL, uniqueId("gw_14b_g"), { retryMs: 200, journalFolderId: journal.folderId });
@@ -702,6 +712,7 @@ describe("the third outside review, item 1: an unreadable journal line keeps the
     journal.guardWrites(() => gw.ok());
     const p = await newProject(5);
     const r1 = unrecordedFor(p.id, await storeHold(p.id));
+    const r2 = unrecordedFor(p.id, "1");
     await journal.append(r1);
     // The connection drops; a recovery takes the folder's lock (as the script does) before the gateway takes it back.
     const recovery = createClient(TEST_DB_URL);
@@ -715,14 +726,147 @@ describe("the third outside review, item 1: an unreadable journal line keeps the
       expect(gw.ok()).toBe(false);
       const before = await readFile(journal.file);
       const refusedWith = async (op: Promise<unknown>) => op.then(() => "written", (e: unknown) => (e as { code?: string }).code);
-      expect(await refusedWith(journal.append(unrecordedFor(p.id, "1")))).toBe("JOURNAL_FOLDER_NOT_HELD");
+      // A call's ending is still appended: that is when the database may be out of reach.
+      expect(await refusedWith(journal.append(r2))).toBe("written");
+      const withR2 = await readFile(journal.file);
+      expect(withR2.equals(Buffer.concat([before, Buffer.from(line(r2))]))).toBe(true);
+      // Its rewrites are refused, and the set-aside file is not written.
       expect(await refusedWith(journal.markDone(r1.journal_id))).toBe("JOURNAL_FOLDER_NOT_HELD");
-      expect((await readFile(journal.file)).equals(before)).toBe(true);
+      expect(await refusedWith(journal.removeLine(1, fingerprintOf(Buffer.from(JSON.stringify(r1)))))).toBe("JOURNAL_FOLDER_NOT_HELD");
+      expect(await refusedWith(journal.appendSetAside({ set_aside_id: "sa_made_up_g" }))).toBe("JOURNAL_FOLDER_NOT_HELD");
+      expect((await readFile(journal.file)).equals(withR2)).toBe(true);
+      expect(await readFile(journal.setAsideFile).catch((e: { code?: string }) => e.code)).toBe("ENOENT");
     } finally {
       await recovery.end();
     }
     await until("the gateway to take its locks back", () => gw.ok());
     await journal.markDone(r1.journal_id);
+    expect(await readFile(journal.file, "utf8")).toBe(line(r2));
+    await journal.markDone(r2.journal_id);
     expect((await readFile(journal.file)).length).toBe(0);
+  }, 60_000);
+
+  it("(e3) after 1.4b's review: a set-aside cut short, then run again naming another hold, finishes the earlier record (its hold's project frozen), writes nothing for the hold asked now, and the script says so", async () => {
+    const dir = await newDir();
+    const journal = await FaultJournal.open(dir);
+    const p = await newProject(5);
+    const first = await storeHold(p.id);
+    const other = await storeHold(p.id);
+    for (const h of [first, other]) await keepHold(pool, { projectId: p.id, holdId: h, step: null, reason: "the provider's answer broke off part-way", seen: {} });
+    const torn = Buffer.from('{"journal_id":"j_made_up_e3","gat');
+    await writeFile(journal.file, torn);
+    const fp = fingerprintOf(torn);
+    const spy = vi.spyOn(FaultJournal.prototype, "appendSetAside").mockRejectedValueOnce(Object.assign(new Error("made-up disk error"), { code: "EIO" }));
+    try {
+      await expect(setAsideLine(pool, TEST_DB_URL, { dir, line: 1, fingerprint: fp, hold: first, by: WHO.by, reason: WHO.reason })).rejects.toMatchObject({ code: "EIO" });
+    } finally {
+      spy.mockRestore();
+    }
+    const again = await recover(["--set-aside", "--dir", dir, "--line", "1", "--fingerprint", fp, "--hold", other, "--by", WHO.by, "--reason", WHO.reason]);
+    expect(again.code).toBe(0);
+    expect(again.out).toContain(`NOTE: this line was set aside earlier (a run cut short, finished now) naming hold ${first}, not hold ${other} as asked now.`);
+    expect(again.out).toContain(`hold:        ${first} of project ${p.id}`);
+    expect((await listFreezes(pool, p.id)).map((f) => f.hold_id)).toEqual([first]);
+    expect((await readFile(journal.file)).length).toBe(0);
+  }, 60_000);
+
+  it("(h) after 1.4b's review, the review's probe: the gateway's lock connection lost and kept from it, then a call's ending refused by the database, then the gateway killed: the ending is in its journal, and the restarted gateway (main.ts as a process) freezes the project and forwards nothing for it", async () => {
+    const dir = await newDir();
+    const p = await newProject(HOLD_USD * 3);
+    const q = await newProject(5);
+    const tag = "j14b-h";
+    const k1 = await startMain(dir);
+    const blocker = createClient(TEST_DB_URL);
+    await blocker.connect();
+    let blocking = true;
+    let k2: Awaited<ReturnType<typeof startMain>> | null = null;
+    try {
+      const parked = callAt(k1.url, p.token, body(p.id, "park", tag));
+      await until("the call at the stand-in", () => (stand.arrivedByTag.get(tag) ?? 0) === 1);
+      await fault.on(p.id);
+      // The gateway's lock connection is ended, and its lock taken here at once, so it cannot take it back (in place of
+      // a database it cannot reach); the gateway then holds neither its liveness lock nor its folder's lock.
+      const lockPid = (
+        await pool.query<{ pid: number }>(
+          `select l.pid from pg_locks l
+            where l.locktype = 'advisory' and l.granted and l.objsubid = 1
+              and l.database = (select oid from pg_database where datname = current_database())
+              and ((l.classid::bigint << 32) | l.objid::bigint) = ${gatewayLockKeySql("$1")}`,
+          [k1.id],
+        )
+      ).rows[0]!.pid;
+      const taken = blocker.query(`select pg_advisory_lock(${gatewayLockKeySql("$1")})`, [k1.id]);
+      await pool.query("select pg_terminate_backend($1)", [lockPid]);
+      await taken;
+      await until("the gateway to see its lock lost", () => k1.err().includes("liveness lock was lost"));
+      // The provider answers; the database refuses to record the call's ending.
+      release(tag);
+      expect((await parked).status).toBe(200);
+      await until("the ending written to the journal file", async () => (await readFile(join(dir, PENDING)).catch(() => Buffer.alloc(0))).at(-1) === 0x0a);
+      const rec = JSON.parse(await readFile(join(dir, PENDING), "utf8")) as UnrecordedEnding;
+      expect({ project: rec.project_id, ending: rec.ending }).toEqual({ project: p.id, ending: "settle" });
+      expect(k1.err()).not.toContain("could not be written to the gateway's journal file either");
+      // Killed with the database still out of its reach.
+      k1.proc.kill("SIGKILL");
+      await k1.exited;
+      await blocker.end();
+      blocking = false;
+      await fault.off();
+
+      k2 = await startMain(dir);
+      expect(k2.out).toContain("journal lines replayed at start-up: 1; all recorded: true");
+      expect((await activeFreeze(pool, p.id))?.journal_id).toBe(rec.journal_id);
+      expect((await listHolds(pool, p.id)).map((h) => ({ id: h.id, state: h.state, unreconciled: h.unreconciled }))).toEqual([{ id: rec.hold_id, state: "open", unreconciled: true }]);
+      const sent = { messages: stand.messages, counts: stand.counts };
+      const frozen = await outcome(await callAt(k2.url, p.token, body(p.id)));
+      expect({ status: frozen.status, type: frozen.type }).toEqual({ status: 402, type: "project_frozen" });
+      expect({ messages: stand.messages, counts: stand.counts }).toEqual(sent);
+      expect((await callAt(k2.url, q.token, body(q.id))).status).toBe(200);
+      await invariantsHold(p.id);
+      await invariantsHold(q.id);
+    } finally {
+      if (k1.proc.exitCode === null && k1.proc.signalCode === null) k1.proc.kill("SIGKILL");
+      if (blocking) await blocker.end().catch(() => undefined);
+      await fault.off();
+      if (k2) await kill9(k2);
+    }
+  }, 120_000);
+
+  it("(i) after 1.4b's review: --list takes no lock, even for a moment, yet says when the folder is in use; and it decodes only the start of a very long line", async () => {
+    const dir = await newDir();
+    const journal = await FaultJournal.open(dir);
+    const long = Buffer.alloc(3 * 1024 * 1024, 0x61); // 3 MiB of "a": not JSON (made up)
+    await writeFile(journal.file, Buffer.concat([long, Buffer.from("\n")]));
+    // Every statement the listing sends to the database, recorded.
+    const sent: string[] = [];
+    const record = (q: unknown) => sent.push(typeof q === "string" ? q : String((q as { text?: unknown }).text));
+    const watched = {
+      query: (q: unknown, v?: unknown[]) => (record(q), pool.query(q as string, v)),
+      connect: async () => {
+        const c = await pool.connect();
+        return new Proxy(c, {
+          get(t, prop) {
+            if (prop === "query") return (q: unknown, v?: unknown[]) => (record(q), t.query(q as string, v));
+            const val: unknown = Reflect.get(t, prop, t);
+            return typeof val === "function" ? (val as (...a: unknown[]) => unknown).bind(t) : val;
+          },
+        });
+      },
+    } as unknown as pg.Pool;
+    const free = await listJournal(watched, dir);
+    const gw = await holdLivenessLock(TEST_DB_URL, uniqueId("gw_14b_i"), { journalFolderId: journal.folderId });
+    let held;
+    try {
+      held = await listJournal(watched, dir);
+    } finally {
+      await gw.stop();
+    }
+    expect({ free: free.inUse, held: held.inUse }).toEqual({ free: false, held: true });
+    expect(sent.filter((q) => /pg_(try_)?advisory(_xact)?_lock/.test(q))).toEqual([]);
+    const u = free.unreadable[0]!;
+    expect({ lines: free.unreadable.length, length: u.length, why: u.why, textLength: u.text.length }).toEqual({ lines: 1, length: long.length, why: "not JSON", textLength: LISTED_BYTES });
+    const listed = await recover(["--list", "--dir", dir]);
+    expect(listed.code).toBe(0);
+    expect(listed.out).toContain(`(the line is ${long.length} bytes long; only its start is shown)`);
   }, 60_000);
 });

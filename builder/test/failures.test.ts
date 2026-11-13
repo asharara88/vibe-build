@@ -58,7 +58,8 @@ vi.mock("node:fs/promises", async (importOriginal) => {
   };
   const open = async (...args: Parameters<typeof real.open>) => {
     const [path, flags] = args;
-    if (fsWatch.journal === null || String(path) !== fsWatch.journal || flags !== "a") return real.open(...args);
+    // An append opens the file "a", or "a+" since 1.4b's review (it reads the file's last byte through the same handle).
+    if (fsWatch.journal === null || String(path) !== fsWatch.journal || (flags !== "a" && flags !== "a+")) return real.open(...args);
     fsWatch.appendsOpen++;
     fsWatch.order.push("append to the journal: opened");
     let fh: Awaited<ReturnType<typeof real.open>>;

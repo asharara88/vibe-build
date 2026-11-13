@@ -28,17 +28,27 @@
  *
  * A journal belongs to one gateway process: its folder is fixed for a deployment
  * (BUILDER_GATEWAY_JOURNAL_DIR), not tied to the gateway's id, which is new at each start. Since package 1.4b
- * the folder has an id of its own (the file `journal-folder-id`, made by the first gateway to open it), and a
- * gateway started by main.ts holds a lock on that id, beside its liveness lock (store/liveness.ts): a second
- * gateway, or the recovery script, cannot use the folder while it runs, on the same database. The record never
- * holds the model key: it is built from what the gateway would have stored, which is cleaned of the key first.
+ * the folder has an id of its own (the file `journal-folder-id`, made by the first gateway to open it, written
+ * whole under a temporary name and then linked to its own name, so it never exists empty), and a gateway started
+ * by main.ts holds a lock on that id, beside its liveness lock (store/liveness.ts): a second gateway, or the
+ * recovery script, cannot use the folder while it runs, on the same database. The record never holds the model
+ * key: it is built from what the gateway would have stored, which is cleaned of the key first.
+ *
+ * After 1.4b's review. While the gateway does not hold that lock (its database connection is down), the journal
+ * refuses its rewrites (a move to the done file) but still appends: an append only adds a line, and a call's
+ * ending must reach the disk above all while the database cannot be reached (design note 5.5 step 5). An append
+ * can then meet a rewrite by another process (the recovery script, which may hold the lock meanwhile): a rewrite
+ * reads the file through one open handle, renames its new file over the old one, then carries over into the new
+ * file any bytes appended to the old one after it was read; an append whose file was replaced while it wrote
+ * writes its line again into the file now there. A line can so be written twice, which is harmless (a record is
+ * known by its id); it is not lost.
  *
  * What is shown and what is not: a process killed with SIGKILL after the line was forced to disk leaves
  * it in the file (proof row B10, case 3). That the line survives a power cut rests on fsync doing what
  * the operating system documents; it is designed, not shown.
  */
 import { createHash, randomBytes } from "node:crypto";
-import { mkdir, open, readFile, rename, stat, unlink } from "node:fs/promises";
+import { link, mkdir, open, readFile, rename, stat, unlink, type FileHandle } from "node:fs/promises";
 import { join } from "node:path";
 import type pg from "pg";
 import { recordFreeze, type UnrecordedEnding } from "../store/freezes.js";
@@ -168,18 +178,25 @@ async function folderIdIn(dir: string, create: boolean): Promise<string> {
     if ((err as { code?: string }).code !== "ENOENT" || !create) throw err;
   }
   const id = `jf_${randomBytes(16).toString("hex")}`;
-  let fh;
+  // Written whole, and forced to disk, under a temporary name; then linked to its own name, which fails if the name is
+  // taken. The id file so never exists empty or half written, even if the process stops part-way (1.4b's review).
+  const tmp = join(dir, `.${FOLDER_ID}.${randomBytes(4).toString("hex")}.tmp`);
   try {
-    fh = await open(file, "wx");
-  } catch (err) {
-    if ((err as { code?: string }).code === "EEXIST") return read(); // another gateway starting made it first
-    throw err;
-  }
-  try {
-    await fh.writeFile(id + "\n");
-    await fh.sync();
+    const fh = await open(tmp, "wx");
+    try {
+      await fh.writeFile(id + "\n");
+      await fh.sync();
+    } finally {
+      await fh.close();
+    }
+    try {
+      await link(tmp, file);
+    } catch (err) {
+      if ((err as { code?: string }).code === "EEXIST") return await read(); // another gateway starting made it first
+      throw err;
+    }
   } finally {
-    await fh.close();
+    await unlink(tmp).catch(() => undefined);
   }
   await syncDir(dir);
   return id;
@@ -192,7 +209,10 @@ export class FaultJournal {
   readonly setAsideFile: string;
   /** The tail of this journal's queue: every file operation waits for the one before it, failed or not. One process only (known gap 105). */
   private queue: Promise<void> = Promise.resolve();
-  /** Package 1.4b: while this returns false, the journal refuses to write (main.ts: while the gateway does not hold its folder's lock). */
+  /**
+   * Package 1.4b: while this returns false, the journal refuses its rewrites and the set-aside file's appends (main.ts:
+   * while the gateway does not hold its folder's lock). Its own appends are never refused (1.4b's review).
+   */
   private mayWrite: () => boolean = () => true;
   private constructor(
     readonly dir: string,
@@ -227,13 +247,21 @@ export class FaultJournal {
     return new FaultJournal(dir, await folderIdIn(dir, false));
   }
 
-  /** Package 1.4b: from now on, refuse to write while `ok` returns false (main.ts passes the gateway's lock on the folder). */
+  /**
+   * Package 1.4b: from now on, refuse every rewrite of the journal file (and every append to the set-aside file) while
+   * `ok` returns false (main.ts passes the gateway's lock on the folder). Appends to the journal file go on: a call's
+   * ending must reach the disk while the database cannot be reached (1.4b's review).
+   */
   guardWrites(ok: () => boolean): void {
     this.mayWrite = ok;
   }
 
   private checkMayWrite(): void {
-    if (!this.mayWrite()) throw Object.assign(new Error("The gateway does not hold its journal folder's lock now; it writes nothing to the folder."), { code: "JOURNAL_FOLDER_NOT_HELD" });
+    if (!this.mayWrite()) {
+      throw Object.assign(new Error("The gateway does not hold its journal folder's lock now; it moves nothing in the journal file until it does (it still appends to it)."), {
+        code: "JOURNAL_FOLDER_NOT_HELD",
+      });
+    }
   }
 
   /** Run one operation on the journal's files once every one queued before it has ended. */
@@ -246,13 +274,14 @@ export class FaultJournal {
     return run;
   }
 
-  /** Append one record as a line and force it to disk. A file whose last line has no line end gets one first. */
+  /**
+   * Append one record as a line and force it to disk. A file whose last line has no line end gets one first. Never
+   * refused for the folder's lock (1.4b's review): if the file was replaced while the line was written, it is written
+   * again into the file now there (`appendWhole`).
+   */
   append(rec: UnrecordedEnding): Promise<void> {
-    const line = JSON.stringify(rec) + "\n";
-    return this.serial(async () => {
-      this.checkMayWrite();
-      await appendSynced(this.file, (await endsInsideALine(this.file)) ? "\n" + line : line);
-    });
+    const line = Buffer.from(JSON.stringify(rec) + "\n");
+    return this.serial(() => appendWhole(this.file, line));
   }
 
   /** The records in the journal not yet written to the database, and the lines that could not be read. Throws if the file exists and cannot be read. */
@@ -272,26 +301,31 @@ export class FaultJournal {
 
   /**
    * Package 1.4b, for the recovery script: rewrite the journal file without its line `number`, which must still have
-   * this fingerprint; every other line is kept byte for byte. Returns the file's SHA-256 before and after.
+   * this fingerprint; every other line is kept byte for byte, and lines a gateway appends meanwhile are carried over.
+   * Returns the file's SHA-256 before, and as renamed into place (before any bytes carried over).
    */
-  removeLine(number: number, fingerprint: string): Promise<{ before: string; after: string }> {
+  removeLine(number: number, fingerprint: string): Promise<{ before: string; after: string; carriedOver: number }> {
     return this.serial(async () => {
       this.checkMayWrite();
-      const { lines, sha256 } = await readLines(this.file);
-      const line = lines.find((l) => l.number === number);
-      if (!line || fingerprintOf(line.bytes) !== fingerprint) {
-        throw Object.assign(new Error(`Line ${number} of the journal file is not the line with that fingerprint; nothing was removed.`), { code: "JOURNAL_LINE_MOVED" });
-      }
-      const after = await this.rewrite(lines.filter((l) => l !== line));
-      return { before: sha256, after };
+      const r = await this.rewriteWithout((lines) => {
+        const line = lines.find((l) => l.number === number);
+        if (!line || fingerprintOf(line.bytes) !== fingerprint) {
+          throw Object.assign(new Error(`Line ${number} of the journal file is not the line with that fingerprint; nothing was removed.`), { code: "JOURNAL_LINE_MOVED" });
+        }
+        return [line];
+      });
+      return r!; // a line was chosen, or it threw
     });
   }
 
-  /** Package 1.4b, for the recovery script: append one entry to the set-aside file and force it to disk. */
+  /**
+   * Package 1.4b, for the recovery script: append one entry to the set-aside file and force it to disk, on a line of its
+   * own even when the file's last entry was cut short by a crash (1.4b's review).
+   */
   appendSetAside(entry: Record<string, unknown>): Promise<void> {
     return this.serial(async () => {
       this.checkMayWrite();
-      await appendSynced(this.setAsideFile, JSON.stringify(entry) + "\n");
+      await appendWhole(this.setAsideFile, Buffer.from(JSON.stringify(entry) + "\n"));
     });
   }
 
@@ -326,34 +360,80 @@ export class FaultJournal {
 
   private async moveToDone(journalId: string): Promise<void> {
     this.checkMayWrite();
-    const { lines } = await readLines(this.file);
     const isIt = (l: JournalLine) => {
       const r = readLine(l);
       return r.kind === "record" && r.record.journal_id === journalId;
     };
-    const moving = lines.filter(isIt);
-    if (moving.length === 0) return;
-    await appendSynced(this.doneFile, joinLines(moving));
     // Package 1.4b: every other line is kept as it is on disk, byte for byte: an unreadable one, a blank one, a last one with no line end.
-    await this.rewrite(lines.filter((l) => !isIt(l)));
+    await this.rewriteWithout(
+      (lines) => lines.filter(isIt),
+      (moving) => appendSynced(this.doneFile, joinLines(moving)),
+    );
   }
 
-  /** Rewrite the journal file to hold exactly these lines: through a temporary file forced to disk and a rename. Returns the new file's SHA-256. */
-  private async rewrite(keep: JournalLine[]): Promise<string> {
-    const bytes = joinLines(keep);
-    const tmp = `${this.file}.${randomBytes(4).toString("hex")}.tmp`;
-    const fh = await open(tmp, "w");
+  /**
+   * Rewrite the journal file without the lines `pick` chooses from it, keeping every other line byte for byte: through a
+   * temporary file forced to disk and a rename. `beforeRename` runs once they are chosen (the move to the done file
+   * copies them there first). The file is read through one open handle, kept until the end: bytes another process
+   * appended to that old file after it was read (it had opened the file before the rename) are then carried over to the
+   * end of the new file (1.4b's review). Returns null when nothing was chosen (nothing is written then).
+   */
+  private async rewriteWithout(
+    pick: (lines: JournalLine[]) => JournalLine[],
+    beforeRename?: (moving: JournalLine[]) => Promise<void>,
+  ): Promise<{ before: string; after: string; carriedOver: number } | null> {
+    let old: FileHandle;
     try {
-      await fh.writeFile(bytes);
-      await fh.sync();
-    } finally {
-      await fh.close();
+      old = await open(this.file, "r");
+    } catch (err) {
+      if ((err as { code?: string }).code !== "ENOENT") throw err;
+      pick([]); // no file: nothing to choose (removeLine's choice throws)
+      return null;
     }
-    await rename(tmp, this.file);
-    await syncDir(this.dir);
-    return fingerprintOf(bytes);
+    try {
+      const read = await old.readFile();
+      const lines = splitLines(read);
+      const moving = pick(lines);
+      if (moving.length === 0) return null;
+      await beforeRename?.(moving);
+      const bytes = joinLines(lines.filter((l) => !moving.includes(l)));
+      const tmp = `${this.file}.${randomBytes(4).toString("hex")}.tmp`;
+      const fh = await open(tmp, "w");
+      try {
+        await fh.writeFile(bytes);
+        await fh.sync();
+      } finally {
+        await fh.close();
+      }
+      await rename(tmp, this.file);
+      await syncDir(this.dir);
+      const carriedOver = await this.carryOver(old, read.length);
+      return { before: fingerprintOf(read), after: fingerprintOf(bytes), carriedOver };
+    } finally {
+      await old.close();
+    }
+  }
+
+  /**
+   * Copy to the end of the journal file the bytes appended to a file it replaced, after `from` (what the rewrite read).
+   * A line still being written ends within moments: while the bytes do not end with a line end, this waits up to a
+   * second for it; one still cut after that is copied as it is (it then cannot be read, and closes the next gateway to
+   * start: it fails closed). The process writing it also sees its file replaced and writes its line again into the new
+   * one (`appendWhole`), so the line may be there twice, which is harmless. Returns how many bytes were carried over.
+   */
+  private async carryOver(old: FileHandle, from: number): Promise<number> {
+    let extra = await bytesFrom(old, from);
+    for (let waited = 0; extra.length > 0 && extra[extra.length - 1] !== 0x0a && waited < CARRY_OVER_WAIT_MS; waited += 20) {
+      await new Promise((r) => setTimeout(r, 20));
+      extra = await bytesFrom(old, from);
+    }
+    if (extra.length > 0) await appendWhole(this.file, extra);
+    return extra.length;
   }
 }
+
+/** How long a rewrite waits for a line being written into the file it replaced to end (`carryOver`). */
+const CARRY_OVER_WAIT_MS = 1_000;
 
 async function appendSynced(file: string, text: string | Buffer): Promise<void> {
   const fh = await open(file, "a");
@@ -365,22 +445,47 @@ async function appendSynced(file: string, text: string | Buffer): Promise<void> 
   }
 }
 
-/** Whether the file's last byte is not a line end (false when it is empty or does not exist). */
-async function endsInsideALine(file: string): Promise<boolean> {
-  let size: number;
-  try {
-    size = (await stat(file)).size;
-  } catch {
-    return false; // no file: the append makes it, or fails on its own
+/** The file's bytes from `from` to its end, read through this handle. */
+async function bytesFrom(fh: FileHandle, from: number): Promise<Buffer> {
+  const size = (await fh.stat()).size;
+  if (size <= from) return Buffer.alloc(0);
+  const buf = Buffer.alloc(size - from);
+  let got = 0;
+  while (got < buf.length) {
+    const { bytesRead } = await fh.read(buf, got, buf.length - got, from + got);
+    if (bytesRead === 0) break;
+    got += bytesRead;
   }
-  if (size === 0) return false;
-  const fh = await open(file, "r");
-  try {
-    const one = Buffer.alloc(1);
-    await fh.read(one, 0, 1, size - 1);
-    return one[0] !== 0x0a;
-  } finally {
-    await fh.close();
+  return buf.subarray(0, got);
+}
+
+/**
+ * Append bytes to a file and force them to disk, on a line of their own: after a line end if the file's last line has
+ * none (a crash during an append leaves one). Then check that the file at that name is still the one written to: if
+ * another process's rewrite renamed a new file over it meanwhile, having read it before these bytes landed, they are
+ * written again into the file now there (1.4b's review). They are then in it at least once, at most twice.
+ */
+async function appendWhole(file: string, data: Buffer): Promise<void> {
+  for (let attempt = 1; ; attempt++) {
+    const fh = await open(file, "a+"); // appends; readable, for its last byte
+    let wroteTo: { ino: number; dev: number };
+    try {
+      const st = await fh.stat();
+      wroteTo = { ino: st.ino, dev: st.dev };
+      let endsInsideALine = false;
+      if (st.size > 0) {
+        const one = Buffer.alloc(1);
+        await fh.read(one, 0, 1, st.size - 1);
+        endsInsideALine = one[0] !== 0x0a;
+      }
+      await fh.writeFile(endsInsideALine ? Buffer.concat([NL, data]) : data);
+      await fh.sync();
+    } finally {
+      await fh.close();
+    }
+    const now = await stat(file).catch(() => null);
+    if (now !== null && now.ino === wroteTo.ino && now.dev === wroteTo.dev) return;
+    if (attempt >= 5) throw Object.assign(new Error("The journal file was replaced each time a line was written to it."), { code: "JOURNAL_FILE_REPLACED" });
   }
 }
 

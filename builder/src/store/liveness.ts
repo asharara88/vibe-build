@@ -25,7 +25,7 @@
  * the same lock and refuses without it): a second gateway on the same folder and the same database does not
  * start. Both locks end with the gateway's session: a killed gateway leaves no stale lock. Taken again after a
  * dropped connection only if the folder's lock is free; meanwhile the gateway forwards nothing and its journal
- * writes nothing (main.ts guards it with `ok()`).
+ * moves nothing in its file (main.ts guards it with `ok()`), though it still appends a call's ending (1.4b's review).
  */
 import type pg from "pg";
 import { createClient } from "./db.js";

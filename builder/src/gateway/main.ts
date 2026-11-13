@@ -32,7 +32,8 @@ const liveness = await holdLivenessLock(databaseUrl(), gatewayId, { onLost: (m) 
   console.error(`Another process is using the gateway's journal folder (${journalDir}): a gateway, or the journal recovery script. The gateway does not start.`);
   process.exit(1);
 });
-// The journal writes nothing while the gateway does not hold its folder's lock (1.4b).
+// The journal moves nothing in its file while the gateway does not hold its folder's lock (1.4b); it still appends a
+// call's ending then, which is when the database may be out of reach (1.4b's review).
 journal.guardWrites(() => liveness.ok());
 const gate = new FaultGate({ pool, journal, onFault: fault });
 // Before taking any call: write what the journal still holds into the event log (a frozen project and its kept hold).
