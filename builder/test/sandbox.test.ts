@@ -5,7 +5,7 @@ import { join, resolve } from "node:path";
 import { promisify } from "node:util";
 import { afterAll, beforeAll, describe, expect, it, onTestFinished } from "vitest";
 import { RUNNER_IMAGE } from "../src/acceptance/runner-image.js";
-import { composeDocument, createSandbox, DEFAULT_IMAGES, dockerEnv, sandbox, toYaml, type SandboxSpec } from "../src/sandbox/manager.js";
+import { appStreamArgs, composeDocument, createSandbox, DEFAULT_IMAGES, dockerEnv, sandbox, STREAM_SCRIPT, toYaml, type SandboxSpec } from "../src/sandbox/manager.js";
 
 const run = promisify(execFile);
 const builderDir = resolve(import.meta.dirname, "..");
@@ -239,6 +239,22 @@ describe("sandbox manager: compose documents", () => {
     for (const bad of ["http://127.0.0.1:3100/en/sign-in", "https://app:3100/", "http://app/en/sign-in", "http://app:3100/x?y=1", "http://APP:3100/", "http://app:3100/a b"])
       await expect(sandbox.askApp(sb, bad), bad).rejects.toThrow(/askApp takes/);
     await expect(sandbox.up(sb, ["check"])).rejects.toThrow(/not started with up/);
+  });
+
+  it("appStream (package J3): docker compose run of the check service as it is, to app:<port> only; nothing added (no --privileged, --user, --env or --volume)", () => {
+    const sb = { composeFile: "/made-up/compose.yaml" };
+    expect(appStreamArgs(sb, "app:3161", "builder_j1-0123456789ab-live-0a1b2c3d")).toEqual([
+      "compose", "-f", "/made-up/compose.yaml",
+      "--profile", "tools", "--profile", "engine", "--profile", "acceptance", "--profile", "check",
+      "run", "--rm", "--no-deps", "-T", "--name", "builder_j1-0123456789ab-live-0a1b2c3d",
+      "check", "node", "-e", STREAM_SCRIPT, "app", "3161",
+    ]);
+    const args = appStreamArgs(sb, "app:3161", "x1");
+    for (const flag of ["--privileged", "--user", "-u", "--env", "-e=", "--volume", "-v", "--network", "--cap-add", "--entrypoint", "--publish", "-p", "--service-ports"]) expect(args.slice(0, args.indexOf("check")), flag).not.toContain(flag);
+    for (const bad of ["db:5432", "app", "app:0", "app:70000", "127.0.0.1:3161", "app:3161/x", "egress:3128", "APP:3161", "app: 3161"]) expect(() => appStreamArgs(sb, bad, "x1"), bad).toThrow(/appStream takes app:<port>/);
+    expect(() => appStreamArgs(sb, "app:3161", "-bad name")).toThrow(/container name/);
+    // The script itself uses Node's own modules only.
+    expect(STREAM_SCRIPT.match(/require\('([^']+)'\)/g)).toEqual(["require('net')"]);
   });
 
   it("development profile (package 0.6c): Docker Compose accepts the whole file", async () => {
