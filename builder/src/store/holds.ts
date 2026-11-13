@@ -64,7 +64,7 @@ export const micro = (usd: number): number => Math.round(usd * 1e6);
 /** What a project has committed, in millionths: spent + open holds + room reserved for running steps. */
 export const committedMicro = (b: Budget): number => micro(b.spent) + micro(b.openHolds) + micro(b.stepRoom);
 
-async function readBudget(q: Queryable, projectId: string): Promise<Budget> {
+export async function readBudget(q: Queryable, projectId: string): Promise<Budget> {
   const r = await q.query<{ cap_usd: string; spent_usd: string; open_holds_usd: string; open_holds: string; step_room_usd: string; open_steps: string }>(
     "select cap_usd, spent_usd, open_holds_usd, open_holds, step_room_usd, open_steps from project_budget where project_id = $1",
     [projectId],
@@ -336,7 +336,7 @@ export async function keepHold(
   });
 }
 
-async function expireHoldsIn(c: Queryable, projectId: string, now: Date): Promise<Hold[]> {
+export async function expireHoldsIn(c: Queryable, projectId: string, now: Date): Promise<Hold[]> {
   const r = await c.query<Hold>(
     `update holds set expired = true, unreconciled = true
       where state = 'open' and not expired and deadline_at <= $1 and project_id = $2
@@ -532,7 +532,7 @@ const centsDownMicro = (m: number): string => (Math.floor(m / 10_000) / 100).toF
  * open: room = max(room + hold − cost, 0). What it cost above its hold and the room left is recorded as
  * not covered. A step already closed gets nothing back: its room was released when it closed.
  */
-async function returnToStepIn(c: Queryable, hold: Hold, actualUsd: number): Promise<Record<string, unknown> | null> {
+export async function returnToStepIn(c: Queryable, hold: Hold, actualUsd: number): Promise<Record<string, unknown> | null> {
   if (hold.step_hold_id === null) return null;
   const s = (await c.query<StepHoldRow>("select * from step_holds where id = $1 and project_id = $2 for update", [hold.step_hold_id, hold.project_id])).rows[0];
   if (!s || s.state !== "open") return { step_hold_id: Number(hold.step_hold_id), step_open: false, returned_to_room_usd: 0 };
@@ -595,7 +595,7 @@ async function closeStepIn(c: Queryable, s: StepHoldRow, reason: string): Promis
 }
 
 /** Close the project's open step holds past their deadline, as the sweep does. Run under the project's lock by every decision that touches a step's room. */
-async function closeStepsPastDeadlineIn(c: Queryable, projectId: string, now: Date): Promise<StepClose[]> {
+export async function closeStepsPastDeadlineIn(c: Queryable, projectId: string, now: Date): Promise<StepClose[]> {
   const due = await c.query<StepHoldRow>("select * from step_holds where project_id = $1 and state = 'open' and deadline_at <= $2 order by id for update", [projectId, now]);
   const out: StepClose[] = [];
   for (const s of due.rows) out.push(await closeStepIn(c, s, "deadline_passed"));
@@ -773,7 +773,7 @@ const NOTHING_CHANGED = "Nothing was changed and nothing was written.";
 /** The longest name or reason accepted, in characters. */
 const MAX_TEXT = 500;
 /** Half of a surrogate pair: the database's JSON type refuses it, as it refuses a NUL character. */
-const LONE_SURROGATE_IN = /[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[\udc00-\udfff]/;
+export const LONE_SURROGATE_IN = /[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[\udc00-\udfff]/;
 
 /**
  * The new figure must be a number of dollars, 0 or more, below $100,000,000 (the bound `settleHold`
