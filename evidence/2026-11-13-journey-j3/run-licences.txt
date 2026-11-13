@@ -1,4 +1,4 @@
-$ npm run check:licences  (2026-11-13T19:27:39Z, builder tree 1e83b9d52a6a7aef7f16f9dc24c585c171dbe7c3)
+$ npm run check:licences  (2026-11-13T20:10:22Z, HEAD c8c4b23, builder/ tree d4be00f)
 
 > builder@0.0.1 check:licences
 > bash scripts/check-licences.sh

@@ -1,29 +1,34 @@
 # Status
 
-**As of:** 13 November 2026. Rules: build plan section 8, rule 6. Questions: [`docs/QUESTIONS.md`](QUESTIONS.md). Earlier versions: `docs/log/`.
+**As of:** 13 November 2026, after J3 was built. Rules: build plan section 8, rule 6. Questions: [`docs/QUESTIONS.md`](QUESTIONS.md). Earlier versions: `docs/log/` (the one before J3: `2026-11-13-status-before-j3.md`).
+
+## What you can now do (J3, built, not tested, not reviewed)
+
+- **Use the scripted app live, from your phone, once your phone test passes.** On a project's preview screen press "Open the live app": the builder shows a pass once (works once, 2 minutes). Open "app" in your Claude app's preview list and type it; then use example 1's app as it runs: its own sign-in as the made-up employee ("Show the sample sign-in" gives it), My requests, a new request, Arabic, sign-out. Labelled "Simulated build: scripted engine, sample data"; made-up data only.
+- **Not yet approved for use:** your two-page phone test comes first (`docs/QUESTIONS.md`, "Yours to confirm").
+- Shown by an automated run (46 of 46 checks): `evidence/2026-11-13-journey-j3/live-preview.md`, with 20 photographs in `screens/`.
+
+## What changed in your 0.6c rule (your answer (a))
+
+While you use the live app, its page code runs in your phone's browser, which has the internet: a way out besides the builder's door, for scripted builds only, enforced in code (gaps 148 to 158). The app still has no port on this machine; the builder reaches it only through short-lived containers on its private network. 0.6c's isolation run, with the new containers in its lists, passed.
 
 ## State
 
-1. **Tested:** 0.1 to 0.5, 0.6a (development profile), 1.1, 1.2, 1.2b, 1.3, 1.4, 1.5 (stand-in only), 2.1, W4. R1: merged, not tested.
-2. **Built, not tested, merged:** 3.1 (#29), 1.4c (#35), 3.1b (#34), 1.4b (#33), **0.6c (#36)**.
-3. **What 0.6c gives:** project containers on private networks, with no route to this machine; out only through the builder's proxy (its list) and the gateway's port. Open: gaps 118 to 128.
-4. **What you can do (J1, built, not tested; #37, draft):** the whole journey, scripted engine, English and Arabic, sign-in to export ($0.00 spent). Simulated, labelled: analyst, build changes, stand-in test. Checked: 600 of 600 tests; before the last fixes, 54 of 54 automated checks and 0.6c's isolation run (`evidence/2026-11-13-journey-j1/journey.md`). Your interface now running on 127.0.0.1:4020 is an older copy, from before 0.6c: its projects still use the old arrangement (the app published on this machine) until Claude Code restarts it from this code once J1 merges.
-5. **Budget cap, shown against a stand-in only:** a call or step must fit the cap. The first bill above its hold is charged in full and only then freezes the project (gap 114); an unrecorded ending or set-aside journal line also freezes it until recorded. Holds are estimates plus a margin, not ceilings.
-6. **Real models:** none called; no model-written code runs. Licences: internal development and testing only (questions 11, 15).
+1. **Tested:** 0.1 to 0.5, 0.6a (development profile), 1.1, 1.2, 1.2b, 1.3, 1.4, 1.5 (stand-in only), 2.1, W4.
+2. **Built, not tested:** 3.1, 1.4c, 3.1b, 1.4b, 0.6c, J1 (merged), J3 (branch `claude/j3-live-preview`, not pushed).
+3. **Checked for J3:** typecheck; the whole suite, 672 of 672 (live tests included); licences passed; 26 controls; measurements M2, M3, M5, M6. **Assumed:** WebKit (your phone's browser) behaves as Chromium did; the tunnel and your app's pane (M1).
 
 ## Next
 
-1. **J1:** the check's five points fixed (`journey.md`); then a check of the fixes, the merge, and your older 4020 interface restarted from this code for you to try.
-2. **1.4c:** wording and a new action yours to confirm.
+1. Your phone test, then its result recorded.
+2. One adversarial review of J3 as isolation work, by reviewers who did not write it; then the pull request.
+3. After J3 merges: a time to restart your 4020 interface from this code. Its start removes your projects' running sandboxes.
 
 ## What blocks it
 
-- No engineer has read 0.6c or proof row B10's design (question 7; gap 35); 0.6c's server profile not shown (0.6b).
+- No engineer has read 0.6c or J3 (gaps 35, 148, 149).
 - 2.3, the first real-model run: 2.2, the key, and 0.6c tested.
-- `npm test` and the checklist fail without Docker or the approved browser zip (3.1b), which a new session fetches first (gap 110; `CLAUDE.md`: gap 141, yours).
-- Disk: a build is refused below 4 GB free, a floor assumed, not measured (gap 137).
-- Can your app show the interface? Unknown (gap 131).
 
 ## Money
 
-Model spend through the builder: **$0.00**. The hosted prototype agent is paused. No paid service in use.
+Model spend through the builder: **$0.00**. No paid service in use.
