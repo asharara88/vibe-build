@@ -53,6 +53,10 @@ One adversarial review (money and tests) read `4bd46f7`: **nothing blocking**, e
 
 Run again at `ec358c1`, with its own test database `builder_test_pkg13_rev`: `run-typecheck-after-review.txt` (exit 0, twice); `run-tests-full-after-review.txt` (the whole suite under the shared lock: 10 files, 266 passed, exit 0, no container before or after); `run-licences-after-review.txt` (RESULT: PASSED, exit 0; no dependency changed).
 
+## After the merge with the integration branch
+
+The integration branch at `8a0ee2a` (pull requests #8 and #28, question 18) merged in at `aea350e`. This package's known gaps 67 to 76 are now 81 to 90, in order, wherever this branch named them; the integration branch's own 67 to 69 are untouched: `run-renumber-grep.txt`. No code of this package names a container image. Run again at `aea350e`, test database `builder_test_pkg13`: `run-typecheck-after-merge.txt` (exit 0, twice); `run-licences-after-merge.txt` (RESULT: PASSED, exit 0); `run-tests-full-after-merge.txt` (the whole suite under the shared lock: 11 files, 276 passed, the approved-images check's 10 included; exit 0; no container after).
+
 ## What this does not show
 
 - **Anything about a real engine or provider.** The engines are stand-ins; no engine in the builder takes a token yet (known gap 83).
