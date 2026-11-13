@@ -11,7 +11,7 @@
  *
  * The build-engine interface (Decision F) is unchanged: the token reaches the engine through
  * `engineFor`, as the workspace reaches the scripted engine through its constructor. No engine in the
- * builder takes a token yet (the scripted engine calls no model; known gap 69): until package 2.2,
+ * builder takes a token yet (the scripted engine calls no model; known gap 83): until package 2.2,
  * only the stand-in engines of the tests and the demonstration make calls with it.
  */
 import type pg from "pg";

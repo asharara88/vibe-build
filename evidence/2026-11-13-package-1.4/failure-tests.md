@@ -32,7 +32,7 @@
 | B13 | The checker runs in every case above: 105 states and 19 billing points in 21 tables, no violation (`run-traces-after-review.md`; B8 is checked twice, before and after its call is released: 98 and 18 without its first check). "B13: the checker flags each kind of breach ...", and a cap change with no new cap (`:865`) | C16 to C20: each of its rules switched off in turn; C27 a cap change with no new cap read as a NaN cap |
 | Also | Liveness lost (`:894`); lost while a call waits at its counting call: not forwarded, its hold given back (`:911`); database not usable (`:930`) | C21, C25, C22 |
 
-"Every moment" is read as: after every event of the project, in id order, plus every billing point. Id order is commit order only because every budget write takes the project's row lock. A bill counts as owed from its call's `hold.opened`, which is stricter than from the answer. "No settled call costs more than its hold" is checked on these runs, not enforced: 1.2's over-hold test stays the named exception (known gaps 41, 83).
+"Every moment" is read as: after every event of the project, in id order, plus every billing point. Id order is commit order only because every budget write takes the project's row lock. A bill counts as owed from its call's `hold.opened`, which is stricter than from the answer. "No settled call costs more than its hold" is checked on these runs, not enforced: 1.2's over-hold test stays the named exception (known gaps 41, 97).
 
 ## Checks
 
@@ -41,10 +41,10 @@
 
 ## After the review
 
-One adversarial review: **nothing blocking**, five notes. (1) A call that had passed the gate (or the liveness check) and waited at its counting call was still forwarded after the gate closed: now both are checked again just before the forward, and such a call gets the 503 with its hold given back (`app.ts:528-539`; B10 (8) and the liveness test at `:911`; controls C24, C25). (2) B10 (3) now shows the replay happens before the gateway listens (C26). (3) The checker reads a cap change with no new cap as unreadable, not as a NaN cap (`invariants.ts:146-147`; B13; C27). (4) Gap 79 now says a journal line that cannot be read leaves its project unfrozen. (5) The B13 figures above now match the trace file. Controls: `run-controls-after-review.txt` (4 run, 4 failed, each restored clean); 1.3's review fixes merged in first (no code).
+One adversarial review: **nothing blocking**, five notes. (1) A call that had passed the gate (or the liveness check) and waited at its counting call was still forwarded after the gate closed: now both are checked again just before the forward, and such a call gets the 503 with its hold given back (`app.ts:528-539`; B10 (8) and the liveness test at `:911`; controls C24, C25). (2) B10 (3) now shows the replay happens before the gateway listens (C26). (3) The checker reads a cap change with no new cap as unreadable, not as a NaN cap (`invariants.ts:146-147`; B13; C27). (4) Gap 93 now says a journal line that cannot be read leaves its project unfrozen. (5) The B13 figures above now match the trace file. Controls: `run-controls-after-review.txt` (4 run, 4 failed, each restored clean); 1.3's review fixes merged in first (no code).
 
 ## Not shown, or resting on assumptions
 
-- B10 rests on a design no engineer has reviewed (gap 35). A SIGKILL before the journal line is on disk loses the freeze (gap 77); survival of a power cut is designed, not shown (gap 78); the journal's edges (gap 79); a gateway whose machine stops answering (gap 80).
+- B10 rests on a design no engineer has reviewed (gap 35). A SIGKILL before the journal line is on disk loses the freeze (gap 91); survival of a power cut is designed, not shown (gap 92); the journal's edges (gap 93); a gateway whose machine stops answering (gap 94).
 - Against a stand-in only. A hold is a reservation from the provider's estimate plus an assumed margin, not a proven ceiling.
 - No reviewer has read the fixes made after the review. Nothing here says it is ready or safe.

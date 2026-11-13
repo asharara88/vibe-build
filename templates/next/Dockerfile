@@ -1,5 +1,7 @@
 # House template, TypeScript candidate. Two stages: build with development tools, run without them.
-FROM node:22-alpine AS build
+# Both base images are pinned to the digest the owner approved for internal development and testing only
+# (13 Nov 2026, question 11 (a); builder/approved-images.json). The builder's check fails on any other.
+FROM node:22-alpine@sha256:0e1754758c2df4cfa3e68d59e2e1b7374bb7fd9ea6328eaaacf15cc934af8202 AS build
 WORKDIR /app
 # On the development profile the sandbox manager runs this build on the host's network, gives it the
 # cloud session's proxy as build arguments and puts the session's certificate in certs/. On that
@@ -34,7 +36,7 @@ USER node
 ENTRYPOINT []
 CMD ["node", "-e", "console.error('The tools image runs one named command at a time, e.g. drizzle-kit push or the seed.'); process.exit(1)"]
 
-FROM node:22-alpine AS run
+FROM node:22-alpine@sha256:0e1754758c2df4cfa3e68d59e2e1b7374bb7fd9ea6328eaaacf15cc934af8202 AS run
 WORKDIR /app
 ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 PORT=3000 HOSTNAME=0.0.0.0
 RUN addgroup -S app && adduser -S app -G app

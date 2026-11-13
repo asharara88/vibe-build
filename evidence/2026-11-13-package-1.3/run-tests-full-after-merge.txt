@@ -1,0 +1,43 @@
+Package 1.3, 13 Nov 2026, after merging the integration branch at 8a0ee2a: the whole suite once, live tests included, at commit aea350e
+Development machine (a cloud session), in builder/, under the lock shared with other sessions. The 2 containers counted before the run were not this run's: it had not started, and was waiting for the lock another session held. A look at about 08:39 UTC (docker ps, running containers only) showed none running.
+BUILDER_TEST_DATABASE_URL=postgres:///builder_test_pkg13?host=/var/run/postgresql
+Containers on the machine before the run: 2
+
+$ flock <scratchpad>/live-tests.lock npx vitest run
+waiting for the lock from 08:38:33 UTC
+started 08:41:27 UTC
+
+ RUN  v5.1.0 <scratchpad>/wt-13/builder
+
+
+ Test Files  11 passed (11)
+      Tests  276 passed (276)
+   Start at  08:41:28
+   Duration  127.58s (tests 99%)
+
+exit code: 0
+ended 08:43:35 UTC
+Containers on the machine after the run: 0
+
+Then the approved-images check alone, to show its tests by name (it is one of the 11 files above):
+$ npx vitest run test/approved-images.test.ts --reporter=verbose   # not live: it reads files only
+
+ RUN  v5.1.0 <scratchpad>/wt-13/builder
+
+ ✓ test/approved-images.test.ts > the approved list > holds exactly the two images of question 11 (a), each well formed, for internal development and testing only 3ms
+ ✓ test/approved-images.test.ts > the approved list > refuses a list entry with no tag, a short digest, no date or no decision 0ms
+ ✓ test/approved-images.test.ts > the approved list > the sandbox manager's image table is exactly the approved references 0ms
+ ✓ test/approved-images.test.ts > the scan of the code, scripts, tests and templates > finds no image reference that is not tag@digest of an approved entry 0ms
+ ✓ test/approved-images.test.ts > the scan of the code, scripts, tests and templates > is not empty: it reads the image table, the template's two FROM lines and the test's inline FROM 1ms
+ ✓ test/approved-images.test.ts > the scan, on made-up text: each kind of reference it must refuse, and what it leaves alone > a Dockerfile: an unpinned FROM, a FROM pinned to another digest, a FROM by digest alone, and an image not on the list 0ms
+ ✓ test/approved-images.test.ts > the scan, on made-up text: each kind of reference it must refuse, and what it leaves alone > TypeScript: an image field, a docker run argument, an inline Dockerfile, a computed FROM and a comment 1ms
+ ✓ test/approved-images.test.ts > the scan, on made-up text: each kind of reference it must refuse, and what it leaves alone > YAML: a bare image value, and a registry image 0ms
+ ✓ test/approved-images.test.ts > the scan, on made-up text: each kind of reference it must refuse, and what it leaves alone > a mistyped digest is refused, not skipped; a major version alone is caught for a known image 1ms
+ ✓ test/approved-images.test.ts > the scan, on made-up text: each kind of reference it must refuse, and what it leaves alone > leaves alone what is not an image: URLs, addresses, host and port, counts, times, Node's own modules, Tailwind classes, SQL, mounts 0ms
+
+ Test Files  1 passed (1)
+      Tests  10 passed (10)
+   Start at  08:43:45
+   Duration  222ms (import 83%, transform 7%, tests 7%, worker 2%)
+
+exit code: 0
