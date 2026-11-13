@@ -667,6 +667,34 @@ describe("package 1.4: failure tests, proof rows B8 to B13 (against a stand-in p
     }
   }, 90_000);
 
+  it("B10 (7): the journal file cannot be written either: the gate stays closed, with the record kept in memory, until the database takes it", async () => {
+    const dir = await newJournalDir();
+    const g = await inProcessGateway("gw_b10_7", { journalDir: dir });
+    await rm(dir, { recursive: true, force: true }); // the journal's folder is gone: writing to it fails
+    const p = await newProject(HOLD_USD * 3);
+    const q = await newProject(5);
+    const parked = callAt(g.url, p.token, body(p.id, "park", "b10-7"));
+    await until("the call at the stand-in", () => (stand.arrivedByTag.get("b10-7") ?? 0) === 1);
+    await fault.on(p.id, "model.call");
+    await fault.on(p.id, "project_freezes");
+    release("b10-7");
+    expect((await parked).status).toBe(200);
+    expect(g.faults.filter((m) => m.includes("could not be written to the gateway's journal file either")).length).toBeGreaterThan(0);
+    const before = { messages: stand.messages, counts: stand.counts };
+    const r = await callAt(g.url, q.token, body(q.id));
+    expect(r.status).toBe(503);
+    expect((await errorOf(r)).type).toBe("gateway_unrecorded");
+    expect({ messages: stand.messages, counts: stand.counts }).toEqual(before);
+    await fault.off();
+    expect((await callAt(g.url, q.token, body(q.id))).status).toBe(200);
+    expect(await kinds(p.id)).toEqual(["hold.opened", "hold.kept", "gateway.fault", "project.frozen"]);
+    const frozen = await callAt(g.url, p.token, body(p.id));
+    expect(frozen.status).toBe(402);
+    expect((await errorOf(frozen)).type).toBe("project_frozen");
+    await invariantsHold(p.id);
+    await invariantsHold(q.id);
+  }, 60_000);
+
   it("B10 (4): under the project's lock, a frozen project opens no hold, starts no step, and a running step's calls are refused, whatever the cap", async () => {
     const { id } = await newProject(5);
     const deadline = new Date(Date.now() + 600_000);
