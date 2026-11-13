@@ -36,7 +36,9 @@ export async function browserZipProblem(env: NodeJS.ProcessEnv = process.env): P
   } catch (err) {
     const what = (err as Error).message;
     if (!env.BUILDER_BROWSER_CACHE) return `BUILDER_BROWSER_CACHE is not set, so the approved browser zip cannot be found. To put it right, ${FETCH_BROWSER}.`;
-    return `The approved browser zip is not in the folder BUILDER_BROWSER_CACHE names: ${what} To put it right, remove any other file of that name yourself, then ${FETCH_BROWSER}.`;
+    // Only when something else is at the zip's place: the fetch never replaces it, so the person removes it first.
+    const absent = what.startsWith("The browser cache has no ");
+    return `The approved browser zip is not in the folder BUILDER_BROWSER_CACHE names: ${what} To put it right, ${absent ? "" : "remove what is at that place yourself (the fetch never replaces it), then "}${FETCH_BROWSER}.`;
   }
 }
 

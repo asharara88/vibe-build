@@ -36,11 +36,12 @@ describe("the live acceptance tests' prerequisites, each named with how to put i
     const none = await browserZipProblem({ BUILDER_BROWSER_CACHE: empty });
     expect(none).toMatch(new RegExp(`^The approved browser zip is not in the folder BUILDER_BROWSER_CACHE names: The browser cache has no ${BROWSER_ZIP.replace(/\./g, "\\.")}`));
     expect(none).toMatch(fix);
+    expect(none).not.toContain("remove what is at that place");
     writeFileSync(join(empty, BROWSER_ZIP), "made-up, not the browser");
-    expect(await browserZipProblem({ BUILDER_BROWSER_CACHE: empty })).toMatch(/has SHA-256 [0-9a-f]{64}, not the approved .* To put it right, remove any other file of that name yourself, then from builder\//);
+    expect(await browserZipProblem({ BUILDER_BROWSER_CACHE: empty })).toMatch(/has SHA-256 [0-9a-f]{64}, not the approved .* To put it right, remove what is at that place yourself \(the fetch never replaces it\), then from builder\//);
     const linked = mkdtempSync(join(scratch, "cache-"));
     symlinkSync(join(empty, BROWSER_ZIP), join(linked, BROWSER_ZIP));
-    expect(await browserZipProblem({ BUILDER_BROWSER_CACHE: linked })).toMatch(/is not a plain file \(a link or a folder is not accepted\)\. To put it right/);
+    expect(await browserZipProblem({ BUILDER_BROWSER_CACHE: linked })).toMatch(/is not a plain file \(a link or a folder is not accepted\)\. To put it right, remove what is at that place yourself/);
   });
 
   it("both missing: both are named", async () => {
