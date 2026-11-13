@@ -1,0 +1,44 @@
+{"kind":"check","name":"a visitor not signed in who opens /projects gets the sign-in page","ok":true,"detail":"/sign-in"}
+{"kind":"check","name":"a visitor not signed in who opens /projects/new gets the sign-in page","ok":true,"detail":"/sign-in"}
+{"kind":"check","name":"a visitor not signed in who opens / gets the sign-in page","ok":true,"detail":"/sign-in"}
+{"kind":"check","name":"the sign-in page has one password field","ok":true,"detail":""}
+{"kind":"check","name":"the mode line says the real-model gate is closed","ok":true,"detail":"Scripted mode: no AI model is connected. The real-model gate is closed."}
+{"kind":"shot","file":"01-sign-in-en.png","path":"/sign-in","lang":"en","width":1280}
+{"kind":"shot","file":"01-sign-in-ar.png","path":"/sign-in","lang":"ar","width":1280}
+{"kind":"shot","file":"01-sign-in-phone.png","path":"/sign-in","lang":"en","width":390}
+{"kind":"check","name":"a wrong password is refused","ok":true,"detail":"That password is not right."}
+{"kind":"shot","file":"02-sign-in-wrong-password-en.png","path":"/sign-in","lang":"en","width":1280}
+{"kind":"check","name":"signed in, at the projects page","ok":true,"detail":"/projects"}
+{"kind":"shot","file":"03-projects-en.png","path":"/projects","lang":"en","width":1280}
+{"kind":"shot","file":"04-new-project-en.png","path":"/projects/new","lang":"en","width":1280}
+{"kind":"check","name":"the project is made, at its brief","ok":true,"detail":"/projects/j1-9bd65400e5c9/brief"}
+{"kind":"project","id":"j1-9bd65400e5c9","name":"Leave requests (made-up)","cap":"5.00"}
+{"kind":"check","name":"the brief is shown as typed","ok":true,"detail":""}
+{"kind":"shot","file":"05-brief-en.png","path":"/projects/j1-9bd65400e5c9/brief","lang":"en","width":1280}
+{"kind":"check","name":"continued as example 1, at the questions","ok":true,"detail":"/projects/j1-9bd65400e5c9/questions"}
+{"kind":"shot","file":"06-questions-en.png","path":"/projects/j1-9bd65400e5c9/questions","lang":"en","width":1280}
+{"kind":"shot","file":"06-questions-ar.png","path":"/projects/j1-9bd65400e5c9/questions","lang":"ar","width":1280}
+{"kind":"shot","file":"06-questions-phone.png","path":"/projects/j1-9bd65400e5c9/questions","lang":"en","width":390}
+{"kind":"check","name":"every turn answered in the chat, 8 turns","ok":true,"detail":"8 turns"}
+{"kind":"shot","file":"07-questions-answered-en.png","path":"/projects/j1-9bd65400e5c9/questions","lang":"en","width":1280}
+{"kind":"check","name":"the proposed app shows its seven sections, the Later list and the assumed choice","ok":true,"detail":""}
+{"kind":"shot","file":"08-proposal-en.png","path":"/projects/j1-9bd65400e5c9/proposal","lang":"en","width":1280}
+{"kind":"check","name":"brief confirmed, at the build steps","ok":true,"detail":"/projects/j1-9bd65400e5c9/plan"}
+{"kind":"check","name":"the plan has the two steps","ok":true,"detail":""}
+{"kind":"shot","file":"09-plan-en.png","path":"/projects/j1-9bd65400e5c9/plan","lang":"en","width":1280}
+{"kind":"check","name":"plan confirmed; tests fixed as v001, stand-in test, not independent acceptance","ok":true,"detail":""}
+{"kind":"shot","file":"10-plan-confirmed-en.png","path":"/projects/j1-9bd65400e5c9/plan","lang":"en","width":1280}
+{"kind":"shot","file":"11-build-en.png","path":"/projects/j1-9bd65400e5c9/build","lang":"en","width":1280}
+{"kind":"check","name":"step 1 built","ok":false,"detail":"What you will be shown: The data step: the leave-request table, the configuration that names it, and the banner sentence that labels the app as built by the scripted engine Started.Failed: This machine has 2.6 GB free; a build needs at least 4.0 GB (a floor assumed, not measured). The build was not started."}
+{"kind":"shot","file":"12-build-step-1-stopped-en.png","path":"/projects/j1-9bd65400e5c9/build","lang":"en","width":1280}
+{"kind":"shot","file":"12-build-step-1-stopped-ar.png","path":"/projects/j1-9bd65400e5c9/build","lang":"ar","width":1280}
+{"kind":"check","name":"cost, after the stop: $0.00 spent, no freeze, an empty unreconciled list","ok":true,"detail":"Cap$5.00 Spent$0.00 Held for calls in progress or awaiting reconciliation$0.0000 Reserved for running steps$0.0000 Left$5.0000"}
+{"kind":"shot","file":"18-cost-en.png","path":"/projects/j1-9bd65400e5c9/cost","lang":"en","width":1280}
+{"kind":"shot","file":"18-cost-ar.png","path":"/projects/j1-9bd65400e5c9/cost","lang":"ar","width":1280}
+{"kind":"shot","file":"18-cost-phone.png","path":"/projects/j1-9bd65400e5c9/cost","lang":"en","width":390}
+{"kind":"check","name":"the record, after the stop: every event, in id order","ok":true,"detail":"27 events"}
+{"kind":"record","project":"j1-9bd65400e5c9","events":27}
+{"kind":"shot","file":"21-record-en.png","path":"/projects/j1-9bd65400e5c9/record","lang":"en","width":1280}
+{"kind":"check","name":"signed out","ok":true,"detail":"/sign-in"}
+{"kind":"check","name":"nothing but 127.0.0.1:4020 was loaded","ok":true,"detail":""}
+{"kind":"done","failed":1}

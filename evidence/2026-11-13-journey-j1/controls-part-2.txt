@@ -1,0 +1,54 @@
+J1 part 2 controls, 13 Nov 2026, on builder/ tree a7d3ce1fbbe549c8552bf2e6393b1b8371bb7203: each safeguard removed in turn (one or more exact replacements in builder's source, applied by a script and undone after; the tree checked unchanged afterwards: a7d3ce1 before and after), the test that guards it run alone (npx vitest run <file> -t <name>), its verdict, then the source restored. Test database builder_test_j1. No container is started by these tests. What each control removes is listed in journey.md.
+Columns: control | what was removed | verdict | vitest's summary lines
+
+Part 2's 23 new controls:
+J1-C26 | the build job's engine not behind the ordering wrapper (events written without waiting) | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 23 skipped (24) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+J1-C27 | the build job calls the engine directly, not through the step hold (package 1.3) | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 23 skipped (24) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+J1-C28 | no reset after a failed step | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 23 skipped (24) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+J1-C29 | the disk check removed from the build job | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 23 skipped (24) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+J1-C30 | a step allowed before the one before it is approved | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 23 skipped (24) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+J1-C31 | a step approved before it is built | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 23 skipped (24) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+J1-C32 | a camera file recorded without the PNG check | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 23 skipped (24) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+J1-C33 | two projects' apps at a time | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 23 skipped (24) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+J1-C34 | the app started with its port in use | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 23 skipped (24) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+J1-C35 | the camera's folder (and its password file) left after the run | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 23 skipped (24) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+J1-C36 | sign-off allowed on a checklist run that did not pass | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 23 skipped (24) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+J1-C37 | the export's tests written into the workspace instead of the exported copy | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 23 skipped (24) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+J1-C38 | the export's check for files that look like secrets removed | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 23 skipped (24) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+J1-C39 | recovery at start ignores a sandbox left by an interface that stopped | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 23 skipped (24) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+J1-C40 | the adapter removes a recorded folder whose compose file names another project | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 23 skipped (24) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+J1-C41 | the adapter accepts a project id that is not a journey project's | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 23 skipped (24) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+J1-C42 | the refused step's sentence not shown on the build screen | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 23 skipped (24) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+J1-C43 | an item with no test shown as passed | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 23 skipped (24) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+J1-C44 | the stand-in label removed from the checklist screen | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 23 skipped (24) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯ | + <table data-run="run-standin-mwf0glnf"><tr><th>Run</th><td lang="en" dir="ltr">run-standin-mwf0glnf</td></tr><tr><th>Tests version</th><td>v001</td></tr><tr><th
+J1-C45 | the export screen offers the export before sign-off | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 23 skipped (24) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+J1-C46 | a GET of the build screen that writes an event | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 23 skipped (24) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+J1-C47 | the jobs' gate: part 2's module names another engine | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 23 skipped (24) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+J1-C48 | part 2's jobs import the gateway's journal | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 23 skipped (24) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+Part 1's 25 controls, run again on this tree (same patches as controls-part-1.txt):
+J1-C1 | the sign-in guard removed | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 23 skipped (24) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+J1-C2 | csrf() removed | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 23 skipped (24) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+J1-C3 | the content-security-policy removed | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 23 skipped (24) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+J1-C4 | the brief shown without escaping (hono's raw) | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 23 skipped (24) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+J1-C5 | the lock-out check before a sign-in removed | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 23 skipped (24) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+J1-C6 | files: the inside-the-folder check removed | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 23 skipped (24) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+J1-C7 | files: the SHA-256 check removed | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 23 skipped (24) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+J1-C8 | start check: the database setting not required | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 23 skipped (24) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+J1-C9 | the environment not scrubbed at start | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 23 skipped (24) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+J1-C10 | the instance lock not checked | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 23 skipped (24) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+J1-C11 | the first-run digest file written readable by others | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 23 skipped (24) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+J1-C12 | a GET that writes an event (the record page) | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 23 skipped (24) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+J1-C13 | a build allowed before both confirmations | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 23 skipped (24) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+J1-C14 | an export allowed before sign-off | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 23 skipped (24) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+J1-C15 | the engine wrapper does not wait for the event queue | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 23 skipped (24) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+J1-C16 | recovery looks at every project, not only j1- ones | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 23 skipped (24) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+J1-C17 | one job at a time not enforced | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  2 failed | 22 skipped (24) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+J1-C25 | the job slot taken only after the started event is written (the race found on re-reading) | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 23 skipped (24) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+J1-C18 | the journey imports the gateway's journal | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 23 skipped (24) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+J1-C19 | another engine named in the journey | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 23 skipped (24) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+J1-C20 | an intake option changed from B2's words | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 10 skipped (11) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+J1-C21 | four questions in one turn | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 10 skipped (11) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+J1-C22 | an R reason not B2's | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 10 skipped (11) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+J1-C23 | a message missing from Arabic | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 23 skipped (24) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+J1-C24 | the journey-id check on project routes removed | FAILED, as it should with the safeguard removed | Test Files  1 failed (1) | Tests  1 failed | 23 skipped (24) | ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯

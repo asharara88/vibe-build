@@ -132,9 +132,9 @@ Generated on 2026-11-12 by `docs/tools/arabic-wording-list.py`. Keys compared on
 
 ## The builder's own interface (package J1, 13 November 2026)
 
-Added with package J1, part 1: the messages of the builder's own screens (`builder/src/web/messages/en.json` and `ar.json`), and the Arabic of the 20 questions of test example 1 (`builder/src/orchestrator/intake/example-1.json`; the English is the question bank, `docs/spec/B2-question-bank.md`, word for word). The Arabic is Claude Code's; no reader of Arabic has checked it (known gap 134). Generated from those files on 13 November 2026; regenerate after any change to them.
+Added with package J1, part 1: the messages of the builder's own screens (`builder/src/web/messages/en.json` and `ar.json`), and the Arabic of the 20 questions of test example 1 (`builder/src/orchestrator/intake/example-1.json`; the English is the question bank, `docs/spec/B2-question-bank.md`, word for word). The Arabic is Claude Code's; no reader of Arabic has checked it (known gap 134). Generated from those files on 13 November 2026; regenerate after any change to them. Part 2 (13 November 2026) adds the messages of the build, preview, checklist and export screens; the regenerated table below holds both parts.
 
-Count: English messages 154, Arabic messages 154; missing from Arabic 0, missing from English 0 (a test, `builder/test/web.test.ts`, checks that the two files have the same keys). Identical in both languages: 3 (`app.name`, `lang.en`, `lang.ar`: the product's name, and each language's own name, so a reader who cannot read Arabic can find the switch).
+Count: English messages 248, Arabic messages 248; missing from Arabic 0, missing from English 0 (a test, `builder/test/web.test.ts`, checks that the two files have the same keys). Identical in both languages: 3 (`app.name`, `lang.en`, `lang.ar`: the product's name, and each language's own name, so a reader who cannot read Arabic can find the switch). On Arabic pages, four labels the owner approved in English (the stand-in label, the sign-off label, the export label and the sentence under a refused step) are shown in Arabic and then in English, word for word.
 
 | Key | English | Arabic |
 | --- | --- | --- |
@@ -261,7 +261,6 @@ Count: English messages 154, Arabic messages 154; missing from Arabic 0, missing
 | `plan.confirm` | Confirm plan | تأكيد الخطة |
 | `plan.confirmed` | Plan confirmed. Tests fixed as version {version}: stand-in test, not independent acceptance. | تم تأكيد الخطة. ثُبّتت الاختبارات كنسخة {version}: اختبار بديل، وليس قبولاً مستقلاً. |
 | `plan.not_yet` | The build steps are shown once the brief is confirmed. | تُعرض خطوات البناء بعد تأكيد الملخص. |
-| `plan.build_not_here` | The build screen is not in this version of the interface yet. | شاشة البناء ليست في هذه النسخة من الواجهة بعد. |
 | `record.title` | Record | السجل |
 | `record.order` | Every event of this project, in the order it was written (event number), not by clock time. | كل أحداث هذا المشروع، بترتيب كتابتها (رقم الحدث)، لا بحسب وقت الساعة. |
 | `record.count` | Events: {n} | الأحداث: {n} |
@@ -292,6 +291,101 @@ Count: English messages 154, Arabic messages 154; missing from Arabic 0, missing
 | `error.back` | Back | رجوع |
 | `error.not_found` | Not found. | غير موجود. |
 | `error.server` | Something went wrong. The project's record shows what was written. | حدث خطأ. يُظهر سجل المشروع ما كُتب. |
+| `stage.preview` | Preview | المعاينة |
+| `stage.acceptance` | Checklist | قائمة التحقق |
+| `stage.signed_off` | Signed off | تمّ الاعتماد |
+| `tab.build` | Build | البناء |
+| `tab.preview` | Preview | المعاينة |
+| `tab.acceptance` | Checklist | قائمة التحقق |
+| `tab.export` | Export | التصدير |
+| `plan.go_build` | Go to the build | انتقل إلى البناء |
+| `job.running` | A job is running: {kind}. This page refreshes itself every 2 seconds. | مهمة قيد التشغيل: {kind}. تتحدّث هذه الصفحة تلقائياً كل ثانيتين. |
+| `job.kind.build_step` | building a step | بناء خطوة |
+| `job.kind.preview` | building and starting the app for the preview | بناء التطبيق وتشغيله للمعاينة |
+| `job.kind.acceptance` | running the checklist | تشغيل قائمة التحقق |
+| `job.kind.export` | writing the export | كتابة ملف التصدير |
+| `build.title` | Build | البناء |
+| `build.not_yet` | The build starts once the plan is confirmed. | يبدأ البناء بعد تأكيد الخطة. |
+| `build.intro` | Each step runs in its own container, under its own reservation. Nothing goes on to the next step until you approve this one. | تعمل كل خطوة في حاوية خاصة بها، ضمن حجز خاص بها. لا يُنتقل إلى الخطوة التالية حتى توافق على هذه الخطوة. |
+| `build.start` | Build step {n} | ابنِ الخطوة {n} |
+| `build.retry` | Try step {n} again | أعد محاولة الخطوة {n} |
+| `build.approve_next` | Approve and build the next step | وافق وابنِ الخطوة التالية |
+| `build.approve_last` | Approve and start the app for the preview | وافق وشغّل التطبيق للمعاينة |
+| `build.go_preview` | Go to the preview | انتقل إلى المعاينة |
+| `build.no_preview_after_1` | No preview after step 1 in J1: it adds the table and a banner line only. The app is built once, after step 2. | لا معاينة بعد الخطوة 1 في J1: فهي تضيف الجدول وسطراً في الشريط فقط. يُبنى التطبيق مرة واحدة، بعد الخطوة 2. |
+| `build.disk_note` | Before each build the free disk space is measured. A build needs at least {gb} GB free (a floor assumed, not measured). | قبل كل بناء تُقاس المساحة الحرة على القرص. يحتاج البناء إلى {gb} غيغابايت حرة على الأقل (حدّ مفترض، غير مقيس). |
+| `build.sim_note` | Scripted: fixed change, no model call. The container, the history and the reservation are real. | مُبرمَج مسبقاً: تغيير ثابت، دون استدعاء نموذج. الحاوية والسجلّ والحجز حقيقية. |
+| `build.step_title` | Step {n} of {total}: {step} | الخطوة {n} من {total}: {step} |
+| `build.not_built` | Not built yet. | لم تُبنَ بعد. |
+| `build.approved` | Approved. | تمّت الموافقة. |
+| `build.step_label` | Scripted: fixed change, no model call. Reserved while it ran: {usd}, sized at {model}'s prices, released. Spent: {spent}. | مُبرمَج مسبقاً: تغيير ثابت، دون استدعاء نموذج. حُجز أثناء التشغيل: {usd}، محسوباً بأسعار {model}، ثم أُفرج عنه. المُنفَق: {spent}. |
+| `build.refusal_extra` | Scripted steps spend $0; this is a reservation sized from a real model's price. To go on, ask Claude Code to change the cap (a recorded change), or start a new project. | الخطوات المُبرمَجة مسبقاً تُنفق 0 دولار؛ هذا حجز محسوب من سعر نموذج حقيقي. للمتابعة، اطلب من Claude Code تغيير الحدّ الأقصى (تغيير مُسجَّل)، أو ابدأ مشروعاً جديداً. |
+| `build.line.sandbox` | Sandbox made: the template copied and its history started. No container yet. | أُنشئت بيئة المشروع المعزولة: نُسخ القالب وبدأ سجلّه. لا حاوية بعد. |
+| `build.line.started` | Started. | بدأت. |
+| `build.line.reserved` | Reserved {usd} for up to {turns} turns, sized at {model}'s prices. | حُجز {usd} لما يصل إلى {turns} دورات، محسوباً بأسعار {model}. |
+| `build.line.wrote` | Wrote {path} ({op}). | كُتب {path} ({op}). |
+| `build.line.engine_finished` | The engine finished; the files were checked and committed. | انتهى المحرّك؛ فُحصت الملفات وحُفظت في السجلّ. |
+| `build.line.engine_failed` | The engine stopped: {reason} | توقّف المحرّك: {reason} |
+| `build.line.released` | Released {usd}. Spent in the step: {spent}. | أُفرج عن {usd}. المُنفَق في الخطوة: {spent}. |
+| `build.line.refused` | Refused before it started: the reservation does not fit the cap. | رُفضت قبل أن تبدأ: الحجز لا يتّسع ضمن الحدّ الأقصى. |
+| `build.line.reset` | The workspace was put back to its last commit. | أُعيدت مساحة العمل إلى آخر حفظ في السجلّ. |
+| `build.line.job_finished` | Finished. | انتهت. |
+| `build.line.job_failed` | Failed: {reason} | فشلت: {reason} |
+| `build.line.job_interrupted` | Interrupted: the interface stopped while it ran. | توقّفت: توقّفت الواجهة أثناء تشغيلها. |
+| `build.line.approved` | Approved by you. | وافقتَ عليها. |
+| `preview.title` | Preview | المعاينة |
+| `preview.start` | Start the app for the preview | شغّل التطبيق للمعاينة |
+| `preview.failed` | The last preview failed. Its containers and images were removed; it can be tried again. | فشلت المعاينة الأخيرة. أُزيلت حاوياتها وصورها؛ ويمكن إعادة المحاولة. |
+| `preview.app_running` | The app is running on this machine. | التطبيق يعمل على هذا الجهاز. |
+| `preview.app_stopped` | The app is not running any more. | التطبيق لم يعد يعمل. |
+| `preview.lines` | What the preview job did | ما فعلته مهمة المعاينة |
+| `preview.not_live` | Screenshots, not a live view: the app runs on this machine only, and J1 shows no live view of it. | لقطات شاشة، لا عرض مباشر: يعمل التطبيق على هذا الجهاز فقط، ولا تعرض J1 عرضاً مباشراً له. |
+| `preview.shots` | Screenshots of the running app | لقطات شاشة للتطبيق أثناء تشغيله |
+| `preview.none` | No screenshot yet. | لا توجد لقطة شاشة بعد. |
+| `preview.alt` | The app's page {page} | صفحة التطبيق {page} |
+| `preview.caption` | Screenshot of the running app at {time} UTC. Not live. Sample data. | لقطة شاشة للتطبيق أثناء تشغيله في {time} بالتوقيت العالمي. ليست مباشرة. بيانات نموذجية. |
+| `preview.go_acceptance` | Go to the checklist | انتقل إلى قائمة التحقق |
+| `acceptance.title` | Checklist | قائمة التحقق |
+| `acceptance.run_title` | The checklist run | تشغيل قائمة التحقق |
+| `acceptance.run_intro` | The acceptance runner runs the fixed tests in its own container, against the running app. | يشغّل منفّذ القبول الاختبارات الثابتة في حاويته الخاصة، على التطبيق أثناء تشغيله. |
+| `acceptance.run` | Run the checklist | شغّل قائمة التحقق |
+| `acceptance.run_id` | Run | التشغيل |
+| `acceptance.version` | Tests version | إصدار الاختبارات |
+| `acceptance.exit` | Runner's exit code | رمز خروج المنفّذ |
+| `acceptance.no_container` | no container was started | لم تُشغَّل أي حاوية |
+| `acceptance.summary` | Summary, as the runner's reading wrote it | الملخّص، كما كتبته قراءة المنفّذ |
+| `acceptance.not_run` | The checklist has not been run yet. | لم تُشغَّل قائمة التحقق بعد. |
+| `acceptance.results` | Checklist results | نتائج قائمة التحقق |
+| `acceptance.label` | stand-in test, not independent acceptance | اختبار بديل، وليس قبولاً مستقلاً |
+| `acceptance.sim_note` | The test was written in advance by Claude Code (the AI assistant building this project), not by the builder's acceptance writer. The run itself is real. | كتب Claude Code (مساعد الذكاء الاصطناعي الذي يبني هذا المشروع) الاختبار مسبقاً، وليس كاتب القبول في المُنشئ. التشغيل نفسه حقيقي. |
+| `acceptance.item` | Checklist item | بند قائمة التحقق |
+| `acceptance.result` | Result | النتيجة |
+| `acceptance.status.passed` | Passed | نجح |
+| `acceptance.status.failed` | Failed | فشل |
+| `acceptance.status.did_not_run` | Did not run | لم يُشغَّل |
+| `acceptance.no_test` | No test written yet: did not run. | لم يُكتب اختبار بعد: لم يُشغَّل. |
+| `acceptance.shot_alt` | The runner's screenshot for item {n} | لقطة شاشة المنفّذ للبند {n} |
+| `acceptance.shot_caption` | Taken by the acceptance runner at the end of the test. Sample data. | التقطها منفّذ القبول في نهاية الاختبار. بيانات نموذجية. |
+| `acceptance.sign_off_title` | Sign-off | الاعتماد |
+| `acceptance.sign_off` | Sign off | اعتمد |
+| `acceptance.sign_off_label` | Sign-off on a simulated build, checked by a stand-in test of item 1 only: not acceptance | اعتماد لبناء مُحاكى، فُحص باختبار بديل للبند 1 فقط: ليس قبولاً |
+| `acceptance.signed_off` | Signed off at {time} UTC. | اعتُمد في {time} بالتوقيت العالمي. |
+| `acceptance.sign_off_not_yet` | Sign-off is offered once a checklist run has passed. | يُتاح الاعتماد بعد نجاح تشغيل لقائمة التحقق. |
+| `acceptance.go_export` | Go to the export | انتقل إلى التصدير |
+| `export.title` | Export | التصدير |
+| `export.not_yet` | Export is offered only after sign-off. | يُتاح التصدير بعد الاعتماد فقط. |
+| `export.label` | Internal only, not for customers. Not yet shown to start without the builder (package 3.2): its tables are made by the builder's tools container, and it has no notices file. | للاستخدام الداخلي فقط، وليس للعملاء. لم يُثبَت بعد أنه يعمل دون المُنشئ (الحزمة 3.2): جداوله تُنشئها حاوية أدوات المُنشئ، ولا يحتوي على ملف الإشعارات. |
+| `export.what` | A copy of the project's history, with the checklist's tests added in the copy only, as one .tar.gz file. | نسخة من سجلّ المشروع، مع إضافة اختبارات قائمة التحقق في النسخة فقط، في ملف ‎.tar.gz‎ واحد. |
+| `export.make` | Make the export | أنشئ ملف التصدير |
+| `export.file` | File | الملف |
+| `export.size` | Size | الحجم |
+| `export.bytes` | {n} bytes | {n} بايت |
+| `export.commits` | Commits in the copy | عدد الحفظات في النسخة |
+| `export.acceptance` | Checklist tests | اختبارات قائمة التحقق |
+| `export.acceptance_copy_only` | Version {version}, added in the exported copy only, not in the project's own history. | الإصدار {version}، أُضيف في النسخة المُصدَّرة فقط، وليس في سجلّ المشروع نفسه. |
+| `close.button` | Close project | أغلق المشروع |
+| `close.note` | Closing removes the project's containers, images and folder. Its record stays. | إغلاق المشروع يُزيل حاوياته وصوره ومجلّده. يبقى سجلّه. |
+| `close.done` | This project is closed: its containers, images and folder were removed. Its record stays. | هذا المشروع مغلق: أُزيلت حاوياته وصوره ومجلّده. يبقى سجلّه. |
 
 ### The 20 questions of example 1
 

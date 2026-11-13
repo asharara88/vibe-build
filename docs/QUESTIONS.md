@@ -72,3 +72,7 @@ Claude Code's readings and work, recorded as such, not as your decisions. Detail
 - Package J1: the builder's own sign-in is written by hand with Node's scrypt, for one user, until an engineer reads it (gap 130).
 - Package J1: the question bank shown word for word, its three inconsistencies as written (gap 133); where B2's mapping for example 1 is silent, the answer sheet follows the app spec.
 - Package J1: the builder's own screens in English and Arabic, wording Claude Code's (`docs/arabic-wording-list.md`; gap 134).
+- Package J1: the two cameras as built under your answer A (a): the builder camera in a container of its own on this machine's network, the app camera in the project's runner container; no video, no trace (gap 138).
+- Package J1: sign-off offered only after a checklist run that passed, and labelled as a sign-off on a simulated build checked by a stand-in test of item 1 only.
+- Package J1: the export holds the project's history and, in the exported copy only, the stand-in tests and a note; labelled internal only.
+- Package J1: a build refused below 4 GB of free disk, a floor assumed, not measured (gap 137).

@@ -1,0 +1,9 @@
+The interface's own output during the run (stdout and stderr), with this run's folder written <run folder> and the session proxy's address <session proxy>:
+
+Projects with a job or a sandbox left by an interface that stopped, marked interrupted and removed at start: 0.
+Interface listening on http://127.0.0.1:4020 (password from: env).
+[interface fault] A build_step job failed. {
+  project: 'j1-9bd65400e5c9',
+  job: 'job-be8e690f',
+  error: 'This machine has 2.6 GB free; a build needs at least 4.0 GB (a floor assumed, not measured). The build was not started.'
+}

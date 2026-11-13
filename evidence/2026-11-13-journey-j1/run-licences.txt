@@ -1,4 +1,5 @@
-$ npm run check:licences   (in builder/, builder/ tree d5cce34cdc11183058b4f2c78fd8c51204559925, 13 Nov 2026; no dependency added by J1)
+Package J1, part 2, 13 Nov 2026, builder/ tree 4259eb0d2e4a2570bd078455b6d1cb52bedf1c8e.
+$ npm run check:licences
 
 > builder@0.0.1 check:licences
 > bash scripts/check-licences.sh

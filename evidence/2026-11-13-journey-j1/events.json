@@ -1,0 +1,471 @@
+{
+ "run": "20261113_277ce4",
+ "database": "builder_j1_20261113_277ce4",
+ "note": "Every event of the run's database, in id order. Made-up data only. Paths are of this machine's run folders, removed after the run.",
+ "events": [
+  {
+   "id": "1",
+   "project_id": "j1-9bd65400e5c9",
+   "at": "2026-11-13T13:32:19.858Z",
+   "kind": "intake.brief_entered",
+   "step": null,
+   "payload": {
+    "text": "I need an app where staff can request leave and managers approve it",
+    "characters": 67,
+    "given_to_engine": false
+   }
+  },
+  {
+   "id": "2",
+   "project_id": "j1-9bd65400e5c9",
+   "at": "2026-11-13T13:32:20.004Z",
+   "kind": "intake.continued",
+   "step": null,
+   "payload": {
+    "example": "example-1",
+    "brief_read": false,
+    "restatement": "Staff request leave and their manager approves it, replacing email threads, so that balances are right and HR can see every request in one place.",
+    "simulated_analyst": true
+   }
+  },
+  {
+   "id": "3",
+   "project_id": "j1-9bd65400e5c9",
+   "at": "2026-11-13T13:32:20.540Z",
+   "kind": "intake.answer",
+   "step": null,
+   "payload": {
+    "by": "owner",
+    "turn": 1,
+    "answer": {
+     "option": 0
+    },
+    "question": "q01",
+    "matches_sheet": true,
+    "something_else_logged": false
+   }
+  },
+  {
+   "id": "4",
+   "project_id": "j1-9bd65400e5c9",
+   "at": "2026-11-13T13:32:20.542Z",
+   "kind": "intake.answer",
+   "step": null,
+   "payload": {
+    "by": "owner",
+    "turn": 1,
+    "answer": {
+     "option": 0
+    },
+    "question": "q02",
+    "matches_sheet": false,
+    "something_else_logged": false
+   }
+  },
+  {
+   "id": "5",
+   "project_id": "j1-9bd65400e5c9",
+   "at": "2026-11-13T13:32:20.788Z",
+   "kind": "intake.answer",
+   "step": null,
+   "payload": {
+    "by": "owner",
+    "turn": 2,
+    "answer": {
+     "option": 1
+    },
+    "question": "q03",
+    "matches_sheet": false,
+    "something_else_logged": false
+   }
+  },
+  {
+   "id": "6",
+   "project_id": "j1-9bd65400e5c9",
+   "at": "2026-11-13T13:32:20.790Z",
+   "kind": "intake.answer",
+   "step": null,
+   "payload": {
+    "by": "owner",
+    "turn": 2,
+    "answer": {
+     "option": 0
+    },
+    "question": "q04",
+    "matches_sheet": false,
+    "something_else_logged": false
+   }
+  },
+  {
+   "id": "7",
+   "project_id": "j1-9bd65400e5c9",
+   "at": "2026-11-13T13:32:20.791Z",
+   "kind": "intake.answer",
+   "step": null,
+   "payload": {
+    "by": "owner",
+    "turn": 2,
+    "answer": {
+     "option": 0
+    },
+    "question": "q05",
+    "matches_sheet": true,
+    "something_else_logged": false
+   }
+  },
+  {
+   "id": "8",
+   "project_id": "j1-9bd65400e5c9",
+   "at": "2026-11-13T13:32:21.455Z",
+   "kind": "intake.answer",
+   "step": null,
+   "payload": {
+    "by": "owner",
+    "turn": 3,
+    "answer": {
+     "option": 1
+    },
+    "question": "q06",
+    "matches_sheet": true,
+    "something_else_logged": false
+   }
+  },
+  {
+   "id": "9",
+   "project_id": "j1-9bd65400e5c9",
+   "at": "2026-11-13T13:32:21.456Z",
+   "kind": "intake.answer",
+   "step": null,
+   "payload": {
+    "by": "owner",
+    "turn": 3,
+    "answer": {
+     "fields": [
+      "Employee: Full name",
+      "Employee: Work email",
+      "Employee: Direct manager",
+      "Employee: Annual leave balance (days)",
+      "Leave request: Employee",
+      "Leave request: First day of leave",
+      "Leave request: Last day of leave",
+      "Leave request: Working days requested",
+      "Leave request: Reason",
+      "Leave request: Status",
+      "Leave request: Manager's note"
+     ]
+    },
+    "question": "q07",
+    "matches_sheet": true,
+    "something_else_logged": false
+   }
+  },
+  {
+   "id": "10",
+   "project_id": "j1-9bd65400e5c9",
+   "at": "2026-11-13T13:32:21.457Z",
+   "kind": "intake.answer",
+   "step": null,
+   "payload": {
+    "by": "owner",
+    "turn": 3,
+    "answer": {
+     "option": 0
+    },
+    "question": "q08",
+    "matches_sheet": false,
+    "something_else_logged": false
+   }
+  },
+  {
+   "id": "11",
+   "project_id": "j1-9bd65400e5c9",
+   "at": "2026-11-13T13:32:21.673Z",
+   "kind": "intake.answer",
+   "step": null,
+   "payload": {
+    "by": "owner",
+    "turn": 4,
+    "answer": {
+     "option": 1
+    },
+    "question": "q09",
+    "matches_sheet": true,
+    "something_else_logged": false
+   }
+  },
+  {
+   "id": "12",
+   "project_id": "j1-9bd65400e5c9",
+   "at": "2026-11-13T13:32:21.674Z",
+   "kind": "intake.answer",
+   "step": null,
+   "payload": {
+    "by": "owner",
+    "turn": 4,
+    "answer": {
+     "option": 1
+    },
+    "question": "q10",
+    "matches_sheet": true,
+    "something_else_logged": false
+   }
+  },
+  {
+   "id": "13",
+   "project_id": "j1-9bd65400e5c9",
+   "at": "2026-11-13T13:32:21.675Z",
+   "kind": "intake.answer",
+   "step": null,
+   "payload": {
+    "by": "owner",
+    "turn": 4,
+    "answer": {
+     "option": 2
+    },
+    "question": "q11",
+    "matches_sheet": true,
+    "something_else_logged": false
+   }
+  },
+  {
+   "id": "14",
+   "project_id": "j1-9bd65400e5c9",
+   "at": "2026-11-13T13:32:21.908Z",
+   "kind": "intake.answer",
+   "step": null,
+   "payload": {
+    "by": "owner",
+    "turn": 5,
+    "answer": {
+     "option": 3
+    },
+    "question": "q12",
+    "matches_sheet": true,
+    "something_else_logged": false
+   }
+  },
+  {
+   "id": "15",
+   "project_id": "j1-9bd65400e5c9",
+   "at": "2026-11-13T13:32:21.910Z",
+   "kind": "intake.answer",
+   "step": null,
+   "payload": {
+    "by": "owner",
+    "turn": 5,
+    "answer": {
+     "option": 0
+    },
+    "question": "q13",
+    "matches_sheet": false,
+    "something_else_logged": false
+   }
+  },
+  {
+   "id": "16",
+   "project_id": "j1-9bd65400e5c9",
+   "at": "2026-11-13T13:32:21.911Z",
+   "kind": "intake.answer",
+   "step": null,
+   "payload": {
+    "by": "owner",
+    "turn": 5,
+    "answer": {
+     "option": 1
+    },
+    "question": "q14",
+    "matches_sheet": true,
+    "something_else_logged": false
+   }
+  },
+  {
+   "id": "17",
+   "project_id": "j1-9bd65400e5c9",
+   "at": "2026-11-13T13:32:22.172Z",
+   "kind": "intake.answer",
+   "step": null,
+   "payload": {
+    "by": "owner",
+    "turn": 6,
+    "answer": {
+     "option": 0
+    },
+    "question": "q15",
+    "matches_sheet": true,
+    "something_else_logged": false
+   }
+  },
+  {
+   "id": "18",
+   "project_id": "j1-9bd65400e5c9",
+   "at": "2026-11-13T13:32:22.173Z",
+   "kind": "intake.answer",
+   "step": null,
+   "payload": {
+    "by": "owner",
+    "turn": 6,
+    "answer": {
+     "option": 0
+    },
+    "question": "q16",
+    "matches_sheet": false,
+    "something_else_logged": false
+   }
+  },
+  {
+   "id": "19",
+   "project_id": "j1-9bd65400e5c9",
+   "at": "2026-11-13T13:32:22.174Z",
+   "kind": "intake.answer",
+   "step": null,
+   "payload": {
+    "by": "owner",
+    "turn": 6,
+    "answer": {
+     "option": 0
+    },
+    "question": "q17",
+    "matches_sheet": true,
+    "something_else_logged": false
+   }
+  },
+  {
+   "id": "20",
+   "project_id": "j1-9bd65400e5c9",
+   "at": "2026-11-13T13:32:22.308Z",
+   "kind": "intake.answer",
+   "step": null,
+   "payload": {
+    "by": "owner",
+    "turn": 7,
+    "answer": {
+     "open_text": "Made-up answer typed by the automated run."
+    },
+    "question": "q18",
+    "matches_sheet": false,
+    "something_else_logged": false
+   }
+  },
+  {
+   "id": "21",
+   "project_id": "j1-9bd65400e5c9",
+   "at": "2026-11-13T13:32:22.508Z",
+   "kind": "intake.answer",
+   "step": null,
+   "payload": {
+    "by": "owner",
+    "turn": 8,
+    "answer": {
+     "option": 0
+    },
+    "question": "q19",
+    "matches_sheet": true,
+    "something_else_logged": false
+   }
+  },
+  {
+   "id": "22",
+   "project_id": "j1-9bd65400e5c9",
+   "at": "2026-11-13T13:32:22.509Z",
+   "kind": "intake.answer",
+   "step": null,
+   "payload": {
+    "by": "owner",
+    "turn": 8,
+    "answer": {
+     "option": 2
+    },
+    "question": "q20",
+    "matches_sheet": true,
+    "something_else_logged": false
+   }
+  },
+  {
+   "id": "23",
+   "project_id": "j1-9bd65400e5c9",
+   "at": "2026-11-13T13:32:22.990Z",
+   "kind": "journey.brief_confirmed",
+   "step": null,
+   "payload": {
+    "app_spec": "src/spec/examples/example-1-leave-request.json",
+    "later_items": 2,
+    "app_spec_sha256": "b09cc4240ad1f05a6540380ab72aca381522d6e3ce3698244270a8de1339a4b8",
+    "assumed_choices": 1,
+    "checklist_items": 6,
+    "simulated_analyst": true
+   }
+  },
+  {
+   "id": "24",
+   "project_id": "j1-9bd65400e5c9",
+   "at": "2026-11-13T13:32:23.156Z",
+   "kind": "acceptance.version.written",
+   "step": null,
+   "payload": {
+    "items": [
+     {
+      "file": "item-01.spec.ts",
+      "number": 1,
+      "sha256": "3b69982b044d0737c196337c1836999b5a827e3e22ce1c1f5ac3f39b80ce5d9b"
+     }
+    ],
+    "label": "stand-in test",
+    "version": "v001",
+    "written_by": "stand-in",
+    "app_spec_sha256": "b09cc4240ad1f05a6540380ab72aca381522d6e3ce3698244270a8de1339a4b8",
+    "checklist_items": 6,
+    "manifest_sha256": "afb8bc36ec3f6eb5f6ee5b08dddced02c575c57fde9f056932574ecc4784450b"
+   }
+  },
+  {
+   "id": "25",
+   "project_id": "j1-9bd65400e5c9",
+   "at": "2026-11-13T13:32:23.158Z",
+   "kind": "journey.plan_confirmed",
+   "step": null,
+   "payload": {
+    "steps": [
+     {
+      "step": "01-data",
+      "files": 4,
+      "label": "The data step: the leave-request table, the configuration that names it, and the banner sentence that labels the app as built by the scripted engine"
+     },
+     {
+      "step": "02-submitter-screen",
+      "files": 8,
+      "label": "The submitter's screen: an employee's list of their own requests, and a form to add one, with validation"
+     }
+    ],
+    "stand_in_label": "stand-in test",
+    "acceptance_label": "stand-in test, not independent acceptance",
+    "acceptance_version": "v001",
+    "acceptance_written_by": "stand-in",
+    "quality_gate_after_each_step": "not done (milestone 1)"
+   }
+  },
+  {
+   "id": "26",
+   "project_id": "j1-9bd65400e5c9",
+   "at": "2026-11-13T13:32:23.471Z",
+   "kind": "journey.job.started",
+   "step": "01-data",
+   "payload": {
+    "kind": "build_step",
+    "step": "01-data",
+    "job_id": "job-be8e690f"
+   }
+  },
+  {
+   "id": "27",
+   "project_id": "j1-9bd65400e5c9",
+   "at": "2026-11-13T13:32:23.475Z",
+   "kind": "journey.job.failed",
+   "step": "01-data",
+   "payload": {
+    "kind": "build_step",
+    "job_id": "job-be8e690f",
+    "reason": "This machine has 2.6 GB free; a build needs at least 4.0 GB (a floor assumed, not measured). The build was not started."
+   }
+  }
+ ]
+}

@@ -1,0 +1,58 @@
+J1's automated run, 2026-11-13T13:32:16.550Z (run 20261113_277ce4).
+Builder tree: 4259eb0d2e4a2570bd078455b6d1cb52bedf1c8e (git write-tree --prefix=builder/ of the index at the start of the run).
+Free disk before: /dev/vda        252G   36G  2.7G  94% /
+docker system df before:
+TYPE            TOTAL     ACTIVE    SIZE      RECLAIMABLE
+Images          8         0         2.422GB   2.291GB (94%)
+Containers      0         0         0B        0B
+Local Volumes   4         0         0B        0B
+Build Cache     468       0         17.15GB   14.25GB
+Containers on the machine before (every one, running or not; others belong to other sessions):
+(none)
+J1's containers, images, volumes and networks before: none
+Ports 4020, 3161, 5591 on 127.0.0.1: free before the run (checked by a connection attempt, refused).
+The approved runner image builder-acceptance-runner:local is on the machine (id sha256:8ae4b9c8e9d200130191bb2bb85c7c45007bf26cc73257524ea12899a48bd677); this run neither builds nor removes it.
+Fresh database builder_j1_20261113_277ce4; fresh data folder <run folder>/data.
+A random interface password was made: given to the interface in its environment and to the builder camera as a read-only file (mode 0400). It is not printed or kept.
+The interface started: Interface listening on http://127.0.0.1:4020 (password from: env).
+The builder camera: docker run --rm --name j1-builder-camera-20261113_277ce4 --network host --read-only --tmpfs /tmp:rw,noexec,nosuid,size=512m --cap-drop ALL --security-opt no-new-privileges:true --pids-limit 256 --memory 1g --user runner --workdir /runner --entrypoint node --volume /tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad/wt-j1/builder/camera/builder-shots.mjs:/camera/builder-shots.mjs:ro --volume <run folder>/camera-out:/shots --volume <run folder>/secret/ui-password:/run/secrets/ui-password:ro builder-acceptance-runner:local /camera/builder-shots.mjs
+  PASSED: a visitor not signed in who opens /projects gets the sign-in page
+  PASSED: a visitor not signed in who opens /projects/new gets the sign-in page
+  PASSED: a visitor not signed in who opens / gets the sign-in page
+  PASSED: the sign-in page has one password field
+  PASSED: the mode line says the real-model gate is closed
+  PASSED: a wrong password is refused
+  PASSED: signed in, at the projects page
+  PASSED: the project is made, at its brief
+  project j1-9bd65400e5c9: Leave requests (made-up), cap $5.00
+  PASSED: the brief is shown as typed
+  PASSED: continued as example 1, at the questions
+  PASSED: every turn answered in the chat, 8 turns
+  PASSED: the proposed app shows its seven sections, the Later list and the assumed choice
+  PASSED: brief confirmed, at the build steps
+  PASSED: the plan has the two steps
+  PASSED: plan confirmed; tests fixed as v001, stand-in test, not independent acceptance
+  FAILED: step 1 built (What you will be shown: The data step: the leave-request table, the configuration that names it, and the banner sentence that labels the app as built by the scripted engine Started.Failed: This machine has 2.6 GB free; a build needs at least 4.0 GB (a floor assumed, not measured). The build was not started.)
+  PASSED: cost, after the stop: $0.00 spent, no freeze, an empty unreconciled list
+  PASSED: the record, after the stop: every event, in id order
+  PASSED: signed out
+  PASSED: nothing but 127.0.0.1:4020 was loaded
+The builder camera ended with exit code 1; checks: 19 passed, 1 failed.
+Screenshots copied into the evidence folder: 21 of 21.
+Events written to events.json: 27, in id order, for 1 projects.
+The export was not downloaded, or has no event.
+Free space on the data folder's disk, sampled every 2 s (3 samples): 2.60 GB at the start, 2.60 GB at the lowest, 2.59 GB at the end, before the clean-up (GB of 1024^3 bytes).
+J1's containers, images, volumes and networks left when the interface stopped: none
+Sandbox folders the run's events record: 0; still there when the interface stopped: 0. Other sandbox folders made during the run and left: none.
+Run folder (data, camera output, password file) removed: yes. Database builder_j1_20261113_277ce4 dropped.
+Containers on the machine after (every one): (none)
+J1's containers, images, volumes and networks after: none
+Free disk after: /dev/vda        252G   36G  2.6G  94% /
+docker system df after:
+TYPE            TOTAL     ACTIVE    SIZE      RECLAIMABLE
+Images          8         0         2.422GB   2.291GB (94%)
+Containers      0         0         0B        0B
+Local Volumes   4         0         0B        0B
+Build Cache     468       0         17.15GB   14.25GB
+Projects the camera made: j1-9bd65400e5c9.
+Result: NOT every check passed (exit code 1).
