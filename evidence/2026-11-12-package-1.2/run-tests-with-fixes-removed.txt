@@ -848,3 +848,340 @@ Restored with `git checkout -- builder/src/gateway/app.ts`; `git diff --exit-cod
 ====================================================================================================
 Controls whose test failed with the safeguard removed: 14 of 14.
 Tracked files changed after the last control: none
+
+====================================================================================================
+====================================================================================================
+Controls 15 to 20, added 13 Nov 2026: the fixes made after that day's review, each removed in turn
+
+Commit: 867cebd. Run on the development machine (a cloud session), on the host, against the stand-in provider and the test database builder_test_pkg12.
+The method is the same as above: one fix removed by an exact text change, shown as git shows it; the fix's test run with
+`npx vitest run test/gateway.test.ts -t <the test>` (it is expected to FAIL); the file restored with `git checkout --`; and
+`git diff --exit-code` run to show that nothing is left changed. No control was committed.
+Tracked files changed before the first control: none
+
+====================================================================================================
+Control 15 (of 15 to 20): finding 1 of the review of 13 Nov (forwarding failures)
+Fix removed: Every failure of the forward is taken to mean nothing was sent (as before the fix)
+File: builder/src/gateway/app.ts
+
+The change, as `git diff` shows it:
+diff --git a/builder/src/gateway/app.ts b/builder/src/gateway/app.ts
+index 89b1c91..138adfc 100644
+--- a/builder/src/gateway/app.ts
++++ b/builder/src/gateway/app.ts
+@@ -89,7 +89,7 @@ function rejectedBeforeWork(status: number, text: string): boolean {
+ const NOTHING_SENT = new Set(["ENOTFOUND", "ECONNREFUSED", "UND_ERR_CONNECT_TIMEOUT"]);
+ const failedBeforeSending = (err: unknown): boolean => {
+   const code = errorSummary(err).code;
+-  return typeof code === "string" && NOTHING_SENT.has(code);
++  return true; // CONTROL: every failure taken to mean nothing was sent
+ };
+ 
+ /** Deeper than any answer the provider documents; when a body has to be cleaned and written out again, a value nested further is cut off, not walked. */
+
+$ cd builder && npx vitest run test/gateway.test.ts -t 'drops the connection' --reporter=verbose   (skipped tests left out below)
+
+ RUN  v5.1.0 /home/user/vibe-build/builder
+
+ × test/gateway.test.ts > holds: a call that ends without readable usage keeps its hold open > a provider that reads the whole request and then drops the connection: the hold is kept, recorded as possibly billed, not as unreachable 75ms
+   → expected 'The gateway could not reach the model…' to contain 'failed after the request was sent, or…'
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/gateway.test.ts > holds: a call that ends without readable usage keeps its hold open > a provider that reads the whole request and then drops the connection: the hold is kept, recorded as possibly billed, not as unreachable
+AssertionError: expected 'The gateway could not reach the model…' to contain 'failed after the request was sent, or…'
+
+Expected: "failed after the request was sent, or may have been sent"
+Received: "The gateway could not reach the model provider."
+
+ ❯ test/gateway.test.ts:456:23
+    454|       expect(res.status).toBe(502);
+    455|       const message = ((await res.json()) as { error: { message: strin…
+    456|       expect(message).toContain("failed after the request was sent, or…
+       |                       ^
+    457|       expect(message).not.toMatch(/could not reach|unreachable/);
+    458|       expect(received).toBe(1); // the provider's stand-in did receive…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 84 skipped (85)
+   Start at  04:05:10
+   Duration  405ms (transform 48%, tests 32%, import 19%, worker 1%)
+exit code: 1  (FAILED, as expected)
+Restored with `git checkout -- builder/src/gateway/app.ts`; `git diff --exit-code`: exit code 0 (clean)
+
+====================================================================================================
+Control 16 (of 15 to 20): finding 3 (fast mode), the plain path
+Fix removed: A plain answer whose usage leaves the speed out is settled although the hold allowed for fast mode
+File: builder/src/gateway/app.ts
+
+The change, as `git diff` shows it:
+diff --git a/builder/src/gateway/app.ts b/builder/src/gateway/app.ts
+index 89b1c91..3355a1f 100644
+--- a/builder/src/gateway/app.ts
++++ b/builder/src/gateway/app.ts
+@@ -596,7 +596,7 @@ export function createGateway(opts: GatewayOptions) {
+         const u = mergeUsage(emptyUsage(), j.usage);
+         // An answer that says no prompt tokens at all were used is not a bill that can be trusted.
+         if (u.input_tokens + u.cache_creation_input_tokens + u.cache_read_input_tokens > 0) {
+-          if (fastHeld && !statesSpeed(j.usage)) speedNotStated = true;
++          if (false) speedNotStated = true; // CONTROL: the speed not required
+           else {
+             usage = u;
+             itemised = itemisedCacheWrites(j.usage);
+
+$ cd builder && npx vitest run test/gateway.test.ts -t 'fast mode: a plain answer' --reporter=verbose   (skipped tests left out below)
+
+ RUN  v5.1.0 /home/user/vibe-build/builder
+
+ × test/gateway.test.ts > holds: found by the review of 13 Nov 2026, and kept fixed > fast mode: a plain answer whose usage leaves the speed out keeps a hold that allowed for fast mode; one that states the speed is settled at that speed 2151ms
+   → expected [] to have a length of 1 but got +0
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/gateway.test.ts > holds: found by the review of 13 Nov 2026, and kept fixed > fast mode: a plain answer whose usage leaves the speed out keeps a hold that allowed for fast mode; one that states the speed is settled at that speed
+AssertionError: expected [] to have a length of 1 but got +0
+
+- Expected
++ Received
+
+- 1
++ 0
+
+ ❯ keptFor test/gateway.test.ts:1362:18
+    1360|   const keptFor = async (id: string, reason: string) => {
+    1361|     const kept = await waitForEvents(id, "hold.kept", 1);
+    1362|     expect(kept).toHaveLength(1);
+       |                  ^
+    1363|     expect((kept[0]!.payload as { reason: string }).reason).toBe(reaso…
+    1364|     expect(await listEvents(pool, id, "hold.settled")).toHaveLength(0);
+ ❯ test/gateway.test.ts:1384:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 84 skipped (85)
+   Start at  04:05:11
+   Duration  2.46s (tests 93%, transform 4%, import 3%)
+exit code: 1  (FAILED, as expected)
+Restored with `git checkout -- builder/src/gateway/app.ts`; `git diff --exit-code`: exit code 0 (clean)
+
+====================================================================================================
+Control 17 (of 15 to 20): finding 3 (fast mode), the stream path
+Fix removed: A stream whose usage leaves the speed out is settled although the hold allowed for fast mode
+File: builder/src/gateway/app.ts
+
+The change, as `git diff` shows it:
+diff --git a/builder/src/gateway/app.ts b/builder/src/gateway/app.ts
+index 89b1c91..1126f2a 100644
+--- a/builder/src/gateway/app.ts
++++ b/builder/src/gateway/app.ts
+@@ -547,7 +547,8 @@ export function createGateway(opts: GatewayOptions) {
+               else if (sawError) await keep("the provider reported an error inside the stream", usage, res.status, servedModel);
+               else if (!sawStop) await keep("the stream ended without the provider's end-of-message marker, so its figures may be partial", usage, res.status, servedModel);
+               else if (sawInput && sawOutput && !sawUnreadable && usage.input_tokens + usage.cache_creation_input_tokens + usage.cache_read_input_tokens > 0) {
+-                if (fastHeld && !speedStated) await keep(`the stream ended without usage figures that could be read: ${SPEED_NOT_STATED}`, usage, res.status, servedModel);
++                if (false) await keep( // CONTROL: the speed not required
++`the stream ended without usage figures that could be read: ${SPEED_NOT_STATED}`, usage, res.status, servedModel);
+                 else await settle(usage, res.status, servedModel, {}, itemised);
+               } else await keep("the stream ended without usage figures that could be read", usage, res.status, servedModel);
+               ctrl.close();
+
+$ cd builder && npx vitest run test/gateway.test.ts -t 'fast mode: the same on a stream' --reporter=verbose   (skipped tests left out below)
+
+ RUN  v5.1.0 /home/user/vibe-build/builder
+
+ × test/gateway.test.ts > holds: found by the review of 13 Nov 2026, and kept fixed > fast mode: the same on a stream 2133ms
+   → expected [] to have a length of 1 but got +0
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/gateway.test.ts > holds: found by the review of 13 Nov 2026, and kept fixed > fast mode: the same on a stream
+AssertionError: expected [] to have a length of 1 but got +0
+
+- Expected
++ Received
+
+- 1
++ 0
+
+ ❯ keptFor test/gateway.test.ts:1362:18
+    1360|   const keptFor = async (id: string, reason: string) => {
+    1361|     const kept = await waitForEvents(id, "hold.kept", 1);
+    1362|     expect(kept).toHaveLength(1);
+       |                  ^
+    1363|     expect((kept[0]!.payload as { reason: string }).reason).toBe(reaso…
+    1364|     expect(await listEvents(pool, id, "hold.settled")).toHaveLength(0);
+ ❯ test/gateway.test.ts:1479:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 84 skipped (85)
+   Start at  04:05:14
+   Duration  2.38s (tests 94%, transform 3%, import 2%)
+exit code: 1  (FAILED, as expected)
+Restored with `git checkout -- builder/src/gateway/app.ts`; `git diff --exit-code`: exit code 0 (clean)
+
+====================================================================================================
+Control 18 (of 15 to 20): finding 4 (cache writes not itemised)
+Fix removed: Cache writes the answer does not itemise are always priced at the five-minute rate (as before the fix)
+File: builder/src/gateway/cost.ts
+
+The change, as `git diff` shows it:
+diff --git a/builder/src/gateway/cost.ts b/builder/src/gateway/cost.ts
+index 5845340..46b99e4 100644
+--- a/builder/src/gateway/cost.ts
++++ b/builder/src/gateway/cost.ts
+@@ -65,7 +65,7 @@ export function itemisedCacheWrites(part: ProviderUsage): number | null {
+  */
+ export function usageAsPriced(u: Usage, itemised: number | null, oneHourPossible: boolean): { usage: Usage; notItemised: number } {
+   const notItemised = Math.max(0, u.cache_creation_input_tokens - (itemised ?? 0));
+-  if (notItemised === 0 || !oneHourPossible) return { usage: u, notItemised };
++  return { usage: u, notItemised }; // CONTROL: always the five-minute rate
+   return { usage: { ...u, cache_creation_1h_tokens: Math.min(u.cache_creation_input_tokens, u.cache_creation_1h_tokens + notItemised) }, notItemised };
+ }
+
+$ cd builder && npx vitest run test/gateway.test.ts -t 'cache writes the answer does not split' --reporter=verbose   (skipped tests left out below)
+
+ RUN  v5.1.0 /home/user/vibe-build/builder
+
+ × test/gateway.test.ts > holds: found by the review of 13 Nov 2026, and kept fixed > cache writes the answer does not split into five-minute and one-hour are priced at the one-hour rate, unless the request asks for no one-hour cache anywhere 62ms
+   → expected 0.03 to be less than 5e-7
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/gateway.test.ts > holds: found by the review of 13 Nov 2026, and kept fixed > cache writes the answer does not split into five-minute and one-hour are priced at the one-hour rate, unless the request asks for no one-hour cache anywhere
+AssertionError: expected 0.03 to be less than 5e-7
+ ❯ near test/gateway.test.ts:280:64
+    278| }
+    279| const kinds = async (id: string) => (await listEvents(pool, id)).map((…
+    280| const near = (a: number, b: number) => expect(Math.abs(a - b)).toBeLes…
+       |                                                                ^
+    281|
+    282| describe("model gateway: key and metering", () => {
+ ❯ test/gateway.test.ts:1422:7
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 84 skipped (85)
+   Start at  04:05:17
+   Duration  348ms (tests 37%, transform 36%, import 26%, worker 1%)
+exit code: 1  (FAILED, as expected)
+Restored with `git checkout -- builder/src/gateway/cost.ts`; `git diff --exit-code`: exit code 0 (clean)
+
+====================================================================================================
+Control 19 (of 15 to 20): finding 5 (a caller that leaves before anything is forwarded)
+Fix removed: No check that the caller has left before the call is forwarded (as before the fix)
+File: builder/src/gateway/app.ts
+
+The change, as `git diff` shows it:
+diff --git a/builder/src/gateway/app.ts b/builder/src/gateway/app.ts
+index 89b1c91..e195417 100644
+--- a/builder/src/gateway/app.ts
++++ b/builder/src/gateway/app.ts
+@@ -423,7 +423,7 @@ export function createGateway(opts: GatewayOptions) {
+     // call itself has not been forwarded, so the hold is settled at nothing with that reason. No
+     // await stands between this check and the forward below, so the caller cannot leave in between
+     // unseen; once the forward has begun, any ending keeps the hold as below (review of 13 Nov 2026).
+-    if (clientGone.aborted) {
++    if (false) { // CONTROL: the caller's leaving not checked before forwarding
+       ended = true;
+       try {
+         await releaseUnsentHold(opts.pool, { projectId: project.id, holdId, step, reason: "the caller left before anything was sent to the provider" });
+
+$ cd builder && npx vitest run test/gateway.test.ts -t 'a caller that leaves before anything is forwarded' --reporter=verbose   (skipped tests left out below)
+
+ RUN  v5.1.0 /home/user/vibe-build/builder
+
+ × test/gateway.test.ts > holds: found by the review of 13 Nov 2026, and kept fixed > a caller that leaves before anything is forwarded: the hold is settled at nothing, with the reason, and nothing reaches the provider 2220ms
+   → expected [] to have a length of 1 but got +0
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/gateway.test.ts > holds: found by the review of 13 Nov 2026, and kept fixed > a caller that leaves before anything is forwarded: the hold is settled at nothing, with the reason, and nothing reaches the provider
+AssertionError: expected [] to have a length of 1 but got +0
+
+- Expected
++ Received
+
+- 1
++ 0
+
+ ❯ test/gateway.test.ts:1439:23
+    1437|       await leaving;
+    1438|       const settled = await waitForEvents(id, "hold.settled", 1);
+    1439|       expect(settled).toHaveLength(1);
+       |                       ^
+    1440|       expect(settled[0]!.payload).toMatchObject({ actual_usd: 0, forwa…
+    1441|       expect(await kinds(id)).toEqual(["hold.opened", "hold.settled"])…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 84 skipped (85)
+   Start at  04:05:18
+   Duration  2.52s (tests 93%, import 4%, transform 3%)
+exit code: 1  (FAILED, as expected)
+Restored with `git checkout -- builder/src/gateway/app.ts`; `git diff --exit-code`: exit code 0 (clean)
+
+====================================================================================================
+Control 20 (of 15 to 20): finding 6 (the budget-reached message)
+Fix removed: Each figure rounded to the nearest cent (as before the fix)
+File: builder/src/gateway/app.ts
+
+The change, as `git diff` shows it:
+diff --git a/builder/src/gateway/app.ts b/builder/src/gateway/app.ts
+index 89b1c91..40970a2 100644
+--- a/builder/src/gateway/app.ts
++++ b/builder/src/gateway/app.ts
+@@ -121,8 +121,8 @@ const STRIP = new Set(["host", "connection", "content-length", "transfer-encodin
+ const FORWARDED_HEADERS = ["content-type", "accept", "anthropic-version", "anthropic-beta", "user-agent"];
+ 
+ /** An amount in dollars shown to the cent, rounded up or down. Worked in millionths of a dollar, as the budget is. */
+-const centsUp = (usd: number): string => (Math.ceil(Math.round(usd * 1e6) / 10_000) / 100).toFixed(2);
+-const centsDown = (usd: number): string => (Math.floor(Math.round(usd * 1e6) / 10_000) / 100).toFixed(2);
++const centsUp = (usd: number): string => usd.toFixed(2); // CONTROL: nearest cent
++const centsDown = (usd: number): string => usd.toFixed(2); // CONTROL: nearest cent
+ 
+ type ErrorBody = { type: "error"; error: { type: string; message: string } };
+ const errorBody = (type: string, message: string): ErrorBody => ({ type: "error", error: { type, message } });
+
+$ cd builder && npx vitest run test/gateway.test.ts -t 'the budget-reached message rounds' --reporter=verbose   (skipped tests left out below)
+
+ RUN  v5.1.0 /home/user/vibe-build/builder
+
+ × test/gateway.test.ts > holds: found by the review of 13 Nov 2026, and kept fixed > the budget-reached message rounds so that its figures never appear to fit the cap 46ms
+   → expected 'This project has reached its budget o…' to be 'This project has reached its budget o…' // Object.is equality
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/gateway.test.ts > holds: found by the review of 13 Nov 2026, and kept fixed > the budget-reached message rounds so that its figures never appear to fit the cap
+AssertionError: expected 'This project has reached its budget o…' to be 'This project has reached its budget o…' // Object.is equality
+
+Expected: "This project has reached its budget of $0.05 (spent $0.03, with $0.03 held for work in progress or awaiting reconciliation; this call needed up to $0.01). The gateway will forward nothing more until the budget is raised."
+Received: "This project has reached its budget of $0.05 (spent $0.02, with $0.02 held for work in progress or awaiting reconciliation; this call needed up to $0.01). The gateway will forward nothing more until the budget is raised."
+
+ ❯ test/gateway.test.ts:1465:21
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 84 skipped (85)
+   Start at  04:05:21
+   Duration  309ms (transform 38%, tests 32%, import 29%, worker 1%)
+exit code: 1  (FAILED, as expected)
+Restored with `git checkout -- builder/src/gateway/app.ts`; `git diff --exit-code`: exit code 0 (clean)
+
+====================================================================================================
+Controls 15 to 20 whose test failed with the fix removed: 6 of 6.
+Tracked files changed after the last control: none
