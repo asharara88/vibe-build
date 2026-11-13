@@ -4,7 +4,7 @@
 | --- | --- |
 | Supplied | By the owner, Ahmed Sharara, in the working session of 13 November 2026. Who wrote it is not stated; under the working rule of 12 Nov (`docs/DECISIONS.md`) it is recorded as supplied by the owner, and his own approval of anything in it is kept separate |
 | What it read | Integration commit `0e8e1f9`, "including source changes and recorded evidence". In its own words: "I did not independently rerun the tests" |
-| How it was checked | Read by Claude Code against the repository at `0e8e1f9` (file and line below), and pull request #12's state read from GitHub's API on 13 Nov 2026. Read-only. Not yet re-read by a fresh reviewer |
+| How it was checked | Read by Claude Code against the repository at `0e8e1f9` (file and line below), and pull request #12's state read from GitHub's API on 13 Nov 2026. Read-only. Read by fresh reviewers on 13 Nov and corrected on their findings; the corrected text is not yet re-read |
 | This file | The review's text as supplied, then each claim checked, and what was done |
 
 ## The review as supplied
