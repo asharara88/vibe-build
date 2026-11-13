@@ -80,7 +80,7 @@ if (!listing) {
 
 const usd = (n: number) => `$${n.toFixed(6)}`;
 /** One line of text: an owner's or a gateway's words, with line breaks and control characters shown as spaces. */
-const line = (s: unknown) => String(s).replace(/[\u0000-\u001f\u007f]+/g, " ");
+const line = (s: unknown) => String(s).replace(/[\u0000-\u001f\u007f-\u009f]+/g, " ");
 
 function printHold(h: UnreconciledHold): void {
   console.log(`  hold ${h.holdId}: ${usd(h.amountUsd)} held, counted in full until reconciled`);

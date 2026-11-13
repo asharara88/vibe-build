@@ -503,6 +503,18 @@ describe("package 1.5: the unreconciled list and the owner's reconciliation, pro
     }
   }, 60_000);
 
+  it("1.5, after its review: the script prints an owner's words with their control characters, C1 ones included, as spaces; the event log keeps them as given", async () => {
+    const p = await newProject(1);
+    const due = await hold(p.id, { deadline: earlier() });
+    // Made up: a terminal's colour escape in its two forms (ESC [ and the one-character CSI, U+009B) and a C1 line break (U+0085).
+    const evidence = "Usage record (made up)\u001b[31m red\u009b31m also red\u0085next line";
+    const done = await runScript(["--hold", due, "--actual", BILL_USD.toFixed(6), "--evidence", evidence, "--asked-by", WHO.askedBy, "--by", WHO.recordedBy, "--reason", WHO.reason]);
+    expect(done.code).toBe(0);
+    expect(done.out).toContain("evidence:      Usage record (made up) [31m red 31m also red next line");
+    expect(done.out).not.toMatch(/[\u0000-\u0009\u000b-\u001f\u007f-\u009f]/);
+    expect((await listEvents(pool, p.id, "hold.reconciled"))[0]!.payload).toMatchObject({ evidence });
+  }, 60_000);
+
   it("1.5: each reason the kinds table names is still written by the gateway or the store", async () => {
     const src = (await Promise.all(["src/gateway/app.ts", "src/store/holds.ts", "src/store/freezes.ts"].map((f) => readFile(join(BUILDER_DIR, f), "utf8")))).join("\n");
     const all = Object.values(KNOWN_KEPT_REASONS).flat();
