@@ -1,0 +1,25 @@
+$ npx tsx <scratch>/f31b-work/scripts/tunnel-issuer.mts <the recorded address>   (in builder/; the fetch's own request code, requestThroughEnv, one HEAD request through the session's proxy; nothing downloaded)
+2026-11-13T11:27:33.503Z HEAD storage.googleapis.com: answered 200, through the proxy at 127.0.0.1:36339 (HTTPS_PROXY); content-length 119809080; certificate for storage.googleapis.com, issued by O=Google Trust Services, CN=WE2
+exit code: 0
+
+$ curl --noproxy '*' -sS -I -v --max-time 20 <the recorded address>   (the same request without the session's proxy, for the contrast; only the certificate lines and the status line kept)
+*  subject: CN=*.googleapis.com
+*  issuer: O=Anthropic; CN=Egress Gateway SDS Issuing CA (production)
+< HTTP/2 200 
+exit code: 0
+ended 2026-11-13T11:27:33Z
+
+The script, kept here as text (it is not part of the builder; it imports requestThroughEnv from the worktree's builder/src/acceptance/browser-fetch.ts):
+
+// One HEAD request through the fetch's own request code (requestThroughEnv), printing who issued the
+// certificate the far end showed. Through the proxy's tunnel, TLS runs end to end with the host itself.
+import { requestThroughEnv } from "../../wt-31b/builder/src/acceptance/browser-fetch.ts";
+const target = new URL(process.argv[2]!);
+const ctl = new AbortController();
+const t = setTimeout(() => ctl.abort(), 30_000);
+const { res, via } = await requestThroughEnv(target, process.env, ctl.signal, "HEAD");
+const cert = (res.socket as import("node:tls").TLSSocket).getPeerCertificate?.();
+console.log(`${new Date().toISOString()} HEAD ${target.host}: answered ${res.statusCode}, ${via}; content-length ${res.headers["content-length"]}; certificate for ${cert?.subject?.CN}, issued by O=${cert?.issuer?.O}, CN=${cert?.issuer?.CN}`);
+res.resume();
+clearTimeout(t);
+process.exit(0);

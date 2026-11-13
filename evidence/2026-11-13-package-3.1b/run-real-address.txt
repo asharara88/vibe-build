@@ -1,0 +1,67 @@
+$ npx tsx <scratch>/tunnel-check.ts https://registry.npmjs.org/-/ping   (in builder/; the fetch's own request code, src/acceptance/browser-fetch.ts requestThroughEnv, one HEAD request to a host the session's proxy lets through)
+node:internal/modules/run_main:123
+    triggerUncaughtException(
+    ^
+
+Error: Transform failed with 1 error:
+<scratch>/p31b-work/tunnel-check.ts:5:21: ERROR: Top-level await is currently not supported with the "cjs" output format
+    at failureErrorWithLog (<scratch>/wt-31b/builder/node_modules/esbuild/lib/main.js:1752:15)
+    at <scratch>/wt-31b/builder/node_modules/esbuild/lib/main.js:1019:50
+    at responseCallbacks.<computed> (<scratch>/wt-31b/builder/node_modules/esbuild/lib/main.js:886:9)
+    at handleIncomingPacket (<scratch>/wt-31b/builder/node_modules/esbuild/lib/main.js:941:12)
+    at Socket.readFromStdout (<scratch>/wt-31b/builder/node_modules/esbuild/lib/main.js:864:7)
+    at Socket.emit (node:events:519:28)
+    at addChunk (node:internal/streams/readable:561:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:512:3)
+    at Readable.push (node:internal/streams/readable:392:5)
+    at Pipe.onStreamRead (node:internal/stream_base_commons:189:23) {
+  name: 'TransformError'
+}
+
+Node.js v22.23.4
+exit code: 1
+
+$ BUILDER_BROWSER_CACHE=<scratch>/p31b-tmp/real-try-cache npx tsx scripts/fetch-browser.ts   (in builder/; the script, one try at the recorded address, into a new empty folder; no retry)
+Fetching the approved browser zip from https://storage.googleapis.com/chrome-for-testing-public/153.0.8010.12/linux64/chrome-headless-shell-linux64.zip into <scratch>/p31b-tmp/real-try-cache, 2026-11-13T10:04:22.961Z.
+Asking https://storage.googleapis.com/chrome-for-testing-public/153.0.8010.12/linux64/chrome-headless-shell-linux64.zip for the zip.
+It answered 200, through the proxy at 127.0.0.1:46619 (HTTPS_PROXY).
+Put in place: <scratch>/p31b-tmp/real-try-cache/chrome-headless-shell-linux64.zip, 119809080 bytes, SHA-256 a9da028861a0cf789ff25c2fed45f5f1aaf969ed9247835b6a7821a4f7af9d1d (the approved zip).
+Done: the approved zip was fetched through the proxy at 127.0.0.1:46619 (HTTPS_PROXY).
+node:events:497
+      throw er; // Unhandled 'error' event
+      ^
+
+Error: read ECONNRESET
+    at TCP.onStreamRead (node:internal/stream_base_commons:216:20)
+Emitted 'error' event on Socket instance at:
+    at emitErrorNT (node:internal/streams/destroy:170:8)
+    at emitErrorCloseNT (node:internal/streams/destroy:129:3)
+    at process.processTicksAndRejections (node:internal/process/task_queues:89:21) {
+  errno: -104,
+  code: 'ECONNRESET',
+  syscall: 'read'
+}
+
+Node.js v22.23.4
+exit code: 1
+Left in the folder after the try: [chrome-headless-shell-linux64.zip ]
+ended 2026-11-13T10:04:30Z
+
+=== Second try, after the fix (see the evidence summary: the first try's request did not go through the tunnel) ===
+$ curl --noproxy '*' -sS -o /dev/null -w '%{http_code}' --max-time 20 https://registry.npmjs.org/-/ping   (does this machine reach a host directly, without the session's proxy? asked of the package registry, not of the zip's address)
+200
+exit code: 0
+
+$ npx tsx <scratch>/tunnel-check.mts https://registry.npmjs.org/-/ping   (the fetch's own request code, requestThroughEnv, one HEAD request through the session's proxy)
+2026-11-13T10:09:39.569Z HEAD https://registry.npmjs.org/-/ping: answered 200 OK, directly
+exit code: 0
+
+$ BUILDER_BROWSER_CACHE=<scratch>/p31b-tmp/real-try-cache npx tsx scripts/fetch-browser.ts   (the script as fixed; one try; a new empty folder)
+Fetching the approved browser zip from https://storage.googleapis.com/chrome-for-testing-public/153.0.8010.12/linux64/chrome-headless-shell-linux64.zip into <scratch>/p31b-tmp/real-try-cache, 2026-11-13T10:09:39.940Z.
+Asking https://storage.googleapis.com/chrome-for-testing-public/153.0.8010.12/linux64/chrome-headless-shell-linux64.zip for the zip.
+It answered 200, through the proxy at 127.0.0.1:46619 (HTTPS_PROXY).
+Put in place: <scratch>/p31b-tmp/real-try-cache/chrome-headless-shell-linux64.zip, 119809080 bytes, SHA-256 a9da028861a0cf789ff25c2fed45f5f1aaf969ed9247835b6a7821a4f7af9d1d (the approved zip).
+Done: the approved zip was fetched through the proxy at 127.0.0.1:46619 (HTTPS_PROXY).
+exit code: 0
+Left in the folder after the try: [chrome-headless-shell-linux64.zip ]
+ended 2026-11-13T10:09:44Z
