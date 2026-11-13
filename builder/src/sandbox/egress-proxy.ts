@@ -2,14 +2,15 @@
  * The egress proxy: the only way out of a project's containers.
  * - Server profile: it runs in its own container on the project's `out` network and on an ordinary
  *   bridge, and connects directly (designed, not shown: package 0.6b).
- * - Development profile (package 0.6c): it runs on the machine's network (`egress-machine-main.ts`) and
+ * - Development profile (package 0.6c): it runs on the machine's network (`egress-machine.ts`) and
  *   listens only on a Unix socket in the project's socket folder, which a small door container on the
  *   project's `out` network forwards to, and on one port of the machine's loopback address for the image
  *   build. It goes out only through the cloud session's proxy; it refuses to start without one.
  *
- * It is a plain HTTP proxy that allows exactly the hosts it is told to allow and refuses
- * everything else, logging each decision as one JSON line. It handles HTTPS by tunnelling
- * (the CONNECT method), so it never sees or alters the content of an HTTPS exchange.
+ * It is a plain HTTP proxy that allows exactly the hosts it is told to allow, on one port each way (a tunnel
+ * to port 443, plain HTTP to port 80; package 0.6c, after its review), and refuses everything else, logging
+ * each decision as one JSON line. It handles HTTPS by tunnelling (the CONNECT method), so it never sees or
+ * alters the content of an HTTPS exchange.
  *
  * Its way out is set explicitly (`parseUpstream`): the word "direct", accepted only where the caller
  * allows it (the server profile), or a proxy's address with a host and a port. An empty, missing or
@@ -80,6 +81,14 @@ export function hostAllowed(host: string, allow: string[]): boolean {
   });
 }
 
+/**
+ * The one port the proxy opens for an allowed host (package 0.6c, after its review): a tunnel (CONNECT) goes to
+ * port 443 only, and a plain-HTTP request to an http:// address on port 80 only. Before this, the list held hosts
+ * only, and a tunnel to an allowed host on any port, such as 22 or 5432, was passed on.
+ */
+export const TUNNEL_PORT = 443;
+export const PLAIN_HTTP_PORT = 80;
+
 export function createEgressProxy(opts: EgressOptions): http.Server {
   const log = opts.log ?? ((r: EgressRecord) => process.stdout.write(JSON.stringify(r) + "\n"));
   const upstream = opts.upstreamProxy === undefined ? null : parseUpstream(opts.upstreamProxy, { allowDirect: false });
@@ -96,10 +105,15 @@ export function createEgressProxy(opts: EgressOptions): http.Server {
       res.writeHead(400).end("bad request");
       return;
     }
-    const port = Number(target.port || 80);
+    const port = Number(target.port || (target.protocol === "https:" ? 443 : 80));
     if (!hostAllowed(target.hostname, opts.allow)) {
       record(req.method ?? "GET", target.hostname, port, "refused");
       res.writeHead(403, { "content-type": "text/plain" }).end(`egress refused: ${target.hostname} is not an allowed host\n`);
+      return;
+    }
+    if (target.protocol !== "http:" || port !== PLAIN_HTTP_PORT) {
+      record(req.method ?? "GET", target.hostname, port, "refused", "port");
+      res.writeHead(403, { "content-type": "text/plain" }).end(`egress refused: plain HTTP goes to an http:// address on port ${PLAIN_HTTP_PORT} only\n`);
       return;
     }
     record(req.method ?? "GET", target.hostname, port, "allowed");
@@ -124,6 +138,12 @@ export function createEgressProxy(opts: EgressOptions): http.Server {
     if (!hostAllowed(host, opts.allow)) {
       record("CONNECT", host, port, "refused");
       clientSocket.write("HTTP/1.1 403 Forbidden\r\nContent-Type: text/plain\r\n\r\n" + `egress refused: ${host} is not an allowed host\n`);
+      clientSocket.destroy();
+      return;
+    }
+    if (port !== TUNNEL_PORT) {
+      record("CONNECT", host, port, "refused", "port");
+      clientSocket.write("HTTP/1.1 403 Forbidden\r\nContent-Type: text/plain\r\n\r\n" + `egress refused: a tunnel goes to port ${TUNNEL_PORT} only\n`);
       clientSocket.destroy();
       return;
     }

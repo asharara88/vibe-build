@@ -7,6 +7,7 @@ import http from "node:http";
 import net, { type AddressInfo } from "node:net";
 import { join, resolve } from "node:path";
 import { describe, expect, it, onTestFinished } from "vitest";
+import { startMachineSide } from "../src/sandbox/egress-machine.js";
 import { createEgressProxy, parseUpstream, type EgressRecord } from "../src/sandbox/egress-proxy.js";
 import { createForwarder, listenOnSocket, parseDoorRoutes, parseGatewayTarget, type ForwardRecord } from "../src/sandbox/forwarder.js";
 
@@ -49,6 +50,36 @@ function connectThrough(proxy: number | string, target: string, limitMs = 5000):
   });
 }
 
+/** Send a plain-HTTP request through a proxy (absolute-form address) and give back the status it answered, or what happened. */
+function plainThrough(proxy: number, url: string, limitMs = 5000): Promise<number | string> {
+  return new Promise((resolve) => {
+    const req = http.request({ host: "127.0.0.1", port: proxy, method: "GET", path: url, headers: { host: new URL(url).host }, timeout: limitMs }, (res) => {
+      res.resume();
+      resolve(res.statusCode ?? 0);
+    });
+    req.on("timeout", () => req.destroy(new Error("no answer within the limit")));
+    req.on("error", (e: NodeJS.ErrnoException) => resolve(`error ${e.code ?? e.message}`));
+    req.end();
+  });
+}
+
+/**
+ * A made-up upstream proxy on 127.0.0.1: it notes the first line of each request it is sent; it answers a CONNECT
+ * with 200 and keeps the tunnel open, and any other request with 200 and "ok".
+ */
+async function madeUpUpstream(seen: string[]): Promise<number> {
+  return started(
+    net.createServer((c) =>
+      c.once("data", (b: Buffer) => {
+        const line = b.toString("latin1").split("\r\n")[0]!;
+        seen.push(line);
+        if (line.startsWith("CONNECT ")) c.write("HTTP/1.1 200 Connection established\r\n\r\n");
+        else c.end("HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok");
+      }),
+    ),
+  );
+}
+
 /** A short folder for sockets: a socket's path holds at most 107 bytes, and this session's temporary folder is long. */
 const tmp = () => {
   const d = mkdtempSync("/tmp/m06c-door-");
@@ -87,6 +118,74 @@ describe("the egress proxy's way out fails closed (package 0.6c)", () => {
     // "direct" is accepted on the server profile's entry point: it starts and listens (stopped by the time limit).
     const direct = start("egress-main.ts", { EGRESS_ALLOW: "registry.npmjs.org", EGRESS_PORT: "0", EGRESS_UPSTREAM_PROXY: "direct" }, 4_000);
     expect(direct.stdout).toMatch(/"listening":0.*"upstream":"direct"/);
+  });
+
+  it("the machine side's two proxies go out through its upstream, never directly: a made-up upstream gets the tunnel from the project's socket and from the image build's port (after the review)", async () => {
+    const d = tmp();
+    const seen: string[] = [];
+    const upstream = await madeUpUpstream(seen);
+    // A free port on 127.0.0.1 for the image build's listener.
+    const holder = net.createServer();
+    await new Promise<void>((r) => holder.listen(0, "127.0.0.1", r));
+    const buildPort = (holder.address() as AddressInfo).port;
+    await new Promise((r) => holder.close(r));
+    // Made-up settings: a host under the reserved name .test, which no name server answers, so a direct connection would fail.
+    const env = {
+      EGRESS_UPSTREAM_PROXY: `http://127.0.0.1:${upstream}`,
+      GATEWAY_TARGET: "127.0.0.1:4010",
+      EGRESS_SOCKET: join(d, "egress.sock"),
+      GATEWAY_SOCKET: join(d, "gateway.sock"),
+      EGRESS_ALLOW: "registry.example.test",
+      EGRESS_BUILD_PORT: String(buildPort),
+      EGRESS_BUILD_ALLOW: "registry.example.test",
+    };
+    const said: object[] = [];
+    const side = await startMachineSide(env, { socketFolder: `${d}/`, say: (o) => said.push(o) });
+    onTestFinished(async () => {
+      for (const s of [side.proxy, side.gateway, side.build]) {
+        if (!s) continue;
+        (s as http.Server).closeAllConnections?.();
+        await new Promise((r) => s.close(r));
+      }
+    });
+    expect(await connectThrough(join(d, "egress.sock"), "registry.example.test:443")).toBe("HTTP/1.1 200 Connection Established");
+    expect(await connectThrough(buildPort, "registry.example.test:443")).toBe("HTTP/1.1 200 Connection Established");
+    expect(seen).toEqual(["CONNECT registry.example.test:443 HTTP/1.1", "CONNECT registry.example.test:443 HTTP/1.1"]);
+    // What it says names the upstream by host and port.
+    expect(said.filter((o) => "kind" in o).map((o) => (o as { upstream?: string }).upstream)).toEqual([`127.0.0.1:${upstream}`, undefined, `127.0.0.1:${upstream}`]);
+    // Its sockets must be in the folder it is given.
+    await expect(startMachineSide({ ...env, EGRESS_SOCKET: "/tmp/m06c-elsewhere.sock" }, { socketFolder: `${d}/`, say: () => undefined })).rejects.toThrow(/must both be paths under/);
+  });
+
+  it("an allowed host gets a tunnel to port 443 only, and plain HTTP to an http:// address on port 80 only (after the review)", async () => {
+    const seen: string[] = [];
+    const upstream = await madeUpUpstream(seen);
+    const records: EgressRecord[] = [];
+    const proxy = await started(createEgressProxy({ allow: ["registry.example.test"], upstreamProxy: `http://127.0.0.1:${upstream}`, log: (r) => records.push(r) }));
+    const tunnels = {
+      port443: await connectThrough(proxy, "registry.example.test:443"),
+      port22: await connectThrough(proxy, "registry.example.test:22"),
+      port5432: await connectThrough(proxy, "registry.example.test:5432"),
+      port80: await connectThrough(proxy, "registry.example.test:80"),
+    };
+    expect(tunnels).toEqual({ port443: "HTTP/1.1 200 Connection Established", port22: "HTTP/1.1 403 Forbidden", port5432: "HTTP/1.1 403 Forbidden", port80: "HTTP/1.1 403 Forbidden" });
+    const plain = {
+      port80: await plainThrough(proxy, "http://registry.example.test/-/ping"),
+      port8080: await plainThrough(proxy, "http://registry.example.test:8080/-/ping"),
+      port443: await plainThrough(proxy, "http://registry.example.test:443/-/ping"),
+      https: await plainThrough(proxy, "https://registry.example.test/-/ping"),
+    };
+    expect(plain).toEqual({ port80: 200, port8080: 403, port443: 403, https: 403 });
+    // Only the two allowed requests reached the upstream.
+    expect(seen).toEqual(["CONNECT registry.example.test:443 HTTP/1.1", "GET http://registry.example.test/-/ping HTTP/1.1"]);
+    expect(records.filter((r) => r.decision === "refused").map((r) => `${r.method} ${r.port} ${r.detail}`)).toEqual([
+      "CONNECT 22 port",
+      "CONNECT 5432 port",
+      "CONNECT 80 port",
+      "GET 8080 port",
+      "GET 443 port",
+      "GET 443 port",
+    ]);
   });
 
   it("a tunnel request gets an answer of the proxy's own whatever the upstream does: 502 when it is closed, refuses, closes first or fails; 504 when it says nothing", async () => {
