@@ -1,0 +1,6 @@
+Package 0.6c, 13 Nov 2026: npm run typecheck in builder/, on the working tree listed in tests-full-3-files.txt (HEAD 56f2a79 plus the positive-control test and the harness's image filter), at 2026-11-13T12:51:08Z
+
+> builder@0.0.1 typecheck
+> tsc --noEmit
+
+exit code: 0

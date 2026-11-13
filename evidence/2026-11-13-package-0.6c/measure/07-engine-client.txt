@@ -1,0 +1,67 @@
+# Item 7: Node 22's own HTTP clients and the proxy settings, in a container sharing the engine stand-in's network (out only). Hardened, read-only, user 1000. 2026-11-13T10:49:04Z
+
+## settings: (none)
+node v22.23.4; HTTP_PROXY=(unset) HTTPS_PROXY=(unset) NO_PROXY=(unset) NODE_USE_ENV_PROXY=(unset)
+fetch GET http://gateway.internal:4010/v1/ping (proxy semantics): failed: EAI_AGAIN
+fetch GET https://registry.npmjs.org/-/ping (through the proxy, if used): failed: EAI_AGAIN
+http.get http://gateway.internal:4010/v1/ping (proxy semantics): failed: EAI_AGAIN
+fetch GET http://egress:4010/v1/ping (fixed gateway port): HTTP 200 server=m06c-gateway-standin says: {"answeredBy":"m06c gateway stand-in","path":"/v1/ping"} 
+fetch POST http://egress:4010/v1/messages (fixed gateway port, made-up body): HTTP 200 server=m06c-gateway-standin says: {"answeredBy":"m06c gateway stand-in","path":"/v1/messages"} 
+
+## settings: -e HTTP_PROXY=http://egress:3128 -e HTTPS_PROXY=http://egress:3128
+node v22.23.4; HTTP_PROXY=http://egress:3128 HTTPS_PROXY=http://egress:3128 NO_PROXY=(unset) NODE_USE_ENV_PROXY=(unset)
+fetch GET http://gateway.internal:4010/v1/ping (proxy semantics): failed: EAI_AGAIN
+fetch GET https://registry.npmjs.org/-/ping (through the proxy, if used): failed: EAI_AGAIN
+http.get http://gateway.internal:4010/v1/ping (proxy semantics): failed: EAI_AGAIN
+fetch GET http://egress:4010/v1/ping (fixed gateway port): HTTP 200 server=m06c-gateway-standin says: {"answeredBy":"m06c gateway stand-in","path":"/v1/ping"} 
+fetch POST http://egress:4010/v1/messages (fixed gateway port, made-up body): HTTP 200 server=m06c-gateway-standin says: {"answeredBy":"m06c gateway stand-in","path":"/v1/messages"} 
+
+## settings: -e HTTP_PROXY=http://egress:3128 -e HTTPS_PROXY=http://egress:3128 -e NODE_USE_ENV_PROXY=1
+(node:1) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+(Use `node --trace-warnings ...` to show where the warning was created)
+node v22.23.4; HTTP_PROXY=http://egress:3128 HTTPS_PROXY=http://egress:3128 NO_PROXY=(unset) NODE_USE_ENV_PROXY=1
+fetch GET http://gateway.internal:4010/v1/ping (proxy semantics): HTTP 403 server=- says: request blocked: no rule allows host "gateway.internal"
+fetch GET https://registry.npmjs.org/-/ping (through the proxy, if used): HTTP 200 server=cloudflare says: {}
+http.get http://gateway.internal:4010/v1/ping (proxy semantics): HTTP 405 says: agent-proxy relay: this proxy only accepts HTTPS CONNECT tunnels. Plain-HTTP/absolute-form
+fetch GET http://egress:4010/v1/ping (fixed gateway port): failed: 0
+fetch POST http://egress:4010/v1/messages (fixed gateway port, made-up body): failed: 0
+
+## the gateway stand-in's log (what reached it)
+{"at":"2026-11-13T10:48:22.522Z","method":"GET","url":"/v1/ping","source":"127.0.0.1"}
+{"at":"2026-11-13T10:48:22.529Z","method":"GET","url":"/v1/ping","source":"127.0.0.1"}
+{"at":"2026-11-13T10:48:22.560Z","method":"GET","url":"/v1/ping","source":"127.0.0.1"}
+{"at":"2026-11-13T10:48:22.580Z","method":"GET","url":"/v1/ping","source":"127.0.0.1"}
+{"at":"2026-11-13T10:49:10.644Z","method":"GET","url":"/v1/ping","source":"127.0.0.1"}
+{"at":"2026-11-13T10:49:10.657Z","method":"POST","url":"/v1/messages","source":"127.0.0.1"}
+{"at":"2026-11-13T10:49:17.016Z","method":"GET","url":"/v1/ping","source":"127.0.0.1"}
+{"at":"2026-11-13T10:49:17.031Z","method":"POST","url":"/v1/messages","source":"127.0.0.1"}
+
+## settings: -e HTTP_PROXY=http://egress:3128 -e HTTPS_PROXY=http://egress:3128 -e NODE_USE_ENV_PROXY=1 -e NO_PROXY=egress   (2026-11-13T10:49:31Z)
+(node:1) [UNDICI-EHPA] Warning: EnvHttpProxyAgent is experimental, expect them to change at any time.
+(Use `node --trace-warnings ...` to show where the warning was created)
+node v22.23.4; HTTP_PROXY=http://egress:3128 HTTPS_PROXY=http://egress:3128 NO_PROXY=egress NODE_USE_ENV_PROXY=1
+fetch GET http://gateway.internal:4010/v1/ping (proxy semantics): HTTP 403 server=- says: request blocked: no rule allows host "gateway.internal"
+fetch GET https://registry.npmjs.org/-/ping (through the proxy, if used): HTTP 200 server=cloudflare says: {}
+http.get http://gateway.internal:4010/v1/ping (proxy semantics): HTTP 405 says: agent-proxy relay: this proxy only accepts HTTPS CONNECT tunnels. Plain-HTTP/absolute-form
+fetch GET http://egress:4010/v1/ping (fixed gateway port): HTTP 200 server=m06c-gateway-standin says: {"answeredBy":"m06c gateway stand-in","path":"/v1/ping"} 
+fetch POST http://egress:4010/v1/messages (fixed gateway port, made-up body): HTTP 200 server=m06c-gateway-standin says: {"answeredBy":"m06c gateway stand-in","path":"/v1/messages"} 
+
+## the egress proxy's decisions in the last 3 minutes
+{"at":"2026-11-13T10:49:17.358Z","method":"CONNECT","host":"gateway.internal","port":4010,"decision":"allowed"}
+{"at":"2026-11-13T10:49:17.427Z","method":"CONNECT","host":"registry.npmjs.org","port":443,"decision":"allowed"}
+{"at":"2026-11-13T10:49:17.678Z","method":"GET","host":"gateway.internal","port":4010,"decision":"allowed"}
+{"at":"2026-11-13T10:49:17.707Z","method":"CONNECT","host":"egress","port":4010,"decision":"refused"}
+{"at":"2026-11-13T10:49:17.716Z","method":"CONNECT","host":"egress","port":4010,"decision":"refused"}
+{"at":"2026-11-13T10:49:31.359Z","method":"CONNECT","host":"gateway.internal","port":4010,"decision":"allowed"}
+{"at":"2026-11-13T10:49:31.629Z","method":"CONNECT","host":"registry.npmjs.org","port":443,"decision":"allowed"}
+{"at":"2026-11-13T10:49:32.120Z","method":"GET","host":"gateway.internal","port":4010,"decision":"allowed"}
+
+## the relay's log in the last 3 minutes
+{"at":"2026-11-13T10:49:17.358Z","port":13128,"source":"10.231.60.2","decision":"accepted, forwarded to session proxy"}
+{"at":"2026-11-13T10:49:17.427Z","port":13128,"source":"10.231.60.2","decision":"accepted, forwarded to session proxy"}
+{"at":"2026-11-13T10:49:17.685Z","port":13128,"source":"10.231.60.2","decision":"accepted, forwarded to session proxy"}
+{"at":"2026-11-13T10:49:31.360Z","port":13128,"source":"10.231.60.2","decision":"accepted, forwarded to session proxy"}
+{"at":"2026-11-13T10:49:31.630Z","port":13128,"source":"10.231.60.2","decision":"accepted, forwarded to session proxy"}
+{"at":"2026-11-13T10:49:32.121Z","port":13128,"source":"10.231.60.2","decision":"accepted, forwarded to session proxy"}
+{"at":"2026-11-13T10:49:32.131Z","port":14010,"source":"10.231.60.2","decision":"accepted, forwarded to 127.0.0.1:14610"}
+{"at":"2026-11-13T10:49:32.141Z","port":14010,"source":"10.231.60.2","decision":"accepted, forwarded to 127.0.0.1:14610"}

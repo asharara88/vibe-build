@@ -1,0 +1,40 @@
+# Setup A (option a) up: relay, gateway stand-in, egress. 2026-11-13T10:15:35Z
+$ docker compose up -d relay gw egress
+ Container m06c-a-relay-1 Creating 
+ Container m06c-a-gw-1 Creating 
+ Network m06c-a_ext Creating 
+ Network m06c-a_ext Creating 
+ Network m06c-a_out Creating 
+ Network m06c-a_out Creating 
+ Network m06c-a_ext Created 
+ Network m06c-a_ext Created 
+ Container m06c-a-relay-1 Created 
+ Container m06c-a-gw-1 Created 
+ Network m06c-a_out Created 
+ Network m06c-a_out Created 
+ Container m06c-a-egress-1 Creating 
+ Container m06c-a-egress-1 Created 
+ Container m06c-a-relay-1 Starting 
+ Container m06c-a-egress-1 Starting 
+ Container m06c-a-gw-1 Starting 
+ Container m06c-a-relay-1 Started 
+ Container m06c-a-egress-1 Started 
+ Container m06c-a-gw-1 Started 
+m06c-a-egress-1 Up 4 seconds
+m06c-a-gw-1 Up 4 seconds
+m06c-a-relay-1 Up 4 seconds
+## relay log
+relay-1  | {"at":"2026-11-13T10:15:35.380Z","listening":"10.231.60.1:13128","to":"session proxy","sourceCheck":["10.231.60.2"]}
+relay-1  | {"at":"2026-11-13T10:15:35.381Z","listening":"10.231.60.1:14010","to":"127.0.0.1:14610","sourceCheck":["10.231.60.2"]}
+## egress log
+egress-1  | {"at":"2026-11-13T10:15:35.514Z","listening":"0.0.0.0:4010","to":"10.231.60.1:14010"}
+egress-1  | {"at":"2026-11-13T10:15:35.698Z","listening":3128,"allow":["registry.npmjs.org","gateway.internal"]}
+## networks of the project
+
+Error response from daemon: network m06c-a_data not found
+
+Error response from daemon: network m06c-a_front not found
+m06c-a_out internal=true ipv6=false options={"com.docker.network.bridge.gateway_mode_ipv4":"isolated"} ipam=[{"Subnet":"172.18.0.0/16"}] bridge=br-1522af90ed68
+m06c-a_ext internal=false ipv6=false options={} ipam=[{"Gateway":"10.231.60.1","Subnet":"10.231.60.0/28"}] bridge=br-eb770dd6da9d
+
+Error response from daemon: network m06c-a_data-plain not found

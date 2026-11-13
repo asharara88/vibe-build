@@ -1,0 +1,32 @@
+# The machine's IPv4 addresses and listening TCP sockets with setups A and B both running, read in a host-network container (read only), 2026-11-13T10:52:50Z
+## ip -4 addr
+inet 127.0.0.1/8 scope host lo
+inet 192.0.2.2/24 brd 192.0.2.255 scope global eth0
+inet 172.17.0.1/16 brd 172.17.255.255 scope global docker0
+inet 10.231.60.1/28 brd 10.231.60.15 scope global br-eb770dd6da9d
+inet 172.21.0.1/16 brd 172.21.255.255 scope global br-478ee2db8dbc
+inet 10.231.61.1/28 brd 10.231.61.15 scope global br-bc16b8f7bd58
+lo 127.0.0.1/8
+eth0 192.0.2.2/24
+docker0 172.17.0.1/16
+br-eb770dd6da9d 10.231.60.1/28
+br-478ee2db8dbc 172.21.0.1/16
+br-bc16b8f7bd58 10.231.61.1/28
+## netstat -ltn
+0.0.0.0:2024
+10.231.60.1:13128
+10.231.60.1:14010
+127.0.0.1:13129
+127.0.0.1:14610
+127.0.0.1:36339
+127.0.0.1:40261
+127.0.0.1:5432
+## netstat -lx (Unix sockets this namespace can list)
+12
+## ip route
+default via 192.0.2.1 dev eth0 
+10.231.60.0/28 dev br-eb770dd6da9d scope link  src 10.231.60.1 
+10.231.61.0/28 dev br-bc16b8f7bd58 scope link  src 10.231.61.1 
+172.17.0.0/16 dev docker0 scope link  src 172.17.0.1 
+172.21.0.0/16 dev br-478ee2db8dbc scope link  src 172.21.0.1 
+192.0.2.0/24 dev eth0 scope link  src 192.0.2.2 

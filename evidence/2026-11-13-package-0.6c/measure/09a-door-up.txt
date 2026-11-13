@@ -1,0 +1,39 @@
+# Item 9: option (a-prime), the Unix-socket door. Setup: files/setup-b.compose.yaml. 2026-11-13T10:52:35Z
+# Socket folder on the machine: <scratch>/m06c-work/b/sock, owner uid 1000, mode 750
+$ docker compose up -d
+ Network m06c-b_out Creating 
+ Container m06c-b-egress-host-1 Creating 
+ Network m06c-b_out Creating 
+ Network m06c-b_out Created 
+ Network m06c-b_out Created 
+ Container m06c-b-engine-net-1 Creating 
+ Container m06c-b-egress-host-1 Created 
+ Container m06c-b-door-1 Creating 
+ Container m06c-b-engine-net-1 Created 
+ Container m06c-b-door-1 Created 
+ Container m06c-b-egress-host-1 Starting 
+ Container m06c-b-engine-net-1 Starting 
+ Container m06c-b-egress-host-1 Started 
+ Container m06c-b-door-1 Starting 
+ Container m06c-b-engine-net-1 Started 
+ Container m06c-b-door-1 Started 
+m06c-b-door-1 Up 4 seconds
+m06c-b-egress-host-1 Up 4 seconds
+m06c-b-engine-net-1 Up 4 seconds
+## egress-host log
+  egress-host-1  | {"at":"2026-11-13T10:52:36.355Z","listening":"/sock/gw.sock","to":"127.0.0.1:14610"}
+  egress-host-1  | {"at":"2026-11-13T10:52:36.574Z","listening":"/sock/egress.sock","allow":["registry.npmjs.org"],"umask":"22"}
+  egress-host-1  | {"at":"2026-11-13T10:52:36.582Z","listening":"127.0.0.1:13129","allow":["registry.npmjs.org"]}
+## door log
+  door-1  | {"at":"2026-11-13T10:52:36.620Z","listening":"0.0.0.0:3128","to":"/sock/egress.sock"}
+  door-1  | {"at":"2026-11-13T10:52:36.624Z","listening":"0.0.0.0:4010","to":"/sock/gw.sock"}
+## the socket folder as the machine sees it
+total 0
+srwxr-xr-x 1 1000 1000 0 Nov 13 10:52 egress.sock
+srwxr-xr-x 1 1000 1000 0 Nov 13 10:52 gw.sock
+## the network out
+m06c-b_out internal=true ipv6=false options={"com.docker.network.bridge.gateway_mode_ipv4":"isolated"} ipam=[{"Subnet":"172.22.0.0/16"}]
+## each container's addresses
+/m06c-b-door-1: m06c-b_out m06c-b_out=172.22.0.2  user=1000 readonly=true
+/m06c-b-egress-host-1: host host=invalid IP  user=1000 readonly=true
+/m06c-b-engine-net-1: m06c-b_out m06c-b_out=172.22.0.1  user=1000 readonly=true

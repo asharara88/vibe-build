@@ -12,7 +12,9 @@
  *  4. sandbox.build: the image build runs the template's guard check and `next build`.
  *  5. The tables (drizzle-kit push) and the sample users (seed) in the tools container; the table read
  *     back from the database; the app started.
- *  6. scripts/screenshot-scripted.ts signs in as the sample employee and records the screens.
+ *  6. scripts/screenshot-scripted.ts signs in as the sample employee and records the screens, in the
+ *     project's acceptance runner container on the project's `front` network (package 0.6c), never on
+ *     this machine; the runner image is built first from Docker's cache (BUILDER_BROWSER_CACHE).
  *  7. The project's history, then every container, image and temporary folder removed.
  *
  * Development profile only. No model is called. Made-up data only.
@@ -26,7 +28,9 @@ import { promisify } from "node:util";
 import type { EngineEvent } from "../src/engine/interface.js";
 import { describeNotAllowed, entriesGitCannotSee, git, initProjectRepo, type ProjectRepo } from "../src/engine/project-repo.js";
 import { listSteps, ScriptedEngine, TEMPLATE_PROTECTED_PATHS } from "../src/engine/scripted.js";
+import { buildRunnerImage, RUNNER_IMAGE } from "../src/acceptance/runner-image.js";
 import { createSandbox, dockerEnv, sandbox } from "../src/sandbox/manager.js";
+import { runBrowserScript } from "./browser-in-project.js";
 
 const run = promisify(execFile);
 const [templateDirArg, outDirArg] = process.argv.slice(2);
@@ -53,8 +57,10 @@ const dbPassword = randomBytes(18).toString("base64url");
 const authSecret = randomBytes(32).toString("base64url");
 const samplePassword = "Sample-" + randomBytes(9).toString("base64url");
 const appPort = 3127;
-const dbPort = 5557;
-const appUrl = `http://127.0.0.1:${appPort}`;
+// The port on the machine's loopback address where the image build's npm finds the egress proxy (package 0.6c).
+const buildProxyPort = 13157;
+// The app's address on the project's `front` network, the only place it is reached from (package 0.6c).
+const appUrl = `http://app:${appPort}`;
 
 const sb = createSandbox(
   {
@@ -64,8 +70,8 @@ const sb = createSandbox(
     allowHosts: ["registry.npmjs.org"],
     gatewayUrl: "http://127.0.0.1:4010",
     builderDir,
-    hostProxy: { url: process.env.HTTPS_PROXY ?? "", caBundlePath: "/root/.ccr/ca-bundle.crt" },
-    devDbPort: dbPort,
+    hostProxy: { url: process.env.HTTPS_PROXY ?? "" },
+    buildProxyPort,
     app: {
       buildContext: workspace,
       port: appPort,
@@ -74,6 +80,7 @@ const sb = createSandbox(
       toolsEnv: { APP_URL: appUrl },
     },
     engine: { workspace, changeSets },
+    acceptance: { image: RUNNER_IMAGE, baseUrl: appUrl },
   },
   dbPassword,
   { AUTH_SECRET: authSecret, APP_SAMPLE_PASSWORD: samplePassword },
@@ -139,7 +146,7 @@ try {
   log("== 3. A probe in the engine service, with the same mounts as a step ==");
   const netProbe = [
     "require('node:dns').lookup('registry.npmjs.org', (e) => console.log('name lookup of registry.npmjs.org: ' + (e ? 'failed (' + e.code + ')' : 'ANSWERED')));",
-    `const s = require('node:net').connect(${dbPort}, '127.0.0.1'); s.on('connect', () => { console.log('connect to 127.0.0.1:${dbPort}: CONNECTED'); s.destroy(); }); s.on('error', (e) => console.log('connect to 127.0.0.1:${dbPort} (the project database port on the host): failed (' + e.code + ')'));`,
+    "const s = require('node:net').connect(5432, 'db'); s.on('connect', () => { console.log('connect to db:5432: CONNECTED'); s.destroy(); }); s.on('error', (e) => console.log('connect to db:5432 (the project database, by its name on the project network): failed (' + e.code + ')'));",
   ].join("\n");
   const probe = [
     "const fs = require('node:fs'); const os = require('node:os');",
@@ -164,6 +171,7 @@ try {
   log("");
   log("== 4. The image build: the template's guard check, then next build ==");
   // Nothing from Docker's build cache: identical files from an earlier run would otherwise skip the check and the build.
+  await buildRunnerImage({ hostProxy: { url: process.env.HTTPS_PROXY ?? "", caBundlePath: "/root/.ccr/ca-bundle.crt" } });
   const built = await sandbox.build(sb, { noCache: true });
   const guardLines = built.split("\n").filter((l) => /Guard check|^\s*#\d+ [\d.]+\s+(page|action|route) |RESULT: |PROBLEMS:/.test(l));
   log(indent(guardLines.map((l) => l.replace(/^#\d+ [\d.]+\s+/, "")).join("\n")));
@@ -193,26 +201,22 @@ try {
   log(indent("drizzle-kit push (last lines):\n" + push.trim().split("\n").slice(-4).join("\n")));
   const seed = await sandbox.runOnce(sb, "tools", ["node", "--import", "tsx", "scripts/seed.ts"]);
   log(indent(seed));
-  const psql = (sql: string) => sandbox.exec(sb, "db", ["psql", "-U", "app", "-d", "app", "-p", String(dbPort), "-X", "-A", "-F", " | ", "-c", sql]);
+  const psql = (sql: string) => sandbox.exec(sb, "db", ["psql", "-U", "app", "-d", "app", "-X", "-A", "-F", " | ", "-c", sql]);
   log(indent("columns of leave_request:\n" + (await psql("select column_name, data_type, is_nullable, coalesce(column_default, '') as column_default from information_schema.columns where table_name = 'leave_request' order by ordinal_position"))));
   log(indent("checks and links of leave_request:\n" + (await psql("select conname, pg_get_constraintdef(oid) from pg_constraint where conrelid = 'leave_request'::regclass order by conname"))));
   const reprobe: string[] = [];
   await sandbox.runStreaming(sb, "engine", ["node", "-e", netProbe], { container: `${sb.projectName}-engine-probe-2`, onLine: (l) => reprobe.push(l) }).done;
-  log(indent(`With the database now listening on the host, from the engine container again:\n${reprobe.join("\n")}`));
+  log(indent(`With the database now running on the project's network, from the engine container again:\n${reprobe.join("\n")}`));
   log("  Starting the app container and waiting for it to answer...");
   await sandbox.up(sb, ["app"]);
   const ps = JSON.parse(`[${(await sandbox.ps(sb)).trim().split("\n").join(",")}]`) as Array<{ Service: string; State: string; Health?: string }>;
   for (const p of ps) log(`  Container ${p.Service}: ${p.State}${p.Health ? ` (${p.Health})` : ""}`);
 
   log("");
-  log("== 6. The screens, as the sample employee sees them (scripts/screenshot-scripted.ts) ==");
-  try {
-    const shots = await run("node", ["--import", "tsx", "scripts/screenshot-scripted.ts", appUrl, outDir, samplePassword], { cwd: builderDir, timeout: 300_000 });
-    log(indent(shots.stdout));
-  } catch (err) {
-    log(indent((err as { stdout?: string }).stdout ?? ""));
-    throw new Error("the screen checks did not all pass");
-  }
+  log("== 6. The screens, as the sample employee sees them (scripts/screenshot-scripted.ts, in the runner's container on the project's front network) ==");
+  const shots = await runBrowserScript(sb, join(builderDir, "scripts", "screenshot-scripted.ts"), appUrl, outDir, samplePassword);
+  log(indent(shots.lines.join("\n")));
+  if (shots.code !== 0) throw new Error(`the screen checks did not all pass (exit ${shots.code}): ${shots.stderrTail.slice(-1500)}`);
   log(
     indent(
       "the request as stored:\n" +

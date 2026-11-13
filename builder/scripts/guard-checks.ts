@@ -1,6 +1,8 @@
 /**
  * The role guard, tried by each kind of user against a running template (package 0.3).
- * Usage: npx tsx scripts/guard-checks.ts <baseUrl> <outDir> <samplePassword>
+ * It runs only inside the project's acceptance runner container, on the project's `front` network, never on
+ * the machine (package 0.6c): scripts/browser-in-project.ts starts it there with
+ * <baseUrl> <outDir> <samplePasswordFile>, the base address being http://app:<port>.
  *
  * Five kinds of visitor: the three sample roles; a person who has just signed up and so has no
  * role this app recognises; and nobody (not signed in). Each tries the example page for HR
@@ -9,15 +11,16 @@
  * route. Every line is a check with what was expected and what was seen; the exit code is 1 if
  * any check failed.
  */
-import { mkdirSync } from "node:fs";
+import { mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { chromium, type BrowserContext, type Page } from "playwright";
 
-const [baseUrl, outDir, password] = process.argv.slice(2);
-if (!baseUrl || !outDir || !password) {
-  console.error("usage: guard-checks.ts <baseUrl> <outDir> <samplePassword>");
+const [baseUrl, outDir, passwordFile] = process.argv.slice(2);
+if (!baseUrl || !outDir || !passwordFile) {
+  console.error("usage: guard-checks.ts <baseUrl> <outDir> <samplePasswordFile>");
   process.exit(1);
 }
+const password = readFileSync(passwordFile, "utf8").trim();
 mkdirSync(outDir, { recursive: true });
 
 let failed = 0;
@@ -41,7 +44,7 @@ async function signedIn(email: string): Promise<{ ctx: BrowserContext; page: Pag
     await pause(4_000);
     await page.goto(`${baseUrl}/en/sign-in`, { waitUntil: "networkidle" });
     await page.fill("#email", email);
-    await page.fill("#password", password!);
+    await page.fill("#password", password);
     await page.getByRole("button", { name: "Sign in" }).click();
     try {
       await page.waitForURL(/\/en\/home/, { timeout: 10_000 });

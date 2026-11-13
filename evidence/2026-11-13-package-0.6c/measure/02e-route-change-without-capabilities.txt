@@ -1,0 +1,17 @@
+# Critique item 11: ip_forward reads 1 in every container (probes-a), so the boundary also rests on no project container being able to change its routes. Tried with every capability dropped (as the manager's hardening), as root inside the container (the worst case: the project containers run as uid 1000). 2026-11-13T10:54:56Z
+
+## the runner's network (front): a route to data through the app's front address
+ip: RTNETLINK answers: Operation not permitted
+exit 2
+172.20.0.0/16 dev eth0 scope link  src 172.20.0.3 
+
+## the engine's network (out, setup A): a default route through the egress proxy's out address
+ip: RTNETLINK answers: Operation not permitted
+exit 2
+172.18.0.0/16 dev eth0 scope link  src 172.18.0.2 
+
+## control: the same command with NET_ADMIN given back (a deliberate misconfiguration), in a fresh container on setup A's out network
+exit 0
+default via 172.18.0.1 dev eth0 
+172.18.0.0/16 dev eth0 scope link  src 172.18.0.3 
+through the egress container to the relay: failed: TimeoutError

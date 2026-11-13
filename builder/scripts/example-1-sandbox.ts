@@ -35,12 +35,14 @@ export interface Example1 {
   repo: ProjectRepo;
   sb: Sandbox;
   appPort: number;
-  dbPort: number;
+  /** The port on the machine's loopback address where the image build's npm finds the egress proxy (package 0.6c). */
+  buildProxyPort: number;
+  /** http://app:<port>: the app's address on the project's `front` network, the only place it is reached from (package 0.6c). */
   appUrl: string;
   samplePassword: string;
 }
 
-/** True if nothing accepts a connection on 127.0.0.1:port. */
+/** True if nothing accepts a connection on 127.0.0.1:port (used for the build proxy's port on the machine, never for the app). */
 export function portFree(port: number): Promise<boolean> {
   return new Promise((ok) => {
     const s = net.connect(port, "127.0.0.1");
@@ -53,7 +55,8 @@ export function portFree(port: number): Promise<boolean> {
 }
 
 /** A fresh sandbox for example 1: the template copied into its workspace, its history outside it, the engine's change sets, and the runner's service. */
-export async function makeExample1(opts: { projectId: string; appPort: number; dbPort: number; runnerImage: string }): Promise<Example1> {
+export async function makeExample1(opts: { projectId: string; appPort: number; buildProxyPort: number; runnerImage: string }): Promise<Example1> {
+  if (!(await portFree(opts.buildProxyPort))) throw new Error(`Something already listens on 127.0.0.1:${opts.buildProxyPort}; the build's proxy port must be free.`);
   const dir = mkdtempSync(join(tmpdir(), "builder-acceptance-"));
   const workspace = join(dir, "workspace");
   // A local settings file (.env) is never copied: the app's settings come from the sandbox only.
@@ -62,7 +65,7 @@ export async function makeExample1(opts: { projectId: string; appPort: number; d
   mkdirSync(join(changeSets, EXAMPLE), { recursive: true });
   cpSync(join(builderDir, "scripted", "apply.mjs"), join(changeSets, "apply.mjs"));
   for (const step of ["01-data", "02-submitter-screen"]) cpSync(join(builderDir, "scripted", EXAMPLE, step), join(changeSets, EXAMPLE, step), { recursive: true });
-  const appUrl = `http://127.0.0.1:${opts.appPort}`;
+  const appUrl = `http://app:${opts.appPort}`;
   const samplePassword = "Sample-" + randomBytes(9).toString("base64url");
   const sb = createSandbox(
     {
@@ -72,8 +75,8 @@ export async function makeExample1(opts: { projectId: string; appPort: number; d
       allowHosts: ["registry.npmjs.org"],
       gatewayUrl: "http://127.0.0.1:4010",
       builderDir,
-      hostProxy: { url: process.env.HTTPS_PROXY ?? "", caBundlePath: "/root/.ccr/ca-bundle.crt" },
-      devDbPort: opts.dbPort,
+      hostProxy: { url: process.env.HTTPS_PROXY ?? "" },
+      buildProxyPort: opts.buildProxyPort,
       app: { buildContext: workspace, port: opts.appPort, env: { APP_URL: appUrl }, writablePaths: ["/app/.next/cache"], toolsEnv: { APP_URL: appUrl } },
       engine: { workspace, changeSets },
       acceptance: { image: opts.runnerImage, baseUrl: appUrl },
@@ -94,7 +97,7 @@ export async function makeExample1(opts: { projectId: string; appPort: number; d
   }
   const repo: ProjectRepo = { gitDir: join(dir, "workspace.git"), workTree: workspace };
   await initProjectRepo(repo, "Template copy: templates/next as copied into the project");
-  return { projectId: opts.projectId, dir, workspace, changeSets, repo, sb, appPort: opts.appPort, dbPort: opts.dbPort, appUrl, samplePassword };
+  return { projectId: opts.projectId, dir, workspace, changeSets, repo, sb, appPort: opts.appPort, buildProxyPort: opts.buildProxyPort, appUrl, samplePassword };
 }
 
 /** Copy the deliberately broken step 03 into the sandbox's change sets, just before it runs. */
@@ -123,7 +126,11 @@ export async function runStep(
   );
 }
 
-/** Build the images, create the tables and sample users in the tools container, and start the app, after checking that nothing listens on its port. */
+/**
+ * Build the images, create the tables and sample users in the tools container, and start the app, after
+ * checking, from a container on the project's `front` network, that nothing answers at the app's address yet
+ * (only the project's own app can take the name `app` there; known gap 75).
+ */
 export async function buildAndStart(x: Example1, log: (s: string) => void = () => undefined): Promise<void> {
   await sandbox.build(x.sb);
   log("  App and tools images built (the template's guard check and next build ran in the build).");
@@ -131,8 +138,9 @@ export async function buildAndStart(x: Example1, log: (s: string) => void = () =
   await sandbox.runOnce(x.sb, "tools", ["node_modules/.bin/drizzle-kit", "push", "--force"]);
   const seed = await sandbox.runOnce(x.sb, "tools", ["node", "--import", "tsx", "scripts/seed.ts"]);
   log(`  Tables created and sample users added in the tools container (${seed.trim().split("\n").length} lines from the seed).`);
-  if (!(await portFree(x.appPort))) throw new Error(`Something already listens on 127.0.0.1:${x.appPort}; the app is not started, so that the runner cannot test another program.`);
-  log(`  Before the app was started, nothing listened on 127.0.0.1:${x.appPort} (checked by a connection attempt, refused).`);
+  const before = await sandbox.askApp(x.sb, `${x.appUrl}/en/sign-in`);
+  if (!("error" in before)) throw new Error(`Something already answers at ${x.appUrl} on the project's network (HTTP ${before.status}); the app is not started, so that the runner cannot test another program.`);
+  log(`  Before the app was started, nothing answered at ${x.appUrl}, asked from a container on the project's front network (${before.error}).`);
   await sandbox.up(x.sb, ["app"]);
   log("  App container started and healthy.");
 }

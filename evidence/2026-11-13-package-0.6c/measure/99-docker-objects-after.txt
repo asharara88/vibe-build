@@ -1,0 +1,53 @@
+# Removing every Docker object this step made, 2026-11-13T10:56:37Z
+$ docker compose (m06c-a) --profile tools down -v
+ Container m06c-a-mis2-plain-internal-1 Removing 
+ Container m06c-a-mis2-plain-internal-1 Removed 
+ Container m06c-a-egress-1 Stopped 
+ Container m06c-a-egress-1 Removing 
+ Container m06c-a-egress-1 Removed 
+ Container m06c-a-mis1-app-with-ext-1 Stopped 
+ Container m06c-a-mis1-app-with-ext-1 Removing 
+ Container m06c-a-mis1-app-with-ext-1 Removed 
+ Network m06c-a_front Removing 
+ Network m06c-a_ext Removing 
+ Volume m06c-a_dbdata Removing 
+ Network m06c-a_out Removing 
+ Network m06c-a_data-plain Removing 
+ Network m06c-a_data Removing 
+ Volume m06c-a_dbdata Removed 
+ Network m06c-a_ext Removed 
+ Network m06c-a_front Removed 
+ Network m06c-a_data Removed 
+ Network m06c-a_out Removed 
+ Network m06c-a_data-plain Removed 
+$ docker compose (m06c-b) down -v
+ Container m06c-b-egress-host-1 Stopping 
+ Container m06c-b-egress-host-1 Stopped 
+ Container m06c-b-egress-host-1 Removing 
+ Container m06c-b-egress-host-1 Removed 
+ Network m06c-b_out Removing 
+ Network m06c-b_out Removed 
+$ docker rm -f m06c-other-c m06c-default-c
+m06c-other-c
+m06c-default-c
+$ docker network rm m06c-other_ext
+m06c-other_ext
+$ docker rmi m06c-a-app:latest m06c-a-tools:latest
+lines of output: 4
+
+# Docker objects after, 2026-11-13T10:57:13Z
+## containers named m06c-*
+(end)
+## networks named m06c-*
+(end)
+## volumes named m06c-*
+(end)
+## images named m06c-*
+(end)
+## all networks now
+bridge
+host
+none
+## disk
+/dev/vda        252G   37G  2.3G  95% /
+# Not removed: BuildKit's build cache from the template builds (it is shared by every session on this machine and has no name to select it by; pruning it would also remove other packages' cache).

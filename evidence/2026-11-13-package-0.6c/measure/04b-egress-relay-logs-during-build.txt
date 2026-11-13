@@ -1,0 +1,5 @@
+# Egress and relay logs during the build (option a). 2026-11-13T10:17:52Z
+## egress decisions (count by host and decision)
+30 CONNECT registry.npmjs.org:443 allowed
+## relay connections (count by port, source, decision)
+30 port 13128 from 10.231.60.2: accepted, forwarded to session proxy

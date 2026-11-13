@@ -1,0 +1,268 @@
+# Item 4: the template's image build through the project's egress proxy (option a). 2026-11-13T10:16:03Z
+# docker build --network host, HTTPS_PROXY and HTTP_PROXY = http://10.231.60.2:3128 (the egress proxy's ext address), no certificate in certs/,
+# npm ci --ignore-scripts, a planted install script in vendor/no-sharp/package.json, then RUN --network=none for the guard check and next build.
+# Dockerfile changes: files/Dockerfile.m06c.diff. Built-in Dockerfile frontend (no '# syntax=' line).
+# certs/ in the build context: 0 files
+
+$ docker build --progress=plain --network host --target run --tag m06c-a-run:latest --no-cache --build-arg HTTPS_PROXY=http://10.231.60.2:3128 --build-arg HTTP_PROXY=http://10.231.60.2:3128 <scratch>/app
+#0 building with "default" instance using docker driver
+
+#1 [internal] load build definition from Dockerfile
+#1 transferring dockerfile: 3.76kB done
+#1 DONE 0.0s
+
+#2 [internal] load metadata for docker.io/library/node:22-alpine@sha256:0e1754758c2df4cfa3e68d59e2e1b7374bb7fd9ea6328eaaacf15cc934af8202
+#2 DONE 0.0s
+
+#3 [internal] load .dockerignore
+#3 transferring context: 183B done
+#3 DONE 0.0s
+
+#4 [build  1/10] FROM docker.io/library/node:22-alpine@sha256:0e1754758c2df4cfa3e68d59e2e1b7374bb7fd9ea6328eaaacf15cc934af8202
+#4 resolve docker.io/library/node:22-alpine@sha256:0e1754758c2df4cfa3e68d59e2e1b7374bb7fd9ea6328eaaacf15cc934af8202 0.0s done
+#4 DONE 0.0s
+
+#5 [build  2/10] WORKDIR /app
+#5 CACHED
+
+#6 [internal] load build context
+#6 transferring context: 882.27kB 0.0s done
+#6 DONE 0.0s
+
+#7 [build  3/10] COPY certs/ /certs/
+#7 DONE 0.1s
+
+#8 [run 3/6] RUN addgroup -S app && adduser -S app -G app
+#8 DONE 0.1s
+
+#9 [build  4/10] RUN if [ -f /certs/session-ca.crt ]; then npm config set cafile /certs/session-ca.crt; fi
+#9 DONE 0.1s
+
+#10 [build  5/10] COPY package.json package-lock.json ./
+#10 DONE 0.0s
+
+#11 [build  6/10] COPY vendor/ ./vendor/
+#11 DONE 0.0s
+
+#12 [build  7/10] RUN npm ci --ignore-scripts --no-fund --no-audit
+#12 6.175 npm warn EBADENGINE Unsupported engine {
+#12 6.175 npm warn EBADENGINE   package: 'license-checker-rseidelsohn@5.0.1',
+#12 6.175 npm warn EBADENGINE   required: { node: '>=24', npm: '>=11' },
+#12 6.175 npm warn EBADENGINE   current: { node: 'v22.23.4', npm: '10.9.9' }
+#12 6.175 npm warn EBADENGINE }
+#12 14.76 npm warn tar TAR_ENTRY_ERROR ENOSPC: no space left on device, write
+#12 14.76 npm notice
+#12 14.76 npm notice New major version of npm available! 10.9.9 -> 12.2.2
+#12 14.76 npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.2
+#12 14.76 npm notice To update run: npm install -g npm@12.2.2
+#12 14.76 npm notice
+#12 14.76 npm error A complete log of this run can be found in: /root/.npm/_logs/2026-11-13T10_16_08_737Z-debug-0.log
+#12 ERROR: process "/bin/sh -c npm ci --ignore-scripts --no-fund --no-audit" did not complete successfully: exit code: 1
+------
+ > [build  7/10] RUN npm ci --ignore-scripts --no-fund --no-audit:
+6.175 npm warn EBADENGINE   required: { node: '>=24', npm: '>=11' },
+6.175 npm warn EBADENGINE   current: { node: 'v22.23.4', npm: '10.9.9' }
+6.175 npm warn EBADENGINE }
+14.76 npm warn tar TAR_ENTRY_ERROR ENOSPC: no space left on device, write
+14.76 npm notice
+14.76 npm notice New major version of npm available! 10.9.9 -> 12.2.2
+14.76 npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.2
+14.76 npm notice To update run: npm install -g npm@12.2.2
+14.76 npm notice
+14.76 npm error A complete log of this run can be found in: /root/.npm/_logs/2026-11-13T10_16_08_737Z-debug-0.log
+------
+Dockerfile:23
+--------------------
+  21 |     COPY vendor/ ./vendor/
+  22 |     # m06c measurement: install scripts off, through the project's egress proxy (HTTPS_PROXY build argument), no certificate.
+  23 | >>> RUN npm ci --ignore-scripts --no-fund --no-audit
+  24 |     # m06c measurement: what a step under --network=none sees.
+  25 |     RUN --network=none sh -c 'echo M06C-NONE-STEP; echo interfaces:; ls /sys/class/net; echo routes:; cat /proc/net/route; node -e "fetch(\"https://registry.npmjs.org/-/ping\").then(r=>console.log(\"M06C fetch answered\",r.status)).catch(e=>console.log(\"M06C fetch failed:\",e.cause?.code??e.message))"'
+--------------------
+ERROR: failed to build: failed to solve: process "/bin/sh -c npm ci --ignore-scripts --no-fund --no-audit" did not complete successfully: exit code: 1
+exit 1 after 17 s
+
+$ docker build --progress=plain --network host --target tools --tag m06c-a-tools:latest  --build-arg HTTPS_PROXY=http://10.231.60.2:3128 --build-arg HTTP_PROXY=http://10.231.60.2:3128 <scratch>/app
+#0 building with "default" instance using docker driver
+
+#1 [internal] load build definition from Dockerfile
+#1 transferring dockerfile: 3.76kB done
+#1 DONE 0.0s
+
+#2 [internal] load metadata for docker.io/library/node:22-alpine@sha256:0e1754758c2df4cfa3e68d59e2e1b7374bb7fd9ea6328eaaacf15cc934af8202
+#2 DONE 0.0s
+
+#3 [internal] load .dockerignore
+#3 transferring context: 183B done
+#3 DONE 0.0s
+
+#4 [build  1/10] FROM docker.io/library/node:22-alpine@sha256:0e1754758c2df4cfa3e68d59e2e1b7374bb7fd9ea6328eaaacf15cc934af8202
+#4 resolve docker.io/library/node:22-alpine@sha256:0e1754758c2df4cfa3e68d59e2e1b7374bb7fd9ea6328eaaacf15cc934af8202 0.0s done
+#4 DONE 0.0s
+
+#5 [internal] load build context
+#5 transferring context: 3.21kB done
+#5 DONE 0.0s
+
+#6 [build  4/10] RUN if [ -f /certs/session-ca.crt ]; then npm config set cafile /certs/session-ca.crt; fi
+#6 CACHED
+
+#7 [build  3/10] COPY certs/ /certs/
+#7 CACHED
+
+#8 [build  5/10] COPY package.json package-lock.json ./
+#8 CACHED
+
+#9 [build  2/10] WORKDIR /app
+#9 CACHED
+
+#10 [build  6/10] COPY vendor/ ./vendor/
+#10 CACHED
+
+#11 [build  7/10] RUN npm ci --ignore-scripts --no-fund --no-audit
+#11 0.587 npm warn EBADENGINE Unsupported engine {
+#11 0.587 npm warn EBADENGINE   package: 'license-checker-rseidelsohn@5.0.1',
+#11 0.587 npm warn EBADENGINE   required: { node: '>=24', npm: '>=11' },
+#11 0.587 npm warn EBADENGINE   current: { node: 'v22.23.4', npm: '10.9.9' }
+#11 0.587 npm warn EBADENGINE }
+#11 ...
+
+#4 [build  1/10] FROM docker.io/library/node:22-alpine@sha256:0e1754758c2df4cfa3e68d59e2e1b7374bb7fd9ea6328eaaacf15cc934af8202
+#4 CACHED
+
+#11 [build  7/10] RUN npm ci --ignore-scripts --no-fund --no-audit
+#11 7.345 npm warn deprecated @esbuild-kit/esm-loader@2.6.5: Merged into tsx: https://tsx.hirok.io
+#11 7.348 npm warn deprecated @esbuild-kit/core-utils@3.3.2: Merged into tsx: https://tsx.hirok.io
+#11 22.11 
+#11 22.11 added 263 packages in 22s
+#11 22.12 npm notice
+#11 22.12 npm notice New major version of npm available! 10.9.9 -> 12.2.2
+#11 22.12 npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.2
+#11 22.12 npm notice To update run: npm install -g npm@12.2.2
+#11 22.12 npm notice
+#11 DONE 22.2s
+
+#12 [build  8/10] RUN --network=none sh -c 'echo M06C-NONE-STEP; echo interfaces:; ls /sys/class/net; echo routes:; cat /proc/net/route; node -e "fetch(\"https://registry.npmjs.org/-/ping\").then(r=>console.log(\"M06C fetch answered\",r.status)).catch(e=>console.log(\"M06C fetch failed:\",e.cause?.code??e.message))"'
+#12 0.139 M06C-NONE-STEP
+#12 0.139 interfaces:
+#12 0.140 lo
+#12 0.140 routes:
+#12 0.140 Iface	Destination	Gateway 	Flags	RefCnt	Use	Metric	Mask		MTU	Window	IRTT                                                       
+#12 2.223 M06C fetch failed: EAI_AGAIN
+#12 DONE 2.2s
+
+#13 [build  9/10] COPY . .
+#13 DONE 0.0s
+
+#14 [build 10/10] RUN --network=none DATABASE_URL=postgres://build:build@localhost/build AUTH_SECRET=build-time-placeholder-not-a-secret-0000 npm run build
+#14 0.149 
+#14 0.149 > house-template-next@0.0.1 build
+#14 0.149 > tsx scripts/check-guards.ts && next build
+#14 0.149 
+#14 0.545 Guard check (rule 5): 38 code files read in the component.
+#14 0.546 Pages, form actions and data routes, each with its guard and what the guard is given:
+#14 0.546   action  src/app/[locale]/example/action/actions.ts  runExampleAction = guardedAction(["manager", "hr_admin"])
+#14 0.546   page    src/app/[locale]/example/action/page.tsx  guardedPage(ROLES)
+#14 0.546   page    src/app/[locale]/example/restricted/page.tsx  guardedPage(["hr_admin"])
+#14 0.546   page    src/app/[locale]/home/page.tsx  guardedPage(ROLES)
+#14 0.546   page    src/app/[locale]/no-access/page.tsx  publicPage("the plain \"no access\" message: it shows no data and must be readable by someone who was)
+#14 0.546   page    src/app/[locale]/page.tsx  publicPage("shows nothing: it only sends a visitor to the home page or to sign-in")
+#14 0.546   page    src/app/[locale]/sign-in/page.tsx  publicPage("the sign-in form: it must be reachable before anyone is signed in")
+#14 0.546   route   src/app/api/auth/[...all]/route.ts  GET = publicRoute(reason)
+#14 0.546   route   src/app/api/auth/[...all]/route.ts  POST = publicRoute(reason)
+#14 0.547   route   src/app/api/example/roles/route.ts  GET = guardedRoute(["manager", "hr_admin"])
+#14 0.547 RESULT: PASSED
+#14 0.933 ▲ Next.js 16.4.6 (Turbopack)
+#14 0.992 ✓ Running next.config.ts took 59ms
+#14 1.000 
+#14 1.021   Creating an optimized production build ...
+#14 9.150 ✓ Compiled successfully in 8.1s
+#14 9.166   Running TypeScript ...
+#14 10.56   Finished TypeScript in 1395ms ...
+#14 10.56   Collecting page data using 3 workers ...
+#14 11.55   Generating static pages using 3 workers (0/15) ...
+#14 12.16   Generating static pages using 3 workers (3/15) 
+#14 12.23   Generating static pages using 3 workers (7/15) 
+#14 12.31   Generating static pages using 3 workers (11/15) 
+#14 12.43 ✓ Generating static pages using 3 workers (15/15) in 874ms
+#14 12.44   Finalizing page optimization ...
+#14 12.56 
+#14 12.56 Route (app)
+#14 12.56 ┌ ○ /_not-found
+#14 12.56 ├ ƒ /[locale]
+#14 12.56 ├ ƒ /[locale]/example/action
+#14 12.56 ├ ƒ /[locale]/example/restricted
+#14 12.56 ├ ƒ /[locale]/home
+#14 12.56 ├   /[locale]/no-access
+#14 12.56 │ ├ ● /en/no-access
+#14 12.56 │ └ ● /ar/no-access
+#14 12.56 ├   /[locale]/sign-in
+#14 12.56 │ ├ ● /en/sign-in
+#14 12.56 │ └ ● /ar/sign-in
+#14 12.56 ├ ƒ /api/auth/[...all]
+#14 12.56 └ ƒ /api/example/roles
+#14 12.56 
+#14 12.56 
+#14 12.56 ƒ Proxy (Middleware)
+#14 12.56 
+#14 12.57 ○  (Static)   prerendered as static content
+#14 12.57 ●  (SSG)      prerendered as static HTML (uses generateStaticParams)
+#14 12.57 ƒ  (Dynamic)  server-rendered on demand
+#14 12.57 
+#14 DONE 12.7s
+
+#15 exporting to image
+#15 exporting layers
+#15 exporting layers 21.6s done
+#15 exporting manifest sha256:772fed9cd355d13a2249e4ef2f7c44c79eea0a4cdbe3328127bf2d782431f6d8 0.0s done
+#15 exporting config sha256:2980c33bc3a979949dae299b793fc091c1fc775b01f7e7a24a6ca7f6fb030156 done
+#15 exporting attestation manifest sha256:33c048c44600b4cf3e58e250f03c62d413644d379b5cf74c6e31b043586151a8 0.0s done
+#15 exporting manifest list sha256:399a958417df0e22469e0ddd151b97ed070673170084c5b3741ff890e5d4dd50 0.0s done
+#15 naming to docker.io/library/m06c-a-tools:latest done
+#15 unpacking to docker.io/library/m06c-a-tools:latest
+#15 unpacking to docker.io/library/m06c-a-tools:latest 5.1s done
+#15 DONE 26.8s
+exit 0 after 64 s
+
+# The run target, after the tools build above (its build stage taken from the cache that build made; the first try, with --no-cache, stopped at npm ci on 'no space left on device', a shared disk: see the top of this file). 2026-11-13T10:17:50Z
+#1 [internal] load build definition from Dockerfile
+#1 DONE 0.0s
+#2 [internal] load metadata for docker.io/library/node:22-alpine@sha256:0e1754758c2df4cfa3e68d59e2e1b7374bb7fd9ea6328eaaacf15cc934af8202
+#2 DONE 0.0s
+#3 [internal] load .dockerignore
+#3 DONE 0.0s
+#4 [build  1/10] FROM docker.io/library/node:22-alpine@sha256:0e1754758c2df4cfa3e68d59e2e1b7374bb7fd9ea6328eaaacf15cc934af8202
+#4 DONE 0.0s
+#5 [internal] load build context
+#5 DONE 0.0s
+#6 [build  6/10] COPY vendor/ ./vendor/
+#6 CACHED
+#7 [build  7/10] RUN npm ci --ignore-scripts --no-fund --no-audit
+#7 CACHED
+#8 [build  8/10] RUN --network=none sh -c 'echo M06C-NONE-STEP; echo interfaces:; ls /sys/class/net; echo routes:; cat /proc/net/route; node -e "fetch(\"https://registry.npmjs.org/-/ping\").then(r=>console.log(\"M06C fetch answered\",r.status)).catch(e=>console.log(\"M06C fetch failed:\",e.cause?.code??e.message))"'
+#8 CACHED
+#9 [build  9/10] COPY . .
+#9 CACHED
+#10 [build  3/10] COPY certs/ /certs/
+#10 CACHED
+#11 [build  5/10] COPY package.json package-lock.json ./
+#11 CACHED
+#12 [build  2/10] WORKDIR /app
+#12 CACHED
+#13 [build  4/10] RUN if [ -f /certs/session-ca.crt ]; then npm config set cafile /certs/session-ca.crt; fi
+#13 CACHED
+#14 [build 10/10] RUN --network=none DATABASE_URL=postgres://build:build@localhost/build AUTH_SECRET=build-time-placeholder-not-a-secret-0000 npm run build
+#14 CACHED
+#15 [run 3/6] RUN addgroup -S app && adduser -S app -G app
+#15 CACHED
+#16 [run 4/6] COPY --from=build --chown=app:app /app/.next/standalone ./
+#16 DONE 0.2s
+#17 [run 5/6] COPY --from=build --chown=app:app /app/.next/static ./.next/static
+#17 DONE 0.0s
+#18 [run 6/6] COPY --from=build --chown=app:app /app/public ./public
+#18 DONE 0.0s
+#19 naming to docker.io/library/m06c-a-app:latest done
+#19 DONE 0.9s
+exit 0
+
+# Disk at the time: /dev/vda        252G   37G  2.0G  95% /

@@ -1,0 +1,126 @@
+Package 0.6c brought up to date with the integration branch, 13 Nov 2026: the live acceptance test file alone, WITHOUT the zip (BUILDER_BROWSER_CACHE an empty folder), on the merged working tree before its commit. Expected: every test fails, none skipped, none starts anything.
+Tree of builder/ as run: a5e262ab8524564b9c459c663e7fc64a383983b4; of templates/: 10ae56053bb25cd663997a1888315683663d9403; unstaged changes there: 0.
+The folder BUILDER_BROWSER_CACHE names, before the run: 0 entries.
+$ BUILDER_BROWSER_CACHE=<scratch>/mrg06c-empty-cache npx vitest run test/acceptance-live.test.ts --reporter=verbose   (in builder/; test database builder_test_mrg06c)
+Waiting for the lock from 14:49:59 UTC.
+Lock held; started 2026-11-13T14:49:59Z. Docker containers before: (end of list)
+
+ RUN  v5.1.0 <scratch>/wt-06c/builder
+
+ × test/acceptance-live.test.ts > acceptance runner: live, development profile, stand-in test > its prerequisites are here: Docker answers, and the folder BUILDER_BROWSER_CACHE names holds the approved browser zip 4ms
+   → This live acceptance test cannot exercise the browser, so it fails (it is never skipped). Missing: The approved browser zip is not in the folder BUILDER_BROWSER_CACHE names: The browser cache has no chrome-headless-shell-linux64.zip (<scratch>/mrg06c-empty-cache/chrome-headless-shell-linux64.zip). To put it right, from builder/, run `BUILDER_BROWSER_CACHE=<a folder outside the repository> npx tsx scripts/fetch-browser.ts`, then run the tests with BUILDER_BROWSER_CACHE set to that folder; if the session's network refuses storage.googleapis.com, the owner's cloud environment must let that host through first (docs/ENVIRONMENT-CHECK.md, 'Session set-up'; known gap 110).
+ × test/acceptance-live.test.ts > acceptance runner: live, development profile, stand-in test > the runner image builds from the cached zip; it holds the base image's packages and exactly the 109 approved ones at their versions 1ms
+   → This live acceptance test cannot exercise the browser, so it fails (it is never skipped). Missing: The approved browser zip is not in the folder BUILDER_BROWSER_CACHE names: The browser cache has no chrome-headless-shell-linux64.zip (<scratch>/mrg06c-empty-cache/chrome-headless-shell-linux64.zip). To put it right, from builder/, run `BUILDER_BROWSER_CACHE=<a folder outside the repository> npx tsx scripts/fetch-browser.ts`, then run the tests with BUILDER_BROWSER_CACHE set to that folder; if the session's network refuses storage.googleapis.com, the owner's cloud environment must let that host through first (docs/ENVIRONMENT-CHECK.md, 'Session set-up'; known gap 110).
+ × test/acceptance-live.test.ts > acceptance runner: live, development profile, stand-in test > the stand-in version is written before step 01; steps 01 and 02 run; run A: item 1 passes, with its screenshot and its events 1ms
+   → This live acceptance test cannot exercise the browser, so it fails (it is never skipped). Missing: The approved browser zip is not in the folder BUILDER_BROWSER_CACHE names: The browser cache has no chrome-headless-shell-linux64.zip (<scratch>/mrg06c-empty-cache/chrome-headless-shell-linux64.zip). To put it right, from builder/, run `BUILDER_BROWSER_CACHE=<a folder outside the repository> npx tsx scripts/fetch-browser.ts`, then run the tests with BUILDER_BROWSER_CACHE set to that folder; if the session's network refuses storage.googleapis.com, the owner's cloud environment must let that host through first (docs/ENVIRONMENT-CHECK.md, 'Session set-up'; known gap 110).
+ × test/acceptance-live.test.ts > acceptance runner: live, development profile, stand-in test > run B, stopped by a half-second time limit: every item 'did not run', never passed 0ms
+   → This live acceptance test cannot exercise the browser, so it fails (it is never skipped). Missing: The approved browser zip is not in the folder BUILDER_BROWSER_CACHE names: The browser cache has no chrome-headless-shell-linux64.zip (<scratch>/mrg06c-empty-cache/chrome-headless-shell-linux64.zip). To put it right, from builder/, run `BUILDER_BROWSER_CACHE=<a folder outside the repository> npx tsx scripts/fetch-browser.ts`, then run the tests with BUILDER_BROWSER_CACHE set to that folder; if the session's network refuses storage.googleapis.com, the owner's cloud environment must let that host through first (docs/ENVIRONMENT-CHECK.md, 'Session set-up'; known gap 110).
+ × test/acceptance-live.test.ts > acceptance runner: live, development profile, stand-in test > from inside the engine container: every path to the store fails, no readable file holds the marker, a phrase of the test or the run's reason; its mounts hold nothing of the store; the history holds no acceptance file 1ms
+   → This live acceptance test cannot exercise the browser, so it fails (it is never skipped). Missing: The approved browser zip is not in the folder BUILDER_BROWSER_CACHE names: The browser cache has no chrome-headless-shell-linux64.zip (<scratch>/mrg06c-empty-cache/chrome-headless-shell-linux64.zip). To put it right, from builder/, run `BUILDER_BROWSER_CACHE=<a folder outside the repository> npx tsx scripts/fetch-browser.ts`, then run the tests with BUILDER_BROWSER_CACHE set to that folder; if the session's network refuses storage.googleapis.com, the owner's cloud environment must let that host through first (docs/ENVIRONMENT-CHECK.md, 'Session set-up'; known gap 110).
+ × test/acceptance-live.test.ts > acceptance runner: live, development profile, stand-in test > run C, with the app stopped: refused before its start, no container, every item 'did not run' 0ms
+   → This live acceptance test cannot exercise the browser, so it fails (it is never skipped). Missing: The approved browser zip is not in the folder BUILDER_BROWSER_CACHE names: The browser cache has no chrome-headless-shell-linux64.zip (<scratch>/mrg06c-empty-cache/chrome-headless-shell-linux64.zip). To put it right, from builder/, run `BUILDER_BROWSER_CACHE=<a folder outside the repository> npx tsx scripts/fetch-browser.ts`, then run the tests with BUILDER_BROWSER_CACHE set to that folder; if the session's network refuses storage.googleapis.com, the owner's cloud environment must let that host through first (docs/ENVIRONMENT-CHECK.md, 'Session set-up'; known gap 110).
+ × test/acceptance-live.test.ts > acceptance runner: live, development profile, stand-in test > run D, the deliberately broken copy in a fresh sandbox under the same project id, with the same version: item 1 failed, at step 'sees status waiting' 0ms
+   → This live acceptance test cannot exercise the browser, so it fails (it is never skipped). Missing: The approved browser zip is not in the folder BUILDER_BROWSER_CACHE names: The browser cache has no chrome-headless-shell-linux64.zip (<scratch>/mrg06c-empty-cache/chrome-headless-shell-linux64.zip). To put it right, from builder/, run `BUILDER_BROWSER_CACHE=<a folder outside the repository> npx tsx scripts/fetch-browser.ts`, then run the tests with BUILDER_BROWSER_CACHE set to that folder; if the session's network refuses storage.googleapis.com, the owner's cloud environment must let that host through first (docs/ENVIRONMENT-CHECK.md, 'Session set-up'; known gap 110).
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 7 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/acceptance-live.test.ts > acceptance runner: live, development profile, stand-in test > its prerequisites are here: Docker answers, and the folder BUILDER_BROWSER_CACHE names holds the approved browser zip
+Error: This live acceptance test cannot exercise the browser, so it fails (it is never skipped). Missing: The approved browser zip is not in the folder BUILDER_BROWSER_CACHE names: The browser cache has no chrome-headless-shell-linux64.zip (<scratch>/mrg06c-empty-cache/chrome-headless-shell-linux64.zip). To put it right, from builder/, run `BUILDER_BROWSER_CACHE=<a folder outside the repository> npx tsx scripts/fetch-browser.ts`, then run the tests with BUILDER_BROWSER_CACHE set to that folder; if the session's network refuses storage.googleapis.com, the owner's cloud environment must let that host through first (docs/ENVIRONMENT-CHECK.md, 'Session set-up'; known gap 110).
+ ❯ needsPrerequisites test/acceptance-live.test.ts:34:29
+     32| /** Every live test starts with this: with a prerequisite missing it f…
+     33| const needsPrerequisites = () => {
+     34|   if (missing.length) throw new Error(`This live acceptance test canno…
+       |                             ^
+     35| };
+     36|
+ ❯ test/acceptance-live.test.ts:75:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/7]⎯
+
+ FAIL  test/acceptance-live.test.ts > acceptance runner: live, development profile, stand-in test > the runner image builds from the cached zip; it holds the base image's packages and exactly the 109 approved ones at their versions
+Error: This live acceptance test cannot exercise the browser, so it fails (it is never skipped). Missing: The approved browser zip is not in the folder BUILDER_BROWSER_CACHE names: The browser cache has no chrome-headless-shell-linux64.zip (<scratch>/mrg06c-empty-cache/chrome-headless-shell-linux64.zip). To put it right, from builder/, run `BUILDER_BROWSER_CACHE=<a folder outside the repository> npx tsx scripts/fetch-browser.ts`, then run the tests with BUILDER_BROWSER_CACHE set to that folder; if the session's network refuses storage.googleapis.com, the owner's cloud environment must let that host through first (docs/ENVIRONMENT-CHECK.md, 'Session set-up'; known gap 110).
+ ❯ needsPrerequisites test/acceptance-live.test.ts:34:29
+     32| /** Every live test starts with this: with a prerequisite missing it f…
+     33| const needsPrerequisites = () => {
+     34|   if (missing.length) throw new Error(`This live acceptance test canno…
+       |                             ^
+     35| };
+     36|
+ ❯ test/acceptance-live.test.ts:80:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/7]⎯
+
+ FAIL  test/acceptance-live.test.ts > acceptance runner: live, development profile, stand-in test > the stand-in version is written before step 01; steps 01 and 02 run; run A: item 1 passes, with its screenshot and its events
+Error: This live acceptance test cannot exercise the browser, so it fails (it is never skipped). Missing: The approved browser zip is not in the folder BUILDER_BROWSER_CACHE names: The browser cache has no chrome-headless-shell-linux64.zip (<scratch>/mrg06c-empty-cache/chrome-headless-shell-linux64.zip). To put it right, from builder/, run `BUILDER_BROWSER_CACHE=<a folder outside the repository> npx tsx scripts/fetch-browser.ts`, then run the tests with BUILDER_BROWSER_CACHE set to that folder; if the session's network refuses storage.googleapis.com, the owner's cloud environment must let that host through first (docs/ENVIRONMENT-CHECK.md, 'Session set-up'; known gap 110).
+ ❯ needsPrerequisites test/acceptance-live.test.ts:34:29
+     32| /** Every live test starts with this: with a prerequisite missing it f…
+     33| const needsPrerequisites = () => {
+     34|   if (missing.length) throw new Error(`This live acceptance test canno…
+       |                             ^
+     35| };
+     36|
+ ❯ test/acceptance-live.test.ts:91:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/7]⎯
+
+ FAIL  test/acceptance-live.test.ts > acceptance runner: live, development profile, stand-in test > run B, stopped by a half-second time limit: every item 'did not run', never passed
+Error: This live acceptance test cannot exercise the browser, so it fails (it is never skipped). Missing: The approved browser zip is not in the folder BUILDER_BROWSER_CACHE names: The browser cache has no chrome-headless-shell-linux64.zip (<scratch>/mrg06c-empty-cache/chrome-headless-shell-linux64.zip). To put it right, from builder/, run `BUILDER_BROWSER_CACHE=<a folder outside the repository> npx tsx scripts/fetch-browser.ts`, then run the tests with BUILDER_BROWSER_CACHE set to that folder; if the session's network refuses storage.googleapis.com, the owner's cloud environment must let that host through first (docs/ENVIRONMENT-CHECK.md, 'Session set-up'; known gap 110).
+ ❯ needsPrerequisites test/acceptance-live.test.ts:34:29
+     32| /** Every live test starts with this: with a prerequisite missing it f…
+     33| const needsPrerequisites = () => {
+     34|   if (missing.length) throw new Error(`This live acceptance test canno…
+       |                             ^
+     35| };
+     36|
+ ❯ test/acceptance-live.test.ts:124:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/7]⎯
+
+ FAIL  test/acceptance-live.test.ts > acceptance runner: live, development profile, stand-in test > from inside the engine container: every path to the store fails, no readable file holds the marker, a phrase of the test or the run's reason; its mounts hold nothing of the store; the history holds no acceptance file
+Error: This live acceptance test cannot exercise the browser, so it fails (it is never skipped). Missing: The approved browser zip is not in the folder BUILDER_BROWSER_CACHE names: The browser cache has no chrome-headless-shell-linux64.zip (<scratch>/mrg06c-empty-cache/chrome-headless-shell-linux64.zip). To put it right, from builder/, run `BUILDER_BROWSER_CACHE=<a folder outside the repository> npx tsx scripts/fetch-browser.ts`, then run the tests with BUILDER_BROWSER_CACHE set to that folder; if the session's network refuses storage.googleapis.com, the owner's cloud environment must let that host through first (docs/ENVIRONMENT-CHECK.md, 'Session set-up'; known gap 110).
+ ❯ needsPrerequisites test/acceptance-live.test.ts:34:29
+     32| /** Every live test starts with this: with a prerequisite missing it f…
+     33| const needsPrerequisites = () => {
+     34|   if (missing.length) throw new Error(`This live acceptance test canno…
+       |                             ^
+     35| };
+     36|
+ ❯ test/acceptance-live.test.ts:134:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/7]⎯
+
+ FAIL  test/acceptance-live.test.ts > acceptance runner: live, development profile, stand-in test > run C, with the app stopped: refused before its start, no container, every item 'did not run'
+Error: This live acceptance test cannot exercise the browser, so it fails (it is never skipped). Missing: The approved browser zip is not in the folder BUILDER_BROWSER_CACHE names: The browser cache has no chrome-headless-shell-linux64.zip (<scratch>/mrg06c-empty-cache/chrome-headless-shell-linux64.zip). To put it right, from builder/, run `BUILDER_BROWSER_CACHE=<a folder outside the repository> npx tsx scripts/fetch-browser.ts`, then run the tests with BUILDER_BROWSER_CACHE set to that folder; if the session's network refuses storage.googleapis.com, the owner's cloud environment must let that host through first (docs/ENVIRONMENT-CHECK.md, 'Session set-up'; known gap 110).
+ ❯ needsPrerequisites test/acceptance-live.test.ts:34:29
+     32| /** Every live test starts with this: with a prerequisite missing it f…
+     33| const needsPrerequisites = () => {
+     34|   if (missing.length) throw new Error(`This live acceptance test canno…
+       |                             ^
+     35| };
+     36|
+ ❯ test/acceptance-live.test.ts:177:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/7]⎯
+
+ FAIL  test/acceptance-live.test.ts > acceptance runner: live, development profile, stand-in test > run D, the deliberately broken copy in a fresh sandbox under the same project id, with the same version: item 1 failed, at step 'sees status waiting'
+Error: This live acceptance test cannot exercise the browser, so it fails (it is never skipped). Missing: The approved browser zip is not in the folder BUILDER_BROWSER_CACHE names: The browser cache has no chrome-headless-shell-linux64.zip (<scratch>/mrg06c-empty-cache/chrome-headless-shell-linux64.zip). To put it right, from builder/, run `BUILDER_BROWSER_CACHE=<a folder outside the repository> npx tsx scripts/fetch-browser.ts`, then run the tests with BUILDER_BROWSER_CACHE set to that folder; if the session's network refuses storage.googleapis.com, the owner's cloud environment must let that host through first (docs/ENVIRONMENT-CHECK.md, 'Session set-up'; known gap 110).
+ ❯ needsPrerequisites test/acceptance-live.test.ts:34:29
+     32| /** Every live test starts with this: with a prerequisite missing it f…
+     33| const needsPrerequisites = () => {
+     34|   if (missing.length) throw new Error(`This live acceptance test canno…
+       |                             ^
+     35| };
+     36|
+ ❯ test/acceptance-live.test.ts:188:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/7]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  7 failed (7)
+   Start at  14:49:59
+   Duration  404ms (import 59%, transform 27%, tests 11%, worker 2%)
+
+exit code: 1
+Finished: 2026-11-13T14:50:00Z
+Docker containers after: (end of list)

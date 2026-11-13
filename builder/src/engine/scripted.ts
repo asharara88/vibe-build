@@ -43,7 +43,8 @@ export const SCRIPTED_BANNER = {
  *   src/db/app-schema.ts, so the whole file can be protected);
  * - the build check that refuses unguarded pages: scripts/check-guards.ts;
  * - what decides what is installed and how the image is built: package.json, package-lock.json,
- *   Dockerfile, .dockerignore;
+ *   Dockerfile, .dockerignore, and the folder vendor/, whose packages are installed from the workspace
+ *   (package 0.6c: a script planted there would run during the install if install scripts were on);
  * - what decides which files Next.js serves and what "@/" means: next.config.ts, tsconfig.json.
  */
 export const TEMPLATE_PROTECTED_PATHS = [
@@ -57,6 +58,7 @@ export const TEMPLATE_PROTECTED_PATHS = [
   "package-lock.json",
   "Dockerfile",
   ".dockerignore",
+  "vendor",
   "next.config.ts",
   "tsconfig.json",
 ] as const;

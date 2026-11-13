@@ -1,0 +1,10 @@
+--- <checkout>/templates/next/vendor/no-sharp/package.json	2026-11-13 10:05:28.265501791 +0000
++++ vendor/no-sharp/package.json	2026-11-13 10:14:15.810048122 +0000
+@@ -4,5 +4,6 @@
+   "private": true,
+   "license": "UNLICENSED",
+   "description": "Empty stand-in. The image library sharp (and its LGPL-licensed parts) is deliberately not installed in this template. See README.",
+-  "main": "index.js"
++  "main": "index.js",
++  "scripts": { "install": "echo M06C-PLANTED-INSTALL-SCRIPT-RAN" }
+ }

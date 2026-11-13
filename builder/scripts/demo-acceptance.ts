@@ -61,7 +61,8 @@ const freeDisk = () => {
 };
 const PROJECT_ID = `demo_acc_${Date.now().toString(36)}`;
 const APP_PORT = 3141;
-const DB_PORT = 5571;
+/** The port on the machine's loopback address where the image build's npm finds the egress proxy (package 0.6c). */
+const BUILD_PROXY_PORT = 13171;
 const ISOLATION_PROBE = join(builderDir, "scripts", "isolation-probe.mjs");
 const keep: Record<string, unknown> = {};
 const table: Array<{ route: string; attempt: string; from: string; result: string; failed: boolean }> = [];
@@ -140,7 +141,7 @@ try {
 
   log("");
   log("== 2. A sandbox for example 1; the stand-in tests written into the store before step 01 ==");
-  x = await makeExample1({ projectId: PROJECT_ID, appPort: APP_PORT, dbPort: DB_PORT, runnerImage: RUNNER_IMAGE });
+  x = await makeExample1({ projectId: PROJECT_ID, appPort: APP_PORT, buildProxyPort: BUILD_PROXY_PORT, runnerImage: RUNNER_IMAGE });
   const store = openStore(dataDir, { refuse: [x.dir] });
   log(`  Sandbox ${x.sb.projectName} in a temporary folder; the store at $BUILDER_DATA_DIR/acceptance (mode ${(statMode(store.root))}), outside the repository and the sandbox.`);
   for (const source of x.sb.engineMountSources ?? []) log(`  engine mount source ${source}: mount rule ${engineMountRefusal(source) ?? "allows it (not the data folder, not inside it, not above it)"}`);
@@ -277,7 +278,7 @@ try {
 
   // Over the network: 0.6a's probe, unchanged, in the engine service.
   const machine = await readMachineSide(dockerEnv(x.sb));
-  const settings = JSON.stringify({ sessionProxy: sessionProxyHostPort(process.env.HTTPS_PROXY), projectDbPort: DB_PORT, egressPort: 3128, gatewayPort: 4010, builderDbPort: 5432, exampleAddress: "93.184.215.14", timeoutMs: 5000, ...machine });
+  const settings = JSON.stringify({ sessionProxy: sessionProxyHostPort(process.env.HTTPS_PROXY), projectDbPort: 5432, egressPort: 3128, gatewayPort: 4010, builderDbPort: 5432, exampleAddress: "93.184.215.14", timeoutMs: 5000, ...machine });
   const netLines: string[] = [];
   const netEnd = await sandbox.runStreaming(x.sb, "engine", ["node", "/probe/isolation-probe.mjs", settings], { container: `${x.sb.projectName}-engine-network-probe`, volumes: [`${ISOLATION_PROBE}:/probe/isolation-probe.mjs:ro`], onLine: (l) => netLines.push(l), timeoutMs: 300_000 }).done;
   const net = parseProbeOutput(netLines);
@@ -293,7 +294,7 @@ try {
   writeFileSync(join(outDir, "probe-engine-network.jsonl"), netLines.join("\n") + "\n");
 
   // Through the project's database, from the machine: dumps searched.
-  const dump = await sandbox.exec(x.sb, "db", ["pg_dump", "-U", "app", "-d", "app", "-p", String(DB_PORT), "--data-only"]);
+  const dump = await sandbox.exec(x.sb, "db", ["pg_dump", "-U", "app", "-d", "app", "--data-only"]);
   const dumpHits = searchText(dump, needles);
   const evs = await listEvents(pool, PROJECT_ID);
   const evText = evs.map((e) => JSON.stringify(e.payload)).join("\n");
@@ -325,7 +326,7 @@ try {
   log("");
   log("== 8. The passing sandbox removed; a fresh one, same project id, with the deliberately broken step 03 ==");
   log(`  ${await destroyExample1(x)}`);
-  x = await makeExample1({ projectId: PROJECT_ID, appPort: APP_PORT, dbPort: DB_PORT, runnerImage: RUNNER_IMAGE });
+  x = await makeExample1({ projectId: PROJECT_ID, appPort: APP_PORT, buildProxyPort: BUILD_PROXY_PORT, runnerImage: RUNNER_IMAGE });
   openStore(dataDir, { refuse: [x.dir] });
   await steps(x, ["01-data", "02-submitter-screen", "03-wrong-status"], "broken");
   const brokenStep02Tree = (await git(x.repo, ["rev-parse", "HEAD~1^{tree}"])).trim();

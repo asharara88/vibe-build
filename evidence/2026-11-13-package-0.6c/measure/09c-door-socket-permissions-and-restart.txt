@@ -1,0 +1,26 @@
+# Item 9: the socket's permissions, a read-only mount, and a restart of the machine-side proxy. 2026-11-13T10:53:37Z
+# The socket folder: owner uid 1000, mode 750. The sockets: srwxr-xr-x 1000:1000 egress.sock;srwxr-xr-x 1000:1000 gw.sock;
+
+## a container on out, user 1000, the socket folder mounted ro, read-only root, every capability dropped: connect to /sock/egress.sock and ask for a tunnel
+connected; the egress proxy said: HTTP/1.1 200 Connection Established
+
+## a container on out, user 1000, the socket folder mounted rw, read-only root, every capability dropped: connect to /sock/egress.sock and ask for a tunnel
+connected; the egress proxy said: HTTP/1.1 200 Connection Established
+
+## a container on out, user 1001, the socket folder mounted ro, read-only root, every capability dropped: connect to /sock/egress.sock and ask for a tunnel
+failed: EACCES
+
+## a container on out, user 1001, the socket folder mounted rw, read-only root, every capability dropped: connect to /sock/egress.sock and ask for a tunnel
+failed: EACCES
+
+## the same as user 1001 with the folder opened (mode 755) but the socket left at its own mode
+failed: EACCES
+(folder back to mode 750)
+
+## restart the machine-side proxy (it removes and re-creates its socket); the door keeps its mount of the folder
+  log: {"at":"2026-11-13T10:54:16.832Z","listening":"/sock/gw.sock","to":"127.0.0.1:14610"}
+  log: {"at":"2026-11-13T10:54:17.008Z","listening":"/sock/egress.sock","allow":["registry.npmjs.org"],"umask":"22"}
+  log: {"at":"2026-11-13T10:54:17.013Z","listening":"127.0.0.1:13129","allow":["registry.npmjs.org"]}
+## then E2 from the engine stand-in through the door
+  E2 (through the door after the restart): tunnel open; inside it: HTTP/1.1 200 OK — proxy said: HTTP/1.1 200 Connection Established; certificate trusted with the container's own store
+  W1 (the gateway through the door after the restart): HTTP 200 — server: m06c-gateway-standin; says: "{"answeredBy":"m06c gateway stand-in","path":"/v1/ping"}"

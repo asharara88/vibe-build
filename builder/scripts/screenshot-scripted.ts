@@ -1,6 +1,5 @@
 /**
  * Screenshots of the app the scripted engine built for example 1 (package 2.1), as a person would see it.
- * Usage: npx tsx scripts/screenshot-scripted.ts <baseUrl> <outDir> <samplePassword>
  *
  * Signed in as the sample employee: My requests, empty; the new-request form refusing a wrong value,
  * its message following a change to the other field and going once the value is corrected; a five-day
@@ -9,18 +8,20 @@
  * named, in English, in Arabic, and at a phone's width. Each line printed is a check with what was
  * expected and what was seen; the exit code is 1 if any check failed.
  *
- * The browser runs on the machine that hosts the builder, as the earlier screenshot scripts do; the
- * app runs in its container. The acceptance runner of package 3.1 runs in a container of its own.
+ * It runs only inside the project's acceptance runner container, on the project's `front` network, never on
+ * the machine (package 0.6c): scripts/browser-in-project.ts starts it there with
+ * <baseUrl> <outDir> <samplePasswordFile>, the base address being http://app:<port>.
  */
-import { mkdirSync } from "node:fs";
+import { mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { chromium, type Page } from "playwright";
 
-const [baseUrl, outDir, password] = process.argv.slice(2);
-if (!baseUrl || !outDir || !password) {
-  console.error("usage: screenshot-scripted.ts <baseUrl> <outDir> <samplePassword>");
+const [baseUrl, outDir, passwordFile] = process.argv.slice(2);
+if (!baseUrl || !outDir || !passwordFile) {
+  console.error("usage: screenshot-scripted.ts <baseUrl> <outDir> <samplePasswordFile>");
   process.exit(1);
 }
+const password = readFileSync(passwordFile, "utf8").trim();
 mkdirSync(outDir, { recursive: true });
 
 let failed = 0;

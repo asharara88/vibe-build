@@ -1,0 +1,3 @@
+SHA-256 of each changed code and test file in the working tree, taken at 2026-11-13T12:51:08Z, just before tests-full-3.txt started; no such file was changed until that run ended (HEAD 56f2a79):
+  ed8a039850c7878d82226873ef8d671dde0b297a6d33cc0efc5e52222c484aec  builder/scripts/isolation-harness.ts
+  2b81101e4cc3286a169ff8bc2c5184ae25e9ae392bf95c1f73479f1be998926d  builder/test/isolation.test.ts

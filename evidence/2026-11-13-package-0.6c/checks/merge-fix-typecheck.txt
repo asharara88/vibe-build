@@ -1,0 +1,6 @@
+$ npm run typecheck   (in builder/, the working tree with the door test's fix, before its commit; 2026-11-13T14:55:28Z)
+
+> builder@0.0.1 typecheck
+> tsc --noEmit
+
+exit code: 0
