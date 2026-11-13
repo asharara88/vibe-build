@@ -182,6 +182,12 @@ describe("package 1.3: the pre-step check and the step hold (proof row B7)", () 
   it("1.3 the budget of a 3-turn step at the test's limits is $0.02988, worked in whole millionths", () => {
     const sb = stepBudget({ model: MODEL, maxTurns: 3, profile: STEP_PROFILE, priceTableDate: PRICE_TABLE_DATE });
     expect([sb.perTurnUsd, sb.budgetUsd, sb.budgetMicro, sb.perTurn.prompt_tokens_held]).toEqual([PER_TURN, S3, 29880, 245]);
+    // Exact for every turn limit allowed. In dollars, 13 x 0.00996 x 1,000,000 comes to 129480.00000000001 (measured in Node).
+    for (let turns = 1; turns <= 1000; turns++) {
+      const b = stepBudget({ model: MODEL, maxTurns: turns, profile: STEP_PROFILE, priceTableDate: PRICE_TABLE_DATE });
+      if (b.budgetMicro !== turns * 9960 || b.budgetUsd !== (turns * 9960) / 1e6) throw new Error(`${turns} turns: ${b.budgetMicro}`);
+    }
+    expect(stepBudget({ model: MODEL, maxTurns: 13, profile: STEP_PROFILE, priceTableDate: PRICE_TABLE_DATE }).budgetUsd).toBe(0.12948);
   });
 
   it("1.3 T1 (B7, refused): a step whose budget does not fit is refused before it starts, with the message shown; the engine is never created", async () => {
@@ -578,8 +584,8 @@ describe("package 1.3: the pre-step check and the step hold (proof row B7)", () 
     ];
     for (const [label, more, headers, status, text] of cases) {
       const res = await call(opened.token, more, headers);
-      const body = (await res.json()) as { error: { message: string } };
-      expect([label, res.status, body.error.message.includes(text)]).toEqual([label, status, true]);
+      const body = (await res.json()) as { error?: { message?: string } };
+      expect([label, res.status, (body.error?.message ?? "").includes(text)]).toEqual([label, status, true]);
     }
     expect(forwarded).toBe(before);
     expect((await payloads(id, "gateway.refused")).map((p) => [p["reason"], (p["step_hold"] as { which?: string } | undefined)?.which ?? null])).toEqual([
