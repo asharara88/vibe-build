@@ -377,8 +377,8 @@ describe("J1 interface: pages", () => {
     const cookie = await signIn(app);
     const id = await journey.createProject({ name: "Freezes (made-up)", cap: "5.00", brief: "Made-up brief." });
     const gw = uniqueId("gw_j1_cost_made_up");
-    const open = async () => {
-      const r = await openHold(pool, { projectId: id, step: null, amountUsd: 0.01, deadline: new Date(Date.now() + 3_600_000), gateway: gw, arithmetic: { made_up: true }, path: "/v1/messages" });
+    const open = async (projectId = id) => {
+      const r = await openHold(pool, { projectId, step: null, amountUsd: 0.01, deadline: new Date(Date.now() + 3_600_000), gateway: gw, arithmetic: { made_up: true }, path: "/v1/messages" });
       if (!r.ok) throw new Error(`hold not opened: ${r.reason}`);
       return r.hold.id;
     };
@@ -410,6 +410,12 @@ describe("J1 interface: pages", () => {
     await keepHold(pool, { projectId: id, holdId: setAside, step: null, reason: "the provider's answer broke off part-way", seen: {} });
     await insertSetAside("journal_line_set_aside", uniqueId("sa_made_up"));
     await insertSetAside("unrecorded_ending", uniqueId("sa_made_up_before_010"));
+    // A bill above its hold alone, in a project of its own: its hold is settled and nothing else is kept, so the
+    // unreconciled list holds only the bill (the case the owner meets after one overrun).
+    const alone = await journey.createProject({ name: "A bill above its hold alone (made-up)", cap: "5.00", brief: "Made-up brief." });
+    const aloneHold = await open(alone);
+    const aloneFreeze = (await settleHold(pool, { projectId: alone, holdId: aloneHold, step: null, actualUsd: 0.011, call: {}, gateway: gw })).freeze!;
+    expect(aloneFreeze.kind).toBe("bill_above_hold");
     const freezes = await listFreezes(pool, id);
     const shown = ["bill_above_hold", "late_answer_above_hold", "kept_above_hold", "unrecorded_ending", "journal_line_set_aside", "journal_line_set_aside"];
     expect(freezes.map((f) => f.kind)).toEqual(["bill_above_hold", "late_answer_above_hold", "kept_above_hold", "unrecorded_ending", "journal_line_set_aside", "unrecorded_ending"]);
@@ -434,6 +440,11 @@ describe("J1 interface: pages", () => {
       expect(page, lang).not.toContain("data-unreconciled-empty");
       expect(page, lang).toContain(`<tr data-overrun="${freezes[0]!.id}"><td>${billed}</td><td>$0.012345</td><td>${esc(t(lang, "cost.overrun", { freeze: freezes[0]!.id, bill: "$0.012345", held: "$0.010000", above: "$0.002345" }))}</td></tr>`);
       for (const h of [late, kept, unrecorded, setAside]) expect(page, `${lang} hold ${h}`).toContain(`<tr data-unreconciled-hold="${h}">`);
+      const lone = await (await get(app, `/projects/${alone}/cost${lang === "ar" ? "?lang=ar" : ""}`, cookie)).text();
+      expect(lone, `${lang} alone`).toContain(`<tr data-freeze="${aloneFreeze.id}" data-freeze-kind="bill_above_hold">`);
+      expect(lone, `${lang} alone`).not.toContain("data-unreconciled-empty");
+      expect(lone, `${lang} alone`).not.toContain("data-unreconciled-hold");
+      expect(lone, `${lang} alone`).toContain(`<tr data-overrun="${aloneFreeze.id}"><td>${aloneHold}</td><td>$0.011000</td><td>${esc(t(lang, "cost.overrun", { freeze: aloneFreeze.id, bill: "$0.011000", held: "$0.010000", above: "$0.001000" }))}</td></tr>`);
     }
     expect(await eventCount()).toBe(before);
   });
