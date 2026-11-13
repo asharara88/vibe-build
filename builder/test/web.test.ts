@@ -692,6 +692,8 @@ describe("J1 interface, part 2: the build, preview, checklist and export screens
     html = await page(app, `/projects/${id}/acceptance`, cookie);
     expect(html).toContain(t("en", "acceptance.run"));
     expect(html).toContain(t("en", "acceptance.sign_off_not_yet"));
+    // Before any run, item 1 (its test is written) is not called untested.
+    expect(/<tr data-item="1"[\s\S]*?<\/tr>/.exec(html)![0]).toContain(t("en", "acceptance.test_not_run_yet").replace(/'/g, "&#39;"));
     expect((await post(app, `/projects/${id}/sign-off`, {}, { cookie })).status).toBe(409);
     expect((await post(app, `/projects/${id}/export`, {}, { cookie })).status).toBe(409);
     expect(await page(app, `/projects/${id}/export`, cookie)).toContain(t("en", "export.not_yet"));
@@ -699,9 +701,10 @@ describe("J1 interface, part 2: the build, preview, checklist and export screens
     html = await page(app, `/projects/${id}/acceptance`, cookie);
     expect(html).toContain('<span class="label" data-label>stand-in test, not independent acceptance</span>');
     expect(html).toContain(STAND_IN_NOTE.replace(/'/g, "&#39;"));
-    expect(html).toContain('<tr data-item="1" data-status="passed">');
+    expect(html).toContain('<tr data-item="1" data-status="passed" data-shown="passed">');
+    expect(/<tr data-item="1"[\s\S]*?<\/tr>/.exec(html)![0]).toContain('<strong class="ok">Passed</strong>');
     for (const n of [2, 3, 4, 5, 6]) {
-      const row = new RegExp(`<tr data-item="${n}" data-status="did not run">[\\s\\S]*?</tr>`).exec(html)?.[0] ?? "";
+      const row = new RegExp(`<tr data-item="${n}" data-status="did not run" data-shown="did_not_run">[\\s\\S]*?</tr>`).exec(html)?.[0] ?? "";
       expect(row, `item ${n}`).toContain(t("en", "acceptance.no_test"));
       expect(row, `item ${n}`).not.toContain(t("en", "acceptance.status.passed"));
     }
@@ -848,6 +851,103 @@ describe("J1 interface, part 2: the build, preview, checklist and export screens
       expect(html, lang).toContain(`action="/projects/${id}/sign-off"`);
     }
     await go(app, j, `/projects/${id}/sign-off`, cookie);
+    await go(app, j, `/projects/${id}/close`, cookie);
+  });
+
+  it("no green Passed for an item when the run's outcome word is not 'passed': its result is provisional, shown neutral, with the run's outcome next to it (the last independent check, point c)", async () => {
+    const { app, j } = makeJobsApp();
+    const cookie = await signIn(app);
+    const made = await post(app, "/projects", { name: "Provisional item (made-up)", cap: "5.00", brief: "Made-up brief." }, { cookie });
+    const id = /\/projects\/(j1-[0-9a-f]{12})\//.exec(made.headers.get("location") ?? "")![1]!;
+    for (const a of ["continue", "answer-rest", "confirm-brief", "confirm-plan"]) await go(app, j, `/projects/${id}/${a}`, cookie);
+    await go(app, j, `/projects/${id}/build`, cookie, { step: "01-data" });
+    await go(app, j, `/projects/${id}/approve`, cookie, { step: "01-data" });
+    await go(app, j, `/projects/${id}/approve`, cookie, { step: "02-submitter-screen" });
+    const itemRow = (html: string, n: number) => new RegExp(`<tr data-item="${n}"[\\s\\S]*?</tr>`).exec(html)?.[0] ?? "";
+    // In each of these runs item 1's own record says "passed"; the run's outcome word says otherwise.
+    for (const [word, shownAs, key] of [
+      ["not passed", "not passed", "acceptance.outcome.not_passed"],
+      ["failed", "failed", "acceptance.outcome.failed"],
+      ["absent", "none", "acceptance.outcome.none"],
+    ] as const) {
+      sandboxes.outcomeWord = word;
+      try {
+        await go(app, j, `/projects/${id}/acceptance`, cookie);
+      } finally {
+        sandboxes.outcomeWord = null;
+      }
+      for (const lang of ["en", "ar"] as const) {
+        const row = itemRow(await page(app, `/projects/${id}/acceptance?lang=${lang}`, cookie), 1);
+        expect(row, `${word} ${lang}`).toContain('data-status="passed" data-shown="passed_provisional"');
+        expect(row, `${word} ${lang}`).toContain(`<strong class="neutral">${t(lang, "acceptance.status.passed_provisional")}</strong>`);
+        expect(row, `${word} ${lang}`).toContain(`<div class="note" data-run-outcome="${shownAs}">${t(lang, "acceptance.item_run_outcome", { outcome: t(lang, key) }).replace(/'/g, "&#39;")}</div>`);
+        expect(row, `${word} ${lang}`).not.toContain('class="ok"');
+        // Items with no test: did not run, with the run's outcome next to them too.
+        expect(itemRow(await page(app, `/projects/${id}/acceptance?lang=${lang}`, cookie), 2), `${word} ${lang}`).toContain(`data-run-outcome="${shownAs}"`);
+      }
+    }
+    // A run whose outcome word is "passed": item 1 is shown passed, in green, with nothing next to it.
+    await go(app, j, `/projects/${id}/acceptance`, cookie);
+    for (const lang of ["en", "ar"] as const) {
+      const html = await page(app, `/projects/${id}/acceptance?lang=${lang}`, cookie);
+      expect(itemRow(html, 1), lang).toContain(`<strong class="ok">${t(lang, "acceptance.status.passed")}</strong>`);
+      expect(html, lang).not.toContain("data-run-outcome");
+      expect(html, lang).not.toContain(t(lang, "acceptance.status.passed_provisional"));
+    }
+    await go(app, j, `/projects/${id}/close`, cookie);
+  });
+
+  it("the run table shows the latest checklist job, also one that failed before the runner wrote any event: no earlier run is shown, no outcome is read as passed, and sign-off is not offered (the last independent check, point c)", async () => {
+    const { app, j } = makeJobsApp();
+    const cookie = await signIn(app);
+    const made = await post(app, "/projects", { name: "Latest checklist job (made-up)", cap: "5.00", brief: "Made-up brief." }, { cookie });
+    const id = /\/projects\/(j1-[0-9a-f]{12})\//.exec(made.headers.get("location") ?? "")![1]!;
+    for (const a of ["continue", "answer-rest", "confirm-brief", "confirm-plan"]) await go(app, j, `/projects/${id}/${a}`, cookie);
+    await go(app, j, `/projects/${id}/build`, cookie, { step: "01-data" });
+    await go(app, j, `/projects/${id}/approve`, cookie, { step: "01-data" });
+    await go(app, j, `/projects/${id}/approve`, cookie, { step: "02-submitter-screen" });
+    // A first run that passed.
+    await go(app, j, `/projects/${id}/acceptance`, cookie);
+    let html = await page(app, `/projects/${id}/acceptance`, cookie);
+    const first = /<table data-run="(run-standin-[^"]+)" data-job="([^"]+)" data-job-state="finished">/.exec(html);
+    expect(first).not.toBeNull();
+    // The next checklist job fails before the runner writes any event.
+    sandboxes.acceptanceFailsBeforeRun = true;
+    try {
+      await go(app, j, `/projects/${id}/acceptance`, cookie);
+    } finally {
+      sandboxes.acceptanceFailsBeforeRun = false;
+    }
+    const s = await j.state(id);
+    const failedJob = s.jobs.at(-1)!;
+    expect(failedJob).toMatchObject({ kind: "acceptance", state: "failed" });
+    for (const lang of ["en", "ar"] as const) {
+      html = await page(app, `/projects/${id}/acceptance?lang=${lang}`, cookie);
+      expect(html, lang).toContain(`<table data-run="" data-job="${failedJob.jobId}" data-job-state="failed">`);
+      expect(html, lang).toContain(`<strong class="warn">${t(lang, "acceptance.job_state.failed")}</strong>`);
+      expect(html, lang).toContain(`<span data-no-run>${t(lang, "acceptance.no_run")}</span>`);
+      expect(html, lang).toContain('<p class="warn" lang="en" dir="ltr" data-job-failed>the job stopped with an error (Error)</p>');
+      expect(html.match(new RegExp(`<strong class="warn" data-outcome="none">${t(lang, "acceptance.outcome.none")}</strong>`, "g")) ?? [], lang).toHaveLength(2);
+      // Nothing of the earlier run that passed: its id, its outcome, its summary, its item results.
+      expect(html, lang).not.toContain(first![1]!);
+      expect(html, lang).not.toContain(first![2]!);
+      expect(html, lang).not.toContain('data-outcome="passed"');
+      expect(html, lang).not.toContain(PASSED_SUMMARY.replace(/'/g, "&#39;"));
+      expect(html, lang).not.toContain('data-status="passed"');
+      const row1 = /<tr data-item="1"[\s\S]*?<\/tr>/.exec(html)![0];
+      expect(row1, lang).toContain('data-status="did not run" data-shown="did_not_run"');
+      expect(row1, lang).toContain(t(lang, "acceptance.test_no_result").replace(/'/g, "&#39;"));
+      expect(row1, lang).not.toContain(t(lang, "acceptance.no_test"));
+      expect(html, lang).toContain(t(lang, "acceptance.sign_off_not_yet"));
+      expect(html, lang).not.toContain(`action="/projects/${id}/sign-off"`);
+    }
+    expect((await post(app, `/projects/${id}/sign-off`, {}, { cookie })).status).toBe(409);
+    // A new run that passes is shown, and can be signed off.
+    await go(app, j, `/projects/${id}/acceptance`, cookie);
+    html = await page(app, `/projects/${id}/acceptance`, cookie);
+    expect(html).toMatch(/<table data-run="run-standin-[^"]+" data-job="[^"]+" data-job-state="finished">/);
+    expect(html).not.toContain("data-job-failed");
+    expect(html).toContain(`action="/projects/${id}/sign-off"`);
     await go(app, j, `/projects/${id}/close`, cookie);
   });
 

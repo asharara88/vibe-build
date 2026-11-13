@@ -23,7 +23,7 @@ import { PASSED_SUMMARY, PNG_1X1, slowPoolFor, StandInSandboxes } from "./journe
 import type { BuildEngine } from "../src/engine/interface.js";
 import { ScriptedEngine } from "../src/engine/scripted.js";
 import { DEFAULT_PROFILES } from "../src/gateway/hold.js";
-import { diskRefusal, EV, EventQueue, EXPORT_LABEL, Journey, JourneyRefused, JOURNEY_STAND_IN_LABEL, orderedEngine, runOutcome, scriptedEngineFor, engineEventHandler, SIGN_OFF_LABEL } from "../src/orchestrator/journey.js";
+import { diskRefusal, EV, EventQueue, EXPORT_LABEL, jobRunFinished, Journey, JourneyRefused, JOURNEY_STAND_IN_LABEL, orderedEngine, runOutcome, scriptedEngineFor, engineEventHandler, SIGN_OFF_LABEL, type JobRecord } from "../src/orchestrator/journey.js";
 import { runBudgetedStep } from "../src/orchestrator/steps.js";
 import { sandbox as sandboxManager, type Sandbox, type StreamingOptions } from "../src/sandbox/manager.js";
 import { networkChecks } from "../scripts/journey-network-checks.js";
@@ -858,6 +858,28 @@ describe("J1 journey, part 2: the build, preview, checklist and export jobs (sta
     await j.closeProject(id);
   });
 
+  it("the run a checklist job made is the runner's record written between the job's start and its end; a job that ended before the runner wrote any event has none, even after an earlier run", () => {
+    let n = 0;
+    const ev = (kind: string, payload: Record<string, unknown>) => ({ id: String(++n), project_id: "j1-0123456789ab", at: new Date(), kind, step: null, payload }) as Parameters<typeof jobRunFinished>[0][number];
+    const job = (jobId: string, startedEventId: string, state: JobRecord["state"]): JobRecord => ({ jobId, kind: "acceptance", step: null, state, startedEventId, reason: null });
+    const events = [
+      ev(EV.jobStarted, { job_id: "a", kind: "acceptance" }), // 1
+      ev("acceptance.run.started", { run_id: "r1" }), // 2
+      ev("acceptance.run.finished", { run_id: "r1", outcome: "passed" }), // 3
+      ev(EV.jobFinished, { job_id: "a", run_id: "r1" }), // 4
+      ev(EV.jobStarted, { job_id: "b", kind: "acceptance" }), // 5
+      ev(EV.jobFailed, { job_id: "b", reason: "the job stopped with an error (Error)" }), // 6
+      ev(EV.jobStarted, { job_id: "c", kind: "acceptance" }), // 7
+      ev("acceptance.run.finished", { run_id: "r3", outcome: "not passed" }), // 8
+      ev(EV.jobFailed, { job_id: "c", reason: "the job stopped with an error (Error)" }), // 9
+      ev(EV.jobStarted, { job_id: "d", kind: "acceptance" }), // 10
+    ];
+    expect(jobRunFinished(events, job("a", "1", "finished"))?.payload.run_id).toBe("r1");
+    expect(jobRunFinished(events, job("b", "5", "failed"))).toBeUndefined(); // not r1, the earlier job's run
+    expect(jobRunFinished(events, job("c", "7", "failed"))?.payload.run_id).toBe("r3"); // written, then the job failed
+    expect(jobRunFinished(events, job("d", "10", "running"))).toBeUndefined();
+    expect(jobRunFinished(events, job("d", "10", "interrupted"))).toBeUndefined();
+  });
 });
 
 describe("J1 journey, part 2: the adapter removes only journey sandboxes", () => {

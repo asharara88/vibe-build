@@ -287,6 +287,21 @@ export function runOutcome(events: Event[], runId: string): RunOutcome | null {
 }
 
 /**
+ * The runner's record of the run a checklist job made, if it wrote one: the `acceptance.run.finished` event written
+ * between the job's `journey.job.started` and its end (finished, failed or interrupted; one job runs at a time), the
+ * one its finished event names first. Undefined for a job that ended before the runner wrote any event, and for a
+ * job still running.
+ */
+export function jobRunFinished(events: Event[], job: JobRecord): Event | undefined {
+  if (job.state === "running") return undefined;
+  const started = BigInt(job.startedEventId);
+  const end = events.find((e) => (e.kind === EV.jobFinished || e.kind === EV.jobFailed || e.kind === EV.jobInterrupted) && String(e.payload.job_id) === job.jobId);
+  const inside = events.filter((e) => e.kind === "acceptance.run.finished" && BigInt(e.id) > started && (!end || BigInt(e.id) < BigInt(end.id)));
+  const named = end && typeof end.payload.run_id === "string" ? inside.find((e) => e.payload.run_id === end.payload.run_id) : undefined;
+  return named ?? inside.at(-1);
+}
+
+/**
  * When a job may start (design: no build before both confirmations; no export before sign-off). Returns why
  * not, or null. Checked under the project's lock, with no other job running in the process.
  */

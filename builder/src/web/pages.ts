@@ -17,7 +17,7 @@ import type { Budget, StepHoldRow } from "../store/holds.js";
 import { SET_ASIDE_FREEZE_REASON, type Freeze, type FreezeKind } from "../store/freezes.js";
 import type { UnreconciledList } from "../store/reconcile.js";
 import { fieldChecklist, MAX_FREE_TEXT, showReason, type Answer, type IntakeQuestion } from "../orchestrator/intake.js";
-import { approveRefusal, buildStepRefusal, DISK_FLOOR_BYTES, EV, EXPORT_LABEL, JOB_RULES, JOURNEY_PREFIX, JOURNEY_STAND_IN_LABEL, MAX_BRIEF, MAX_NAME, runOutcome, SIGN_OFF_LABEL, signOffRefusal, type Journey, type JourneyState, type Stage } from "../orchestrator/journey.js";
+import { approveRefusal, buildStepRefusal, DISK_FLOOR_BYTES, EV, EXPORT_LABEL, JOB_RULES, jobRunFinished, JOURNEY_PREFIX, JOURNEY_STAND_IN_LABEL, MAX_BRIEF, MAX_NAME, runOutcome, SIGN_OFF_LABEL, signOffRefusal, type Journey, type JourneyState, type Stage } from "../orchestrator/journey.js";
 import { REFUSAL_EXTRA } from "../orchestrator/journey-jobs.js";
 import { STAND_IN_NOTE } from "../acceptance/store.js";
 
@@ -69,6 +69,7 @@ a{ color: var(--accent) }
 .note{ font-size: 14px; color: var(--muted) }
 .warn{ color: var(--bad); font-weight: 600 }
 .ok{ color: var(--real); font-weight: 600 }
+.neutral{ color: var(--muted); font-weight: 600 }
 label{ display: block; font-weight: 600; margin: 10px 0 4px }
 input[type=text],input[type=password],input[type=number],textarea{ width: 100%; max-width: 100%; padding: 8px; border: 1px solid var(--line); border-radius: 6px; font: inherit }
 textarea{ min-height: 120px }
@@ -720,14 +721,25 @@ ${lines.length ? html`<details${s.runningJob?.kind === "preview" ? html` open` :
 
 export function acceptancePage(lang: Lang, s: JourneyState, j: Journey): Html {
   const id = s.project.id;
-  const finished = s.events.filter((e) => e.kind === "acceptance.run.finished").at(-1);
+  // The latest checklist job, and the runner's record of its run, if it wrote one: the table and the items show that
+  // job only, never an earlier run (a job that failed before the runner wrote any event shows no run).
+  const lastJob = [...s.jobs].reverse().find((x) => x.kind === "acceptance");
+  const ended = lastJob && lastJob.state !== "running" ? lastJob : null;
+  const finished = ended ? jobRunFinished(s.events, ended) : undefined;
   const runId = finished ? String(finished.payload.run_id ?? "") : null;
   // The run's outcome word, from its own acceptance.run.finished event (package 3.1b), not from the summary's text.
   const outcome = runId ? runOutcome(s.events, runId) : null;
-  const outcomeShown = html`<strong class="${outcome === "passed" ? "ok" : "warn"}" data-outcome="${outcome ?? "none"}">${t(lang, `acceptance.outcome.${outcome === null ? "none" : outcome === "not passed" ? "not_passed" : outcome}`)}</strong>`;
+  const outcomeWord = t(lang, `acceptance.outcome.${outcome === null ? "none" : outcome === "not passed" ? "not_passed" : outcome}`);
+  const outcomeShown = html`<strong class="${outcome === "passed" ? "ok" : "warn"}" data-outcome="${outcome ?? "none"}">${outcomeWord}</strong>`;
   const items = runId ? s.events.filter((e) => e.kind === "acceptance.item" && e.payload.run_id === runId) : [];
+  // The items the tests version has a test for (its acceptance.version.written event), so an item with a test that did not run is not called untested.
+  const versionEvent = s.events.filter((e) => e.kind === "acceptance.version.written" && e.payload.version === s.acceptanceVersion).at(-1);
+  const tested = new Set((Array.isArray(versionEvent?.payload.items) ? (versionEvent.payload.items as Array<{ number?: unknown }>) : []).map((i) => num(i.number)));
   const canRun = !s.runningJob && !s.interrupted && JOB_RULES.acceptance(s) === null;
-  const lastJob = [...s.jobs].reverse().find((x) => x.kind === "acceptance");
+  const dash = html`<span data-none>—</span>`;
+  const runTable = ended
+    ? html`<table data-run="${runId ?? ""}" data-job="${ended.jobId}" data-job-state="${ended.state}"><tr><th>${t(lang, "acceptance.job")}</th><td><strong class="${ended.state === "finished" ? "neutral" : "warn"}">${t(lang, `acceptance.job_state.${ended.state}`)}</strong></td></tr><tr><th>${t(lang, "acceptance.run_id")}</th><td>${runId ? html`<span lang="en" dir="ltr">${runId}</span>` : html`<span data-no-run>${t(lang, "acceptance.no_run")}</span>`}</td></tr><tr><th>${t(lang, "acceptance.version")}</th><td>${finished ? String(finished.payload.version ?? "") : dash}</td></tr><tr><th>${t(lang, "acceptance.exit")}</th><td>${!finished ? dash : finished.payload.exit_code === null ? t(lang, "acceptance.no_container") : String(finished.payload.exit_code)}</td></tr><tr><th>${t(lang, "acceptance.outcome")}</th><td>${outcomeShown}</td></tr><tr><th>${t(lang, "acceptance.summary")}</th><td lang="en" dir="ltr" data-summary>${finished ? String(finished.payload.summary ?? "") : dash}</td></tr></table>`
+    : html`<p class="note">${t(lang, s.runningJob?.kind === "acceptance" ? "acceptance.running" : "acceptance.not_run")}</p>`;
   const runPanel = panel(
     lang,
     "real",
@@ -735,14 +747,18 @@ export function acceptancePage(lang: Lang, s: JourneyState, j: Journey): Html {
     html`${runningNote(lang, s)}<p>${t(lang, "acceptance.run_intro")}</p>
 ${lastJob?.state === "failed" || lastJob?.state === "interrupted" ? html`<p class="warn" lang="en" dir="ltr" data-job-failed>${lastJob.reason ?? ""}</p>` : ""}
 ${canRun ? html`<div class="actions">${postButton(`/projects/${id}/acceptance`, t(lang, "acceptance.run"))}</div>` : ""}
-${finished ? html`<table data-run="${runId ?? ""}"><tr><th>${t(lang, "acceptance.run_id")}</th><td lang="en" dir="ltr">${runId}</td></tr><tr><th>${t(lang, "acceptance.version")}</th><td>${String(finished.payload.version ?? "")}</td></tr><tr><th>${t(lang, "acceptance.exit")}</th><td>${finished.payload.exit_code === null ? t(lang, "acceptance.no_container") : String(finished.payload.exit_code)}</td></tr><tr><th>${t(lang, "acceptance.outcome")}</th><td>${outcomeShown}</td></tr><tr><th>${t(lang, "acceptance.summary")}</th><td lang="en" dir="ltr" data-summary>${String(finished.payload.summary ?? "")}</td></tr></table>` : html`<p class="note">${t(lang, "acceptance.not_run")}</p>`}`,
+${runTable}`,
   );
   const rows = j.spec.acceptance.map((item) => {
     const ev = items.find((e) => num(e.payload.item) === item.number);
     const status = ev ? String(ev.payload.status) : "did not run";
+    // An item's own "passed" is shown as passed only when the run's outcome word is "passed"; otherwise it is
+    // provisional, shown neutral, with the run's outcome next to it (a run that did not pass passes nothing).
+    const shownAs = status === "passed" ? (outcome === "passed" ? "passed" : "passed_provisional") : status === "failed" ? "failed" : "did_not_run";
     const shot = ev && ev.payload.screenshot ? html`<figure><img src="/projects/${id}/files/${ev.id}" alt="${t(lang, "acceptance.shot_alt", { n: item.number })}" loading="lazy"><figcaption>${t(lang, "acceptance.shot_caption")}</figcaption></figure>` : "";
-    const why = ev ? html`<span lang="en" dir="ltr">${String(ev.payload.why ?? "")}</span>` : html`${t(lang, "acceptance.no_test")}`;
-    return html`<tr data-item="${item.number}" data-status="${status}"><td>${item.number}</td><td lang="en" dir="ltr">As ${item.as_role}: ${item.does} Sees: ${item.sees}</td><td><strong class="${status === "passed" ? "ok" : "warn"}">${t(lang, `acceptance.status.${status === "passed" ? "passed" : status === "failed" ? "failed" : "did_not_run"}`)}</strong><div class="note">${why}</div>${shot}</td></tr>`;
+    const why = ev ? html`<span lang="en" dir="ltr">${String(ev.payload.why ?? "")}</span>` : !tested.has(item.number) ? html`${t(lang, "acceptance.no_test")}` : html`${t(lang, ended ? "acceptance.test_no_result" : "acceptance.test_not_run_yet")}`;
+    const runOutcomeNote = runId && outcome !== "passed" ? html`<div class="note" data-run-outcome="${outcome ?? "none"}">${t(lang, "acceptance.item_run_outcome", { outcome: outcomeWord })}</div>` : "";
+    return html`<tr data-item="${item.number}" data-status="${status}" data-shown="${shownAs}"><td>${item.number}</td><td lang="en" dir="ltr">As ${item.as_role}: ${item.does} Sees: ${item.sees}</td><td><strong class="${shownAs === "passed" ? "ok" : shownAs === "passed_provisional" ? "neutral" : "warn"}">${t(lang, `acceptance.status.${shownAs}`)}</strong>${runOutcomeNote}<div class="note">${why}</div>${shot}</td></tr>`;
   });
   const results = panel(
     lang,
@@ -750,7 +766,7 @@ ${finished ? html`<table data-run="${runId ?? ""}"><tr><th>${t(lang, "acceptance
     t(lang, "acceptance.results"),
     html`<p><span class="label" data-label>${t(lang, "acceptance.label")}</span></p>${englishToo(lang, JOURNEY_STAND_IN_LABEL)}
 <p class="note" lang="en" dir="ltr" data-stand-in-note>${STAND_IN_NOTE}</p>
-${finished ? html`<p>${t(lang, "acceptance.outcome")}: ${outcomeShown}</p><p>${t(lang, "acceptance.summary")}: <span lang="en" dir="ltr">${String(finished.payload.summary ?? "")}</span></p>` : ""}
+${ended ? html`<p>${t(lang, "acceptance.outcome")}: ${outcomeShown}</p>${finished ? html`<p>${t(lang, "acceptance.summary")}: <span lang="en" dir="ltr">${String(finished.payload.summary ?? "")}</span></p>` : ""}` : ""}
 <div class="scroll"><table data-items><thead><tr><th>#</th><th>${t(lang, "acceptance.item")}</th><th>${t(lang, "acceptance.result")}</th></tr></thead><tbody>${rows}</tbody></table></div>
 <h3>${t(lang, "proposal.assumed")}</h3>
 <ul data-assumed lang="en" dir="ltr">${j.spec.assumed.map((a) => html`<li>${a.about}: ${a.chose} ${a.reason}</li>`)}</ul>`,

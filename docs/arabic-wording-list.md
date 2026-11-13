@@ -132,9 +132,9 @@ Generated on 2026-11-12 by `docs/tools/arabic-wording-list.py`. Keys compared on
 
 ## The builder's own interface (package J1, 13 November 2026)
 
-Added with package J1, part 1: the messages of the builder's own screens (`builder/src/web/messages/en.json` and `ar.json`), and the Arabic of the 20 questions of test example 1 (`builder/src/orchestrator/intake/example-1.json`; the English is the question bank, `docs/spec/B2-question-bank.md`, word for word). The Arabic is Claude Code's; no reader of Arabic has checked it (known gap 134). Generated from those files on 13 November 2026; regenerate after any change to them. Part 2 (13 November 2026) adds the messages of the build, preview, checklist and export screens; the regenerated table below holds both parts. Brought up to date with packages 1.4b, 1.4c and 3.1b (13 November 2026): 15 messages added (the checklist's outcome word, each kind of freeze on the cost panel, a bill above its hold in the unreconciled list) and 1 removed (`cost.frozen`, replaced by `cost.frozen_intro`); the table below is regenerated from the files.
+Added with package J1, part 1: the messages of the builder's own screens (`builder/src/web/messages/en.json` and `ar.json`), and the Arabic of the 20 questions of test example 1 (`builder/src/orchestrator/intake/example-1.json`; the English is the question bank, `docs/spec/B2-question-bank.md`, word for word). The Arabic is Claude Code's; no reader of Arabic has checked it (known gap 134). Generated from those files on 13 November 2026; regenerate after any change to them. Part 2 (13 November 2026) adds the messages of the build, preview, checklist and export screens; the regenerated table below holds both parts. Brought up to date with packages 1.4b, 1.4c and 3.1b (13 November 2026): 15 messages added (the checklist's outcome word, each kind of freeze on the cost panel, a bill above its hold in the unreconciled list) and 1 removed (`cost.frozen`, replaced by `cost.frozen_intro`); the table below is regenerated from the files. On package 0.6c's private networks (13 November 2026): 10 messages added (the checklist's latest job, an item's result that is provisional while its run did not pass, an item whose test is written but has no result) and 0 removed; two changed (`preview.app_running`, `preview.not_live`: where the app runs since 0.6c); the table below is regenerated from the files.
 
-Count: English messages 262, Arabic messages 262; missing from Arabic 0, missing from English 0 (a test, `builder/test/web.test.ts`, checks that the two files have the same keys). Identical in both languages: 3 (`app.name`, `lang.en`, `lang.ar`: the product's name, and each language's own name, so a reader who cannot read Arabic can find the switch). On Arabic pages, four labels the owner approved in English (the stand-in label, the sign-off label, the export label and the sentence under a refused step) are shown in Arabic and then in English, word for word.
+Count: English messages 272, Arabic messages 272; missing from Arabic 0, missing from English 0 (a test, `builder/test/web.test.ts`, checks that the two files have the same keys). Identical in both languages: 3 (`app.name`, `lang.en`, `lang.ar`: the product's name, and each language's own name, so a reader who cannot read Arabic can find the switch). On Arabic pages, four labels the owner approved in English (the stand-in label, the sign-off label, the export label and the sentence under a refused step) are shown in Arabic and then in English, word for word.
 
 | Key | English | Arabic |
 | --- | --- | --- |
@@ -345,10 +345,10 @@ Count: English messages 262, Arabic messages 262; missing from Arabic 0, missing
 | `preview.title` | Preview | المعاينة |
 | `preview.start` | Start the app for the preview | شغّل التطبيق للمعاينة |
 | `preview.failed` | The last preview failed. Its containers and images were removed; it can be tried again. | فشلت المعاينة الأخيرة. أُزيلت حاوياتها وصورها؛ ويمكن إعادة المحاولة. |
-| `preview.app_running` | The app is running on this machine. | التطبيق يعمل على هذا الجهاز. |
+| `preview.app_running` | The app is running in its sandbox on this machine, on the project's own private networks: only the project's own containers reach it. | يعمل التطبيق في بيئته المعزولة على هذا الجهاز، على الشبكات الخاصة بالمشروع: لا تصل إليه إلا حاويات المشروع نفسه. |
 | `preview.app_stopped` | The app is not running any more. | التطبيق لم يعد يعمل. |
 | `preview.lines` | What the preview job did | ما فعلته مهمة المعاينة |
-| `preview.not_live` | Screenshots, not a live view: the app runs on this machine only, and J1 shows no live view of it. | لقطات شاشة، لا عرض مباشر: يعمل التطبيق على هذا الجهاز فقط، ولا تعرض J1 عرضاً مباشراً له. |
+| `preview.not_live` | Screenshots, not a live view: the app runs on this machine, on networks of its own that nothing else on the machine reaches, and J1 shows no live view of it. | لقطات شاشة، لا عرض مباشر: يعمل التطبيق على هذا الجهاز، على شبكات خاصة به لا يصل إليها أي شيء آخر على الجهاز، ولا تعرض J1 عرضاً مباشراً له. |
 | `preview.shots` | Screenshots of the running app | لقطات شاشة للتطبيق أثناء تشغيله |
 | `preview.none` | No screenshot yet. | لا توجد لقطة شاشة بعد. |
 | `preview.alt` | The app's page {page} | صفحة التطبيق {page} |
@@ -369,6 +369,12 @@ Count: English messages 262, Arabic messages 262; missing from Arabic 0, missing
 | `acceptance.outcome.none` | None recorded: not read as passed | لم تُسجَّل نتيجة: لا يُعدّ ناجحاً |
 | `acceptance.summary` | Summary, as the runner's reading wrote it | الملخّص، كما كتبته قراءة المنفّذ |
 | `acceptance.not_run` | The checklist has not been run yet. | لم تُشغَّل قائمة التحقق بعد. |
+| `acceptance.running` | The checklist is running; its results are shown when it ends. | قائمة التحقق قيد التشغيل؛ تُعرض نتائجها عند انتهائها. |
+| `acceptance.job` | Latest checklist job | آخر مهمة لقائمة التحقق |
+| `acceptance.job_state.finished` | Ended | انتهت |
+| `acceptance.job_state.failed` | Failed | فشلت |
+| `acceptance.job_state.interrupted` | Interrupted | توقّفت قبل نهايتها |
+| `acceptance.no_run` | None: the job ended before the runner recorded a run | لا شيء: انتهت المهمة قبل أن يسجّل المنفّذ أي تشغيل |
 | `acceptance.results` | Checklist results | نتائج قائمة التحقق |
 | `acceptance.label` | stand-in test, not independent acceptance | اختبار بديل، وليس قبولاً مستقلاً |
 | `acceptance.sim_note` | The test was written in advance by Claude Code (the AI assistant building this project), not by the builder's acceptance writer. The run itself is real. | كتب Claude Code (مساعد الذكاء الاصطناعي الذي يبني هذا المشروع) الاختبار مسبقاً، وليس كاتب القبول في المُنشئ. التشغيل نفسه حقيقي. |
@@ -377,7 +383,11 @@ Count: English messages 262, Arabic messages 262; missing from Arabic 0, missing
 | `acceptance.status.passed` | Passed | نجح |
 | `acceptance.status.failed` | Failed | فشل |
 | `acceptance.status.did_not_run` | Did not run | لم يُشغَّل |
+| `acceptance.status.passed_provisional` | Passed in this run, provisional | نجح في هذا التشغيل، بشكل مؤقت |
+| `acceptance.item_run_outcome` | The run's outcome: {outcome} | نتيجة التشغيل: {outcome} |
 | `acceptance.no_test` | No test written yet: did not run. | لم يُكتب اختبار بعد: لم يُشغَّل. |
+| `acceptance.test_not_run_yet` | Its test is written; the checklist has not been run yet. | اختباره مكتوب؛ لم تُشغَّل قائمة التحقق بعد. |
+| `acceptance.test_no_result` | Its test is written; the latest checklist job recorded no result for it. | اختباره مكتوب؛ لم تسجّل آخر مهمة لقائمة التحقق أي نتيجة له. |
 | `acceptance.shot_alt` | The runner's screenshot for item {n} | لقطة شاشة المنفّذ للبند {n} |
 | `acceptance.shot_caption` | Taken by the acceptance runner at the end of the test. Sample data. | التقطها منفّذ القبول في نهاية الاختبار. بيانات نموذجية. |
 | `acceptance.sign_off_title` | Sign-off | الاعتماد |
