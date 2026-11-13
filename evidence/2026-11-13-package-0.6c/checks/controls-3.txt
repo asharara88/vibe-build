@@ -1,0 +1,105 @@
+# Package 0.6c controls after its review, 2026-11-13T14:21:57Z, on a copy of commit 791c2c6 made with git archive;
+# for C39 to C41 also on a copy of 103badd, the commit the review read.
+# Each control changes one thing, runs the test that covers it (expected: FAIL), then restores the file and runs it again (expected: pass).
+
+## C34: a tunnel only to port 443
+Changed in builder/src/sandbox/egress-proxy.ts; test test/door.test.ts -t "a tunnel to port 443 only"
+With the change: exit 1: FAILED with the change, as it should
+    × an allowed host gets a tunnel to port 443 only, and plain HTTP to an http:// address on port 80 only (after the review) 48ms
+    Test Files  1 failed (1)
+    Tests  1 failed | 10 skipped (11)
+    FAIL  test/door.test.ts > the egress proxy's way out fails closed (package 0.6c) > an allowed host gets a tunnel to port 443 only, and plain HTTP to an http:// address on port 80 only (after the review)
+    AssertionError: expected { …(4) } to deeply equal { …(4) }
+    - Expected
+    + Received
+Restored: exit 0: Test Files  1 passed (1) / Tests  1 passed | 10 skipped (11)
+
+## C35: plain HTTP only to an http:// address on port 80
+Changed in builder/src/sandbox/egress-proxy.ts; test test/door.test.ts -t "a tunnel to port 443 only"
+With the change: exit 1: FAILED with the change, as it should
+    × an allowed host gets a tunnel to port 443 only, and plain HTTP to an http:// address on port 80 only (after the review) 42ms
+    Test Files  1 failed (1)
+    Tests  1 failed | 10 skipped (11)
+    FAIL  test/door.test.ts > the egress proxy's way out fails closed (package 0.6c) > an allowed host gets a tunnel to port 443 only, and plain HTTP to an http:// address on port 80 only (after the review)
+    AssertionError: expected { port80: 200, port8080: 200, …(2) } to deeply equal { port80: 200, port8080: 403, …(2) }
+    - Expected
+    + Received
+Restored: exit 0: Test Files  1 passed (1) / Tests  1 passed | 10 skipped (11)
+
+## C36: the machine side's project proxy given its upstream (without it, it would go out directly)
+Changed in builder/src/sandbox/egress-machine.ts; test test/door.test.ts -t "two proxies go out through its upstream"
+With the change: exit 1: FAILED with the change, as it should
+    × the machine side's two proxies go out through its upstream, never directly: a made-up upstream gets the tunnel from the project's socket and from the image build's port (after the review) 24ms
+    Test Files  1 failed (1)
+    Tests  1 failed | 10 skipped (11)
+    FAIL  test/door.test.ts > the egress proxy's way out fails closed (package 0.6c) > the machine side's two proxies go out through its upstream, never directly: a made-up upstream gets the tunnel from the project's socket and from the image build's port (after the review)
+    AssertionError: expected 'HTTP/1.1 502 Bad Gateway' to be 'HTTP/1.1 200 Connection Established' // Object.is equality
+Restored: exit 0: Test Files  1 passed (1) / Tests  1 passed | 10 skipped (11)
+
+## C37: the machine side's image-build proxy given its upstream
+Changed in builder/src/sandbox/egress-machine.ts; test test/door.test.ts -t "two proxies go out through its upstream"
+With the change: exit 1: FAILED with the change, as it should
+    × the machine side's two proxies go out through its upstream, never directly: a made-up upstream gets the tunnel from the project's socket and from the image build's port (after the review) 31ms
+    Test Files  1 failed (1)
+    Tests  1 failed | 10 skipped (11)
+    FAIL  test/door.test.ts > the egress proxy's way out fails closed (package 0.6c) > the machine side's two proxies go out through its upstream, never directly: a made-up upstream gets the tunnel from the project's socket and from the image build's port (after the review)
+    AssertionError: expected 'HTTP/1.1 502 Bad Gateway' to be 'HTTP/1.1 200 Connection Established' // Object.is equality
+Restored: exit 0: Test Files  1 passed (1) / Tests  1 passed | 10 skipped (11)
+
+## C38: the machine side's sockets only in its socket folder
+Changed in builder/src/sandbox/egress-machine.ts; test test/door.test.ts -t "two proxies go out through its upstream"
+With the change: exit 1: FAILED with the change, as it should
+    × the machine side's two proxies go out through its upstream, never directly: a made-up upstream gets the tunnel from the project's socket and from the image build's port (after the review) 35ms
+    Test Files  1 failed (1)
+    Tests  1 failed | 10 skipped (11)
+    FAIL  test/door.test.ts > the egress proxy's way out fails closed (package 0.6c) > the machine side's two proxies go out through its upstream, never directly: a made-up upstream gets the tunnel from the project's socket and from the image build's port (after the review)
+    AssertionError: expected [Function] to throw error matching /must both be paths under/ but got 'the build\'s listener on 127.0.0.1:33…'
+    - Expected:
+    + Received:
+Restored: exit 0: Test Files  1 passed (1) / Tests  1 passed | 10 skipped (11)
+Left by the test run and removed: /tmp/m06c-elsewhere.sock
+
+## C39: ADDED: a lower-case `run npm run build`, with the network, after `COPY . .` (the review's example)
+Changed in templates/next/Dockerfile; test test/sandbox.test.ts -t "image build"
+With the change: exit 1: FAILED with the change, as it should
+    × the template's image build (package 0.6c): install scripts off, the workspace's code with no network, no certificate, no build front end fetched 11ms
+    Test Files  1 failed (1)
+    Tests  1 failed | 21 skipped (22)
+    FAIL  test/sandbox.test.ts > sandbox manager: compose documents > the template's image build (package 0.6c): install scripts off, the workspace's code with no network, no certificate, no build front end fetched
+    AssertionError: expected false to be true // Object.is equality
+    - Expected
+    + Received
+Restored: exit 0: Test Files  1 passed (1) / Tests  1 passed | 21 skipped (22)
+The same change under the test as the review read it (103badd): exit 0, passed: the old test let it through: Test Files  1 passed (1) / Tests  1 passed | 20 skipped (21)
+
+## C40: ADDED: a `# Syntax=` parser directive written with a capital letter (it would fetch a build front end)
+Changed in templates/next/Dockerfile; test test/sandbox.test.ts -t "image build"
+With the change: exit 1: FAILED with the change, as it should
+    × the template's image build (package 0.6c): install scripts off, the workspace's code with no network, no certificate, no build front end fetched 8ms
+    Test Files  1 failed (1)
+    Tests  1 failed | 21 skipped (22)
+    FAIL  test/sandbox.test.ts > sandbox manager: compose documents > the template's image build (package 0.6c): install scripts off, the workspace's code with no network, no certificate, no build front end fetched
+    AssertionError: expected '# Syntax=docker/dockerfile:1\n# House…' not to match /^\s*#\s*(syntax|escape)\s*=/im
+    - Expected:
+    + Received:
+Restored: exit 0: Test Files  1 passed (1) / Tests  1 passed | 21 skipped (22)
+The same change under the test as the review read it (103badd): exit 0, passed: the old test let it through: Test Files  1 passed (1) / Tests  1 passed | 20 skipped (21)
+
+## C41: ADDED: an `# escape=` parser directive (it would change how lines are joined)
+Changed in templates/next/Dockerfile; test test/sandbox.test.ts -t "image build"
+With the change: exit 1: FAILED with the change, as it should
+    × the template's image build (package 0.6c): install scripts off, the workspace's code with no network, no certificate, no build front end fetched 14ms
+    Test Files  1 failed (1)
+    Tests  1 failed | 21 skipped (22)
+    FAIL  test/sandbox.test.ts > sandbox manager: compose documents > the template's image build (package 0.6c): install scripts off, the workspace's code with no network, no certificate, no build front end fetched
+    AssertionError: expected '# escape=`\n# House template, TypeScr…' not to match /^\s*#\s*(syntax|escape)\s*=/im
+    - Expected:
+    + Received:
+Restored: exit 0: Test Files  1 passed (1) / Tests  1 passed | 21 skipped (22)
+The same change under the test as the review read it (103badd): exit 0, passed: the old test let it through: Test Files  1 passed (1) / Tests  1 passed | 20 skipped (21)
+
+## Housekeeping: what a run that leaves the live blocks out leaves in its temporary folder
+Command: npx vitest run test/sandbox.test.ts -t "askApp", with an empty temporary folder of its own (Node's compile cache not listed)
+  as the review read it (103badd): exit 0; Test Files  1 passed (1) / Tests  1 passed | 20 skipped (21); left: builder-home-tAlr6d, builder-live-gx3rpw, builder-tools-6dWS4t
+  after the review (791c2c6): exit 0; Test Files  1 passed (1) / Tests  1 passed | 21 skipped (22); left: nothing
+
