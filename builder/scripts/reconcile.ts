@@ -97,7 +97,9 @@ function printHold(h: UnreconciledHold): void {
   }
   for (const a of h.lateAnswers) console.log(`    late answer: ${a.at}, cost as read ${a.costUsdAsRead === null ? "(none)" : usd(a.costUsdAsRead)}; ${line(a.reason)}`);
   for (const f of h.freezes) {
-    console.log(`    froze its project: freeze ${f.freezeId} (journal line ${line(f.journalId)}), call ended ${f.endedAt}; ${f.cleared ? "cleared" : "not cleared"}; cost as read ${f.costUsdAsRead === null ? "(none)" : usd(f.costUsdAsRead)}`);
+    // Package 1.4b: a freeze from an unreadable journal line an operator set aside naming this hold; when its call ended is not known.
+    const from = f.journalId.startsWith("set-aside:") ? `an unreadable journal line set aside as ${line(f.journalId.slice("set-aside:".length))}), set aside ${f.endedAt}` : `journal line ${line(f.journalId)}), call ended ${f.endedAt}`;
+    console.log(`    froze its project: freeze ${f.freezeId} (${from}; ${f.cleared ? "cleared" : "not cleared"}; cost as read ${f.costUsdAsRead === null ? "(none)" : usd(f.costUsdAsRead)}`);
   }
 }
 

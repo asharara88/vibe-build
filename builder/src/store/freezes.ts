@@ -55,6 +55,13 @@ export interface Freeze {
 
 /** Why a project is frozen, as the freeze's row says it. */
 export const FREEZE_REASON = "a model call ended and the gateway could not write its ending to the event log";
+/**
+ * Package 1.4b: why a project is frozen when an operator set aside a journal line that could not be read, naming
+ * one of its holds (builder/src/gateway/journal-recovery.ts). Such a freeze's `journal_id` starts with "set-aside:",
+ * and its `ended_at` is when the line was set aside: when the call ended is not known.
+ */
+export const SET_ASIDE_FREEZE_REASON =
+  "a line of the gateway's journal could not be read; an operator set it aside naming this project's hold, so the call it may record, and what that call cost, are not known";
 const FAULT_MESSAGE = "A model call ended and its ending could not be written to the event log. Its hold stays open at its full amount; the project is frozen until the owner records what the call cost.";
 
 /** The project's freeze that has not been cleared, if any. Run under the project's lock by every budget decision that opens anything. */
@@ -75,6 +82,12 @@ export async function listFreezes(pool: pg.Pool, projectId: string): Promise<Fre
 export function frozenMessage(f: Freeze, refused: "call" | "step" = "call"): string {
   const held = f.hold_amount_usd !== null ? ` Its hold of up to $${(Math.ceil(Math.round(Number(f.hold_amount_usd) * 1e6) / 10_000) / 100).toFixed(2)} stays counted against the budget.` : "";
   const now = refused === "call" ? "The gateway forwarded nothing" : "The step was not started";
+  if (f.reason === SET_ASIDE_FREEZE_REASON) {
+    return (
+      `This project is stopped: a line of the gateway's journal that could not be read was set aside at ${f.frozen_at.toISOString()} as possibly the record of a call on its hold ${f.hold_id ?? "(none)"}, so what that call cost is not known.${held} ` +
+      `${now}, and no further call will be made for this project until the owner records what that call cost.`
+    );
+  }
   return (
     `This project is stopped: a model call that ended at ${f.ended_at.toISOString()} could not be recorded, so what it cost is not known.${held} ` +
     `${now}, and no further call will be made for this project until the owner records what that call cost.`
