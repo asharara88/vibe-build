@@ -98,7 +98,7 @@ J1 gets one fresh review once part 2 is built (build plan section 3, step 6), wi
 
 ## Part 2: what the owner can now do
 
-Part 2 adds, after "Confirm plan" (each with a screen in English and Arabic):
+Part 2 adds, after "Confirm plan" (each screen in English and Arabic):
 
 10. **Build each step**: "Build step 1", then its lines as they come (started, the reservation, one line per file written, finished, the reservation released), then "Approve and build the next step"; step 2 the same; then "Approve and start the app for the preview". Nothing goes on without the approval. A step that fails is put back to its last commit and can be tried again.
 11. **See the preview**: four screenshots of the running app, signed in as the made-up sample employee, in English and Arabic, each captioned "Screenshot of the running app at <time> UTC. Not live. Sample data."
@@ -106,8 +106,9 @@ Part 2 adds, after "Confirm plan" (each with a screen in English and Arabic):
 13. **Sign off**, offered only after a run that passed, labelled "Sign-off on a simulated build, checked by a stand-in test of item 1 only: not acceptance".
 14. **Download the export**, offered only after sign-off: one .tar.gz, labelled internal only and not yet shown to start without the builder.
 15. **Close a project**: its containers, images and folder removed; its record stays.
+16. **See a refused step**: a project capped at $1.00 is refused before step 1, with package 1.3's message and the sentence under it.
 
-**What was shown on this machine, and what was not.** The automated run (below) walked the journey up to "Confirm plan" and the build screen, and photographed it. It stopped at step 1: the build was refused by the disk check, "This machine has 2.6 GB free; a build needs at least 4.0 GB (a floor assumed, not measured). The build was not started." (`screens/12-build-step-1-stopped-en.png`). Items 10 to 15 were therefore **not shown live**: they ran only in the tests, against a stand-in sandbox with no container (a real workspace and history, the step's fixed change applied on this machine, and stand-ins for the image build, the app camera and the acceptance runner). The floor was not lowered to let the run through (CLAUDE.md, hard rule 8): see "The disk" below.
+All of it was shown by the automated run of 13 Nov 2026, 13:37 UTC: 45 checks, all passed, 35 screenshots (below). The owner has not used it himself: nobody has started the interface for him.
 
 ## Part 2: each screen, real or simulated
 
@@ -122,42 +123,50 @@ Part 2 adds, after "Confirm plan" (each with a screen in English and Arabic):
 
 ## Part 2: J1's "Done means", item by item
 
-From `docs/design/journey-j1.md`, section 3. "Shown" means shown by the automated run of 13 Nov 2026, 13:32 UTC (`run-demo.txt`), with its screenshot; "tests only" means checked by a test with the stand-in sandbox, not live.
+From `docs/design/journey-j1.md`, section 3. All shown by the automated run of 13:37 UTC (`run-demo.txt`, tree `4259eb0`); each check is one line of `camera-lines.jsonl`.
 
 | Item | Result | Where |
 | --- | --- | --- |
-| One automated browser run, from a fresh database and data folder, under the shared lock | Shown (it stopped at step 1, below) | `run-demo.txt` |
-| An unsigned visitor gets only sign-in | Shown | `screens/01-sign-in-en.png`, `-ar`, `-phone`; checks 1 to 3 |
+| One automated browser run, from a fresh database and data folder, under the shared lock | Shown; lock held 13:37:30 to 13:38:36 UTC | `run-demo.txt` |
+| An unsigned visitor gets only sign-in | Shown (`/projects`, `/projects/new` and `/`) | `screens/01-sign-in-en.png`, `-ar`, `-phone` |
 | A wrong password is refused | Shown | `screens/02-sign-in-wrong-password-en.png` |
 | It signs in | Shown | `screens/03-projects-en.png` |
 | Creates "Leave requests (made-up)" with a $5.00 cap; enters a brief | Shown | `screens/04-new-project-en.png`, `05-brief-en.png` |
-| Answers every turn | Shown: 8 turns, answered in the form | `screens/06-questions-en.png`, `-ar`, `-phone`; `07-questions-answered-en.png` |
-| Confirms brief and plan | Shown | `screens/08-proposal-en.png`, `09-plan-en.png`, `10-plan-confirmed-en.png` |
-| Builds and approves both steps, $1.5552 and $3.1104 reserved and released | **Not shown live**: refused by the disk check at step 1. Tests only | `screens/11-build-en.png`, `12-build-step-1-stopped-en.png`, `-ar`; `test/journey.test.ts`, `test/web.test.ts` |
-| Sees the preview screenshots | **Not shown** (the app was not built). Tests only, with stand-in pictures | `test/journey.test.ts` ("the preview") |
-| Runs the checklist: item 1 passed, 2 to 6 "did not run" | **Not shown live.** The screen tested with the stand-in runner's events | `test/web.test.ts` ("the whole journey through the screens") |
-| Signs off | **Not shown live.** Tests only | the same |
-| Sees $0.00 spent, no freeze, an empty unreconciled list | Shown, with no step reserved (the build was refused before its reservation) | `screens/18-cost-en.png`, `-ar`, `-phone` |
-| Downloads the export | **Not shown live.** Tests only: a real export of a real history, listed and opened | `test/journey.test.ts` ("the export") |
+| Answers every turn | Shown: 8 turns, answered in the form (the recommended option where there is one) | `screens/06-questions-en.png`, `-ar`, `-phone`; `07-questions-answered-en.png` |
+| Confirms brief and plan | Shown; tests fixed as v001, labelled | `screens/08-proposal-en.png`, `09-plan-en.png`, `10-plan-confirmed-en.png` |
+| Builds and approves both steps, seeing $1.5552 and $3.1104 reserved and released | Shown: each step's lines, 4 and 8 files written, "Reserved while it ran: $1.5552 … released. Spent: $0.00." and $3.1104 | `screens/11-build-en.png`, `12-build-step-1-en.png`, `13-build-step-2-en.png`, `-ar`, `-phone` |
+| Sees the preview screenshots | Shown: four, each loaded, each captioned "Not live. Sample data." | `screens/14-preview-en.png` |
+| Runs the checklist: item 1 passed, 2 to 6 "did not run" | Shown, with the label, the stand-in note, the summary and item 1's screenshot | `screens/15-checklist-before-run-en.png`, `16-checklist-en.png`, `-ar`, `-phone` |
+| Signs off | Shown, labelled | `screens/17-signed-off-en.png` |
+| Sees $0.00 spent, no freeze, an empty unreconciled list | Shown, with the two step reservations closed | `screens/18-cost-en.png`, `-ar`, `-phone` |
+| Downloads the export | Shown: downloaded in the browser, 415,862 bytes, its SHA-256 the one the page shows and the event records; it holds `acceptance/v001/item-01.spec.ts`, `manifest.json`, `EXPORT-NOTE.txt` and the history; no file that looks like a secret | `screens/19-export-before-en.png`, `20-export-en.png`; `export-contents.txt` |
 | Opens the record: every event in id order | Shown | `screens/21-record-en.png`; `events.json` |
-| A second project capped at $1.00 shows the refusal | **Not shown live** (the disk check comes first). Tests only | `test/journey.test.ts`, `test/web.test.ts` |
-| Every screen in English; sign-in, questions, build, acceptance and cost also in Arabic and at 390 px | Shown for sign-in, questions and cost (all three); build in English and Arabic (stopped); acceptance not reached | `screens/` |
-| No container, image or folder of J1 left after it | Shown: none before, none after; the database dropped; the run's folder removed | `run-demo.txt` |
+| A second project capped at $1.00 shows the refusal | Shown: "This step needs up to $1.56 to finish (4 turns); this project has $1.00 left …", with the sentence under it | `screens/23-refused-en.png`, `-ar` |
+| Every screen in English; sign-in, questions, build, acceptance and cost also in Arabic and at 390 px | Shown; also the refused step in Arabic | `screens/` |
+| No container, image or folder of J1 left after it | Shown: none before, none after; both projects closed through the screens (`22-closed-en.png`); the database dropped; the run's folder removed | `run-demo.txt` |
+
+Screenshots (`screens/`): 01-sign-in-en, -ar, -phone; 02-sign-in-wrong-password-en; 03-projects-en; 04-new-project-en; 05-brief-en; 06-questions-en, -ar, -phone; 07-questions-answered-en; 08-proposal-en; 09-plan-en; 10-plan-confirmed-en; 11-build-en; 12-build-step-1-en; 13-build-step-2-en, -ar, -phone; 14-preview-en; 15-checklist-before-run-en; 16-checklist-en, -ar, -phone; 17-signed-off-en; 18-cost-en, -ar, -phone; 19-export-before-en; 20-export-en; 21-record-en; 22-closed-en; 23-refused-en, -ar; 24-projects-end-en (35 files).
 
 ## Part 2: the automated run
 
-`scripts/demo-journey.ts`, run as `flock <scratchpad>/live-tests.lock npx tsx scripts/demo-journey.ts <evidence folder>` on `builder/` tree `4259eb0` (13:32 UTC; its output is `run-demo.txt`):
+`scripts/demo-journey.ts`, run as `flock <scratchpad>/live-tests.lock npx tsx scripts/demo-journey.ts <evidence folder>` on `builder/` tree `4259eb0` (the committed tree of `0f63492`):
 
-- A fresh database (`builder_j1_<run>`) and data folder; a random interface password, given to the interface in its environment and to the builder camera as one read-only file (mode 0400), never printed or kept; the interface started on 127.0.0.1:4020; the builder camera (`camera/builder-shots.mjs`) in the approved runner image, in a container of its own: read-only root, every capability dropped, the runner's unprivileged user, the machine's network, no video, no trace. It refused every address but 127.0.0.1:4020 inside the browser and checked that none was asked for.
-- Result: **19 checks passed, 1 failed** ("step 1 built": refused by the disk check). 21 screenshots, listed above (`screens/`). Every event of the run in `events.json` (in id order); the camera's own lines in `camera-lines.jsonl`; the interface's output in `interface-log.txt` (it shows the refused job, and no address of the session's proxy).
-- After it: no container, image, volume or network of J1 (none before either); the database dropped; the run's folder (data, the camera's output, the password file) removed. Other sessions' containers: none during the run.
-- An earlier run (13:24 UTC, tree `a7d3ce1`) stopped at the same place with 2.9 GB free and took no picture of the cost panel or the record; the camera was then changed to photograph them after a stop, and everything was run again on the new tree.
+- A fresh database (`builder_j1_<run>`) and data folder; a random interface password, given to the interface in its environment and to the builder camera as one read-only file (mode 0400), never printed or kept; the interface started on 127.0.0.1:4020 (`npm run web`'s own entry point); the builder camera (`camera/builder-shots.mjs`) in the approved runner image, in a container of its own: read-only root, every capability dropped, the runner's unprivileged user, the machine's network, no video, no trace. It refused every address but 127.0.0.1:4020 inside the browser, and none was asked for.
+- The interface's jobs did the rest: each step in its engine container through the adapter; the app's images built and the app started in the project's sandbox; the app camera (`camera/app-shots.mjs`) in the project's runner container; package 3.1's runner; the export from the project's real history.
+- Result: **45 checks, all passed**; 35 screenshots; 115 events for the 2 projects, in id order, in `events.json`; the camera's own lines in `camera-lines.jsonl`; the interface's output in `interface-log.txt` (the $1.00 project's refused job; no address of the session's proxy).
+- After it: no container, image, volume or network of J1 (none before either); both sandbox folders the events record gone; the database dropped; the run's folder (data, the camera's output, the password file) removed. Other sessions' containers: none during the run.
+- The app's images were built in 5 s: Docker reused the cached layers of an identical earlier build (the same template and fixed changes; the suite's live acceptance test builds the same). The preview's line "the template's guard check and next build ran in the build" comes from `example-1-sandbox.ts`, unchanged; here they ran in that earlier build, not in this one (gap 136).
+- Two earlier runs on 13 Nov (13:24 UTC on tree `a7d3ce1`, 13:32 UTC on tree `4259eb0`) **were refused at step 1 by the disk check**: "This machine has 2.6 GB free; a build needs at least 4.0 GB (a floor assumed, not measured). The build was not started." The 13:32 run's log is `run-demo-earlier-disk-refusal.txt`, with its two screenshots in `screens-earlier-run/`. The floor was not lowered (CLAUDE.md, hard rule 8). The room came back when this session removed its own temporary folder (below) and the machine's shared build cache shrank (12.61 GB at 13:37, from 17.28 GB; not by this session).
 
 ## Part 2: the disk
 
-The build refuses below 4 GB free, measured at the moment (`statfs` of the data folder; here on the same disk as Docker's). That floor was assumed, not measured. This machine had 3.5 GB free at 13:05 UTC and 2.6 GB at 13:32 UTC: each full suite run on it adds to Docker's build cache, which every session here shares (17.15 GB, 14.25 GB of it reclaimable, `docker system df` in `run-demo.txt`). J1 prunes nothing it did not make.
+The build refuses below 4 GB free, measured at the moment (`statfs` of the data folder; here on the same disk as Docker's). That floor is assumed, not measured. Measured on 13 Nov, in GB of 1024^3 bytes, sampled every 2 s:
 
-Measured instead, twice, while the whole suite ran (its live acceptance test builds example 1's app and runs the runner, as J1's preview would): free space, sampled every 2 s, went from 3.28 GB at its highest to 2.10 GB at its lowest, then, in the second run, from 2.95 GB to 1.78 GB: at most 1.18 GB used at once (GB of 1024^3 bytes; `run-tests-full.txt` holds the second run). That is one measurement of a similar build, not of J1's own (gap 137). Two ways on, for Claude Code and the owner to choose, each recorded first: prune the shared build cache under the shared lock; or set the floor from a measurement of J1's own build.
+- J1's own run, at 13:37: free space from 10.09 GB to 9.04 GB at its lowest, so at most 1.05 GB used at once, with the image build served from Docker's cache.
+- The whole suite, twice (its live acceptance test builds example 1's app and runs the runner): 3.28 to 2.10 GB, then 2.95 to 1.78 GB; at most 1.18 GB used at once (`run-tests-full.txt` holds the second).
+- Found while measuring: the two runs of the whole suite left folders in this session's temporary folder (`builder-sb-*`, `builder-live-*`, `builder-home-*` and others, made by other packages' tests). When this session removed that folder, its own, free space went from 2.6 GB to 5.8 GB (`df`), with Docker's use unchanged (`docker system df`).
+
+None of these measures a build with nothing cached (gap 137).
 
 ## Part 2: what was run, and the results
 
@@ -166,7 +175,7 @@ Measured instead, twice, while the whole suite ran (its live acceptance test bui
 | `npm run typecheck` | Passed, exit code 0, on tree `4259eb0` | `run-typecheck.txt` |
 | The whole suite, live tests included, under the shared lock | Passed: **458 of 458** tests in 18 files, exit code 0, 225 s, on tree `4259eb0`; none skipped (the approved browser zip in its cache folder); no container before or after; lock held 13:28:29 to 13:32:14 UTC. Also passed, 458 of 458, on tree `a7d3ce1` (13:16 to 13:19 UTC) | `run-tests-full.txt` |
 | `npm run check:licences` | Passed, exit code 0; no dependency added | `run-licences.txt` |
-| The automated run | 19 of 20 checks passed; stopped at step 1 by the disk check | `run-demo.txt` |
+| The automated run | 45 of 45 checks passed, on tree `4259eb0` | `run-demo.txt` |
 | 23 new controls, and part 1's 25 again | All 48 failed with their safeguard removed, on tree `a7d3ce1` (its source and tests are those of `4259eb0`; only the builder camera's script differs) | `controls-part-2.txt` |
 
 Part 2's tests (no container; a stand-in sandbox, `test/journey-stand-ins.ts`): `test/journey.test.ts` 12 new (24 in all), `test/web.test.ts` 3 new (24 in all). Two of part 1's tests were changed only to name the step a build job is for, which part 2 requires. One test of part 1, "the only engine the journey makes", was extended to part 2's modules; those may also read `project-repo.ts` (the history helper), which is not an engine. What each new control removed:
@@ -193,9 +202,9 @@ Part 2's tests (no container; a stand-in sandbox, `test/journey-stand-ins.ts`): 
 
 ## Part 2: checked and assumed
 
-- **Checked, by running it:** the screens up to the build, in a browser, from a fresh database (the automated run); the cost panel and the record after the stop; the disk check refusing a build, live; that the camera loaded nothing but the interface; that nothing of J1 was left after the run; the events in id order.
-- **Checked by test only (stand-in sandbox, no container):** the step through the step hold, with its events in order and `step.hold_closed` after the last engine event; $1.5552 and $3.1104 reserved and released; the $1.00 refusal; the reset after a failed step; the approvals' order; the preview's recording of screenshots; the checklist and sign-off rules; the export's contents (a real clone, tar and git); recovery of `j1-` projects only; each screen's labels; no GET writing at any stage.
-- **Not checked at all:** the step in a real engine container through the adapter, the app's image build and start through the adapter, the app camera, the acceptance run from the interface, and the export of a real sandbox's history: they need the build, which the disk check refused. The two camera scripts are new; only the builder camera ran.
+- **Checked, by running it** (the automated run): every item of "Done means" above, in a browser, from a fresh database, with the real containers: the steps in their engine container, the image build and the app's start, the app camera, the acceptance run started from the screen, the export of the project's real history; the disk check refusing a build (the two earlier runs); that the camera loaded nothing but the interface; that nothing of J1 was left after the run.
+- **Checked by test** (stand-in sandbox, no container): the events in emission order with `step.hold_closed` after the last engine event (each write held 150 ms); the reset after a failed step; the camera's file checks; the export refused for a secret-like file; recovery of `j1-` projects only; no GET writing at any stage; each safeguard, by its control.
+- **Not checked:** the export started without the builder (package 3.2); recovery at start against real containers (shown only with the stand-in); how the app's own Arabic pages look at full size (the preview shows them small); the Arabic, by a reader of Arabic (gap 134); the owner's own use.
 - **Assumed:** the disk floor of 4 GB (gap 137).
 
 ## Part 2: not reviewed yet
