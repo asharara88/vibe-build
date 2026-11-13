@@ -10,7 +10,7 @@ import { createGateway, normalisePath, startHoldKeeper } from "../src/gateway/ap
 import { costUsd, emptyUsage } from "../src/gateway/cost.js";
 import { COUNT_MARGIN, computeHold, DEFAULT_PROFILES, guardRequest, type ProfileLimits } from "../src/gateway/hold.js";
 import { listEvents } from "../src/store/events.js";
-import { expireHolds, getBudget, listHolds, openHold, settleHold } from "../src/store/holds.js";
+import { expireHolds, getBudget, listHolds, openHold, releaseUnsentHold, settleHold } from "../src/store/holds.js";
 import { createProject, getSpend, issueProjectToken } from "../src/store/projects.js";
 import { TEST_DB_URL, testPool, uniqueId } from "./helpers.js";
 
@@ -619,6 +619,59 @@ describe("holds: proof rows B1 to B6 of the design note", () => {
     } finally {
       quick.server.close();
     }
+  });
+
+  // Found by the review bot on 7ce5a33: the sweep that marks holds past their deadline runs every 30 seconds, so a
+  // deadline can pass before the sweep has marked the hold. A settlement or a release that takes the project's lock in
+  // that gap must still treat the hold as past its deadline. Each test below moves the deadline into the past in the
+  // database, as if the lock had been waited for past it, and runs no sweep before the store is asked to end the hold.
+  const holdPastItsDeadline = async (projectId: string, amountUsd: number) => {
+    const o = await openHold(pool, { projectId, step: null, amountUsd, deadline: new Date(Date.now() + 60_000), gateway: "gw_test_store", arithmetic: {}, path: "/v1/messages" });
+    if (!o.ok) throw new Error("hold not opened");
+    // One second ago by the gateway's clock, the clock the sweep and the store judge deadlines by.
+    await pool.query("update holds set deadline_at = $2 where id = $1", [o.hold.id, new Date(Date.now() - 1_000)]);
+    return o.hold;
+  };
+  const outcome = async (projectId: string) => {
+    const h = (await listHolds(pool, projectId))[0]!;
+    const b = await getBudget(pool, projectId);
+    return {
+      hold: { state: h.state, expired: h.expired, unreconciled: h.unreconciled, actual_usd: h.actual_usd, closed: h.closed_at !== null },
+      open_holds_usd: b.openHolds,
+      spent_usd: b.spent,
+      events: await kinds(projectId),
+    };
+  };
+
+  it("B5: an answer that comes after the hold's deadline, before the sweep has marked it, does not settle it: the hold is marked expired there and then and kept at its full amount", async () => {
+    const { id } = await newProject(5);
+    const hold = await holdPastItsDeadline(id, 0.03);
+    const r = await settleHold(pool, { projectId: id, holdId: hold.id, step: null, actualUsd: 0.001, call: { status: 200 } });
+    expect({ settled: r.settled, ...(await outcome(id)) }).toEqual({
+      settled: false,
+      hold: { state: "open", expired: true, unreconciled: true, actual_usd: null, closed: false },
+      open_holds_usd: 0.03, // nothing was released
+      spent_usd: 0,
+      events: ["hold.opened", "hold.expired", "hold.kept"],
+    });
+    expect((await listEvents(pool, id, "hold.expired"))[0]!.payload).toMatchObject({ hold_id: Number(hold.id), amount_usd: 0.03, kept: true, unreconciled: true, still_open: true });
+    // The answer is written down for the owner, with the cost as read; it settles nothing.
+    expect((await listEvents(pool, id, "hold.kept"))[0]!.payload).toMatchObject({ hold_id: Number(hold.id), amount_usd: 0.03, reason: "answer arrived after the hold expired", seen: { status: 200, cost_usd_as_read: 0.001 } });
+    expect((await expireHolds(pool)).filter((h) => h.project_id === id)).toEqual([]); // the sweep, when it comes, has nothing left to mark here
+  });
+
+  it("B5: a hold past its deadline that the sweep has not yet marked is not released as never sent either: it is marked expired there and then and kept at its full amount", async () => {
+    const { id } = await newProject(5);
+    const hold = await holdPastItsDeadline(id, 0.02);
+    const released = await releaseUnsentHold(pool, { projectId: id, holdId: hold.id, step: null, reason: "the caller left before the call was forwarded to the provider (test)" });
+    expect({ released, ...(await outcome(id)) }).toEqual({
+      released: false,
+      hold: { state: "open", expired: true, unreconciled: true, actual_usd: null, closed: false },
+      open_holds_usd: 0.02, // nothing was released
+      spent_usd: 0,
+      events: ["hold.opened", "hold.expired"],
+    });
+    expect((await expireHolds(pool)).filter((h) => h.project_id === id)).toEqual([]); // the sweep, when it comes, has nothing left to mark here
   });
 
   it("B6: holds are database rows: a gateway that starts finds the hold an earlier one left open, and keeps it", async () => {

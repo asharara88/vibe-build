@@ -9,6 +9,13 @@
  * the actual cost of a call whose usage was read, or at nothing when the provider's own error
  * says the request was turned away before any work, or at nothing when the call was never sent
  * because the caller left first. Every other ending keeps it open.
+ *
+ * A hold past its deadline is never settled or released, whether or not the sweep (`expireHolds`,
+ * run every 30 seconds) has marked it yet: every function here that can close a hold first marks,
+ * in its own transaction and under the project's lock, the project's open holds past their
+ * deadline, as the sweep does, and only then reads the hold (review bot on 7ce5a33). Deadlines are
+ * judged by the gateway's clock (`new Date()` in the gateway process), as the sweep and admission
+ * judge them, taken once the lock is held.
  */
 import type pg from "pg";
 
@@ -130,12 +137,15 @@ export async function openHold(
  * Settle a hold to the actual cost of a finished call whose usage was read. One transaction:
  * the `model.call` event with the actual cost, the hold closed, and a `hold.settled` event.
  * If the actual cost is above the hold, that is recorded as a breach; the truth is still charged.
+ * A hold past its deadline is not settled, even if the sweep has not marked it yet (see the top of this file).
  */
 export async function settleHold(
   pool: pg.Pool,
   p: { projectId: string; holdId: string; step: string | null; actualUsd: number; call: Record<string, unknown> },
 ): Promise<{ settled: boolean; exceeded: boolean; amountUsd: number }> {
   return inTransaction(pool, p.projectId, async (c) => {
+    // Under the project's lock, before the hold is read: a deadline that passed while this waited counts.
+    await expireHoldsIn(c, p.projectId, new Date());
     const r = await c.query<Hold>("select * from holds where id = $1 and project_id = $2 for update", [p.holdId, p.projectId]);
     const hold = r.rows[0];
     if (!hold) throw new Error(`Hold ${p.holdId} does not exist for project ${p.projectId}`);
@@ -192,10 +202,13 @@ export async function settleHold(
  * cost nothing, had been sent (review of 13 Nov 2026). One
  * transaction: the hold closed at nothing and a `hold.settled` event that says nothing was
  * forwarded, and why. No `model.call` event is written, because no call was made. A hold already
- * kept, expired or closed is left as it is. Returns whether the hold was closed.
+ * kept, expired or closed is left as it is, and so is one past its deadline that the sweep has not
+ * marked yet (it is marked here first; see the top of this file). Returns whether the hold was closed.
  */
 export async function releaseUnsentHold(pool: pg.Pool, p: { projectId: string; holdId: string; step: string | null; reason: string }): Promise<boolean> {
   return inTransaction(pool, p.projectId, async (c) => {
+    // Under the project's lock, before the hold is read: a deadline that passed while this waited counts.
+    await expireHoldsIn(c, p.projectId, new Date());
     const r = await c.query<Hold>("select * from holds where id = $1 and project_id = $2 for update", [p.holdId, p.projectId]);
     const hold = r.rows[0];
     if (!hold || hold.state !== "open" || hold.kept_reason !== null || hold.expired || hold.unreconciled) return false;
@@ -210,6 +223,9 @@ export async function releaseUnsentHold(pool: pg.Pool, p: { projectId: string; h
  * Record that a call ended in a way that does not tell the gateway what it cost. The hold is
  * NOT released: it stays open at its full amount. What was seen is recorded for information.
  * (Marking such holds for the owner's list and closing them is packages 1.4 and 1.5.)
+ * It neither closes nor releases a hold, so it does not mark deadlines first: a hold it keeps after
+ * its deadline stays open at its full amount either way, and is marked expired by the sweep, or by
+ * the next admission, settlement or release in its project (review bot on 7ce5a33).
  */
 export async function keepHold(
   pool: pg.Pool,
