@@ -27,7 +27,9 @@ const listen = (app: Hono) =>
 
 // The stand-in provider. It counts a prompt as the number given in the request's `system`
 // field ("count:<n>"), or fails to count on "count-fail". It bills what it counted, and half of
-// max_tokens as output, unless the request's metadata names one of the behaviours below.
+// max_tokens as output, unless the request's metadata names one of the behaviours below. Its
+// usage states the speed, as the provider's reference lists it: "fast" when the request asked for
+// fast mode, "standard" otherwise.
 const REAL_KEY = "demo-real-key-held-only-by-the-gateway";
 let forwarded = 0;
 const keysSeen: string[] = [];
@@ -46,7 +48,7 @@ const openHoldsAtForward = new Map<string, number[]>();
 standIn.post("/v1/messages", async (c) => {
   forwarded++;
   keysSeen.push(c.req.header("x-api-key") ?? "(none)");
-  const body = (await c.req.json()) as { model: string; max_tokens: number; system?: string; metadata?: { test?: string; project?: string } };
+  const body = (await c.req.json()) as { model: string; max_tokens: number; system?: string; speed?: string; metadata?: { test?: string; project?: string } };
   const test = body.metadata?.test ?? "";
   if (test === "note-open-holds") {
     const project = String(body.metadata?.project ?? "");
@@ -66,7 +68,7 @@ standIn.post("/v1/messages", async (c) => {
   if (test === "error-500") return c.json({ type: "error", error: { type: "api_error", message: "stand-in: internal error" } }, 500);
   if (test === "error-529") return new Response(JSON.stringify({ type: "error", error: { type: "overloaded_error", message: "stand-in: overloaded" } }), { status: 529, headers: { "content-type": "application/json" } });
   if (test === "error-400-not-provider") return c.text("<html>400 Bad Request from something in between</html>", 400);
-  const usage = { input_tokens: countOf(body.system), output_tokens: Math.floor(body.max_tokens / 2), cache_creation_input_tokens: 0, cache_read_input_tokens: 0 };
+  const usage = { input_tokens: countOf(body.system), output_tokens: Math.floor(body.max_tokens / 2), cache_creation_input_tokens: 0, cache_read_input_tokens: 0, speed: body.speed === "fast" ? "fast" : "standard" };
   return c.json({ id: "msg_demo", type: "message", model: body.model, content: [{ type: "text", text: "ok" }], usage });
 });
 
@@ -201,24 +203,29 @@ log("\n== B5. A hold past its deadline is kept, not released ==");
   quick.server.close();
 }
 
-log("\n== B6. Holds are database rows that survive the gateway stopping ==");
+log("\n== B6. Holds are database rows: a gateway that starts finds the hold an earlier one left open ==");
 {
   const first = await listen(gatewayApp("gw_demo_first"));
   const { id, token } = await project(0.2);
   const controller = new AbortController();
   const inFlight = send(first.url, token, opus({ metadata: { test: "never-answers" } }), controller.signal).catch(() => null);
   while ((await listEvents(pool, id, "hold.opened")).length === 0) await new Promise((r) => setTimeout(r, 20));
-  log("  a call is in flight through gateway gw_demo_first; the gateway is now stopped");
+  log("  a call is in flight through gateway gw_demo_first; the caller now leaves, and the first gateway's server is closed");
+  log("  (both gateways run in this one process, so the first gateway is not stopped: its request handler can still write the call's ending)");
   controller.abort();
   await inFlight;
   await new Promise<void>((resolve) => first.server.close(() => resolve()));
-  const before = await showBudget(id, "budget with the first gateway stopped");
+  const before = await showBudget(id, "budget with the first gateway's server closed");
   const keeper = await startHoldKeeper(pool, "gw_demo_second");
   keeper.stop();
   log("  a second gateway, gw_demo_second, starts on the same database and looks for open holds");
   const h = (await listHolds(pool, id))[0]!;
   log(`  the hold's row: state ${h.state}, amount ${usd(Number(h.amount_usd))}, opened by ${h.gateway}`);
   await showEvents(id);
+  const order = (await listEvents(pool, id)).map((e) => e.kind);
+  const keptAt = order.indexOf("hold.kept");
+  const foundAt = order.indexOf("hold.found_at_startup");
+  log(`  in the log, the first gateway's hold.kept comes ${keptAt < 0 ? "nowhere (it was not written)" : keptAt < foundAt ? "before" : "after"} the second gateway's hold.found_at_startup`);
   const after = await showBudget(id, "budget after the second gateway started");
   log(`  spent + open holds the same before and after: ${before.spent + before.openHolds === after.spent + after.openHolds ? "yes" : "NO"}`);
   const second = await listen(gatewayApp("gw_demo_second"));
