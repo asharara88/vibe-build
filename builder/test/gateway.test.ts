@@ -176,6 +176,14 @@ function standInProvider() {
         // Review of 13 Nov 2026: a stream on Claude Opus 5.5 whose usage leaves the speed out, and one that states it.
         "stream-opus-no-speed": [start("claude-opus-5-5", { input_tokens: 1000, output_tokens: 1 }), delta({ output_tokens: 200 }), STREAM_FRAMES[3]!],
         "stream-opus-speed-fast": [start("claude-opus-5-5", { input_tokens: 1000, output_tokens: 1, speed: "fast" }), delta({ output_tokens: 200 }), STREAM_FRAMES[3]!],
+        // Second re-read of 13 Nov 2026: a stream whose start carries 10,000 cache writes with no split into
+        // five-minute and one-hour, and one whose start splits them all as five-minute writes.
+        "stream-cache-writes-not-itemised": [start("claude-sonnet-5-5", { input_tokens: 30, cache_creation_input_tokens: 10_000, cache_read_input_tokens: 0, output_tokens: 1 }), delta({ output_tokens: 300 }), STREAM_FRAMES[3]!],
+        "stream-cache-writes-itemised-5m": [
+          start("claude-sonnet-5-5", { input_tokens: 30, cache_creation_input_tokens: 10_000, cache_creation: { ephemeral_5m_input_tokens: 10_000, ephemeral_1h_input_tokens: 0 }, cache_read_input_tokens: 0, output_tokens: 1 }),
+          delta({ output_tokens: 300 }),
+          STREAM_FRAMES[3]!,
+        ],
       };
       const frames =
         thirdReview[mode] ? thirdReview[mode]
@@ -1424,6 +1432,30 @@ describe("holds: found by the review of 13 Nov 2026, and kept fixed", () => {
       if (pricedAt === null) expect(p.cache_writes_not_itemised, label).toBeUndefined();
       else expect(p.cache_writes_not_itemised, label).toMatchObject({ tokens: 10_000, priced_at: pricedAt });
       near((await getBudget(pool, id)).spent, cost);
+    }
+    // The same on a stream, where the split is read from the stream's frames (second re-read of 13 Nov 2026).
+    // On Claude Sonnet 5.5: 30 input tokens, 10,000 cache writes in the start frame, 300 output tokens.
+    const streamAsk = (test: string, more: Record<string, unknown> = {}) => ({ model: "claude-sonnet-5-5", max_tokens: 400, stream: true, system: "count:10000", messages: [], metadata: { test }, ...more });
+    const streamOneHour = up6((30 * 2 + 10_000 * 4 + 300 * 10) / 1e6);
+    const streamFiveMinutes = up6((30 * 2 + 10_000 * 2.5 + 300 * 10) / 1e6);
+    const streamCases: Array<[string, unknown, number, string | null]> = [
+      ['a stream whose writes are not split, with a block asking for "1h"', streamAsk("stream-cache-writes-not-itemised", { messages: block({ type: "ephemeral", ttl: "1h" }) }), streamOneHour, "the one-hour rate"],
+      ["a stream whose writes are not split, with no cache_control at all", streamAsk("stream-cache-writes-not-itemised"), streamFiveMinutes, "the five-minute rate"],
+      ['a stream that splits its writes as five-minute writes, though a block asks for "1h"', streamAsk("stream-cache-writes-itemised-5m", { messages: block({ type: "ephemeral", ttl: "1h" }) }), streamFiveMinutes, null],
+    ];
+    for (const [label, body, cost, pricedAt] of streamCases) {
+      const { id, token } = await newProject(5);
+      const res = await call(token, body);
+      expect(res.status, label).toBe(200);
+      await res.text(); // the call is recorded once the stream has been read to its end
+      const p = (await waitForEvents(id, "model.call", 1))[0]!.payload as { stream: boolean; cost_usd: number; usage: { cache_creation_input_tokens: number; cache_creation_1h_tokens: number }; cache_writes_not_itemised?: { tokens: number; priced_at: string } };
+      expect(p.stream, label).toBe(true);
+      near(p.cost_usd, cost);
+      expect(p.usage, label).toMatchObject({ cache_creation_input_tokens: 10_000, cache_creation_1h_tokens: 0 }); // as the provider gave it
+      if (pricedAt === null) expect(p.cache_writes_not_itemised, label).toBeUndefined();
+      else expect(p.cache_writes_not_itemised, label).toMatchObject({ tokens: 10_000, priced_at: pricedAt });
+      near((await getBudget(pool, id)).spent, cost);
+      expect(await listEvents(pool, id, "hold.exceeded"), label).toHaveLength(0); // each bill is within its hold
     }
   });
 
