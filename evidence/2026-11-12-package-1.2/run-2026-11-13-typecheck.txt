@@ -1,0 +1,7 @@
+Package 1.2, 13 Nov 2026: the type check at commit c31f909 (development machine, in builder/)
+$ npm run typecheck
+
+> builder@0.0.1 typecheck
+> tsc --noEmit
+
+exit code: 0

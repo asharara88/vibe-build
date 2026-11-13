@@ -1,0 +1,10 @@
+# The budget view as it was before migration 006 (the definition from 005_budget_view.sql), given one event whose hold number is not a whole number.
+# Run inside a transaction on the test database and rolled back; nothing is left behind. 12 November 2026.
+-- reading the budget with the earlier view:
+ERROR:  invalid input syntax for type bigint: "12.5"
+-- after the rollback, the view in place is the one from migration 006 again; the same kind of event is covered by the test "an event the gateway did not write cannot make the budget unreadable or smaller".
+ rows_left_behind 
+------------------
+                0
+(1 row)
+

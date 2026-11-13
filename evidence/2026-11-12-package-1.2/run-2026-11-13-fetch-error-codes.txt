@@ -1,0 +1,73 @@
+Package 1.2, 13 Nov 2026: what Node's own fetch reports when a forwarded request fails at different moments
+
+Why: the gateway forwards with Node's global fetch. After the review of 13 Nov it records a failure of the forward as
+"the provider could not be reached" only for the error codes that mean no connection was made (ENOTFOUND, ECONNREFUSED,
+UND_ERR_CONNECT_TIMEOUT); every other failure, a code it does not know or no code at all included, is recorded as
+"the connection failed after the request was sent, or may have been sent; the provider may have billed it".
+This run shows the codes for four cases on this machine, and one case with no code. UND_ERR_CONNECT_TIMEOUT is not
+produced here; it rests on undici's documentation (docs/SOURCES.md, 13 Nov 2026).
+
+Development machine (a cloud session), on the host. Local only: a stand-in on 127.0.0.1 and a host name under ".invalid",
+which is never a real host. No provider was called.
+
+The script, as run:
+----------------------------------------------------------------------------------------------------
+// What Node's own fetch (the one the gateway forwards with) reports when a request fails at
+// different moments. Local only: a stand-in on 127.0.0.1 and a name under ".invalid", which is
+// never a real host. Prints the error code the gateway reads (err.code, else err.cause.code)
+// and how many requests the stand-in received in full.
+import http from "node:http";
+import net from "node:net";
+
+const codeOf = (e) => e?.code ?? e?.cause?.code ?? "(none)";
+const line = (label, e, hits) => console.log(`${label}\n    rejected: ${e?.name}: ${e?.message}; code read by the gateway: ${codeOf(e)}${hits === undefined ? "" : `; requests the stand-in received in full: ${hits}`}`);
+
+console.log(`Node ${process.version}, undici ${process.versions.undici}`);
+
+// 1. A port nothing listens on: the connection is refused, so no request can have been sent.
+{
+  const probe = net.createServer();
+  await new Promise((r) => probe.listen(0, "127.0.0.1", r));
+  const port = probe.address().port;
+  await new Promise((r) => probe.close(r)); // now nothing listens there
+  try { await fetch(`http://127.0.0.1:${port}/v1/messages`, { method: "POST", body: "{}" }); } catch (e) { line("1. Nothing listening on the port (connection refused)", e); }
+}
+
+// 2. A host name that does not exist: the name lookup fails before any connection.
+try { await fetch("http://no-such-host.invalid/v1/messages", { method: "POST", body: "{}" }); } catch (e) { line("2. A host name that does not exist (name lookup fails)", e); }
+
+// 3 and 4. A stand-in that reads the whole request, then drops the connection without answering.
+for (const [label, end] of [
+  ["3. The stand-in reads the whole request, then closes the connection", (s) => s.destroy()],
+  ["4. The stand-in reads the whole request, then resets the connection", (s) => s.resetAndDestroy()],
+]) {
+  let hits = 0;
+  const srv = http.createServer((req) => { req.resume(); req.on("end", () => { hits++; setTimeout(() => end(req.socket), 50); }); });
+  await new Promise((r) => srv.listen(0, "127.0.0.1", r));
+  try { await fetch(`http://127.0.0.1:${srv.address().port}/v1/messages`, { method: "POST", body: JSON.stringify({ a: 1 }) }); } catch (e) { line(label, e, hits); }
+  await new Promise((r) => srv.close(r));
+}
+
+// 5. A port on fetch's own list of ports it will not use (port 9): fetch refuses before connecting,
+// but with no error code, so the gateway counts it as "may have been sent" (unknown).
+try { await fetch("http://127.0.0.1:9/v1/messages", { method: "POST", body: "{}" }); } catch (e) { line("5. Port 9, which fetch itself refuses to use", e); console.log(`    the cause's own message: ${e?.cause?.message}`); }
+----------------------------------------------------------------------------------------------------
+
+$ node measure-fetch-errors.mjs
+Node v22.23.4, undici 6.29.1
+1. Nothing listening on the port (connection refused)
+    rejected: TypeError: fetch failed; code read by the gateway: ECONNREFUSED
+2. A host name that does not exist (name lookup fails)
+    rejected: TypeError: fetch failed; code read by the gateway: ENOTFOUND
+3. The stand-in reads the whole request, then closes the connection
+    rejected: TypeError: fetch failed; code read by the gateway: UND_ERR_SOCKET; requests the stand-in received in full: 1
+4. The stand-in reads the whole request, then resets the connection
+    rejected: TypeError: fetch failed; code read by the gateway: ECONNRESET; requests the stand-in received in full: 1
+5. Port 9, which fetch itself refuses to use
+    rejected: TypeError: fetch failed; code read by the gateway: (none)
+    the cause's own message: bad port
+exit code: 0
+
+Read with the gateway's rule: cases 1 and 2 are "could not be reached" (nothing was sent). Cases 3 and 4 are "may have
+been sent": the stand-in had received the whole request each time. Case 5 has no code, so it too is "may have been sent":
+fetch refused the port before connecting, but an error without a code is not trusted to mean nothing was sent.

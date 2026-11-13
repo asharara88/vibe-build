@@ -1,0 +1,28 @@
+Package 1.2: the tests of the eleven proof rows (B1 to B6, B15 to B19), run on their own, with nothing removed
+Commit: 94b800c. Development machine (a cloud session), on the host; stand-in provider; test database builder_test_pkg12.
+Skipped tests (the rest of the file) are left out below. The whole suite is in run-2026-11-13-tests-full.txt.
+
+$ cd builder && npx vitest run test/gateway.test.ts -t 'proof rows' --reporter=verbose
+
+ RUN  v5.1.0 /home/user/vibe-build/builder
+
+ ✓ test/gateway.test.ts > holds: proof rows B1 to B6 of the design note > B1: a hold is opened before the call is forwarded and settled to the actual cost 49ms
+ ✓ test/gateway.test.ts > holds: proof rows B1 to B6 of the design note > B2: a call whose hold does not fit is refused at the call: no hold, nothing forwarded 22ms
+ ✓ test/gateway.test.ts > holds: proof rows B1 to B6 of the design note > B2: with calls arriving together against room for one hold, one is admitted, through one gateway or two 324ms
+ ✓ test/gateway.test.ts > holds: proof rows B1 to B6 of the design note > B3: a prompt that cannot be counted is refused, with the reason named 11ms
+ ✓ test/gateway.test.ts > holds: proof rows B1 to B6 of the design note > B4 (1): a model with a long-prompt rate is held at that rate when the prompt is at or near the threshold 18ms
+ ✓ test/gateway.test.ts > holds: proof rows B1 to B6 of the design note > B4 (2): on a profile that allows fast mode, a model with a fast-mode price is held at twice the standard rates 8ms
+ ✓ test/gateway.test.ts > holds: proof rows B1 to B6 of the design note > B5: a hold past its deadline is kept at its full amount, marked expired and unreconciled, and still counts 475ms
+ ✓ test/gateway.test.ts > holds: proof rows B1 to B6 of the design note > B6: holds are database rows: a gateway that starts finds the hold an earlier one left open, and keeps it 34ms
+ ✓ test/gateway.test.ts > holds: proof rows B15 to B19 of the design note (the known limits of the hold, known gap 41) > B15: inference_geo "us" (1.1 times every rate): a request that sets it is refused before anything is forwarded 12ms
+ ✓ test/gateway.test.ts > holds: proof rows B15 to B19 of the design note (the known limits of the hold, known gap 41) > B16: the token count being an estimate: a margin is added to the counted prompt, and a bill a little above the count stays within the hold 17ms
+ ✓ test/gateway.test.ts > holds: proof rows B15 to B19 of the design note (the known limits of the hold, known gap 41) > B17: server-side tools billed on top of tokens: a request that includes one, or asks for tool servers, is refused before anything is forwarded 14ms
+ ✓ test/gateway.test.ts > holds: proof rows B15 to B19 of the design note (the known limits of the hold, known gap 41) > B18: fast mode on a model whose price is assumed: a request for it is refused before anything is forwarded, even where the profile allows fast mode 12ms
+ ✓ test/gateway.test.ts > holds: proof rows B15 to B19 of the design note (the known limits of the hold, known gap 41) > B19: what happens to a hold after an error answer: released only when the provider's own answer shows the request was rejected before any work, kept in every other case 61ms
+
+ Test Files  1 passed (1)
+      Tests  13 passed | 66 skipped (79)
+   Start at  03:07:22
+   Duration  1.23s (tests 94%, import 4%, transform 2%)
+
+exit code: 0

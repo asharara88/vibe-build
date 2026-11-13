@@ -56,20 +56,6 @@ export interface Spend {
   model_calls: string;
 }
 
-/**
- * The cost of the most expensive of the project's last three model calls, used as the estimate
- * for the next call so that the cap is not crossed. Zero when the project has no calls yet.
- */
-export async function recentCallCostEstimate(pool: pg.Pool, projectId: string): Promise<number> {
-  const r = await pool.query<{ cost: string | null }>(
-    `select max((payload->>'cost_usd')::numeric) as cost from (
-       select payload from events where project_id = $1 and kind = 'model.call' order by id desc limit 3
-     ) recent`,
-    [projectId],
-  );
-  return Number(r.rows[0]?.cost ?? 0);
-}
-
 export async function getSpend(pool: pg.Pool, projectId: string): Promise<Spend> {
   const r = await pool.query<Spend>("select * from project_spend where project_id = $1", [projectId]);
   if (!r.rows[0]) throw new Error(`Unknown project ${projectId}`);

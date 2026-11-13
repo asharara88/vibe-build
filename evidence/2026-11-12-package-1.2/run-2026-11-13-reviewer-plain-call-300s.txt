@@ -1,0 +1,60 @@
+Package 1.2, 13 Nov 2026: a reviewer's measured run of a plain call answered after 310 seconds (copied here; not run again)
+
+Who and what: a fresh reviewer of the review of 13 Nov 2026 (the "money" lens), on an exact copy of commit 592ed73, with
+its own test database and a stand-in provider on this machine. No real provider was called. The gateway's code that
+forwards a call was the same then as now in what matters here: it passes no options of its own to Node's fetch.
+The stand-in reads the whole call and answers it after 310 seconds. The gateway's own limit for a plain call is
+10 minutes (builder/src/gateway/app.ts, DEFAULT_TIME_LIMIT). The run shows the call cut at about 301 seconds by
+Node's fetch (error UND_ERR_HEADERS_TIMEOUT: undici's default headersTimeout of 300 seconds; docs/SOURCES.md, 13 Nov).
+At 592ed73 the kept hold's reason was "the provider could not be reached"; since commit ac18aa8 such a failure
+is recorded as "the connection failed after the request was sent, or may have been sent; the provider may have billed it".
+This file is the reviewer's output, copied from the reviewer's working folder; the reviewer's own words are not changed.
+
+The reviewer's probe script (probes/p2b.ts; probes/harness.ts, not copied, starts the gateway with createGateway and
+only a made-up key, opens a project with a cap of $5, and reads back the project's events):
+----------------------------------------------------------------------------------------------------
+import { request } from "node:http";
+import { gateway, pool, project, rawProvider, state } from "./harness.js";
+// P2b: a plain call the provider answers after 310 s (a long generation). The gateway's own plain-call limit is 10 minutes.
+// The caller uses node:http with no timeout of its own, so only the gateway's side can cut the call.
+const t0 = Date.now();
+const secs = () => Math.round((Date.now() - t0) / 1000);
+const prov = await rawProvider((_req, res) => {
+  res.on("close", () => console.log("P2b provider: the gateway closed its connection at", secs(), "s"));
+  setTimeout(() => {
+    if (res.destroyed) { console.log("P2b provider: finished the work at", secs(), "s, but the gateway had gone"); return; }
+    res.writeHead(200, { "content-type": "application/json" });
+    res.end(JSON.stringify({ model: "claude-opus-5-5", usage: { input_tokens: 30, output_tokens: 300 } }));
+  }, 310_000);
+});
+const gw = await gateway(prov.url);
+const { id, token } = await project(5);
+const body = JSON.stringify({ model: "claude-opus-5-5", max_tokens: 400, messages: [] });
+const u = new URL(gw.url + "/v1/messages");
+const result = await new Promise<{ status: number; text: string }>((resolve, reject) => {
+  const rq = request({ host: u.hostname, port: u.port, path: u.pathname, method: "POST", headers: { "content-type": "application/json", "x-api-key": token, "anthropic-version": "2023-06-01", "content-length": Buffer.byteLength(body) } }, (res) => {
+    let t = ""; res.on("data", (d) => (t += d)); res.on("end", () => resolve({ status: res.statusCode ?? 0, text: t }));
+  });
+  rq.on("error", reject); rq.end(body);
+});
+console.log("P2b gateway answered", result.status, "after", secs(), "s:", result.text);
+const s = await state(id);
+console.log("P2b kept:", JSON.stringify(s.events.filter((e) => e.kind === "hold.kept").map((e) => ({ reason: e.p.reason, error: (e.p.seen as any)?.error, duration_ms: (e.p.seen as any)?.duration_ms }))));
+await new Promise((r) => setTimeout(r, 15_000));
+gw.server.close(); prov.server.close(); await pool.end();
+----------------------------------------------------------------------------------------------------
+
+Its output (p2b.out):
+P2b provider: the gateway closed its connection at 301 s
+P2b gateway answered 502 after 301 s: {"type":"error","error":{"type":"api_error","message":"The gateway could not reach the model provider."}}
+P2b kept: [{"reason":"the provider could not be reached","error":{"code":"UND_ERR_HEADERS_TIMEOUT","name":"TypeError"},"duration_ms":300805}]
+P2b provider: finished the work at 310 s, but the gateway had gone
+
+A second run of the same case, started by one of the two reviewers that checked this finding, with its own probe; it
+finished after that reviewer had reported (output fetchto/p2b.txt, as written):
+[stand-in] received whole /v1/messages request (58 bytes) at 2026-11-13T03:39:55.994Z
+[client] status 502 after 300830 ms; body: {"type":"error","error":{"type":"api_error","message":"The gateway could not reach the model provider."}}
+[stand-in] /v1/messages hits: 1
+[event] hold.opened {"hold_id":2,"amount_usd":0.00996,"arithmetic":{"model":"claude-opus-5-5","hold_usd":0.00996,"max_tokens":400,"input_rate_is":"one-hour cache write","input_part_usd":0.00196,"output_part_usd":0.008,"fast_mode_factor":1,"price_table_date":"2026-11-11","fast_mode_because":null,"long_prompt_rates":false,"prompt_tokens_held":245,"count_margin_tokens":203,"counted_prompt_tokens":42,"input_rate_usd_per_million":8,"output_rate_usd_per_million":20,"long_prompt_threshold_tokens":null},"deadline_at":"2026-11-13T03:59:55.985Z","budget_before":{"cap_usd":5,"spent_usd":0,"open_holds_usd":0}}
+[event] hold.kept {"seen":{"path":"/v1/messages","error":{"code":"UND_ERR_HEADERS_TIMEOUT","name":"TypeError"},"model":"claude-opus-5-5","usage":{"speed":"standard","input_tokens":0,"output_tokens":0,"cache_read_input_tokens":0,"cache_creation_1h_tokens":0,"cache_creation_input_tokens":0},"status":0,"stream":false,"priced_as":"claude-opus-5-5","duration_ms":300808,"served_model":null},"reason":"the provider could not be reached","hold_id":2,"amount_usd":0.00996}
+[hold] state=open amount_usd=0.009960

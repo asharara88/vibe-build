@@ -1,0 +1,258 @@
+Package 1.2, 13 Nov 2026, after the review bot's finding on 7ce5a33: every test except the live ones, at commit 756766a (its code is that of 9dc236d).
+Development machine (a cloud session), in builder/, against the test database builder_test_pkg12. The live tests, which start containers, are left out here; they run once, in the whole suite, in run-2026-11-13-review-bot-tests-full.txt.
+
+$ npx vitest run -t '^(?!.*: live, ).*$' --reporter=verbose   (skipped tests listed too)
+
+ RUN  v5.1.0 /home/user/vibe-build/builder
+
+ ✓ test/licence-rule.test.ts > licence expressions > accepts a permitted licence and combinations made only of permitted licences 2ms
+ ✓ test/licence-rule.test.ts > licence expressions > refuses anything else 1ms
+ ✓ test/licence-rule.test.ts > one rule, kept the same in every component > the template carries the same two files as the builder, byte for byte 0ms
+ ✓ test/licence-rule.test.ts > one rule, kept the same in every component > both components permit the same licences, and every exception names its approval 2ms
+ ✓ test/licence-rule.test.ts > the rule > judges a package the lock file lists for another machine like any other, and counts it apart 1ms
+ ✓ test/licence-rule.test.ts > the rule > holds an exception to one version where the rule gives one 1ms
+ ✓ test/licence-rule.test.ts > the rule > matches a build package against any installed version of its main package, where the rule gives no single version 0ms
+ ✓ test/licence-rule.test.ts > the rule > holds every approved package in both components to the version that was read 0ms
+ ✓ test/licence-rule.test.ts > the rule > accepts the component's own package at its named version, and refuses any other package of that name 2ms
+ ✓ test/licence-rule.test.ts > the rule > passes when every package is permitted 0ms
+ ✓ test/licence-rule.test.ts > the rule > fails on a development-only package outside the list: there is no weaker rule for development tools 0ms
+ ✓ test/licence-rule.test.ts > the rule > lists every problem, not only the first 0ms
+ ✓ test/licence-rule.test.ts > the rule > accepts the named exceptions for development use 0ms
+ ✓ test/licence-rule.test.ts > the rule > does not extend an approval to another package with the same licence 0ms
+ ✓ test/licence-rule.test.ts > the rule > fails when a package approved for development use is among the shipped dependencies 0ms
+ ✓ test/licence-rule.test.ts > the rule > fails when an approved package later declares a different licence 0ms
+ ✓ test/licence-rule.test.ts > the rule > fails a build package whose version differs from its main package, or whose main package is absent 0ms
+ ✓ test/licence-rule.test.ts > the rule > covers only the build packages named one by one, not every name that starts the same way 0ms
+ ✓ test/licence-rule.test.ts > the rule > treats an old-style list of licences as all applying, each read on its own 0ms
+ ✓ test/licence-rule.test.ts > the rule > records which packages were accepted on one side of a choice of licences 0ms
+ ✓ test/licence-rule.test.ts > the rule > does not let a build package's name excuse a different licence 0ms
+ ✓ test/licence-rule.test.ts > the real check, run against a folder with a test package added > passes on a folder whose packages are all permitted 612ms
+ ✓ test/licence-rule.test.ts > the real check, run against a folder with a test package added > fails when a shipped test package outside the rule is added, and names it 597ms
+ ✓ test/licence-rule.test.ts > the real check, run against a folder with a test package added > fails when a development-only test package outside the rule is added 678ms
+ ✓ test/licence-rule.test.ts > the real check, run against a folder with a test package added > fails when a test package declares no licence at all 587ms
+ ✓ test/licence-rule.test.ts > the real check, run against a folder with a test package added > fails when a shipped test package outside the rule is marked private 581ms
+ ✓ test/licence-rule.test.ts > the real check, run against a folder with a test package added > fails when it reads nothing: an empty folder, or a folder that does not exist 677ms
+ ✓ test/licence-rule.test.ts > the real check, run against a folder with a test package added > fails when a declared dependency is not installed, since its licence cannot be read 556ms
+ ✓ test/licence-rule.test.ts > the real check, run against a folder with a test package added > passes with a lock file whose entries all come from the registry under permitted licences 547ms
+ ✓ test/licence-rule.test.ts > the real check, run against a folder with a test package added > fails on a package that only another machine would install, read from the lock file 567ms
+ ✓ test/licence-rule.test.ts > the real check, run against a folder with a test package added > fails on a lock-file package that records no licence, or one that names a permitted licence beside another 553ms
+ ✓ test/licence-rule.test.ts > the real check, run against a folder with a test package added > fails on a package that does not come from the registry: an archive file, a git address, another server 2430ms
+ ✓ test/licence-rule.test.ts > the real check, run against a folder with a test package added > fails when there is no lock file, or when a shrinkwrap file that npm would prefer is there 1204ms
+ ✓ test/licence-rule.test.ts > the real check, run against a folder with a test package added > fails on an installed folder the lock file does not list, and on a link to a folder outside 1181ms
+ ✓ test/licence-rule.test.ts > the real check, run against a folder with a test package added > fails when two folders call themselves the same package and version but declare different licences 605ms
+ ✓ test/licence-rule.test.ts > the real check, run against a folder with a test package added > fails on a folder holding a package under another name that the lock file does not record 610ms
+ ✓ test/licence-rule.test.ts > the real check, run against a folder with a test package added > fails on a package folder with no name, an unreadable package.json, or the component's own name 3009ms
+ ✓ test/licence-rule.test.ts > the real check, run against a folder with a test package added > fails on a package put in a hidden folder, and on a scope folder that is a link 2853ms
+ ✓ test/licence-rule.test.ts > the real check, run against a folder with a test package added > fails on an optional or peer dependency that is neither installed nor in the lock file 555ms
+ ✓ test/licence-rule.test.ts > the real check, run against a folder with a test package added > fails on a lock file that lists no packages, or cannot be read 2219ms
+ ✓ test/licence-rule.test.ts > the real check, run against a folder with a test package added > fails on a local package the rule does not name, whether a folder or a link 583ms
+ ✓ test/licence-rule.test.ts > the real check, run against a folder with a test package added > a component's own package > passes when the folder is exactly what the rule names 648ms
+ ✓ test/licence-rule.test.ts > the real check, run against a folder with a test package added > a component's own package > fails without the rule naming it: an unlicensed private package is refused like any other 610ms
+ ✓ test/licence-rule.test.ts > the real check, run against a folder with a test package added > a component's own package > fails when a file in it has changed, or a file has been added 1252ms
+ ✓ test/licence-rule.test.ts > the real check, run against a folder with a test package added > a component's own package > fails when another folder calls itself by the own package's name and version, nested or under another folder name 1234ms
+ ✓ test/licence-rule.test.ts > the real check, run against a folder with a test package added > a component's own package > fails when a real package is installed under its name 575ms
+ ✓ test/licence-rule.test.ts > the real check, run against a folder with a test package added > fails when the notices file is out of date 1645ms
+ ✓ test/licence-rule.test.ts > the real check, run against a folder with a test package added > passes on the builder itself, with the notices file up to date 1570ms
+ ✓ test/scripted-engine.test.ts > scripted engine: the fixed change sets of example 1 > has the two steps of the design note's slice, in order 2ms
+ ✓ test/scripted-engine.test.ts > scripted engine: the fixed change sets of example 1 > each copy matches its fingerprint; each add is a file not there yet; each replace names the fingerprint of the file the step finds (the template's, or the previous step's) 2ms
+ ✓ test/scripted-engine.test.ts > scripted engine: the fixed change sets of example 1 > no path is protected, outside the workspace, under certs/ or hidden 1ms
+ ✓ test/scripted-engine.test.ts > scripted engine: the fixed change sets of example 1 > every protected path is a plain file in the template 1ms
+ ✓ test/scripted-engine.test.ts > scripted engine: the fixed change sets of example 1 > every code file written starts with "Written by the scripted engine (fixed change …). No AI model wrote this." 1ms
+ ✓ test/scripted-engine.test.ts > scripted engine: the fixed change sets of example 1 > after each step the banner says, in both languages, that the scripted engine built the app; English and Arabic have the same messages 1ms
+ ✓ test/scripted-engine.test.ts > scripted engine: the fixed change sets of example 1 > the leave-request statuses are exactly the example spec's, with waiting as the default 0ms
+ ✓ test/scripted-engine.test.ts > scripted engine: the fixed change sets of example 1 > the change sets hold nothing but the applier, the manifests and the files they list 1ms
+ ✓ test/scripted-engine.test.ts > scripted engine: the fixed change sets of example 1 > the applier uses nothing but Node's own modules 1ms
+ ✓ test/scripted-engine.test.ts > scripted engine: the engine service in the compose file > server profile: no network, no settings, the hardening, user node, and exactly three mounts 1ms
+ ✓ test/scripted-engine.test.ts > scripted engine: the engine service in the compose file > development-cloud-session profile: no network, no settings, the hardening, user node, and exactly three mounts 0ms
+ ✓ test/scripted-engine.test.ts > scripted engine: the engine service in the compose file > there is no engine service unless the sandbox asks for one 0ms
+ ✓ test/scripted-engine.test.ts > scripted engine: the engine service in the compose file > Docker Compose accepts the file; the empty folder is made; up refuses the engine service 80ms
+ ✓ test/scripted-engine.test.ts > scripted engine: the class, against a stand-in runner (no container, no model) > a step that runs: name scripted, its events, zero usage, turns = files written, and a commit labelled [scripted] by the scripted engine 194ms
+ ✓ test/scripted-engine.test.ts > scripted engine: the class, against a stand-in runner (no container, no model) > the turn limit: the container is told it; a limit line ends the step as failed with 'turn limit reached'; nothing is committed 151ms
+ ✓ test/scripted-engine.test.ts > scripted engine: the class, against a stand-in runner (no container, no model) > an unknown step fails before any container is started 86ms
+ ✓ test/scripted-engine.test.ts > scripted engine: the class, against a stand-in runner (no container, no model) > a write to a protected path refused by the applier becomes a 'blocked' event and a failed step 95ms
+ ✓ test/scripted-engine.test.ts > scripted engine: the class, against a stand-in runner (no container, no model) > a file the change does not name, or one git ignores, fails the step and is reported; nothing is committed 260ms
+ ✓ test/scripted-engine.test.ts > scripted engine: the class, against a stand-in runner (no container, no model) > stop() kills the running container and resolves only once the step has ended 'stopped' 130ms
+ ✓ test/scripted-engine.test.ts > scripted engine: the class, against a stand-in runner (no container, no model) > stop() asked for while the step is being prepared: no container is started, and stop() resolves once the step has ended 144ms
+ ✓ test/scripted-engine.test.ts > scripted engine: the class, against a stand-in runner (no container, no model) > a runner that reports a time limit or a failing event handler ends the step as failed, saying so 224ms
+ ✓ test/scripted-engine.test.ts > scripted engine: the class, against a stand-in runner (no container, no model) > an event handler that throws before the container is asked for fails the step; no container is started 72ms
+ ✓ test/scripted-engine.test.ts > scripted engine: the class, against a stand-in runner (no container, no model) > entries git cannot see (a .git at the top, a .git in a folder git tracks, a .GIT, a named pipe, a nested repository) fail the step and are reported; nothing is committed; the reset leaves nothing 448ms
+ ✓ test/scripted-engine.test.ts > scripted engine: the class, against a stand-in runner (no container, no model) > a step does not start on a workspace that holds an entry git cannot see; the walk follows no link 87ms
+ ✓ test/scripted-engine.test.ts > scripted engine: the class, against a stand-in runner (no container, no model) > the reset: a nested repository and a named pipe are removed, nothing is left; what cannot be put back is returned 195ms
+ ✓ test/scripted-engine.test.ts > scripted engine: the class, against a stand-in runner (no container, no model) > ignored files named toString, constructor and __proto__ count as themselves: the check reports them as new, and the reset removes them 188ms
+ ✓ test/scripted-engine.test.ts > scripted engine: the class, against a stand-in runner (no container, no model) > the reset: a step that edited .gitignore so that the session certificate is no longer ignored does not get it removed 114ms
+ ✓ test/scripted-engine.test.ts > scripted engine: the class, against a stand-in runner (no container, no model) > a step does not start on a workspace with changes that are not committed, or when a protected path is missing 118ms
+ ✓ test/scripted-engine.test.ts > scripted engine: the class, against a stand-in runner (no container, no model) > an async event handler whose promise rejects before the container is asked for fails the step; no container is asked for 91ms
+ ✓ test/scripted-engine.test.ts > scripted engine: the class, against a stand-in runner (no container, no model) > an ignored symbolic link that is pointed elsewhere counts as a change: the step fails, nothing is committed, and the reset reports it 224ms
+ ✓ test/scripted-engine.test.ts > scripted engine: the class, against a stand-in runner (no container, no model) > a folder tree deeper than the machine's path limit: the step fails saying the workspace could not be checked, nothing is committed; the reset cannot put it back (known gap 58) 268ms
+ ↓ test/scripted-engine.test.ts > scripted engine: live, in the engine container (development profile) > set-up: a fresh copy of the template, its history outside it, owned by the engine's user
+ ↓ test/scripted-engine.test.ts > scripted engine: live, in the engine container (development profile) > stop() part-way: the container is killed and removed, and the workspace is put back
+ ↓ test/scripted-engine.test.ts > scripted engine: live, in the engine container (development profile) > stop() asked for while the step is being prepared: no engine container is started, and the workspace is unchanged
+ ↓ test/scripted-engine.test.ts > scripted engine: live, in the engine container (development profile) > a step that runs past its time limit: the container is killed and removed, and the step fails saying so
+ ↓ test/scripted-engine.test.ts > scripted engine: live, in the engine container (development profile) > an event handler that throws while the container runs: the builder goes on, the container is killed and removed, and the step fails saying so
+ ↓ test/scripted-engine.test.ts > scripted engine: live, in the engine container (development profile) > applies both fixed steps in the engine container; each is committed as [scripted] by the scripted engine, with zero usage
+ ↓ test/scripted-engine.test.ts > scripted engine: live, in the engine container (development profile) > a protected path: the applier refuses to write it (a 'blocked' event), and the read-only mount refuses a write in place (EROFS), which is all a mount over a file stops (next test)
+ ↓ test/scripted-engine.test.ts > scripted engine: live, in the engine container (development profile) > a protected file replaced through a renamed folder, or its folder moved aside and replaced by a link to the moved copy: the read-only mount over the file does not stop it; the check after the step does (the step fails, nothing is committed, one reset puts the folder back)
+ ↓ test/scripted-engine.test.ts > scripted engine: live, in the engine container (development profile) > a step that plants .git folders and a named pipe beside its own file: the walk sees them though git does not, the step fails, nothing is committed, the reset removes them
+ ↓ test/scripted-engine.test.ts > scripted engine: live, in the engine container (development profile) > the applier's refusals, in the engine container: a wrong fingerprint for a replace (nothing written, though the entry before it was sound), an add over an existing file, a path outside the workspace, a path through a link; and the applier does not start outside /engine or without a workspace
+ ↓ test/scripted-engine.test.ts > scripted engine: live, in the engine container (development profile) > the turn limit inside the applier: with a limit of 1 it writes one file and stops; the step fails 'turn limit reached'; nothing is committed; the reset puts it back
+ ↓ test/scripted-engine.test.ts > scripted engine: live, in the engine container (development profile) > runStreaming: a line handler that throws does not bring the builder down; the container is killed and removed, and the run ends carrying the error
+ ↓ test/scripted-engine.test.ts > scripted engine: live, in the engine container (development profile) > an event handler that fails asynchronously (its promise rejects) while the container runs: no rejection is left unhandled, the container is killed and removed, and the step fails saying so
+ ↓ test/scripted-engine.test.ts > scripted engine: live, in the engine container (development profile) > inside the engine container: user node, no settings of its own, no network but loopback, an empty certs folder, the change sets read-only
+ ↓ test/scripted-engine.test.ts > scripted engine: live, in the engine container (development profile) > removing the project also removes an engine container whose run was cut off
+ ✓ test/sandbox.test.ts > sandbox manager: compose documents > server profile: an internal network with no route out, and the egress proxy as the only bridge 3ms
+ ✓ test/sandbox.test.ts > sandbox manager: compose documents > development profile: host network, session proxy and certificate, database on a non-default port 1ms
+ ✓ test/sandbox.test.ts > sandbox manager: compose documents > package 0.5: a tools service under its own profile, given a named list of settings and nothing from the host 1ms
+ ✓ test/sandbox.test.ts > sandbox manager: compose documents > package 0.5: the sandbox records the names given to the tools container, and Docker runs with a narrow environment and its own client folder 2ms
+ ✓ test/sandbox.test.ts > sandbox manager: compose documents > package 0.5: only the user's extra plugin folders are carried into the project's Docker client folder; a chosen context is refused; up refuses the tools service 4ms
+ ✓ test/sandbox.test.ts > sandbox manager: compose documents > package 0.5: an empty DOCKER_CONFIG counts as not set, so the user's own folder under HOME is read 2ms
+ ✓ test/sandbox.test.ts > sandbox manager: compose documents > package 0.5: a context chosen in the configuration is accepted when DOCKER_HOST is set; DOCKER_CONTEXT=default is accepted, any other DOCKER_CONTEXT refused 5ms
+ ✓ test/sandbox.test.ts > sandbox manager: compose documents > package 0.5: a plugin link to a folder that has since gone is replaced, or removed, without error 9ms
+ ✓ test/sandbox.test.ts > sandbox manager: compose documents > writes YAML that Docker Compose accepts 91ms
+ ✓ test/sandbox.test.ts > sandbox manager: compose documents > round-trips a small document through the YAML writer 1ms
+ ↓ test/sandbox.test.ts > sandbox manager: live, development profile > starts the project's database and egress proxy, and the proxy refuses hosts not on the list
+ ↓ test/sandbox.test.ts > sandbox manager: live, the tools container (package 0.5) > a Docker client configuration that adds proxy settings to containers does not reach the tools container
+ ↓ test/sandbox.test.ts > sandbox manager: live, the tools container (package 0.5) > removing the project also removes a tools container whose run was cut off
+ ✓ test/isolation.test.ts > isolation probe: its own settings and words (unit) > reads its settings, and refuses a session proxy given with anything but host and port 3ms
+ ✓ test/isolation.test.ts > isolation probe: its own settings and words (unit) > names each failure by its error code, and every name it can give is one the report accepts 1ms
+ ✓ test/isolation.test.ts > isolation probe: its own settings and words (unit) > finds the listening ports in /proc/net/tcp text (made-up sample in the kernel's format) 1ms
+ ✓ test/isolation.test.ts > isolation probe: its own settings and words (unit) > lists UDP sockets with no remote end and abstract Unix sockets (made-up samples in the kernel's format) 1ms
+ ✓ test/isolation.test.ts > isolation probe: its own settings and words (unit) > lists every network interface in a /sys/class/net folder, up or down, with its state (made-up folder) 3ms
+ ✓ test/isolation.test.ts > isolation probe: its own settings and words (unit) > plans every attempt once, aims host attempts at the loopback address, and tries the session proxy only when given 2ms
+ ✓ test/isolation.test.ts > isolation probe: its own settings and words (unit) > group G: one TCP attempt per port listening on the machine, at the gateway address of Docker's default network, with the address each port listens on as read on the machine 1ms
+ ✓ test/isolation.test.ts > isolation probe: its attempts, against made-up servers on the loopback address (unit) > sends the HTTPS request of a tunnel attempt inside the proxy's tunnel, never straight to the target (review finding 8) 45ms
+ ✓ test/isolation.test.ts > isolation probe: its attempts, against made-up servers on the loopback address (unit) > an HTTP answer whose body is held open is still that HTTP status, settled once the headers came (review finding 10) 1313ms
+ ✓ test/isolation.test.ts > isolation probe: its attempts, against made-up servers on the loopback address (unit) > a proxy that closes the connection without answering a CONNECT has its own result, at once, not 'timed out' 1ms
+ ✓ test/isolation.test.ts > isolation probe: its attempts, against made-up servers on the loopback address (unit) > a server that accepts the connection and never answers: 'connected, then no answer within the limit', counted as an answer, not 'timed out'; over HTTPS, the detail says whether the secure handshake finished 2212ms
+ ✓ test/isolation.test.ts > isolation probe: its attempts, against made-up servers on the loopback address (unit) > a proxy that answers 200 to a CONNECT and then says nothing: the tunnel attempt is 'connected, then no answer within the limit', with the proxy's 200 in its detail, and, where the secure connection inside the tunnel opened, that too 1319ms
+ ✓ test/isolation.test.ts > isolation probe: reading what it prints (unit) > the harness passes the machine's listening sockets to the probe, and refuses plainly when there are more than the probe takes (64) 2ms
+ ✓ test/isolation.test.ts > isolation probe: reading what it prints (unit) > reads a complete run, and counts which attempts got an answer 1ms
+ ✓ test/isolation.test.ts > isolation probe: reading what it prints (unit) > an answer (a connection opened, an HTTP status, a proxy's answer, or an address found) is told apart from a failure; every result given only after a connection opened is an answer (review finding 11) 1ms
+ ✓ test/isolation.test.ts > isolation probe: reading what it prints (unit) > never drops a line it does not understand: an unfinished run, a wrong count, an unknown result, a stray line and a stop are all problems 1ms
+ ✓ test/isolation.test.ts > isolation probe: reading what it prints (unit) > takes the session proxy's host and port from its setting, never a user name or password 1ms
+ ✓ test/isolation.test.ts > isolation probe: reading what it prints (unit) > draws one row per attempt in the probe's order and one column per container, 'not tried' where a container did not make it 3ms
+ ✓ test/isolation.test.ts > isolation probe: reading what it prints (unit) > marks attempts aimed at the container's own loopback address however the session proxy is written: 127.0.0.1, localhost or [::1] 2ms
+ ✓ test/isolation.test.ts > isolation probe: reading what it prints (unit) > when containers give an attempt different targets (B2 and B3 can), the row says so and each cell gives its own target and description 1ms
+ ↓ test/isolation.test.ts > isolation probe: live, the engine container (development profile) > from inside the engine container, which has no network, every attempt fails, outside and on the host alike
+ ✓ test/gateway.test.ts > model gateway: key and metering > forwards with the real key, keeps the key out of the client's view, and records usage and cost 48ms
+ ✓ test/gateway.test.ts > model gateway: key and metering > relays a streamed response byte for byte and meters it from the stream's events 14ms
+ ✓ test/gateway.test.ts > model gateway: key and metering > prices one-hour cache writes and fast mode from the response 10ms
+ ✓ test/gateway.test.ts > model gateway: key and metering > prices by the model that served the answer when it differs from the one requested 10ms
+ ✓ test/gateway.test.ts > model gateway: key and metering > settles at nothing when the provider rejects the request before doing any work 10ms
+ ✓ test/gateway.test.ts > model gateway: key and metering > does not follow a redirect from the provider, so the key goes nowhere else 8ms
+ ✓ test/gateway.test.ts > model gateway: key and metering > answers 502, forwards nothing and opens no hold when the provider cannot be reached at all 8ms
+ ✓ test/gateway.test.ts > holds: a call that ends without readable usage keeps its hold open > a server error from the provider 12ms
+ ✓ test/gateway.test.ts > holds: a call that ends without readable usage keeps its hold open > a stream the client abandoned part-way: the usage seen is written down and releases nothing 44ms
+ ✓ test/gateway.test.ts > holds: a call that ends without readable usage keeps its hold open > a successful answer with no usage block 12ms
+ ✓ test/gateway.test.ts > holds: a call that ends without readable usage keeps its hold open > a stream that ends cleanly without usage figures 11ms
+ ✓ test/gateway.test.ts > holds: a call that ends without readable usage keeps its hold open > the provider reachable for counting but not for the call itself: nothing was sent, and the record says so 13ms
+ ✓ test/gateway.test.ts > holds: a call that ends without readable usage keeps its hold open > a provider that reads the whole request and then drops the connection: the hold is kept, recorded as possibly billed, not as unreachable 34ms
+ ✓ test/gateway.test.ts > holds: proof rows B1 to B6 of the design note > B1: a hold is opened before the call is forwarded and settled to the actual cost 21ms
+ ✓ test/gateway.test.ts > holds: proof rows B1 to B6 of the design note > B2: a call whose hold does not fit is refused at the call: no hold, nothing forwarded 21ms
+ ✓ test/gateway.test.ts > holds: proof rows B1 to B6 of the design note > B2: with calls arriving together against room for one hold, one is admitted, through one gateway or two 323ms
+ ✓ test/gateway.test.ts > holds: proof rows B1 to B6 of the design note > B3: a prompt that cannot be counted is refused, with the reason named 9ms
+ ✓ test/gateway.test.ts > holds: proof rows B1 to B6 of the design note > B4 (1): a model with a long-prompt rate is held at that rate when the prompt is at or near the threshold 16ms
+ ✓ test/gateway.test.ts > holds: proof rows B1 to B6 of the design note > B4 (2): on a profile that allows fast mode, a model with a fast-mode price is held at twice the standard rates 7ms
+ ✓ test/gateway.test.ts > holds: proof rows B1 to B6 of the design note > B5: a hold past its deadline is kept at its full amount, marked expired and unreconciled, and still counts 478ms
+ ✓ test/gateway.test.ts > holds: proof rows B1 to B6 of the design note > B5: an answer that comes after the hold's deadline, before the sweep has marked it, does not settle it: the hold is marked expired there and then and kept at its full amount 7ms
+ ✓ test/gateway.test.ts > holds: proof rows B1 to B6 of the design note > B5: a hold past its deadline that the sweep has not yet marked is not released as never sent either: it is marked expired there and then and kept at its full amount 7ms
+ ✓ test/gateway.test.ts > holds: proof rows B1 to B6 of the design note > B6: holds are database rows: a gateway that starts finds the hold an earlier one left open, and keeps it 138ms
+ ✓ test/gateway.test.ts > holds: proof rows B1 to B6 of the design note > B6: a gateway process that stops cleanly with a call in flight leaves its hold open; a gateway started afterwards finds it, keeps it at its full amount and still counts it 538ms
+ ✓ test/gateway.test.ts > holds: proof rows B15 to B19 of the design note (the known limits of the hold, known gap 41) > B15: inference_geo "us" (1.1 times every rate): a request that sets it is refused before anything is forwarded 21ms
+ ✓ test/gateway.test.ts > holds: proof rows B15 to B19 of the design note (the known limits of the hold, known gap 41) > B16: the token count being an estimate: a margin is added to the counted prompt, and a bill a little above the count stays within the hold 19ms
+ ✓ test/gateway.test.ts > holds: proof rows B15 to B19 of the design note (the known limits of the hold, known gap 41) > B17: server-side tools billed on top of tokens: a request that includes one, or asks for tool servers, is refused before anything is forwarded 22ms
+ ✓ test/gateway.test.ts > holds: proof rows B15 to B19 of the design note (the known limits of the hold, known gap 41) > B18: fast mode on a model whose price is assumed: a request for it is refused before anything is forwarded, even where the profile allows fast mode 14ms
+ ✓ test/gateway.test.ts > holds: proof rows B15 to B19 of the design note (the known limits of the hold, known gap 41) > B19: what happens to a hold after an error answer: released only when the provider's own answer shows the request was rejected before any work, kept in every other case 67ms
+ ✓ test/gateway.test.ts > holds: found by review, and kept fixed > a usage block with one field that is not a count releases nothing: text, a negative number, a fraction 35ms
+ ✓ test/gateway.test.ts > holds: found by review, and kept fixed > a usage block that itemises several attempts is not taken as the whole bill 9ms
+ ✓ test/gateway.test.ts > holds: found by review, and kept fixed > an answer from a model with no price keeps the hold 9ms
+ ✓ test/gateway.test.ts > holds: found by review, and kept fixed > an error answer settles at nothing only when it is the provider's own rejection before work 25ms
+ ✓ test/gateway.test.ts > holds: found by review, and kept fixed > refuses request fields outside its list, and beta features it was not told to allow 39ms
+ ✓ test/gateway.test.ts > holds: found by review, and kept fixed > forwards the body as it read it: a repeated key cannot show the gateway one value and the provider another 10ms
+ ✓ test/gateway.test.ts > holds: found by review, and kept fixed > does not store or relay the real key when the provider's error echoes it 9ms
+ ✓ test/gateway.test.ts > holds: found by review, and kept fixed > a bill above the hold is charged in full, recorded as a breach, and raises a fault 35ms
+stderr | test/gateway.test.ts > holds: found by review, and kept fixed > a streamed call that reaches the time limit keeps its hold
+Error: time limit reached
+    at Timeout._onTimeout (/home/user/vibe-build/builder/src/gateway/app.ts:436:53)
+    at listOnTimeout (node:internal/timers:585:17)
+    at process.processTimers (node:internal/timers:521:7)
+
+ ✓ test/gateway.test.ts > holds: found by review, and kept fixed > a streamed call that reaches the time limit keeps its hold 214ms
+ ✓ test/gateway.test.ts > holds: found by review, and kept fixed > marking overdue holds while calls are being admitted does not deadlock 294ms
+ ✓ test/gateway.test.ts > holds: found by review, and kept fixed > refuses a cost that is not a real, non-negative amount at the database as well 11ms
+ ✓ test/gateway.test.ts > holds: found by the second review, and kept fixed > a stream is settled only when the provider's end-of-message marker was seen and no error event was 17ms
+ ✓ test/gateway.test.ts > holds: found by the second review, and kept fixed > a stream whose figures cannot both be right keeps its hold: two starts, or a running total that falls 16ms
+ ✓ test/gateway.test.ts > holds: found by the second review, and kept fixed > usage that points to a charge outside the token rates, or cannot be right, keeps the hold 42ms
+ ✓ test/gateway.test.ts > holds: found by the second review, and kept fixed > the lock holds whatever the database's default isolation level: 30 calls at once, room for one hold 375ms
+ ✓ test/gateway.test.ts > holds: found by the second review, and kept fixed > the store refuses to settle at an amount that is not a real, non-negative number, and does not settle a kept hold 27ms
+ ✓ test/gateway.test.ts > holds: found by the second review, and kept fixed > the budget does not count as spent a call whose hold is open, or a cost that is not a real amount 4ms
+ ✓ test/gateway.test.ts > holds: found by the second review, and kept fixed > forwards a fixed list of headers and nothing after a question mark in the address 13ms
+ ✓ test/gateway.test.ts > holds: found by the second review, and kept fixed > keeps the key out of the log and out of what is passed back, wherever an answer echoes it 119ms
+ ✓ test/gateway.test.ts > holds: found by the second review, and kept fixed > gives a project with an unknown or odd profile name no limits by accident 4ms
+ ✓ test/gateway.test.ts > holds: found by the third review, and kept fixed > a body that spells the key with escapes is cleaned before the caller gets it, as the caller would read it 205ms
+ ✓ test/gateway.test.ts > holds: found by the third review, and kept fixed > the same holds on the token-counting pass-through, for a good answer and for an error 11ms
+ ✓ test/gateway.test.ts > holds: found by the third review, and kept fixed > an answer that does not carry the key goes back byte for byte 17ms
+ ✓ test/gateway.test.ts > holds: found by the third review, and kept fixed > the key in a member that a JSON reader would drop (the same name twice) is not passed back either 113ms
+ ✓ test/gateway.test.ts > holds: found by the third review, and kept fixed > an answer nested very deeply does not make the call fail: its hold is kept with a note in the log 22ms
+ ✓ test/gateway.test.ts > holds: found by the third review, and kept fixed > an answer that does not name the model that served it keeps its hold 14ms
+ ✓ test/gateway.test.ts > holds: found by the third review, and kept fixed > a stream that is not framed the way the provider frames it keeps its hold 57ms
+ ✓ test/gateway.test.ts > holds: found by the third review, and kept fixed > a response header named after the key is not passed back, whatever the letter case of the key 6ms
+ ✓ test/gateway.test.ts > holds: found by the third review, and kept fixed > a stream whose figures contradict each other, or whose model is not a name, keeps its hold 42ms
+ ✓ test/gateway.test.ts > holds: found by the third review, and kept fixed > usage with a field the meter does not know, or a model that is not a name, keeps the hold 26ms
+ ✓ test/gateway.test.ts > holds: found by the third review, and kept fixed > the breakdown of output tokens that the provider documents does not stop a call being settled 9ms
+ ✓ test/gateway.test.ts > holds: found by the third review, and kept fixed > an event the gateway did not write cannot make the budget unreadable or smaller 7ms
+ ✓ test/gateway.test.ts > holds: found by the third review, and kept fixed > writes down the names of the headers it did not pass on, never their values 6ms
+ ✓ test/gateway.test.ts > holds: found by the fifth review, and kept fixed > what goes back and what is stored is judged once more as text: one backslash in front of the key does not carry it through 78ms
+ ✓ test/gateway.test.ts > holds: found by the fifth review, and kept fixed > a backslash in front of a u or an x of the key is undone like one in front of any other character 221ms
+ ✓ test/gateway.test.ts > holds: found by the fifth review, and kept fixed > an answer with 30,000 backslashes in a row and no key in it goes back exactly as it was read 9ms
+ ✓ test/gateway.test.ts > holds: found by the fifth review, and kept fixed > an answer holding half of a surrogate pair, which the database refuses, still gets its ending written down 13ms
+ ✓ test/gateway.test.ts > holds: found by the fifth review, and kept fixed > an answer holding a character the database refuses still gets its ending written down 9ms
+ ✓ test/gateway.test.ts > holds: found by the fifth review, and kept fixed > a served model named like a built-in word has no price, and an answer too large to search is not passed on 56ms
+ ✓ test/gateway.test.ts > holds: found by the fifth review, and kept fixed > a named stream frame with no data keeps the hold; comment lines and keep-alives do not 19ms
+ ✓ test/gateway.test.ts > holds: found by the review of 13 Nov 2026, and kept fixed > fast mode: a plain answer whose usage leaves the speed out keeps a hold that allowed for fast mode; one that states the speed is settled at that speed 33ms
+ ✓ test/gateway.test.ts > holds: found by the review of 13 Nov 2026, and kept fixed > cache writes the answer does not split into five-minute and one-hour are priced at the one-hour rate, unless the request asks for no one-hour cache anywhere 69ms
+ ✓ test/gateway.test.ts > holds: found by the review of 13 Nov 2026, and kept fixed > a caller that leaves before the call is forwarded: the hold is settled at nothing, with the reason, and the call itself is not forwarded 832ms
+ ✓ test/gateway.test.ts > holds: found by the review of 13 Nov 2026, and kept fixed > the budget-reached message rounds so that its figures never appear to fit the cap 11ms
+ ✓ test/gateway.test.ts > holds: found by the review of 13 Nov 2026, and kept fixed > fast mode: the same on a stream 15ms
+ ✓ test/gateway.test.ts > holds: what a hold cannot bound is refused before anything is forwarded > no max_tokens, or more than the profile's ceiling 6ms
+ ✓ test/gateway.test.ts > holds: what a hold cannot bound is refused before anything is forwarded > routing that changes the price of every token 3ms
+ ✓ test/gateway.test.ts > holds: what a hold cannot bound is refused before anything is forwarded > tools the provider runs itself, and tool servers 9ms
+ ✓ test/gateway.test.ts > holds: what a hold cannot bound is refused before anything is forwarded > fast mode where the profile does not allow it, or the model has no fast-mode price 6ms
+ ✓ test/gateway.test.ts > holds: what a hold cannot bound is refused before anything is forwarded > lets the caller's own tools through 10ms
+ ✓ test/gateway.test.ts > holds: what a hold cannot bound is refused before anything is forwarded > the arithmetic of a hold, on its own 0ms
+ ✓ test/gateway.test.ts > model gateway: what is refused > refuses a model that is not in the price table 3ms
+ ✓ test/gateway.test.ts > model gateway: what is refused > refuses to be configured with a model that has no price 0ms
+ ✓ test/gateway.test.ts > model gateway: what is refused > refuses an unknown token and never forwards it 1ms
+ ✓ test/gateway.test.ts > model gateway: what is refused > refuses a non-JSON body 2ms
+ ✓ test/gateway.test.ts > model gateway: what is refused > refuses paid paths it does not know, such as batches, and percent-encoded disguises 5ms
+ ✓ test/gateway.test.ts > model gateway: what is refused > refuses methods other than POST 2ms
+ ✓ test/gateway.test.ts > model gateway: what is refused > passes token counting through, logged and unmetered 4ms
+ ✓ test/gateway.test.ts > model gateway: what is refused > raised no faults during this run 0ms
+ ✓ test/egress.test.ts > egress proxy > matches exact hosts and wildcard subdomains, nothing else 1ms
+ ✓ test/egress.test.ts > egress proxy > lets an allowed HTTPS host through and logs it as allowed 501ms
+ ✓ test/egress.test.ts > egress proxy > reaches the model API host (401 without a key means it was reached) 339ms
+ ✓ test/egress.test.ts > egress proxy > refuses a host that is not on the list and logs the refusal 7ms
+ ✓ test/egress.test.ts > egress proxy > refuses a plain HTTP request to a host not on the list 8ms
+ ✓ test/key-reader.test.ts > the key reader > finds the key written plainly, and nothing in a text without it 1ms
+ ✓ test/key-reader.test.ts > the key reader > ignores backslashes, one or many, anywhere in the key 14ms
+ ✓ test/key-reader.test.ts > the key reader > reads \\uHHHH and \\xHH as the character they name, in either letter case of the digits 0ms
+ ✓ test/key-reader.test.ts > the key reader > follows both readings where a backslash stands before a u or an x that is part of the key 0ms
+ ✓ test/key-reader.test.ts > the key reader > reads an escape whose backslash is itself written as an escape, and escapes inside escapes 0ms
+ ✓ test/key-reader.test.ts > the key reader > does not take a text for the key when the escapes name other characters 9ms
+ ✓ test/key-reader.test.ts > the key reader > does not read an escape whose own letter or digits are themselves escaped: the stated limit 0ms
+ ✓ test/key-reader.test.ts > the key reader > finds the key however it is written within the three rules: 3,000 random keys, every character spelt at random 255ms
+ ✓ test/events.test.ts > event log > appends and lists events in order 6ms
+ ✓ test/events.test.ts > event log > refuses to update an event 4ms
+ ✓ test/events.test.ts > event log > refuses to truncate the event log 3ms
+ ✓ test/events.test.ts > event log > refuses to delete an event 8ms
+ ✓ test/app-spec.test.ts > app spec > accepts the fixed brief for test example 1 (leave request) 8ms
+ ✓ test/app-spec.test.ts > app spec > names the problem in plain words when a screen is for an unknown role 3ms
+ ✓ test/app-spec.test.ts > app spec > refuses a choice field with no choices 1ms
+ ✓ test/app-spec.test.ts > app spec > refuses more than five core actions 1ms
+
+ Test Files  9 passed (9)
+      Tests  218 passed | 19 skipped (237)
+   Start at  05:56:20
+   Duration  44.58s (tests 99%, import 1%)
+
+
+exit code: 0
