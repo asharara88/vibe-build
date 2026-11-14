@@ -435,7 +435,8 @@ async function main(): Promise<number> {
   chownSync(cameraOut, RUNNER_UID, RUNNER_UID);
   chownSync(secretFile, RUNNER_UID, RUNNER_UID);
   say(`Fresh database ${dbName}; fresh data folder <run folder>/data; the interface's temporary folder (its sandbox folders) <run folder>/tmp; the camera's folder. A random interface password, given to the interface in its environment and to the builder camera as a read-only file (mode 0400); not printed or kept.`);
-  const hide = (s: string) => s.split(work).join("<run folder>");
+  /** Paths of this machine in what the run writes: its run folder, the session's temporary folder and the repository's checkout, as placeholders. */
+  const hide = (s: string) => s.split(work).join("<run folder>").split(tmpdir()).join("<tmp>").split(repoDir).join("<repo>");
 
   const free = () => {
     const f = statfsSync(work);
@@ -680,6 +681,17 @@ async function main(): Promise<number> {
     count("B", { name: "the interface exits with code 0 within 120 s of SIGTERM", ok: r !== null && r.code === 0, detail: r ? `code ${r.code}` : "not exited" });
     count("B", { name: `the interface says "${STOP_LINE} 0." (the project is closed)`, ok: after.includes(`${STOP_LINE} 0.`), detail: after.filter((l) => l.startsWith(STOP_LINE)).join(" | ") || "no such line" });
     count("B", { name: "the interface's own last line gives exit code 0", ok: after.at(-1) === "[interface stopped] Lock released. Exit code 0.", detail: after.at(-1) ?? "no line" });
+    // Any event written during the stop, read now; then the run's own connection to the database is closed, so that
+    // it is not counted as a process naming the database (2).
+    const rows2 = await evAll();
+    if (rows2.length !== rows1.length) {
+      writeEvents(rows2, `Every event of the run's database, in id order: ${rows1.length} saved before the interface was stopped, and ${rows2.length - rows1.length} written during its stop, saved after it. Made-up data only. Paths are of this machine's run folder, removed after the run.`);
+      say(`B: ${rows2.length - rows1.length} events written during the stop were added to events.json (${rows2.length} in all).`);
+    } else say(`B: no event was written during the stop; events.json holds the ${rows1.length} saved before it.`);
+    await pool.end();
+    pool = null;
+    // The database server's own process for that connection ends just after; wait for it (at most 10 s).
+    for (let n = 0; n < 50 && (await processesWithParents()).some((x) => x.args.includes(dbName)); n++) await sleep(200);
     // 1.
     count("B.1", { name: `the interface's process ${pid}, recorded at its start, has exited`, ok: ifaceDone && proc.exitCode !== null, detail: `exit code ${proc.exitCode}` });
     count("B.1", { name: `nothing listens on 127.0.0.1:${UI_PORT}`, ok: (await portFree(UI_PORT)) && listening(UI_PORT).length === 0, detail: listening(UI_PORT).join(" ") });
@@ -700,13 +712,6 @@ async function main(): Promise<number> {
     const gw = procs.filter((x) => (x.ppid === pid || x.ppid === process.pid) && /gateway/i.test(x.args));
     count("B.4", { name: "the run started no gateway: no process whose command line names a gateway is a child of the run or of its interface", ok: gw.length === 0, detail: gw.map((x) => `${x.pid} ${x.args}`).join("; ") });
     // 5.
-    const rows2 = await evAll();
-    if (rows2.length !== rows1.length) {
-      writeEvents(rows2, `Every event of the run's database, in id order: ${rows1.length} saved before the interface was stopped, and ${rows2.length - rows1.length} written during its stop, saved after it. Made-up data only. Paths are of this machine's run folder, removed after the run.`);
-      say(`B.5: ${rows2.length - rows1.length} events written during the stop were added to events.json (${rows2.length} in all).`);
-    } else say(`B.5: no event was written during the stop; events.json holds the ${rows1.length} saved before it.`);
-    await pool.end();
-    pool = null;
     execFileSync("dropdb", ["-h", "/var/run/postgresql", "--if-exists", dbName]);
     dbDropped = true;
     times.dbDropped = iso(Date.now());
@@ -726,6 +731,7 @@ async function main(): Promise<number> {
     say(`B.6: listening, recorded, not touched: 4020 ${listening(4020).join(" ") || "no"}; 4032 ${listening(4032).join(" ") || "no"}; 4033 ${listening(4033).join(" ") || "no"}.`);
     // 7.
     const cm = await npmCacheMount();
+    const cacheBefore = cacheRecords(await sh("docker", ["buildx", "du", "--verbose"]));
     say(`B.7: what the builder leaves that the copy's start will use: npm's cache mount (docker buildx du --verbose): ${cm.map((x) => `id ${x.ID}, size ${x.Size}, last used ${x["Last used"]}, usage count ${x["Usage count"]}, created ${x["Created at"]}`).join("; ") || "NOT FOUND"}.`);
     for (const image of [DEFAULT_IMAGES.node, DEFAULT_IMAGES.postgres]) say(`B.7: the base image ${image}: id ${await sh("docker", ["image", "inspect", "--format", "{{.Id}}", image])}.`);
     say("B.7: the builder's own built steps are not reused by the copy's build, which runs on another network (design section 1); its install step may be taken from an earlier layer built on Docker's default network (design section 13, C14).");
@@ -787,6 +793,16 @@ async function main(): Promise<number> {
     const npmCached = inst1.some((l) => /^#\d+ CACHED$/.test(l.trim()));
     count("C", { name: "the build's lines for the install step are kept, and say whether npm ran or the step was taken from an earlier layer", ok: inst1.length > 0 && (npmRan || npmCached), detail: npmRan ? "npm ran" : npmCached ? "taken from an earlier layer (CACHED)" : "neither seen" });
     const cmAfter = await npmCacheMount();
+    // Which records of the build cache the copy's own build used: those whose use count went up during the first start.
+    const cacheUsed = cacheRecords(await sh("docker", ["buildx", "du", "--verbose"])).filter((x) => {
+      const b = cacheBefore.find((y) => y.ID === x.ID);
+      return !b || Number(x["Usage count"]) > Number(b["Usage count"]);
+    });
+    npmLines.push(
+      `Build cache records the first start used (their use count went up, or they are new): ${cacheUsed.length}. Each with when it was made:`,
+      ...cacheUsed.map((x) => `  ${x.ID}: ${cacheBefore.some((y) => y.ID === x.ID) ? `made ${x["Created at"]}` : "new in this start"}; ${x.Type ?? ""}; ${(x.Description ?? "").slice(0, 160)}`),
+    );
+    say(`C: the build cache records the first start used: ${cacheUsed.length}, of which ${cacheUsed.filter((x) => !cacheBefore.some((y) => y.ID === x.ID)).length} new; the earliest made ${cacheUsed.map((x) => x["Created at"] ?? "").filter(Boolean).sort()[0] ?? "-"}.`);
     say(`C: npm's cache mount after the first start: ${cmAfter.map((x) => `size ${x.Size}, last used ${x["Last used"]}, usage count ${x["Usage count"]}`).join("; ") || "not found"}.`);
     npmLines.push(`npm's cache mount before the start (B.7): ${cm.map((x) => `id ${x.ID}, size ${x.Size}, last used ${x["Last used"]}, usage count ${x["Usage count"]}, created ${x["Created at"]}`).join("; ")}`, `npm's cache mount after the first start: ${cmAfter.map((x) => `id ${x.ID}, size ${x.Size}, last used ${x["Last used"]}, usage count ${x["Usage count"]}`).join("; ")}`);
     // What runs.
@@ -843,7 +859,24 @@ async function main(): Promise<number> {
     const portAll = (listenerAll.address() as net.AddressInfo).port;
     say(`C, no way back: the run's own listeners on the machine: 127.0.0.1:${portLo} and 0.0.0.0:${portAll} (every address); each answers a connection with the run's token.`);
     const bridgeGw = (await sh("docker", ["network", "inspect", "bridge", "--format", "{{range .IPAM.Config}}{{.Gateway}} {{end}}"])).trim().split(/\s+/).filter(Boolean);
-    const gwOf = async (netName: string) => (await sh("docker", ["network", "inspect", netName, "--format", "{{range .IPAM.Config}}{{.Gateway}} {{end}}"])).trim().split(/\s+/).filter(Boolean);
+    /**
+     * The gateway addresses of a network, as Docker's inspect lists them. A network in the isolated gateway mode lists
+     * none (Docker gives no address to the machine's side of it); then the first address of each of its subnets, where a
+     * bridge's gateway would be, is probed in its place.
+     */
+    const gwOf = async (netName: string): Promise<Array<{ host: string; what: string }>> => {
+      const n = (JSON.parse(await sh("docker", ["network", "inspect", netName])) as Array<{ IPAM?: { Config?: Array<{ Subnet?: string; Gateway?: string }> | null } }>)[0];
+      const out: Array<{ host: string; what: string }> = [];
+      for (const c of n?.IPAM?.Config ?? []) {
+        if (c.Gateway && net.isIPv4(c.Gateway)) out.push({ host: c.Gateway, what: `the gateway address of ${netName}` });
+        else if (c.Subnet && /^\d+\.\d+\.\d+\.\d+\/\d+$/.test(c.Subnet)) {
+          const [a, b, cc, d] = c.Subnet.split("/")[0]!.split(".").map(Number) as [number, number, number, number];
+          out.push({ host: `${a}.${b}.${cc}.${d + 1}`, what: `the first address of ${netName}'s subnet ${c.Subnet} (it lists no gateway address)` });
+        }
+      }
+      if (!out.length) out.push({ host: "", what: `${netName}: no gateway or subnet listed` });
+      return out;
+    };
     const probeTag = randomBytes(3).toString("hex");
     for (const svc of ["app", "door"]) {
       const c = contInfo.find((x) => x.Name === `/${id}-${svc}-1`);
@@ -852,9 +885,9 @@ async function main(): Promise<number> {
         continue;
       }
       const addresses: Array<{ host: string; what: string }> = [{ host: "127.0.0.1", what: "127.0.0.1" }];
-      for (const n of Object.keys(c.NetworkSettings?.Networks ?? {}).sort()) for (const g of await gwOf(n)) addresses.push({ host: g, what: `the gateway address of ${n}` });
+      for (const n of Object.keys(c.NetworkSettings?.Networks ?? {}).sort()) for (const g of await gwOf(n)) addresses.push(g);
       for (const g of bridgeGw) addresses.push({ host: g, what: "Docker's default bridge address" });
-      const targets: Array<[string, number]> = addresses.flatMap((a) => [[a.host, portLo] as [string, number], [a.host, portAll] as [string, number]]);
+      const targets: Array<[string, number]> = addresses.filter((a) => a.host).flatMap((a) => [[a.host, portLo] as [string, number], [a.host, portAll] as [string, number]]);
       // A control first: from this namespace a connection that should work does (the app on its own port).
       const control: [string, number] = svc === "app" ? ["127.0.0.1", 3000] : ["app", 3000];
       const name = `x32-probe-${runId}-${svc}-${probeTag}`;
@@ -868,6 +901,10 @@ async function main(): Promise<number> {
       const ctl = res.find((x) => x.host === control[0] && x.port === control[1]);
       count("C, no way back", { name: `control: from the ${svc}'s namespace, ${control[0]}:${control[1]} (the app) can be reached, so a failed connection below is not the probe's fault`, ok: ctl?.result === "connected", detail: ctl?.result ?? "no result" });
       for (const a of addresses) {
+        if (!a.host) {
+          count("C, no way back", { name: `from the ${svc}'s namespace: an address to probe for ${a.what}`, ok: false, detail: "" });
+          continue;
+        }
         for (const [port, which] of [[portLo, "127.0.0.1"], [portAll, "every address"]] as const) {
           const x = res.find((y) => y.host === a.host && y.port === port);
           count("C, no way back", { name: `from the ${svc}'s namespace, ${a.host}:${port} (${a.what}; the run's listener on ${which}) cannot be reached`, ok: x !== undefined && x.result !== "connected", detail: x ? `${x.result}${x.said.trim() === token ? ", the run's own listener answered" : ""}` : "no result" });
@@ -1187,7 +1224,7 @@ ${rowsHtml.map(([k, v, attr]) => `<tr><th>${esc(k)}</th><td${attr ? ` ${attr}` :
     say(`Result: ${code === 0 ? "every check passed" : "NOT every check passed"} (exit code ${code}).`);
     const finalLog = log.join("\n");
     const leaked = Object.values(secrets).some((v) => v && finalLog.includes(v));
-    writeFileSync(join(evidence, "run-demo.txt"), leaked ? "The run's log is not written: it would hold a secret.\n" : finalLog.split(work).join("<run folder>") + "\n");
+    writeFileSync(join(evidence, "run-demo.txt"), leaked ? "The run's log is not written: it would hold a secret.\n" : hide(finalLog) + "\n");
     if (leaked) code = 1;
   }
   return code;
