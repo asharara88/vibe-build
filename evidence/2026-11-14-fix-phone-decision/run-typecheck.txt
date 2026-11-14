@@ -1,0 +1,6 @@
+The phone test's decision after the review of 14787d8: npm run typecheck on 6db89da (builder/ tree dd109df), working tree of builder/: 0 changed files, 2026-11-14T03:46:35Z. The new test imports scripts/probe-phone.ts, so the typecheck now covers that file too.
+
+> builder@0.0.1 typecheck
+> tsc --noEmit
+
+exit code: 0

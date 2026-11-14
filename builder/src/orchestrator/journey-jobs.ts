@@ -48,6 +48,9 @@
  * - Package J2 (c): with the demonstration pause on (`stepPauseMs`, from BUILDER_DEMO_STEP_PAUSE_MS, off by default), each
  *   build step first records `journey.step.paused_for_demonstration`, and the scripted engine's applier pauses that long
  *   before each write (`delayMsPerWrite`), so that a stop part-way can be shown. Off, neither happens.
+ * - After the review of 14787d8 (known gap 161, the owner's choice): "Open the live app" is refused once the project is
+ *   signed off (journey.ts, `JOB_RULES.live`); attaching the preview gives the journey the way to end a project's live
+ *   session, and wait for its close to be recorded, before its sign-off is recorded (journey.ts, `signOff`).
  */
 import { chmodSync, chownSync, closeSync, constants, fstatSync, mkdirSync, openSync, readFileSync, readSync, rmSync, writeFileSync } from "node:fs";
 import { randomBytes } from "node:crypto";
@@ -159,9 +162,13 @@ export class JourneyJobs {
     this.j = o.journey;
   }
 
-  /** Package J3: the live preview this interface runs (main.ts). Without it, "Open the live app" is refused. */
+  /**
+   * Package J3: the live preview this interface runs (main.ts). Without it, "Open the live app" is refused. After the
+   * review of 14787d8: the journey ends a project's live session with it before recording the project's sign-off.
+   */
   attachPreview(p: LivePreview): void {
     this.live = p;
+    this.j.attachLiveEnd((projectId, reason) => p.closeFor(projectId, reason));
   }
 
   /**

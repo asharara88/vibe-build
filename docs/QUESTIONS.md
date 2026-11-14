@@ -8,10 +8,6 @@ None open right now. Question 15, the browser and the runner's two base images, 
 
 ## Not blocking yet
 
-**18. The "vibe-build" setup script fetches images by tag** (numbered 15 when pull request #8 added it). It downloads `node:22-alpine`, `postgres:16-alpine` and `python:3.13-slim` by name, so a rebuilt snapshot can hold versions other than those you approved (question 11), plus an image nothing uses; its downloads have no time limit (gap 67).
-(a) **Change the script to fetch only the two approved images, by digest, each with a time limit** (a change to your environment, approved on a card). Recommended: new sessions then start with the approved versions.
-(b) Leave it; the builder will pin its own images (status, Next, item 2).
-
 **16. What is package 1.3 checked against?** Built to (a); the build does not wait on your answer.
 (a) **Proof row B7 in full: a step refused before it starts, and a step that starts has its calls drawn from its reserved budget, the unused part released at its end.** Recommended: a running step cannot be starved by other spending or by a cap lowering.
 Its cost: while a step runs, its whole reservation stops the cap being lowered, there is no command to stop a running step, and a cap raise does not top up a running step.
@@ -45,7 +41,7 @@ Its cost: while a step runs, its whole reservation stops the cap being lowered, 
 
 Claude Code's readings and work, recorded as such, not as your decisions. Detail: `docs/log/2026-11-13-status-before-rewrite.md`, "Yours to confirm".
 
-- **J3's phone test, yours to run (two test pages, no data):** tell Claude Code "phone test"; it starts the two pages and adds "probe-a" and "probe-b" to your Claude app's preview list. Open probe-a and press its steps 1 to 6 in order (step 6 twice); open probe-b and press its steps; then say "done", and, if you can, whether probe-a opens in a private window when you are signed out. Claude Code reads what the pages recorded and says what the design's table decides. The live app stays "not yet approved for use" until then, and, since J3's review, off: it is turned on (`BUILDER_LIVE_PREVIEW=1`) only once the test is recorded (`evidence/2026-11-13-journey-j3/live-preview.md`, "Your phone test"; `builder/scripts/probe-phone.ts`).
+- **J3's phone test, yours to run (two test pages, no data):** tell Claude Code "phone test"; it starts the two pages and adds "probe-a" and "probe-b" to your Claude app's preview list. Open probe-a and press its steps 1 to 6 in order (step 6 twice); open probe-b and press its steps; then say "done" and give three answers the report needs (since the fix after the review of 14787d8, 14 Nov 2026): what step 5 showed (a page saying "Port 4034 answered", or an error), whether the cached page's number stayed the same the second time, and whether probe-a opened in a private window where you are not signed in (or that you could not try). Without all three, or with a step missing, the report says "not decided" and names what to redo. *14 Nov 2026:* the Claude app on the owner's phone showed no preview list; the test is being tried from a computer at claude.ai/code instead. Claude Code reads what the pages recorded and says what the design's table decides. The live app stays "not yet approved for use" until then, and, since J3's review, off: it is turned on (`BUILDER_LIVE_PREVIEW=1`) only once the test is recorded (`evidence/2026-11-13-journey-j3/live-preview.md`, "Your phone test"; `builder/scripts/probe-phone.ts`).
 - Proof rows B7 to B14 assigned to packages 1.3 to 1.5 (B7's extra over 1.3's wording is now question 16; 1.5 is taken after 1.4).
 - The message a refused step shows, reworded from design note 5.5 for a step (package 1.3; the note of 13 Nov there).
 - Known gap 35's proposal built in package 1.4 with no engineer named: proof row B10 rests on a design no engineer has reviewed.
