@@ -1,0 +1,6 @@
+npm run typecheck in builder/, on commit 14787d8 with the working tree's change to test/sandbox.test.ts (blob e6f6cb34403abc37423b6a6be6a7cd13c4edd6a4), 2026-11-14T03:30:51Z.
+
+> builder@0.0.1 typecheck
+> tsc --noEmit
+
+exit code: 0

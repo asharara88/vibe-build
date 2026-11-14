@@ -1,0 +1,45 @@
+Run 'after-without-npx': node node_modules/vitest/vitest.mjs run test/sandbox.test.ts --reporter=verbose, in builder/, on commit 14787d8, test file blob e6f6cb34403abc37423b6a6be6a7cd13c4edd6a4, working tree: 2 changed files.
+TMPDIR=<scratchpad>/ta, made new and empty; entries in it before the run: 0.
+Free disk before (df -h /): 23G free of 252G
+Containers on this machine before (docker ps -aq, count): 0
+Waiting for the shared lock (flock <scratchpad>/live-tests.lock) from 03:29:44 UTC.
+Lock held from 03:29:44 UTC.
+
+ RUN  v5.1.0 /home/user/vibe-build/builder
+
+ ✓ test/sandbox.test.ts > sandbox manager: compose documents > both profiles (package 0.6c): every project network internal, with the isolated gateway mode, IPv6 off and no gateway address set 4ms
+ ✓ test/sandbox.test.ts > sandbox manager: compose documents > both profiles (package 0.6c): each service's networks; tools on the database's network only; no published port; every capability dropped 3ms
+ ✓ test/sandbox.test.ts > sandbox manager: compose documents > server profile: the egress proxy goes out directly, said explicitly, with the project's list 0ms
+ ✓ test/sandbox.test.ts > sandbox manager: compose documents > development profile (package 0.6c): the door on `out`, and the egress proxy and gateway forwarder behind two sockets on the machine side, going out only through the session proxy 1ms
+ ✓ test/sandbox.test.ts > sandbox manager: compose documents > development profile (package 0.6c): package 2.2's engine option puts the engine on `out` only, pointed at the door 0ms
+ ✓ test/sandbox.test.ts > sandbox manager: compose documents > development profile (package 0.6c): refused without the session proxy, or with a gateway that is not on the machine's loopback address 2ms
+ ✓ test/sandbox.test.ts > sandbox manager: compose documents > development profile (package 0.6c): createSandbox makes the socket folder (mode 750, owned by the door's user), copies no certificate, and points the build's npm at the machine side's loopback port 8ms
+ ✓ test/sandbox.test.ts > sandbox manager: compose documents > the template's image build (package 0.6c): install scripts off, the workspace's code with no network, no certificate, no build front end fetched 1ms
+ ✓ test/sandbox.test.ts > sandbox manager: compose documents > the Dockerfile reading used above (after the review): keywords in any case, leading space, continued lines, comment lines dropped 1ms
+ ✓ test/sandbox.test.ts > sandbox manager: compose documents > askApp (package 0.6c) takes only http://<service>:<port>/<path>; up refuses the check service 5ms
+ ✓ test/sandbox.test.ts > sandbox manager: compose documents > appStream (package J3): docker compose run of the check service as it is, to app:<port> only; nothing added (no --privileged, --user, --env or --volume) 2ms
+ ✓ test/sandbox.test.ts > sandbox manager: compose documents > development profile (package 0.6c): Docker Compose accepts the whole file 97ms
+ ✓ test/sandbox.test.ts > sandbox manager: compose documents > package 0.5: a tools service under its own profile, given a named list of settings and nothing from the host 1ms
+ ✓ test/sandbox.test.ts > sandbox manager: compose documents > package 0.5: the sandbox records the names given to the tools container, and Docker runs with a narrow environment and its own client folder 3ms
+ ✓ test/sandbox.test.ts > sandbox manager: compose documents > package 0.5: only the user's extra plugin folders are carried into the project's Docker client folder; a chosen context is refused; up refuses the tools service 3ms
+ ✓ test/sandbox.test.ts > sandbox manager: compose documents > package 0.5: an empty DOCKER_CONFIG counts as not set, so the user's own folder under HOME is read 2ms
+ ✓ test/sandbox.test.ts > sandbox manager: compose documents > package 0.5: a context chosen in the configuration is accepted when DOCKER_HOST is set; DOCKER_CONTEXT=default is accepted, any other DOCKER_CONTEXT refused 3ms
+ ✓ test/sandbox.test.ts > sandbox manager: compose documents > package 0.5: a plugin link to a folder that has since gone is replaced, or removed, without error 5ms
+ ✓ test/sandbox.test.ts > sandbox manager: compose documents > writes YAML that Docker Compose accepts 88ms
+ ✓ test/sandbox.test.ts > sandbox manager: compose documents > round-trips a small document through the YAML writer 0ms
+ ✓ test/sandbox.test.ts > sandbox manager: live, development profile > starts the project's database and its door; from a container on `out`, the egress proxy behind the door lets the registry through and refuses a host not on the list (package 0.6c) 24695ms
+ ✓ test/sandbox.test.ts > sandbox manager: live, the tools container (package 0.5) > a Docker client configuration that adds proxy settings to containers does not reach the tools container 1238ms
+ ✓ test/sandbox.test.ts > sandbox manager: live, the tools container (package 0.5) > removing the project also removes a tools container whose run was cut off 10619ms
+
+ Test Files  1 passed (1)
+      Tests  23 passed (23)
+   Start at  03:29:45
+   Duration  57.89s (tests 100%)
+
+vitest exit code: 0
+Lock released at 03:30:43 UTC.
+Containers on this machine after (docker ps -aq, count): 0
+Free disk after (df -h /): 23G free of 252G
+
+What is left in TMPDIR after the run (entries directly in it: 0; everything below it: 0):
+(nothing: TMPDIR is empty)
