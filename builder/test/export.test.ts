@@ -898,7 +898,7 @@ describe("Part B, the export checks' verdicts (section 4 items 4 to 7), on made-
 
   it("S30: what Compose reads from the copy equals what it reads from the template's file alone, once the two folders' paths are set aside; a difference is named", async () => {
     const { composeConfigVerdict } = await import("../src/export/export-check.js");
-    const doc = (dir: string, door: Record<string, unknown> = {}) => JSON.stringify({ name: "j1-made-up", services: { app: { build: { context: dir } }, door: { image: "made-up", ...door } } });
+    const doc = (dir: string, door: Record<string, unknown> = {}) => JSON.stringify({ name: "j1-made-up", services: { app: { build: { context: dir } }, door: { user: "node", ...door } } });
     expect(composeConfigVerdict(doc("/x/copy/j1-made-up"), doc("/x/template/j1-made-up"), "/x/copy/j1-made-up", "/x/template/j1-made-up")).toMatchObject({ passed: true });
     const v = composeConfigVerdict(doc("/x/copy/j1-made-up", { privileged: true }), doc("/x/template/j1-made-up"), "/x/copy/j1-made-up", "/x/template/j1-made-up");
     expect(v.passed).toBe(false);
