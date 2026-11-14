@@ -6,12 +6,12 @@
 #   4. The type check and the licence check.
 # Each step that starts containers holds the shared lock. Run from anywhere; writes next to this script.
 S=/tmp/claude-0/-home-user-vibe-build/121da6b0-2980-566b-82d7-1563934e4c7d/scratchpad
-W=/home/user/vibe-build
+W=${W:-/home/user/vibe-build}
 D=$W/evidence/2026-11-14-gap-180-removal-checked
 BASE=origin/claude/stage-1
 FIXED="src/orchestrator/example-1-adapter.ts src/orchestrator/journey.ts src/web/pages.ts src/web/messages/en.json src/web/messages/ar.json"
 cd $W/builder || exit 1
-export TMPDIR=$S/t1 BUILDER_BROWSER_CACHE=$S/bcache NO_COLOR=1 FORCE_COLOR=0
+export TMPDIR=${G180_TMP:-$S/t1} BUILDER_BROWSER_CACHE=$S/bcache NO_COLOR=1 FORCE_COLOR=0
 unset BUILDER_DATA_DIR BUILDER_MODEL_API_KEY BUILDER_UI_PASSWORD BUILDER_DATABASE_URL BUILDER_DEMO_STEP_PAUSE_MS BUILDER_LIVE_PREVIEW
 mkdir -p $TMPDIR
 [ -z "$(git -C $W status --porcelain -- builder)" ] || { echo "builder/ not clean"; exit 1; }
