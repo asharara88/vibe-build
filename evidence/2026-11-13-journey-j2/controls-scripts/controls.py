@@ -11,7 +11,13 @@ need real Docker and the approved Node image, and each run of one, in the baseli
 Docker networks (one test a volume too) and starts small containers of its own, removed when it ends; one of them needs
 chattr. C5 starts the real interface process on ports the system gives and signals only the processes it started.
 Written in the style of J3's controls.py. (Header corrected 14 Nov 2026, after the review of known gap 180's fix: it
-said that no container is started, and its usage line took no lock.)"""
+said that no container is started, and its usage line took no lock.)
+Since the second review round of known gap 180 (14 Nov 2026), seven controls name tests of test/removal-live.test.ts
+(J2-C82 too), and the script keeps, beside each verdict, the first failure vitest printed for each test: its message and
+the first place in a test file it names. Before, it kept only vitest's two summary lines, so a verdict said that the
+test failed, not why. A test that failed in its own clean-up (the drop of the database it made: known gap 185) is no
+longer counted as "failed, as it should": its control's verdict is "NOT AS EXPECTED: ... run this control again".
+  python3 controls.py --read <file of vitest output>   prints what the script reads from that output, and runs nothing."""
 import re, subprocess, sys, datetime
 
 J = "test/journey.test.ts"
@@ -240,7 +246,8 @@ CONTROLS = [
   [("    ...r.left.map((x) => `[interface starting] ${leftForNextStart(x)}`),\n", "")],
   [(W, "C14 \\(known gap 180's fix\\)")]),
  ("J2-C66", "gap 180 review, item 4: the refusal of Close project says again that nothing else was changed", JOURNEY,
-  [('      : "What could be removed of it was removed, and its app is stopped, except for what is named as left."', '      : "Nothing else was changed."')],
+  # Its text updated on 14 Nov 2026, second review round: the sentence it replaces was corrected (it said "its app is stopped").
+  [('      : "After the removal, Docker\'s lists were read: they hold nothing more of this project than what is named as left. A container named there may still be running."', '      : "Nothing else was changed."')],
   [(W, "C15 \\(known gap 180's fix\\)")]),
  ("J2-C67", "gap 180 review, item 5: a job is started for a project whose removal is not finished", JOURNEY,
   [("      if (removalNotFinished(s)) throw new JourneyRefused(REMOVAL_NOT_FINISHED);\n", "")],
@@ -282,6 +289,32 @@ CONTROLS = [
  ("J2-C79", "gap 180 review, item 10: the stop's loop ends at the first project whose removal leaves something (the projects after it are not removed)", JOURNEY,
   [("        removed = false;\n", "        removed = false;\n        o.goOn = () => false;\n")],
   [(W, "C18 \\(known gap 180, after its review\\)")]),
+ # ---------------------------------------------------------------- second review round of known gap 180's fix (14 Nov 2026)
+ ("J2-C80", "gap 180, second round: a recorded folder that failed its own check has its Docker client folder used all the same", ADAPTER,
+  [("      const env = removalEnvOrNotRemoved(projectId, why === null ? rec.dir : null);\n", "      const env = removalEnvOrNotRemoved(projectId, rec.dir);\n")],
+  [(J, "C23 \\(known gap 180, second review round\\)")]),
+ ("J2-C81", "gap 180, second round: Compose's own removal is run on a recorded folder that failed its own check (it would act on whatever project the folder's compose file names)", ADAPTER,
+  [("      if (why === null && existsSync(join(rec.dir, \"compose.yaml\"))) {", "      if (existsSync(join(rec.dir, \"compose.yaml\"))) {")],
+  [(J, "C23 \\(known gap 180, second review round\\)")]),
+ ("J2-C82", "gap 180, second round: the folder's own removal is not asked for before its compose file is removed (a folder that cannot itself be removed is left empty, with no compose file)", ADAPTER,
+  [("    if (errors.length === 0) attempt(() => folderItselfCanGo(dir));\n", "")],
+  [(LIVE, "second review round: the folder itself cannot be removed")]),
+ ("J2-C83", "gap 180, second round: the removal looks at the folder outside its own error handling (a folder that cannot be looked at gives a plain error again)", ADAPTER,
+  [("  attempt(() => (isFolder = lstatSync(dir, { throwIfNoEntry: false })?.isDirectory() === true));", "  isFolder = lstatSync(dir, { throwIfNoEntry: false })?.isDirectory() === true;")],
+  [(J, "C24 \\(known gap 180, second review round\\)")]),
+ ("J2-C84", "gap 180, second round: the recorded folder's own check throws a plain error for a folder that cannot be looked at", ADAPTER,
+  [("    return `the recorded folder could not be looked at (${(err as NodeJS.ErrnoException).code ?? \"an error with no code\"})`;", "    throw err;")],
+  [(J, "C24 \\(known gap 180, second review round\\)")]),
+ ("J2-C85", "gap 180, second round: a refused Close project is recorded only when the record names a sandbox", JOURNEY,
+  [("        await appendEvent(this.pool, projectId, EV.sandboxRemoved, { reason: CLOSE_NOT_REMOVED, interrupted: false, removed: false, left: err.left });",
+    "        if (s.sandbox) await appendEvent(this.pool, projectId, EV.sandboxRemoved, { reason: CLOSE_NOT_REMOVED, interrupted: false, removed: false, left: err.left });")],
+  [(J, "C25 \\(known gap 180, second review round\\)")]),
+ ("J2-C86", "gap 180, second round: the preview screen says \"The app is not running any more\" also while the project's removal is not finished", PAGES,
+  [(" : s.previewFinished && !removalNotFinished(s) ? html`<p class=\"note\">", " : s.previewFinished ? html`<p class=\"note\">")],
+  [(W, "C17 \\(known gap 180, after its review\\)")]),
+ ("J2-C87", "gap 180, second round: the handle's flag is cleared before Docker's settings are asked for (it says the app is not started although nothing was asked or removed)", ADAPTER,
+  [("      const env = removalEnvOrNotRemoved(x.projectId, x.dir);\n", "      x.appStarted = false;\n      const env = removalEnvOrNotRemoved(x.projectId, x.dir);\n")],
+  [(J, "C22 \\(known gap 180, after its review\\)")]),
 ]
 
 def run(cmd):
@@ -299,10 +332,45 @@ def counts(summary):
                 out[word.strip()] = int(n)
     return out
 
+LAST = {"text": ""}  # everything the last vitest run printed (second review round of known gap 180)
 def vitest(test_file, name):
     r = run(["npx", "vitest", "run", test_file, "-t", name])
     summary = " | ".join(l.strip() for l in (r.stdout + r.stderr).splitlines() if l.strip().startswith(("Test Files", "Tests ")))
+    LAST["text"] = r.stdout + r.stderr
     return r.returncode, summary, counts(summary)
+
+# Second review round of known gap 180: why a test failed, read from vitest's own output.
+PLACE = re.compile(r"((?:test|src|scripts)/[\w./-]+\.(?:ts|mjs):\d+:\d+)")
+CLEAN_UP = re.compile(r"permission denied to terminate process|terminating connection due to administrator command")
+DROP_FRAME = re.compile(r"❯\s+(?:\S+\.)?drop\s+\S*test/")  # a frame inside the tests' own `drop` (freshDb)
+def first_failure(text):
+    """(what, in_clean_up) for one vitest run. `what`: the first failure it printed, as "<message> at <the first place in a
+    test file it names>"; or the first unhandled error; or "none printed". `in_clean_up`: that failure is the test's own
+    clean-up (the drop of the database it made, or what that drop does to a connection: known gap 185), not an assertion."""
+    lines = text.splitlines()
+    start = next((i for i, l in enumerate(lines) if l.strip().startswith("FAIL ")), None)
+    if start is None:
+        i = next((i for i, l in enumerate(lines) if "Uncaught Exception" in l or "Unhandled Rejection" in l), None)
+        if i is None:
+            return "none printed", False
+        message = next((l.strip() for l in lines[i + 1:] if l.strip()), "")
+        return f"an unhandled error, no failed test: {message[:200]}", bool(CLEAN_UP.search(message))
+    block = []
+    for l in lines[start + 1:]:
+        if l.strip().startswith("FAIL ") or re.match(r"\s*⎯{10,}", l):
+            break
+        block.append(l)
+    message = next((l.strip() for l in block if l.strip()), "")
+    places = [m.group(1) for l in block if "❯" in l for m in [PLACE.search(l)] if m]
+    tests = [x for x in places if x.startswith("test/")]
+    place = (tests or places or ["no place named"])[0]
+    return f"{message[:200]} at {place}", bool(CLEAN_UP.search(message)) or any(DROP_FRAME.search(l) for l in block)
+
+if sys.argv[1:2] == ["--read"]:
+    what, in_clean_up = first_failure(open(sys.argv[2]).read())
+    print(f"first failure: {what}")
+    print(f"in the test's own clean-up (known gap 185): {'yes' if in_clean_up else 'no'}")
+    sys.exit(0)
 
 out = []
 before = run(["git", "diff", "HEAD", "--stat", "--", "."]).stdout
@@ -314,19 +382,19 @@ chosen = [c for c in CONTROLS if not only or c[0] in only]
 # 1. Each named test, on the tree as committed: it must pass, and be the only test its name selects.
 out.append("")
 out.append("1. Baseline: each named test on the tree as committed (it must pass, alone).")
-out.append("Columns: file | name given to -t | verdict | vitest's summary lines")
+out.append("Columns: file | name given to -t | verdict | vitest's summary lines (and, when not as expected, the first failure vitest printed)")
 baseline_ok = True
 for f, name in sorted({t for c in chosen for t in c[4]}):
     code, summary, n = vitest(f, name)
     ok = code == 0 and n.get("passed") == 1 and n.get("failed", 0) == 0
     baseline_ok &= ok
-    out.append(f"{f} | {name} | {'passed, alone' if ok else 'NOT AS EXPECTED (exit ' + str(code) + ')'} | {summary}")
+    out.append(f"{f} | {name} | {'passed, alone' if ok else 'NOT AS EXPECTED (exit ' + str(code) + ')'} | {summary}" + ("" if ok else f" | first failure: {first_failure(LAST['text'])[0]}"))
     print(out[-1], flush=True)
 
 # 2. The controls.
 out.append("")
 out.append("2. The controls.")
-out.append("Columns: control | what was removed | verdict | for each test: file, name, vitest's summary lines")
+out.append("Columns: control | what was removed | verdict | for each test: file, name, vitest's summary lines, and the first failure vitest printed (its message, and the first place in a test file it names)")
 all_failed = True
 for cid, label, path, reps, tests in chosen:
     paths = path if isinstance(path, list) else [path] * len(reps)
@@ -346,17 +414,22 @@ for cid, label, path, reps, tests in chosen:
     for p, t in texts.items():
         open(p, "w").write(t)
     results = []
+    clean_ups = []
     try:
         for f, name in tests:
             code, summary, n = vitest(f, name)
             failed = code != 0 and n.get("failed", 0) == 1 and n.get("passed", 0) == 0
-            results.append((failed, f"{f} -t \"{name}\": {'failed' if failed else 'DID NOT FAIL (exit ' + str(code) + ')'}: {summary}"))
+            # Second review round of known gap 180: a failure in the test's own clean-up says nothing of the safeguard.
+            what, in_clean_up = first_failure(LAST["text"])
+            clean_ups.append(failed and in_clean_up)
+            said = "failed" if failed and not in_clean_up else "FAILED IN ITS OWN CLEAN-UP, not at an assertion" if failed else "DID NOT FAIL (exit " + str(code) + ")"
+            results.append((failed and not in_clean_up, f"{f} -t \"{name}\": {said}: {summary} | first failure: {what}"))
     finally:
         run(["git", "checkout", "--", *texts.keys()])
     restored = run(["git", "diff", "HEAD", "--stat", "--", *texts.keys()]).stdout == ""
     every = all(r[0] for r in results)
     all_failed &= every and restored
-    verdict = ("FAILED, as it should with the safeguard removed" if every else "PASSED: a test does not see this safeguard's removal") + ("" if restored else "; FILE NOT RESTORED")
+    verdict = ("FAILED, as it should with the safeguard removed" if every else "NOT AS EXPECTED: a test failed in its own clean-up, not at an assertion (known gap 185); run this control again" if any(clean_ups) else "PASSED: a test does not see this safeguard's removal") + ("" if restored else "; FILE NOT RESTORED")
     out.append(f"{cid} | {label} | {verdict} | " + " || ".join(r[1] for r in results))
     print(out[-1], flush=True)
 
