@@ -160,13 +160,13 @@ Run by `full-checks.sh` from `builder/`, as J3's were (`evidence/2026-11-13-jour
 
 - **Checked (by the run, with the output named):** every item above; that the run used real Docker and the real interface process, started as named; the disk: 6.31 GB free at the start, 5.27 GB at the lowest, so about 1.0 GB used at once (sampled every 2 s); after the run, no container on the machine, nothing named `builder_j1-`, ports 4022 and 13161 free.
 - **Checked by reading the pictures:** the screens listed above show what their lines say, in both languages where taken.
-- **Assumed, not shown:** that the clean stop behaves the same on a slower machine or with a job that cannot be stopped (the 30 s wait, the 5 s lock check and the 90 s bound were not reached here: every stop took under 1 s); and what a `docker build` left running by a stop or a crash does: it can outlive the next start's removal (here each stop came mid-step, with no image build running; gap 165).
+- **Assumed, not shown:** that the clean stop behaves the same on a slower machine or with a job that cannot be stopped (the 30 s wait, the 5 s lock check and the 90 s bound were not reached here: every stop took under 1 s); and what a `docker build` left running by a stop or a crash does: it can outlive the next start's removal (here each stop came mid-step, with no image build running; gap 178).
 - **Not shown here because the run's live preview was off:** the broken copy's live refusal ("A deliberately broken copy is not offered as a live app…"). Test A7 shows it with the front on.
 
 ## Not done
 
 - **Ctrl-C to the process group, a real PostgreSQL restart, WebKit:** not tried.
 - **The review the design asks for (section 8):** not done yet; it is next.
-- **The records** were updated on 14 Nov 2026, after the controls and the full checks: DECISIONS (the owner's answer word for word, and Claude Code's choices), the BUILD-PLAN progress row (and the stale J1 and J3 rows corrected), KNOWN-GAPS 162 to 167 and gap 139, SOURCES (tsx's signal relay and exit code), STATUS, QUESTIONS, the Arabic wording list, and the design's section 12 (answered (a)). Gap 162's number is also used on `claude/stage-1` since `14787d8`; whichever merges second renumbers its own.
+- **The records** were updated on 14 Nov 2026, after the controls and the full checks: DECISIONS (the owner's answer word for word, and Claude Code's choices), the BUILD-PLAN progress row (and the stale J1 and J3 rows corrected), KNOWN-GAPS 175 to 180 and gap 139, SOURCES (tsx's signal relay and exit code), STATUS, QUESTIONS, the Arabic wording list, and the design's section 12 (answered (a)). Gaps 175 to 180 were renumbered from 162-167 on 14 Nov 2026, because 162 was taken by pull request #40.
 - **J2 (b), package 3.2**, the real engine, the quality check after each step and its one retry, resuming after a restart: not in J2 (design section 10).
 - **The owner** has not used any of it himself; nobody has started an interface with this branch for him.

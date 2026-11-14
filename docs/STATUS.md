@@ -12,7 +12,7 @@
 ## State
 
 1. **Tested:** 0.1 to 0.5, 0.6a (development profile), 1.1, 1.2, 1.2b, 1.3, 1.4, 1.5 (stand-in only), 2.1, W4.
-2. **Built, not tested:** 3.1, 1.4c, 3.1b, 1.4b, 0.6c, J1 and J3 (both merged), **J2** (branch `claude/j2-broken-and-restart`, not pushed).
+2. **Built, not tested:** 3.1, 1.4c, 3.1b, 1.4b, 0.6c, J1 and J3 (both merged), **J2** (branch `claude/j2-broken-and-restart`, not pushed; its known gaps are 175 to 180, renumbered from 162-167 on 14 Nov 2026, because 162 was taken by pull request #40).
 3. **Checked for J2:** new tests failed without J2's code and pass with it; the whole suite, 728 of 728 (live tests included); typecheck and licence check passed; 42 of 42 controls failed with their safeguard removed. **Assumed:** the stop's 30 s, 5 s and 90 s limits (never reached in the run).
 4. **Your phone test:** still pending; the live preview stays off until then.
 5. **Your 4020 interface:** running, on code without J2: a stop still leaves your open projects' containers until its next start.
@@ -24,9 +24,8 @@
 
 ## What blocks it
 
-- No engineer has read 0.6c, J3 or J2's stop (gaps 35, 148, 149, 159, 165).
+- No engineer has read 0.6c, J3 or J2's stop (gaps 35, 148, 149, 159, 178).
 - 2.3, the first real-model run: 2.2, the key, and 0.6c tested.
-- Gap 162's number clashes with the integration branch's; renumbered at merge.
 
 ## Money
 
