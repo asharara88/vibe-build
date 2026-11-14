@@ -277,7 +277,7 @@ describe("package 3.2, live: the export's checks, the exported copy's own start,
     // The install step's own lines (whether npm ran, or the step came from an earlier layer), then the keys and the users.
     const steps = new Set(started.output.filter((l) => /npm ci/.test(l)).map((l) => /^(#\d+) /.exec(l.trim())?.[1]).filter(Boolean));
     const installLines = started.output.filter((l) => steps.has(/^(#\d+) /.exec(l.trim())?.[1] ?? "") || /added \d+ packages/.test(l));
-    for (const l of [...installLines.slice(0, 30), ...started.output.filter((l) => /keys-1 +\||setup-1 +\| (created|exists|\[✓\])/.test(l)).slice(0, 20)]) note(`L2 first start | ${l.trim().slice(0, 240)}`);
+    for (const l of [...installLines.slice(0, 30), ...started.output.filter((l) => /keys-1 +\||setup-1 +\|.*(created|exists): /.test(l)).slice(0, 20)]) note(`L2 first start | ${l.trim().slice(0, 240)}`);
     const said = started.output.join("\n");
     for (const k of ["db_password", "auth_secret", "sample_password"]) expect(said, k).toMatch(new RegExp(`keys-1 +\\| made ${k}`));
     for (const u of ["employee@example.test", "manager@example.test", "hr.admin@example.test"]) expect(said, u).toContain(`created: ${u}`);
@@ -473,7 +473,7 @@ describe("package 3.2, live: the export's checks, the exported copy's own start,
     started = startCopy(copyDir, "docker compose up --build");
     await waitHealthy(copyDir, started);
     note(`L2 second start: the app healthy after ${Math.round((Date.now() - t1) / 1000)} s`);
-    for (const l of started.output.filter((l) => /keys-1 +\||setup-1 +\| (created|exists)/.test(l)).slice(0, 20)) note(`L2 second start | ${l.trim().slice(0, 240)}`);
+    for (const l of started.output.filter((l) => /keys-1 +\||setup-1 +\|.*(created|exists): /.test(l)).slice(0, 20)) note(`L2 second start | ${l.trim().slice(0, 240)}`);
     const said = started.output.join("\n");
     for (const k of ["db_password", "auth_secret", "sample_password"]) expect(said, k).toMatch(new RegExp(`keys-1 +\\| kept ${k}`));
     for (const u of ["employee@example.test", "manager@example.test", "hr.admin@example.test"]) expect(said, u).toContain(`exists: ${u}`);
