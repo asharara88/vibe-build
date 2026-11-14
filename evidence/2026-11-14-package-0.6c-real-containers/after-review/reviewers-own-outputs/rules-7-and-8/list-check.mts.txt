@@ -1,0 +1,23 @@
+import { compareWithExpected, expectedOnDevelopment, parseProbeOutput } from "/tmp/claude-0/-home-user-vibe-build/121da6b0-2980-566b-82d7-1563934e4c7d/scratchpad/wt06c/builder/src/sandbox/isolation.ts";
+const ctx = { appPort: 3191, gatewayServer: /x/ };
+const a = (id: string, target: string, result: string, toward = "host") => JSON.stringify({ kind: "attempt", id, group: "g", toward, what: "w", target, how: "h", result, code: null, detail: "" });
+const base = [
+  a("A2", "registry.npmjs.org:80", "no name server answered", "outside"),
+  a("D3", "db", "found 1 address", "lookup"),
+  a("Pdb:5432", "db:5432", "connected", "project"),
+  a("Papp:3191", "app:3191", "connected", "project"),
+  a("X3191", "127.0.0.1:3191", "connected"),
+  a("X44161", "127.0.0.11:44161", "connected"),
+];
+const run = (label: string, extra: string[], kind: "app-running" | "engine-scripted" | "app" = "app-running", lines = base) => {
+  const all = [...lines, ...extra];
+  const r = parseProbeOutput([...all, JSON.stringify({ kind: "end", attempts: all.length })]);
+  const c = compareWithExpected(r, expectedOnDevelopment(kind, ctx));
+  console.log(`${label}: pass=${c.pass}; problems=${JSON.stringify(r.problems)}; failing=${JSON.stringify(c.rows.filter((x) => !x.pass).map((x) => x.id))}; missing=${JSON.stringify(c.missing)}`);
+};
+run("1. the two listeners of the kept run", []);
+run("2. a THIRD listener, at 127.0.0.11 on another port", [a("X9229", "127.0.0.11:9229", "connected")]);
+run("3. a third listener at 127.0.0.1:9229", [a("X9229", "127.0.0.1:9229", "connected")]);
+run("4. a third and fourth listener, both at 127.0.0.11", [a("X9229", "127.0.0.11:9229", "connected"), a("X9230", "127.0.0.11:9230", "connected")]);
+run("5. engine-scripted, nothing made at all", [], "engine-scripted", []);
+run("6. engine-scripted, one refused row", [], "engine-scripted", [a("C6", "127.0.0.1:4010", "refused")]);

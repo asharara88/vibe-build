@@ -1,0 +1,53 @@
+waiting for the lock from 14:20:56 UTC
+Lock held from 14:20:56 UTC.
+--- before:
+=== part 1
+tag T (builder_p_iso06c_rev_real-tagmove:latest) at first:        sha256:0e1754758c2df4cfa3e68d59e2e1b7374bb7fd9ea6328eaaacf15cc934af8202
+other image B (builder_p_iso06c_rev_real-idcheck:latest):          sha256:884ef0614efad1ffd939ef611d68b78af06e50824c8fa8ed6bf7fcd97c1adfb7
+container made from T, .Image: sha256:0e1754758c2df4cfa3e68d59e2e1b7374bb7fd9ea6328eaaacf15cc934af8202  .Config.Image: builder_p_iso06c_rev_real-tagmove:latest
+tag T after it was moved to B: sha256:884ef0614efad1ffd939ef611d68b78af06e50824c8fa8ed6bf7fcd97c1adfb7
+the SAME container, .Image now: sha256:0e1754758c2df4cfa3e68d59e2e1b7374bb7fd9ea6328eaaacf15cc934af8202  (still running: true)
+left: containers [] images []
+=== part 2
+0. realImageProblemsFrom on made-up look-alike facts (an image that only sets USER app and CMD node server.js; a tools image that only sets USER node and WORKDIR /app): []
+  App and tools images built (the template's guard check and next build ran in the build).
+  Tables created and sample users added in the tools container (3 lines from the seed).
+  Before the app was started, nothing answered at http://app:3193, asked from a container on the project's front network (EAI_AGAIN).
+  App container started and healthy.
+1. Real project builder_p_iso06c_rev_real made in 30 s. realImageProblemsFrom: []
+   image app: builder_p_iso06c_rev_real-app:latest id sha256:c9be56244a87a1c2f92d9c05aa9324b393b151793b819ce2d99ee4d977230894 user "app" cmd ["node","server.js"] workdir /app created 2026-11-14T12:34:42.907831573Z
+   image tools: builder_p_iso06c_rev_real-tools:latest id sha256:e141511d6854a33a381b21590be0b89399da50112a74a9cf289ccda8a3ca0e09 user "node" cmd ["node","-e","console.error('The tools image runs one named  workdir /app created 2026-11-14T12:34:42.492001923Z
+   image acceptance: builder-acceptance-runner:local id sha256:26c37e79017a203e7d04a784d2c9b906acf9f9578a8d737b8f9b8b4669814e52 user "runner" cmd ["/bin/bash"] workdir /runner created 2026-11-14T10:11:23.734896297Z
+   image node: node:22-alpine@sha256:0e1754758c2df4cfa3e68d59e2e1b7374bb7fd9ea6328eaaacf15cc934af8202 id sha256:0e1754758c2df4cfa3e68d59e2e1b7374bb7fd9ea6328eaaacf15cc934af8202 user "" cmd ["node"] workdir / created 2026-11-05T19:25:28.200769142Z
+   running app container bbf961adee9bad627db4c73626e438476b1539bf8340341654b8f5c72ef5c640 image sha256:c9be56244a87a1c2f92d9c05aa9324b393b151793b819ce2d99ee4d977230894; equal to the app tag's id: true
+   docker ps of the project: 9de0be3cf441 builder_p_iso06c_rev_real-egress-1 node:22-alpine oneoff=False Up 2 seconds (healthy) | bbf961adee9b builder_p_iso06c_rev_real-app-1 builder_p_iso06c_rev_real-app:latest oneoff=False Up 8 seconds (healthy) | b16405cb35cf builder_p_iso06c_rev_real-db-1 postgres:16-alpine oneoff=False Up 18 seconds (healthy) | 73dfe2ded025 builder_p_iso06c_rev_real-egress-host-1 node:22-alpine oneoff=False Up 28 seconds (healthy)
+2. sandbox.exec in the app service, no one-off container alive:
+hostname bbf961adee9b uid 100 my pid 32
+  pid 1: next-server (v
+  pid 32: node -e const fs=require('fs');console.log('hostname '+require('os').hostname()+' uid '+process.getuid()+' my pid '+process.pid);for(const p of fs.readdirSync('
+   what the app image holds (ls /app; .next/BUILD_ID; routes): /app // node_modules package.json public server.js vendor  // 3ObSnQyS7ksv7roeS8PoW // .next/server/app/[locale]/page.js .next/server/app/[locale]/sign-in/page.js .next/server/app/[locale]/example/restricted/page.js .next/server/app/[locale]/example/action/page.js .next/server/app/[locale]/home/page.js .next/server/app/[locale]/no-access/page.js .next/server/app/[locale]/my-requests/page.js .next/server/app/[locale]/my-requests/new/page.js .next/server/app/_global-error/page.js .next/server/app/_not-found/page.js
+3. A one-off container of the app service is alive too: 3db814e79a44 (builder_p_iso06c_rev_real-rev-oneoff).
+   runningContainerId (docker compose ps -q app): ["bbf961adee9b"]; the running app is bbf961adee9b
+   sandbox.exec app -> hostname inside: bbf961adee9b
+   with the app service's own container STOPPED and the one-off still alive: compose ps -q app: ""
+   sandbox.exec app then: ENTERED a container, hostname 3db814e79a44
+   probeInPlace then: refused: The app service has no running container to probe in place.
+   one-off removed, app started again: compose ps -q app bbf961adee9b (the same container as before: true)
+4. While the in-place probe runs, the processes in the running app container (asked through a second exec):
+hostname bbf961adee9b uid 100 my pid 80
+  pid 1: next-server (v
+  pid 49: node /tmp/isolation-probe.mjs {"sessionProxy":"127.0.0.1:38369","projectDbPort":5432,"egressPort":3128,"gatewayPort":4010,"builderDbPort":5432,"exampleAddress":
+  pid 80: node -e const fs=require('fs');console.log('hostname '+require('os').hostname()+' uid '+process.getuid()+' my pid '+process.pid);for(const p of fs.readdirSync('
+   in place: 50 attempts; pass against app-running: true; failing: []; missing: []; problems: []
+   user id 100; listening inside: 0.0.0.0:3193, 127.0.0.11:42729; sha inside == repository: true; container bbf961adee9b -> bbf961adee9b; removed: true
+   the same lines against the ONE-OFF app list ("app"): pass true (the X3193 row passes there as "Docker's name server": true)
+   machine listeners given: 0.0.0.0:2024, 127.0.0.1:34803, 127.0.0.1:35181, 127.0.0.1:38369, 127.0.0.1:5432
+5. tools service, one-off: 1000 // /app // NAME="Alpine Linux" // node_modules/.bin/drizzle-kit scripts/seed.ts
+   acceptance service, one-off: 1001 // /runner // PRETTY_NAME="Ubuntu 24.04.5 LTS" NAME="Ubuntu"  // node_modules package-lock.json package.json playwright.config.mjs  // 2
+6. runner one-off through the harness: seen running true; image builder-acceptance-runner:local sha256:26c37e79017a203e7d04a784d2c9b906acf9f9578a8d737b8f9b8b4669814e52; equal to the tag's id read after the build: true; networks ["builder_p_iso06c_rev_real_front"]; user setting "runner"; mounts ["/probe/isolation-probe.mjs:ro"]
+   49 attempts; user id 1001; pass against runner: true; failing []; problems []
+Removed. Left of builder_p_iso06c_rev_real: containers: none; named containers: none; networks: none; volumes: none; images: none
+exit code: 0
+--- after: ; images of mine:
+Lock released at 14:22:19 UTC.
+runner exit: 0

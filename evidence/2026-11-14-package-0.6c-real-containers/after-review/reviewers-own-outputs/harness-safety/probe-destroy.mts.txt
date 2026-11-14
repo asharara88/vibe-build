@@ -1,0 +1,49 @@
+/**
+ * Reviewer's probe (lens: the harness itself as a risk). No container is started: DOCKER_HOST points at an address
+ * where nothing listens, which is what the harness sees when the Docker daemon has stopped answering mid-run.
+ *
+ * 1. destroyRealProject on a made-up project folder: is the folder (which in a real run holds secrets/db_password and
+ *    secrets/app.env) removed, and does the caller learn that it was not?
+ * 2. startFrontStandIn on a port that is already taken: does it reject, or never settle?
+ */
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import net from "node:net";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
+const WT = "/tmp/claude-0/-home-user-vibe-build/121da6b0-2980-566b-82d7-1563934e4c7d/scratchpad/wt06c/builder";
+const h = await import(`${WT}/scripts/isolation-harness.ts`);
+
+// 1. A made-up project folder, shaped as makeExample1 leaves it (no git, no template copy needed for this).
+const dir = mkdtempSync(join(tmpdir(), "builder-acceptance-revh-"));
+mkdirSync(join(dir, "secrets"));
+writeFileSync(join(dir, "secrets", "db_password"), "made-up-by-the-reviewer\n");
+writeFileSync(join(dir, "compose.yaml"), 'name: "builder_p_iso06c_rev_h"\nservices: {}\n');
+const x = { projectId: "p_iso06c_rev_h", dir, sb: { dir, composeFile: join(dir, "compose.yaml"), projectName: "builder_p_iso06c_rev_h" } };
+console.log(`DOCKER_HOST is ${process.env.DOCKER_HOST}`);
+const said = await h.destroyRealProject(x).then(
+  (left: string) => `resolved: ${left}`,
+  (e: Error) => `REJECTED: ${e.message.split("\n")[0]!.slice(0, 200)}`,
+);
+console.log(`1. destroyRealProject with Docker not answering: ${said}`);
+console.log(`   the project's folder, with its secrets file: ${existsSync(join(dir, "secrets", "db_password")) ? "STILL THERE" : "removed"}`);
+// What the live test's afterAll does with that rejection: `.catch(() => undefined)`.
+rmSync(dir, { recursive: true, force: true });
+console.log(`   (removed by the reviewer afterwards: ${existsSync(dir) ? "no" : "yes"})`);
+
+// 2. The front's stand-in on a taken port (a port of the reviewer's own, not 4041).
+const taken = net.createServer();
+await new Promise<void>((r) => taken.listen(0, "127.0.0.1", r));
+const port = (taken.address() as net.AddressInfo).port;
+let uncaught = "";
+process.on("uncaughtException", (e) => (uncaught = String((e as NodeJS.ErrnoException).code ?? e)));
+const outcome = await Promise.race([
+  h.startFrontStandIn(port).then(
+    () => "resolved (unexpected)",
+    (e: Error) => `rejected: ${e.message}`,
+  ),
+  new Promise<string>((r) => setTimeout(() => r("NEVER SETTLED within 3 s"), 3000)),
+]);
+console.log(`2. startFrontStandIn(${port}) while that port is taken: ${outcome}; uncaught exception seen by the process: ${uncaught || "none"}`);
+await new Promise((r) => taken.close(r));
+process.exit(0);

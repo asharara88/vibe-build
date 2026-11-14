@@ -1,0 +1,13 @@
+#!/bin/bash
+S=/tmp/claude-0/-home-user-vibe-build/121da6b0-2980-566b-82d7-1563934e4c7d/scratchpad
+R=$S/rev-06c-real
+export TMPDIR=$S/t06c BUILDER_BROWSER_CACHE=$S/bcache NO_COLOR=1
+echo "waiting for the lock from $(date -u +%H:%M:%S) UTC"
+flock $S/live-tests.lock bash -c "
+echo \"Lock held from \$(date -u +%H:%M:%S) UTC.\"
+echo '--- before:' \$(docker ps -a --format '{{.Names}}' | tr '\n' ' ')
+echo '=== part 1'; bash $R/part1.sh
+echo '=== part 2'; cd $R/copy/builder && node node_modules/tsx/dist/cli.mjs $R/part2.mts; echo \"exit code: \$?\"
+echo '--- after:' \$(docker ps -a --format '{{.Names}}' | tr '\n' ' ') '; images of mine:' \$(docker images --filter 'reference=builder_p_iso06c_rev_real*' --format '{{.Repository}}:{{.Tag}}' | tr '\n' ' ')
+echo \"Lock released at \$(date -u +%H:%M:%S) UTC.\"
+"

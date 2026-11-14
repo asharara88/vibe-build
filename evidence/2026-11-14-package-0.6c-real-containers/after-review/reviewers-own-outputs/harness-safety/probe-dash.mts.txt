@@ -1,0 +1,42 @@
+/**
+ * Reviewer's probe (lens: the harness itself as a risk). Run under the shared lock. Two containers of the reviewer's
+ * own are CREATED (never started) from the approved Node image, with no network:
+ *   builder_p_iso06c_rev_ha-isolation-left   what a failed run of project p_iso06c_rev_ha would leave
+ *   builder_p_iso06c_rev_ha-b-app-1          a container of ANOTHER project, whose id is p_iso06c_rev_ha-b
+ * Then the harness's destroyRealProject is asked to remove project p_iso06c_rev_ha. Is the other project's container
+ * still there afterwards? Everything made here is removed at the end.
+ */
+import { execFile } from "node:child_process";
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { promisify } from "node:util";
+
+const run = promisify(execFile);
+const WT = "/tmp/claude-0/-home-user-vibe-build/121da6b0-2980-566b-82d7-1563934e4c7d/scratchpad/wt06c/builder";
+const h = await import(`${WT}/scripts/isolation-harness.ts`);
+const m = await import(`${WT}/src/sandbox/manager.ts`);
+const NODE = "node:22-alpine@sha256:0e1754758c2df4cfa3e68d59e2e1b7374bb7fd9ea6328eaaacf15cc934af8202";
+const names = async () => (await run("docker", ["ps", "-a", "--filter", "name=builder_p_iso06c_rev_ha", "--format", "{{.Names}}"])).stdout.trim().split("\n").filter(Boolean).sort();
+
+const mine = "p_iso06c_rev_ha";
+const other = "p_iso06c_rev_ha-b";
+console.log(`composeProjectName("${mine}") = ${m.composeProjectName(mine)}; composeProjectName("${other}") = ${m.composeProjectName(other)}`);
+const dir = mkdtempSync(join(tmpdir(), "builder-acceptance-revh-"));
+writeFileSync(join(dir, "compose.yaml"), `name: "${m.composeProjectName(mine)}"\nservices: {}\n`);
+const x = { projectId: mine, dir, sb: { dir, composeFile: join(dir, "compose.yaml"), projectName: m.composeProjectName(mine) } };
+try {
+  for (const name of [`${m.composeProjectName(mine)}-isolation-left`, `${m.composeProjectName(other)}-app-1`])
+    await run("docker", ["create", "--pull", "never", "--name", name, "--network", "none", "--entrypoint", "", NODE, "true"]);
+  console.log(`before: ${JSON.stringify(await names())}`);
+  const left = await h.destroyRealProject(x).then((s: string) => s, (e: Error) => `REJECTED: ${e.message.split("\n")[0]}`);
+  console.log(`destroyRealProject(${mine}) said: ${left}`);
+  const after = await names();
+  console.log(`after: ${JSON.stringify(after)}`);
+  console.log(`the other project's container (${m.composeProjectName(other)}-app-1): ${after.includes(`${m.composeProjectName(other)}-app-1`) ? "still there" : "REMOVED by the harness, though it is not project " + mine + "'s"}`);
+  console.log(`removeImages for ${mine}, given the other project's image name ${m.appImageName(other)}: ${await h.removeImages(x.sb, [m.appImageName(other)]).then(() => "ACCEPTED as its own (no such image exists, nothing was removed)", (e: Error) => `refused: ${e.message.slice(0, 80)}`)}`);
+} finally {
+  for (const n of await names()) await run("docker", ["rm", "-f", n]).catch(() => undefined);
+  rmSync(dir, { recursive: true, force: true });
+  console.log(`cleaned up: containers left ${JSON.stringify(await names())}; folder ${existsSync(dir) ? "still there" : "removed"}`);
+}

@@ -1,0 +1,5 @@
+DOCKER_HOST is tcp://127.0.0.1:1
+1. destroyRealProject with Docker not answering: REJECTED: Command failed: docker ps -a --filter label=com.docker.compose.project=builder_p_iso06c_rev_h --format {{.Names}}
+   the project's folder, with its secrets file: STILL THERE
+   (removed by the reviewer afterwards: yes)
+2. startFrontStandIn(41693) while that port is taken: NEVER SETTLED within 3 s; uncaught exception seen by the process: EADDRINUSE

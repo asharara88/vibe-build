@@ -1,0 +1,66 @@
+/**
+ * Reviewer's unit probe (lens: the harness itself as a risk). No container, no Docker call.
+ * It only calls compareWithExpected / expectedOnDevelopment / parseProbeOutput / editComposeText of the worktree.
+ */
+const WT = "/tmp/claude-0/-home-user-vibe-build/121da6b0-2980-566b-82d7-1563934e4c7d/scratchpad/wt06c/builder";
+const iso = await import(`${WT}/src/sandbox/isolation.ts`);
+const { compareWithExpected, expectedOnDevelopment, parseProbeOutput } = iso;
+
+const ctx = { appPort: 3191, gatewayServer: /server: gateway-stand-in/ };
+const attempt = (o: Record<string, unknown>) =>
+  JSON.stringify({ kind: "attempt", id: "A2", group: "g", toward: "outside", what: "w", target: "t:1", how: "h", result: "timed out", code: "TIMEOUT", detail: "", ...o });
+const end = (n: number) => JSON.stringify({ kind: "end", attempts: n });
+const base = [
+  attempt({ id: "A2" }),
+  attempt({ id: "D3", toward: "lookup", target: "db", result: "found 1 address", code: null }),
+  attempt({ id: "Pdb:5432", toward: "project", target: "db:5432", result: "connected", code: null }),
+  attempt({ id: "Papp:3191", toward: "project", target: "app:3191", result: "connected", code: null }),
+];
+const own = attempt({ id: "X3191", toward: "host", target: "127.0.0.1:3191", result: "connected", code: null });
+const dns = attempt({ id: "X41000", toward: "host", target: "127.0.0.11:41000", result: "connected", code: null });
+const show = (label: string, lines: string[], kind: string) => {
+  const c = compareWithExpected(parseProbeOutput(lines), expectedOnDevelopment(kind, ctx));
+  console.log(`${label}: pass=${c.pass}; failing=${JSON.stringify(c.rows.filter((r: { pass: boolean }) => !r.pass).map((r: { id: string }) => r.id))}; missing=${JSON.stringify(c.missing)}; rows=${c.rows.length}`);
+  return c;
+};
+
+console.log("--- app-running (the new optional target) ---");
+show("1. own listener + name server (should pass)", [...base, own, dns, end(6)], "app-running");
+show("2. a third listener at 127.0.0.1:9229 (should fail)", [...base, own, dns, attempt({ id: "X9229", toward: "host", target: "127.0.0.1:9229", result: "connected", code: null }), end(7)], "app-running");
+show("3. a third listener at the container's own data address 172.18.0.2:9229 (should fail)", [...base, own, dns, attempt({ id: "X9229", toward: "host", target: "172.18.0.2:9229", result: "connected", code: null }), end(7)], "app-running");
+show("4. a SECOND listener bound to 127.0.0.11, another port (the comment says: any other listening port inside fails)", [...base, own, dns, attempt({ id: "X8080", toward: "host", target: "127.0.0.11:8080", result: "connected", code: null }), end(7)], "app-running");
+show("5. the app's port aimed at 127.0.0.11 (should fail)", [...base, attempt({ id: "X3191", toward: "host", target: "127.0.0.11:3191", result: "connected", code: null }), dns, end(6)], "app-running");
+show("6. the name server refused (should fail)", [...base, own, attempt({ id: "X41000", toward: "host", target: "127.0.0.11:41000", result: "refused", code: "ECONNREFUSED" }), end(6)], "app-running");
+show("7. no name server row at all (should fail: not tried)", [...base, own, end(5)], "app-running");
+show("8. an IPv6 loopback listener [::1]:9229 (should fail)", [...base, own, dns, attempt({ id: "X9229", toward: "host", target: "[::1]:9229", result: "connected", code: null }), end(7)], "app-running");
+show("9. the same in-place lines against the OLD app list (stated: still passes)", [...base, own, dns, attempt({ id: "X9229", toward: "host", target: "127.0.0.1:9229", result: "connected", code: null }), end(7)], "app");
+
+console.log("--- engine-scripted (the empty list) ---");
+show("10. a probe that made NO attempt at all, closing line only", [end(0)], "engine-scripted");
+show("11. one silent attempt only", [attempt({ id: "A2" }), end(1)], "engine-scripted");
+show("12. a name server inside (should fail)", [attempt({ id: "A2" }), dns, end(2)], "engine-scripted");
+show("13. no closing line (should fail)", [attempt({ id: "A2" })], "engine-scripted");
+show("14. for comparison, NO attempt at all against the runner's list (fails: entries not tried)", [end(0)], "runner");
+
+console.log("--- editComposeText ---");
+const h = await import(`${WT}/scripts/isolation-harness.ts`);
+const yaml = 'name: "x"\nnetworks:\n  data:\n    internal: true\nsecrets:\n  s: {}\nservices:\n  app:\n    image: "a"\n    networks:\n      - "front"\n  check:\n    image: "b"\n    networks:\n      - "front"\n';
+const tryEdit = (label: string, edits: unknown[]) => {
+  try {
+    const out = h.editComposeText(yaml, edits);
+    console.log(`${label}: applied; changed lines: ${out.split("\n").filter((l: string) => !yaml.split("\n").includes(l)).join(" | ")}`);
+  } catch (e) {
+    console.log(`${label}: refused: ${(e as Error).message.slice(0, 140)}`);
+  }
+};
+tryEdit("15. an edit in the last service's block", [{ service: "check", from: '      - "front"\n', to: '      - "front"\n      - "out"\n' }]);
+tryEdit("16. a service name with regex characters", [{ service: "a.p", from: "x", to: "y" }]);
+tryEdit("17. `to` containing $& (must be taken literally)", [{ service: "app", from: '    image: "a"\n', to: '    image: "$&"\n' }]);
+console.log("--- removeImages guard ---");
+for (const names of [["builder_p_x-app:latest"], ["builder-acceptance-runner:local"], ["builder_p_x_other-app:latest"], ["sha256:0e1754758c2df4cfa3e68d59e2e1b7374bb7fd9ea6328eaaacf15cc934af8202"], ["builder_p_x-app:latest", "node:22-alpine"]]) {
+  // DOCKER_HOST points at nothing in this run (set by the caller), so even an accepted name reaches no daemon.
+  await h.removeImages({ dir: "/nonexistent-reviewer", composeFile: "/nonexistent-reviewer/compose.yaml", projectName: "builder_p_x" }, names).then(
+    () => console.log(`${JSON.stringify(names)}: accepted (Docker would have been asked)`),
+    (e: Error) => console.log(`${JSON.stringify(names)}: refused: ${e.message.slice(0, 120)}`),
+  );
+}

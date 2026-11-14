@@ -1,0 +1,26 @@
+--- app-running (the new optional target) ---
+1. own listener + name server (should pass): pass=true; failing=[]; missing=[]; rows=6
+2. a third listener at 127.0.0.1:9229 (should fail): pass=false; failing=["X9229"]; missing=[]; rows=7
+3. a third listener at the container's own data address 172.18.0.2:9229 (should fail): pass=false; failing=["X9229"]; missing=[]; rows=7
+4. a SECOND listener bound to 127.0.0.11, another port (the comment says: any other listening port inside fails): pass=true; failing=[]; missing=[]; rows=7
+5. the app's port aimed at 127.0.0.11 (should fail): pass=false; failing=["X3191"]; missing=[]; rows=6
+6. the name server refused (should fail): pass=false; failing=["X41000"]; missing=[]; rows=6
+7. no name server row at all (should fail: not tried): pass=false; failing=[]; missing=["^X: Docker's own name server, inside this container's own network namespace"]; rows=5
+8. an IPv6 loopback listener [::1]:9229 (should fail): pass=false; failing=["X9229"]; missing=[]; rows=7
+9. the same in-place lines against the OLD app list (stated: still passes): pass=true; failing=[]; missing=[]; rows=7
+--- engine-scripted (the empty list) ---
+10. a probe that made NO attempt at all, closing line only: pass=true; failing=[]; missing=[]; rows=0
+11. one silent attempt only: pass=true; failing=[]; missing=[]; rows=1
+12. a name server inside (should fail): pass=false; failing=["X41000"]; missing=[]; rows=2
+13. no closing line (should fail): pass=false; failing=[]; missing=[]; rows=1
+14. for comparison, NO attempt at all against the runner's list (fails: entries not tried): pass=false; failing=[]; missing=["^X: Docker's own name server, inside this container's own network namespace (127.0.0.11)","^Papp:3191$: the project's app, on the front network (the runner's only peer)"]; rows=0
+--- editComposeText ---
+15. an edit in the last service's block: applied; changed lines:       - "out"
+16. a service name with regex characters: refused: The Compose file has no a.p service.
+17. `to` containing $& (must be taken literally): applied; changed lines:     image: "$&"
+--- removeImages guard ---
+["builder_p_x-app:latest"]: accepted (Docker would have been asked)
+["builder-acceptance-runner:local"]: refused: The isolation harness removes only images of its own project (builder_p_x-...); refused: builder-acceptance-runner:local
+["builder_p_x_other-app:latest"]: refused: The isolation harness removes only images of its own project (builder_p_x-...); refused: builder_p_x_other-app:latest.
+["sha256:0e1754758c2df4cfa3e68d59e2e1b7374bb7fd9ea6328eaaacf15cc934af8202"]: refused: The isolation harness removes only images of its own project (builder_p_x-...); refused: sha256:0e1754758c2df4cfa3e68d59
+["builder_p_x-app:latest","node:22-alpine"]: refused: The isolation harness removes only images of its own project (builder_p_x-...); refused: node:22-alpine.
