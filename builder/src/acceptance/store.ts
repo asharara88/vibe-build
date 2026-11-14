@@ -277,7 +277,16 @@ export interface VersionCheck {
  * the marker in its label line; the manifest names this project and version.
  */
 export function verifyVersion(store: AcceptanceStore, projectId: string, version: string): VersionCheck {
-  const dir = join(projectDir(store, projectId), version);
+  return verifyVersionAt(join(projectDir(store, projectId), version), projectId, version);
+}
+
+/**
+ * verifyVersion's checks, every one, on a version's folder wherever it is (package 3.2, design section 3, item 1: the
+ * check from an exported copy runs them on the copy's acceptance/<version>, with no acceptance store). `dir` is the
+ * version's own folder; the manifest must still name `projectId` and `version`.
+ */
+export function verifyVersionAt(dir: string, projectId: string, version: string): VersionCheck {
+  checkProjectId(projectId);
   const problems: string[] = [];
   if (!VERSION.test(version)) return { ok: false, problems: [`"${version}" is not a version name`], dir };
   const st = lstatSync(dir, { throwIfNoEntry: false });

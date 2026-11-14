@@ -328,9 +328,10 @@ function checkService(spec: SandboxSpec, common: Record<string, unknown>, image:
 /**
  * The acceptance runner's service (package 3.1). The same in both profiles: on the `front` network only
  * (package 0.6c). Under the "acceptance" profile, so it starts only when a run is started on purpose; `up`
- * refuses it.
+ * refuses it. Package 3.2's check from an exported copy builds its runner's `docker run` arguments from this same
+ * object (src/export/check-from-copy.ts, `runnerRunArgs`), so that the runner's definition is not written twice.
  */
-function acceptanceService(spec: SandboxSpec, common: Record<string, unknown>) {
+export function acceptanceService(spec: Pick<SandboxSpec, "acceptance">, common: Record<string, unknown>) {
   if (!spec.acceptance) return null;
   return {
     image: spec.acceptance.image,
