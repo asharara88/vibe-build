@@ -1939,7 +1939,7 @@ describe("J2 (a): the broken copy rejected (stand-in sandboxes, each with its ow
     expect(existsSync(join(builderDir, "made-up-sandbox"))).toBe(false);
   });
 
-  it("A4c (after J2's second review): the target check refuses a link at any folder the copy goes through (engine-change-sets, its example-1, the step's own folder), so the broken step is never copied through a link to somewhere else; plain folders pass; the real adapter's own check refuses too, before anything is copied", async () => {
+  it("A4c (after J2's second review): the target check refuses a link at any folder the copy goes through (engine-change-sets, its example-1, the step's own folder), so the broken step is never copied through a link to somewhere else; plain folders pass; the real adapter's own check refuses too, before anything is copied; and whatever is already at the step's own folder is removed, not followed", async () => {
     const elsewhere = mkdtempSync(join(tmpdir(), "builder-link-target-"));
     outside.push(elsewhere);
     const sandbox = (make: (own: string) => void) => {
@@ -1970,6 +1970,32 @@ describe("J2 (a): the broken copy rejected (stand-in sandboxes, each with its ow
     await expect(adapter.stageBrokenStep({ ...linkedExample, projectId: "j1-0123456789ab" } as unknown as ProjectSandbox)).rejects.toThrow(/^The broken step was not staged: a folder the broken step would be copied through is a link, not a folder/);
     await expect(adapter.stageBrokenStep({ dir: linkedStep.dir, changeSets: elsewhere, projectId: "j1-0123456789ab" } as unknown as ProjectSandbox)).rejects.toThrow(/^The broken step was not staged: the sandbox's change-set folder is not its own folder's engine-change-sets/);
     expect(readdirSync(elsewhere)).toEqual([]);
+    // After the review of pull request #49. A file where a folder should be: a reason, not a throw.
+    expect(brokenStageTargetProblem(sandbox((own) => writeFileSync(own, "not a folder")))).toMatch(/is not a folder/);
+    const fileBelow = sandbox((own) => {
+      mkdirSync(own);
+      writeFileSync(join(own, "example-1"), "not a folder");
+    });
+    expect(brokenStageTargetProblem(fileBelow)).toMatch(/is not a folder|could not be read/);
+    // A step folder already there, with links INSIDE it (its files folder a link to another folder; its manifest a link
+    // to a file elsewhere): the real adapter removes it and copies into a new folder. Nothing is written through either
+    // link, and what is staged is plain files and folders.
+    const target = join(elsewhere, "target.json");
+    writeFileSync(target, "untouched");
+    const linksInside = sandbox((own) => {
+      const step = join(own, "example-1", BROKEN);
+      mkdirSync(step, { recursive: true });
+      symlinkSync(elsewhere, join(step, "files"));
+      symlinkSync(target, join(step, "manifest.json"));
+    });
+    expect(brokenStageTargetProblem(linksInside)).toBeNull();
+    await adapter.stageBrokenStep({ ...linksInside, projectId: "j1-0123456789ab" } as unknown as ProjectSandbox);
+    expect(readdirSync(elsewhere)).toEqual(["target.json"]);
+    expect(readFileSync(target, "utf8")).toBe("untouched");
+    const staged = join(linksInside.changeSets, "example-1", BROKEN);
+    expect(lstatSync(join(staged, "manifest.json")).isFile()).toBe(true);
+    expect(lstatSync(join(staged, "files")).isDirectory()).toBe(true);
+    expect(readFileSync(join(staged, "manifest.json"), "utf8")).toBe(readFileSync(join(builderDir, "scripted-broken", "example-1", BROKEN, "manifest.json"), "utf8"));
   });
 
   it("A4: the job checks the state again before staging: given a state without the honoured choice, or without step 2's approval, it refuses and stages nothing", async () => {

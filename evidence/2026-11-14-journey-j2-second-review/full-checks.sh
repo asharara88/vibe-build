@@ -1,7 +1,7 @@
 #!/bin/bash
 # J2, second review (pull request #49): the checks on the final code, in this order.
 #   1. The new tests before and after: with the fixed files as on claude/stage-1 (pull request #48 merged), then as here.
-#   2. Every control of J2's list (51: #48's 45, two of them given the text as it now stands, and six for these fixes).
+#   2. Every control of J2's list (53: #48's 45, two of them given the text as it now stands, and eight for these fixes).
 #   3. The whole suite, live tests included, on a fresh database.
 #   4. The type check and the licence check.
 #   5. J2's automated run (scripts/demo-journey-j2.ts), into a folder outside the repository; its text files and the six
@@ -11,7 +11,7 @@ S=/tmp/claude-0/-home-user-vibe-build/121da6b0-2980-566b-82d7-1563934e4c7d/scrat
 W=/home/user/vibe-build
 D=$W/evidence/2026-11-14-journey-j2-second-review
 BASE=origin/claude/stage-1
-FIXED="src/orchestrator/journey.ts src/web/main.ts src/web/pages.ts src/web/messages/en.json src/web/messages/ar.json scripts/journey-restart-checks.ts"
+FIXED="src/orchestrator/journey.ts src/web/main.ts src/web/pages.ts src/web/messages/en.json src/web/messages/ar.json scripts/journey-restart-checks.ts scripts/example-1-sandbox.ts"
 cd $W/builder || exit 1
 export TMPDIR=$S/t1 BUILDER_BROWSER_CACHE=$S/bcache NO_COLOR=1 FORCE_COLOR=0
 unset BUILDER_DATA_DIR BUILDER_MODEL_API_KEY BUILDER_UI_PASSWORD BUILDER_DATABASE_URL BUILDER_DEMO_STEP_PAUSE_MS BUILDER_LIVE_PREVIEW
@@ -23,7 +23,7 @@ dropall() { for x in $(psql -h /var/run/postgresql -Atc "select datname from pg_
 # 1. The new tests, before and after.
 export BUILDER_TEST_DATABASE_URL='postgres:///builder_test_j2r_new?host=/var/run/postgresql'
 new_tests() {
-  for t in "test/journey.test.ts|A4c \(after J2's second review\)" "test/journey.test.ts|C8 \(regression guard\)" "test/web.test.ts|C12 \(after J2's second review\)" "test/web.test.ts|A2 and A8:" "test/web.test.ts|A8: the broken copy through the screens" "test/web.test.ts|C7: the interrupted panel"; do
+  for t in "test/journey.test.ts|A4c \(after J2's second review\)" "test/journey.test.ts|C8 \(regression guard\)" "test/web.test.ts|C12 \(after J2's second review\)" "test/web.test.ts|C13 \(after the review of pull request #49\)" "test/web.test.ts|A2 and A8:" "test/web.test.ts|A8: the broken copy through the screens" "test/web.test.ts|C7: the interrupted panel"; do
     f=${t%%|*}; n=${t#*|}
     echo "$f -t \"$n\": $(flock $S/live-tests.lock npx vitest run $f -t "$n" 2>&1 | grep -E '^\s*Tests ' | tr -s ' ')"
   done

@@ -334,6 +334,7 @@ async function main(): Promise<number> {
     const t0 = Date.now();
     const cam = spawn("docker", args, { env: dockerEnv(), stdio: ["ignore", "pipe", "pipe"] });
     const parsed: Array<Record<string, unknown>> = [];
+    const badIds: string[] = [];
     let buf = "";
     cam.stdout!.on("data", (d: Buffer) => {
       buf += d.toString("utf8");
@@ -351,8 +352,13 @@ async function main(): Promise<number> {
         parsed.push(o);
         if (o.kind === "check") count(`${part}, camera`, { name: String(o.name), ok: o.ok === true, detail: o.ok === true ? "" : String(o.detail ?? "") });
         else if (o.kind === "project") {
-          // After J2's review: an id is used below in Docker names and clean-up, so it must be a journey id, exactly.
-          if (!/^j1-[0-9a-f]{12}$/.test(String(o.id))) throw new Error(`the builder camera named a project whose id is not a journey id: ${String(o.id).slice(0, 80)}`);
+          // After J2's second review: an id is used below in Docker names and clean-up, so it must be a journey id,
+          // exactly. A bad one is never used; the run fails for it once this walk has ended (below), from inside the
+          // run's own try, so that its clean-up still runs. A throw from this handler would end the process at once.
+          if (!/^j1-[0-9a-f]{12}$/.test(String(o.id))) {
+            badIds.push(String(o.id).slice(0, 80));
+            continue;
+          }
           projects.push({ id: String(o.id), name: String(o.name), walk });
           say(`  project ${String(o.id)}: ${String(o.name)}, cap $${String(o.cap)}`);
         } else if (o.kind === "shot") shotsWanted++;
@@ -375,6 +381,7 @@ async function main(): Promise<number> {
       }
     })() : Promise.resolve();
     const code = await ended;
+    if (badIds.length) throw new Error(`the builder camera named a project whose id is not a journey id: ${badIds.join(", ")}`);
     stopDuring = true;
     await sideTask;
     if (buf.trim()) camLines.push(buf.trim());

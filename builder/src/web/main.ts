@@ -287,9 +287,10 @@ const seconds = (ms: number) => `${Number((ms / 1000).toFixed(1))} s`;
 
 /**
  * Package J2 (c): the clean stop on SIGTERM or SIGINT (final design, section 4.1), shaped like `stopAfterLockLost` so
- * that it can be tested without a process. In order: no new work (the flag: every request a plain 503), the server and
- * the live preview stopped; the journey halted with the stop's reason (the running job told to stop); a wait of at most
- * `waitMs` for that job and for each project's action in progress; then every sandbox left in this database removed and
+ * that it can be tested without a process. In order: no new work (the flag: every request a plain 503), the server
+ * closed; the journey halted with the stop's reason (the running job told to stop), then the live preview stopped
+ * (this order since J2's second review); a wait of at most `waitMs`, counted from the halt, for that job and for each
+ * project's action in progress; then every sandbox left in this database removed and
  * recorded (`Journey.removeAtStop`), the instance lock asked of the database before each, each ask bounded at
  * `lockCheckMs`: a lock lost or not confirmed ends the removal, and nothing more is removed. Then the lock is released,
  * the pool ended, and the process exits: 0 only if every open project was removed, else 1, with a line naming each
@@ -314,7 +315,7 @@ export async function stopOnSignal(sig: StopSignal, o: StopOptions): Promise<voi
   }, deadlineMs);
   try {
     const why = stoppedOnPurpose(sig);
-    // 1. No new work: every request gets a plain 503 from now on; then the server and the live preview stop.
+    // 1. No new work: every request gets a plain 503 from now on, and the server closes.
     o.flag.set();
     const job = o.journey.runningJob();
     o.log(`[interface stopping] ${why} ${job ? `Its running job (${job.jobId}, project ${job.projectId}) is being stopped first.` : "No job was running."} Every request is now answered "${STOPPING}"`);

@@ -171,7 +171,7 @@ CONTROLS = [
     "    await o.preview?.stop().catch(() => undefined);\n    const halting = o.journey.halt(why);\n    halting.catch(() => undefined);\n")],
   [(W, "C12 \\(after J2's second review\\)")]),
  ("J2-C48", "second review: the target check does not look for a link at the folders the copy goes through", JOURNEY,
-  [("    if (lstatSync(through, { throwIfNoEntry: false })?.isSymbolicLink()) return", "    if (false) return")],
+  [("    if (seen?.isSymbolicLink()) return", "    if (false) return")],
   [(J, "A4c \\(after J2's second review\\)")]),
  ("J2-C49", "second review: the real adapter's own target check before the copy (stageBrokenStep copies whatever it is given)", "src/orchestrator/example-1-adapter.ts",
   [("      const why = brokenStageTargetProblem(x);\n      if (why) throw new JourneyRefused(`The broken step was not staged: ${why}.`);\n      stageBrokenStepInto(x);", "      stageBrokenStepInto(x);")],
@@ -183,6 +183,13 @@ CONTROLS = [
   [('<p class="note" data-demo-limit>${t(lang, "demo.limit")}</p><div class="actions">', '<div class="actions">'),
    ('<p class="note" data-demo-limit>${t(lang, "demo.limit")}</p>` : ""}`,', '` : ""}`,')],
   [(W, "A2 and A8:"), (W, "A8: the broken copy through the screens")]),
+ # ---------------------------------------------------------------- after the fresh review of pull request #49 itself
+ ("J2-C52", "review of #49: the copy does not first remove what is at the step's own folder (a link inside it is followed)", "scripts/example-1-sandbox.ts",
+  [("  rmSync(into, { recursive: true, force: true });\n", "")],
+  [(J, "A4c \\(after J2's second review\\)")]),
+ ("J2-C53", "review of #49: the wait for the job starts again after the live preview's stop, instead of counting from the halt", MAIN,
+  [("    const halted = await within(halting, waitUntil - Date.now());", "    const halted = await within(halting, waitMs);")],
+  [(W, "C13 \\(after the review of pull request #49\\)")]),
 ]
 
 def run(cmd):

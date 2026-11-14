@@ -19,7 +19,7 @@ Found sound: no request, name, replayed form, concurrent request or restart make
 | A1 | No control had a recorded result at `5a2254d`; one control no longer matched the merged code | For the evidence | Answered by #48 (its controls were run on its merged code) |
 | A2 | J2's gaps and the owner's answer were not in the records | No | Answered by #48 |
 | A3 | Some safeguards had no test that fails without them: one arm of the "any trace" rule, the validation of the choice, the real adapter's own check | No | The "any trace" arm: #48 (test A6b). The real adapter's check: **#49** (test A4c, control J2-C49). The malformed choice: gap 184 |
-| A4 | Staging could write outside the sandbox through a linked folder one level down. Only a process with write access to the sandbox's folder on the machine could plant the link | No | #48 reads the real path of the top folder. **#49** also refuses a link at any folder the copy goes through (test A4c, control J2-C48) |
+| A4 | Staging could write outside the sandbox through a linked folder one level down. Only a process with write access to the sandbox's folder on the machine could plant the link | No | #48 reads the real path of the top folder. **#49** refuses a link at the three folders above the copy, and the copy first removes whatever is at the step's own folder, never following a link (test A4c, controls J2-C48, J2-C52). The second half was added after #49's own review, below |
 | A5 | The name refusal is passed by look-alike names | No | Answered by #48 (gap 182) |
 | A6 | The run's events file was in text order, not id order | No | Answered by #48 |
 | A7 | The demonstration's limit was on no screen; small points on a broken copy's screens; the app's banner text copied into the builder's lines | No | The limit: **#49** (`demo.limit`, both languages, control J2-C51). The rest: gaps 176 and 183 |
@@ -50,10 +50,24 @@ Found sound: the run's counts matched its log; every new message is in both lang
 | C3 | Events read in text order | No | Answered by #48 |
 | C4 | Two groups of record checks would be skipped, uncounted, if a job id were not found | No | **#49:** a job not found is a failed check |
 | C5 | Some checks weaker than the design's words | No | Gap 184 |
-| C6 | "Its containers were removed" shown even when the record says the removal failed | No | **#49:** the sentence no longer states it as a fact |
+| C6 | "Its containers were removed" shown even when the record says the removal failed | No | **#49:** the sentence no longer says "were removed". It still says the containers "are removed at the stop or at the next start", which holds only once the removal is checked: gap 180 |
 | C7 | Small screen points | No | Gap 176 |
 | C8 | The real adapter's target check had no test | No | **#49**, as A3 |
 | C9 | The run script: the log not checked for the password; ids and folders not checked before clean-up | No | **#49** for those three. Left: gap 184, point 9 |
+
+## The review of pull request #49 itself
+
+One more fresh reviewer read #49's difference from `claude/stage-1` (about 120 lines), its evidence and its records, adversarially on the staging check and the stop. **Verdict: nothing blocking.** No hard rule broken, no existing check weakened, every quoted figure matched its file. It ran tests A4c and C12 and four probes of its own.
+
+| # | Finding | Blocking | What was done |
+| --- | --- | --- | --- |
+| D1 | The new link check covered three folders; a link one level deeper (the step's `files` folder, its `manifest.json`) was still followed, shown by its probe. Three records said "any folder" | No | **Fixed:** the copy first removes whatever is at the step's own folder, never following a link; a file where a folder should be is a reason, not a throw (test A4c extended; control J2-C52). The records corrected |
+| D2 | "The wait for the running job counts from the halt" was true in the code, but no test or control pinned it | No | **Fixed:** test C13, with a job that will not stop behind a preview whose stop outlasts the wait; control J2-C53 |
+| D3 | The run script's new project-id check threw where nothing caught it, so the run's clean-up was skipped | No | **Fixed:** a bad id is noted and the run fails for it after the walk has ended, inside its own handling |
+| D4 | The reworded screen sentence still states removal without condition | No | Gap 180. Fixed properly only with that gap's planned fix |
+| D5 | Stale comments on the stop's order; the run's log named a later commit with the same code | No | Comments corrected. The checks were run again on one commit, with nothing committed during them |
+
+These fixes were not read again by a reviewer: that would be a third round, and the plan allows two. They are shown by tests and controls.
 
 ## Not looked at by any of the three
 

@@ -2442,6 +2442,39 @@ describe("J2 (c) interface: the clean stop and restart (stand-in sandboxes, no c
     }
   });
 
+  it("C13 (after the review of pull request #49): the wait for a job that will not stop counts from the halt, the live preview's stop included: with a preview whose stop takes longer than the wait, nothing more is waited after it", async () => {
+    const f = await freshDb();
+    let letGo: (() => void) | undefined;
+    try {
+      const calls: string[] = [];
+      const log: string[] = [];
+      const { j, jobs } = make(f, calls);
+      const stubborn = await stubbornJob(j, jobs, "A job that does not end, behind a slow preview (made-up)");
+      letGo = stubborn.letGo;
+      const preview = {
+        stop: async () => {
+          await sleep(2500);
+          calls.push("preview stopped");
+        },
+      };
+      const t0 = Date.now();
+      await stopOnSignal("SIGTERM", { ...stopOpts(j, calls, log, { waitMs: 2000 }), preview });
+      const took = Date.now() - t0;
+      // The preview's stop takes 2.5 s, and the 2 s wait for the job runs out inside it. A wait that began only after
+      // the preview had stopped would make the whole stop 4.5 s or more.
+      expect(took).toBeGreaterThanOrEqual(2400);
+      expect(took).toBeLessThan(3900);
+      expect(calls).toEqual(["server closed", "preview stopped", "lock released", "pool ended", "exit 1"]);
+      expect(log.join("\n")).toContain(`The job ${stubborn.jobId} had not ended after 2 s`);
+      expect(log.join("\n")).toContain(`Project ${stubborn.id} is left for the next start: its job ${stubborn.jobId} had not ended`);
+      expect(await removedEvents(f.db, stubborn.id)).toEqual([]);
+    } finally {
+      letGo?.();
+      await sleep(50);
+      await f.drop();
+    }
+  });
+
   it("C4b: a second stop signal during the stop exits at once with code 1, saying so", async () => {
     const f = await freshDb();
     let letGo: (() => void) | undefined;

@@ -154,7 +154,15 @@ export function brokenStageTargetProblem(x: { dir: string; changeSets: string })
   // destination path, so a link at engine-change-sets, at its example-1, or at the step's own folder would take the
   // broken step somewhere else. None of the three may be a link; makeExample1 makes them as plain folders.
   for (const through of [own, join(own, EXAMPLE), join(own, EXAMPLE, BROKEN_STEP)]) {
-    if (lstatSync(through, { throwIfNoEntry: false })?.isSymbolicLink()) return `a folder the broken step would be copied through is a link, not a folder (${through})`;
+    let seen: ReturnType<typeof lstatSync> | undefined;
+    try {
+      seen = lstatSync(through, { throwIfNoEntry: false });
+    } catch (err) {
+      // After the review of pull request #49: a path that cannot be read (a file where a folder should be) is a reason, not a throw.
+      return `a folder the broken step would be copied through could not be read (${through}: ${(err as NodeJS.ErrnoException).code ?? "error"})`;
+    }
+    if (seen?.isSymbolicLink()) return `a folder the broken step would be copied through is a link, not a folder (${through})`;
+    if (seen && !seen.isDirectory()) return `a folder the broken step would be copied through is not a folder (${through})`;
   }
   return null;
 }
