@@ -286,7 +286,7 @@ export function createWebApp(d: WebDeps): Hono<Env> {
   app.get("/projects/:id/questions", async (c) => c.html(questionsPage(c.get("lang"), await j.state(c.req.param("id")), j)));
   app.get("/projects/:id/proposal", async (c) => c.html(proposalPage(c.get("lang"), await j.state(c.req.param("id")), j)));
   app.get("/projects/:id/plan", async (c) => c.html(planPage(c.get("lang"), await j.state(c.req.param("id")), j)));
-  app.get("/projects/:id/build", async (c) => c.html(buildPage(c.get("lang"), await j.state(c.req.param("id")), j)));
+  app.get("/projects/:id/build", async (c) => c.html(buildPage(c.get("lang"), await j.state(c.req.param("id")), j, { stepPauseMs: d.jobs?.stepPauseMs() ?? 0 })));
   app.get("/projects/:id/preview", async (c) => {
     const s = await j.state(c.req.param("id"));
     const port = d.jobs?.livePort() ?? null;

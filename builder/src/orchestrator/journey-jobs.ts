@@ -45,6 +45,9 @@
  *   as the broken copy whose earlier steps are approved (`brokenStageRefusal`, checked again here), and only into the
  *   sandbox's own change-set folder (`brokenStageTargetProblem`). It reads the staged manifest back from that copy (what
  *   the engine reads), refuses the step unless its SHA-256 is the one chosen, and records `journey.broken_step_staged`.
+ * - Package J2 (c): with the demonstration pause on (`stepPauseMs`, from BUILDER_DEMO_STEP_PAUSE_MS, off by default), each
+ *   build step first records `journey.step.paused_for_demonstration`, and the scripted engine's applier pauses that long
+ *   before each write (`delayMsPerWrite`), so that a stop part-way can be shown. Off, neither happens.
  */
 import { chmodSync, chownSync, closeSync, constants, fstatSync, mkdirSync, openSync, readFileSync, readSync, rmSync, writeFileSync } from "node:fs";
 import { randomBytes } from "node:crypto";
@@ -117,6 +120,8 @@ export const liveCancelledRefusal = (why: OpenCancelledReason) =>
         ? "a new sign-in in this browser ended this sign-in session while it was being opened"
         : "this sign-in session ended while it was being opened"
   }. No live session is open. Sign in and ask again.`;
+/** Package J2 (c): what `journey.step.paused_for_demonstration` says, with the pause in milliseconds beside it. */
+export const DEMO_PAUSE_LABEL = "Demonstration setting: the scripted engine pauses before each write, so that a stop part-way can be shown. Every step is slower.";
 /** The caption under a screenshot of the running app (final design, section 1, item 7). */
 export const appShotCaption = (at: Date) => `Screenshot of the running app at ${at.toISOString().replace("T", " ").slice(0, 19)} UTC. Not live. Sample data.`;
 
@@ -138,6 +143,11 @@ export interface JobsOptions {
   diskFloorBytes?: number;
   stepTimeLimitMs?: number;
   onFault?: (message: string, detail: unknown) => void;
+  /**
+   * Package J2 (c): the demonstration pause, in milliseconds (main.ts reads BUILDER_DEMO_STEP_PAUSE_MS, 0 to 10,000).
+   * Unset or 0: off. Otherwise the scripted engine's applier pauses this long before each write of every step.
+   */
+  stepPauseMs?: number;
 }
 
 export class JourneyJobs {
@@ -285,6 +295,11 @@ export class JourneyJobs {
     return { email: SAMPLE_EMPLOYEE_EMAIL, password: x.samplePassword };
   }
 
+  /** Package J2 (c): the demonstration pause before each write, in milliseconds; 0 when it is off. */
+  stepPauseMs(): number {
+    return this.o.stepPauseMs ?? 0;
+  }
+
   /** This process's handle to a project's sandbox, if it has one. */
   handle(projectId: string): ProjectSandbox | undefined {
     return this.handles.get(projectId);
@@ -307,6 +322,9 @@ export class JourneyJobs {
       projectId,
       "build_step",
       async ({ queue, state, signal }) => {
+        // Package J2 (c): the demonstration pause, when it is on, recorded first.
+        const pause = this.stepPauseMs();
+        if (pause > 0) await appendEvent(this.j.pool, projectId, EV.stepPaused, { pause_ms: pause, setting: "BUILDER_DEMO_STEP_PAUSE_MS", label: DEMO_PAUSE_LABEL }, step);
         this.disk();
         let x = this.handles.get(projectId);
         if (!x) {
@@ -336,7 +354,15 @@ export class JourneyJobs {
           engineFor: () => {
             stillOwned(signal);
             const engine = scriptedEngineFor(
-              { sandbox: sandboxNow.sb, workspace: sandboxNow.workspace, gitDir: sandboxNow.repo.gitDir, changeSetsDir: sandboxNow.changeSets, example: EXAMPLE, runner: this.o.sandboxes.engineRunner(sandboxNow) },
+              {
+                sandbox: sandboxNow.sb,
+                workspace: sandboxNow.workspace,
+                gitDir: sandboxNow.repo.gitDir,
+                changeSetsDir: sandboxNow.changeSets,
+                example: EXAMPLE,
+                runner: this.o.sandboxes.engineRunner(sandboxNow),
+                ...(pause > 0 ? { delayMsPerWrite: pause } : {}),
+              },
               queue,
             );
             // Halted: the engine's container is killed at once, and the step ends "stopped" with nothing committed.

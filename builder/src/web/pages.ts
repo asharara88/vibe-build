@@ -12,6 +12,10 @@
  * (shown as `brokenCopyDemoShown` decides); the badge on every page and list row of a project with any trace of the
  * broken copy (`brokenBadge`, from `JourneyState.brokenTrace`, never from the name); the plan and build screens from
  * the project's own plan (`planSteps(s)`); a failed checklist item's step; and the sign-off panel's lines for it.
+ *
+ * Package J2 (c): the interrupted panel's second wording, for a project marked interrupted with no job interrupted (its
+ * app was set up or running when the interface stopped); the cost screen's note on the reservation of a step stopped
+ * part-way (`holdsStoppedPartWay`); and, while the demonstration pause is on, its line on the build screen.
  */
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -365,11 +369,14 @@ ${body}`,
 }
 
 function interruptedPanel(lang: Lang, s: JourneyState): Html {
+  // Package J2 (c): "A job of this project was interrupted…" only when one was; otherwise the project had only its app
+  // set up or running (its sandbox was removed at a stop, or found at the next start).
+  const jobInterrupted = s.jobs.some((j) => j.state === "interrupted");
   return panel(
     lang,
     "real",
     t(lang, "error.title"),
-    html`<p class="warn">${t(lang, "interrupted.message")}</p>
+    html`<p class="warn">${t(lang, jobInterrupted ? "interrupted.message" : "interrupted.no_job")}</p>
 <div class="actions"><form method="post" action="/projects/${s.project.id}/close"><button type="submit">${t(lang, "interrupted.close")}</button></form><a href="/projects/new">${t(lang, "projects.new")}</a></div>`,
   );
 }
@@ -547,8 +554,27 @@ export interface CostView {
   priceTableDate: string;
 }
 
+/**
+ * Package J2 (c): the step holds stopped part-way, by their id: each opened by the last build job of its step, when that
+ * job was interrupted (the interface stopped while it ran). Its close reads "step_ended" after a clean stop, or
+ * "job_interrupted" after a crash; the cost screen adds a note to either, so that neither reads as a finished step.
+ */
+export function holdsStoppedPartWay(s: JourneyState): Set<string> {
+  const out = new Set<string>();
+  for (const [step, job] of s.stepJobs) {
+    if (job.state !== "interrupted") continue;
+    const end = s.events.find((e) => e.kind === EV.jobInterrupted && String(e.payload.job_id) === job.jobId);
+    for (const e of s.events) {
+      if (e.kind !== "step.hold_opened" || e.step !== step || BigInt(e.id) <= BigInt(job.startedEventId) || (end && BigInt(e.id) >= BigInt(end.id))) continue;
+      out.add(String(e.payload.step_hold_id));
+    }
+  }
+  return out;
+}
+
 export function costPage(lang: Lang, s: JourneyState, v: CostView): Html {
   const b = v.budget;
+  const partWay = holdsStoppedPartWay(s);
   const left = Math.max(b.cap - b.spent - b.openHolds - b.stepRoom, 0);
   const figures = html`<table data-cost>
 <tr><th>${t(lang, "cost.cap")}</th><td data-cap>${usd(b.cap)}</td></tr>
@@ -561,7 +587,10 @@ ${b.spent === 0 && v.modelCalls === 0 ? html`<p class="note" data-zero>${t(lang,
 <p class="note">${t(lang, "cost.read_only")}</p>`;
   const steps = v.stepHolds.length
     ? html`<div class="scroll"><table data-step-holds><thead><tr><th>${t(lang, "col.step")}</th><th>${t(lang, "cost.reserved")}</th><th>${t(lang, "cost.state")}</th></tr></thead>
-<tbody>${v.stepHolds.map((h) => html`<tr><td>${stepId(h.step_id)}</td><td>${usd4(Number(h.budget_usd))}</td><td>${h.state}${h.closed_reason ? ` (${h.closed_reason})` : ""}</td></tr>`)}</tbody></table></div>
+<tbody>${v.stepHolds.map(
+        (h) =>
+          html`<tr><td>${stepId(h.step_id)}</td><td>${usd4(Number(h.budget_usd))}</td><td>${h.state}${h.closed_reason ? ` (${h.closed_reason})` : ""}${h.state === "closed" && partWay.has(String(h.id)) ? html`<br><span class="note" data-stopped-part-way>${t(lang, "cost.stopped_part_way")}</span>` : ""}</td></tr>`,
+      )}</tbody></table></div>
 <p class="note">${t(lang, "cost.priced", { model: v.pricedModel, date: v.priceTableDate })}</p>`
     : html`<p>${t(lang, "cost.no_steps")}</p>`;
   // Every freeze not cleared, each with its kind (packages 1.4, 1.4b and 1.4c) and the message the gateway's refusal gives.
@@ -683,7 +712,11 @@ function runningNote(lang: Lang, s: JourneyState): Html | string {
   return s.runningJob ? html`<p class="note" data-job-running="${s.runningJob.kind}">${t(lang, "job.running", { kind: t(lang, `job.kind.${s.runningJob.kind}`) })}</p>` : "";
 }
 
-export function buildPage(lang: Lang, s: JourneyState, j: Journey): Html {
+/**
+ * The build screen. Package J2 (c): `stepPauseMs`, the demonstration pause while it is on (BUILDER_DEMO_STEP_PAUSE_MS),
+ * is shown on it as a demonstration setting.
+ */
+export function buildPage(lang: Lang, s: JourneyState, j: Journey, o: { stepPauseMs?: number } = {}): Html {
   const id = s.project.id;
   if (!s.planConfirmed) return projectPage(lang, s, "build", t(lang, "build.title"), panel(lang, "real", t(lang, "build.title"), html`<p>${t(lang, "build.not_yet")}</p>`));
   const steps = j.planSteps(s);
@@ -716,7 +749,7 @@ export function buildPage(lang: Lang, s: JourneyState, j: Journey): Html {
     lang,
     "real",
     t(lang, "build.title"),
-    html`${runningNote(lang, s)}<p>${t(lang, "build.intro")}</p>
+    html`${runningNote(lang, s)}${o.stepPauseMs ? html`<p class="warn" data-step-pause="${o.stepPauseMs}">${t(lang, "build.step_pause", { ms: o.stepPauseMs.toLocaleString("en") })}</p>` : ""}<p>${t(lang, "build.intro")}</p>
 <div class="actions">${action}</div>
 <p class="note">${t(lang, "build.no_preview_after_1")}</p>
 <p class="note">${t(lang, "build.disk_note", { gb: (DISK_FLOOR_BYTES / 1024 ** 3).toFixed(1) })}</p>

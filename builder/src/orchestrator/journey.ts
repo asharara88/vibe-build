@@ -20,6 +20,12 @@
  * the project's row in one transaction. Its plan, worked out from the record alone, adds the deliberately broken step
  * 03-wrong-status (builder/scripted-broken), which journey-jobs.ts stages into the sandbox's own change-set folder just
  * before it runs. Any trace of the broken copy in a record refuses sign-off, the export and the live app.
+ *
+ * Package J2 (c), a restart mid-step (final design, section 4): at a clean stop (main.ts, `stopOnSignal`), once the
+ * journey is halted, `removeAtStop` runs the loop of `recoverInterrupted` at the stop: it waits on each project's chain
+ * of actions in progress (a bounded wait), asks before each removal whether it may go on (main.ts asks the instance lock
+ * of the database, bounded), skips the project of a job still running and closed projects, and records each removal
+ * with the stop's own reason. Nothing is resumed.
  */
 import { randomBytes } from "node:crypto";
 import { readFileSync, realpathSync, statfsSync } from "node:fs";
@@ -190,7 +196,24 @@ export const EV = {
   liveClosed: "journey.preview.live_closed",
   /** Package J2: the broken step copied into the sandbox's own change-set folder, just before its engine (journey-jobs.ts). */
   brokenStepStaged: "journey.broken_step_staged",
+  /** Package J2 (c): a build step run with the demonstration pause on (BUILDER_DEMO_STEP_PAUSE_MS), written first in its job. */
+  stepPaused: "journey.step.paused_for_demonstration",
 } as const;
+
+/** Package J2 (c): why `journey.sandbox.removed` was written at a clean stop (final design, section 4.1, item 5). */
+export const REMOVED_AT_STOP = "The interface was stopped on purpose; this project's containers, images and folder were removed at the stop. It is not resumed.";
+/** Why it was written at start, for a sandbox left by an interface that stopped (a crash, or a stop that left it). */
+export const FOUND_AT_START = "Found at start: made by an interface that has since stopped. It is not resumed.";
+
+/** Package J2 (c): what the removal at a clean stop did (`Journey.removeAtStop`). */
+export interface StopRemoval {
+  /** The projects whose sandbox was removed at the stop, each recorded `journey.sandbox.removed` with `interrupted: true`. */
+  removed: Array<{ projectId: string; dir: string }>;
+  /** The projects left for the next start, each with why. */
+  left: Array<{ projectId: string; why: string }>;
+  /** Why the removal ended before every project was looked at (the lock lost, or not confirmed in time), or null. */
+  ended: string | null;
+}
 
 /** The label a sign-off carries (final design, section 1, item 8). */
 export const SIGN_OFF_LABEL = "Sign-off on a simulated build, checked by a stand-in test of item 1 only: not acceptance";
@@ -1088,15 +1111,56 @@ export class Journey {
    * resumed. Only projects whose id starts "j1-" are looked at. Returns the projects touched.
    */
   async recoverInterrupted(): Promise<string[]> {
-    const touched: string[] = [];
+    return (await this.removeLeft("start", {})).touched;
+  }
+
+  /**
+   * Package J2 (c), the clean stop (final design, section 4.1, items 3 to 5), called by main.ts once the journey is
+   * halted: the same loop as at start, run at the stop. Every journey project of this database that has a sandbox and is
+   * not closed is removed and recorded with the stop's own reason (`REMOVED_AT_STOP`, `interrupted: true`). Before each
+   * project is read, its chain of actions in progress (such as a "Close project" that came before the stop) is waited
+   * for until `waitUntil`; one not ended by then leaves its project for the next start. The project of a job still
+   * running is left too. Before each removal `mayRemove` is asked (main.ts asks the instance lock of the database,
+   * bounded): a reason ends the loop and nothing more is removed. `goOn` false (the process is exiting) ends it too.
+   */
+  async removeAtStop(o: { waitUntil: number; mayRemove: () => Promise<string | null>; goOn?: () => boolean }): Promise<StopRemoval> {
+    const r = await this.removeLeft("stop", o);
+    return { removed: r.removed, left: r.left, ended: r.ended };
+  }
+
+  /** The loop of `recoverInterrupted` and `removeAtStop`; `at` chooses the reason written, and whether to wait and ask first. */
+  private async removeLeft(
+    at: "start" | "stop",
+    o: { waitUntil?: number; mayRemove?: () => Promise<string | null>; goOn?: () => boolean },
+  ): Promise<StopRemoval & { touched: string[] }> {
+    const out: StopRemoval & { touched: string[] } = { touched: [], removed: [], left: [], ended: null };
     for (const r of await listProjects(this.pool, { idPrefix: JOURNEY_PREFIX })) {
       if (!r.id.startsWith(JOURNEY_PREFIX)) continue;
-      if (this.running?.projectId === r.id) continue;
+      if (o.goOn && !o.goOn()) break;
+      if (at === "stop") {
+        // An action of this project already in progress (it passed the halt before it was set) ends first, so that the
+        // stop and, say, a "Close project" never remove the same project at once (section 4.1, item 3).
+        const chain = this.locks.get(r.id);
+        if (chain && !(await settledBy(chain, o.waitUntil ?? Date.now()))) {
+          out.left.push({ projectId: r.id, why: "an action of this project was still in progress when the wait ended" });
+          continue;
+        }
+      }
+      if (this.running?.projectId === r.id) {
+        if (at === "stop") out.left.push({ projectId: r.id, why: `its job ${this.running.jobId} had not ended when the wait ended` });
+        continue;
+      }
       const { spent_usd: _spent, ...project } = r;
       const s = journeyState(project, await listEvents(this.pool, r.id), this.intake);
       const left = s.jobs.filter((j) => j.state === "running");
       const leftSandbox = s.stage !== "closed" ? s.sandbox : null;
       if (left.length === 0 && !leftSandbox) continue;
+      // At the stop, asked just before anything of this project is changed (main.ts: the instance lock, bounded).
+      const refused = o.mayRemove ? await o.mayRemove() : null;
+      if (refused !== null) {
+        out.ended = refused;
+        break;
+      }
       for (const j of left) {
         await appendEvent(this.pool, r.id, EV.jobInterrupted, { job_id: j.jobId, kind: j.kind, reason: "The interface stopped while this job ran. It is not resumed." }, j.step);
       }
@@ -1108,11 +1172,9 @@ export class Journey {
         this.o.onFault?.("A project's containers could not be removed after an interruption.", { project: r.id, error: err instanceof Error ? err.message : String(err) });
       }
       if (leftSandbox) {
-        await appendEvent(this.pool, r.id, EV.sandboxRemoved, {
-          reason: "Found at start: made by an interface that has since stopped. It is not resumed.",
-          interrupted: true,
-          removed,
-        });
+        await appendEvent(this.pool, r.id, EV.sandboxRemoved, { reason: at === "stop" ? REMOVED_AT_STOP : FOUND_AT_START, interrupted: true, removed });
+        if (removed) out.removed.push({ projectId: r.id, dir: leftSandbox.dir });
+        else out.left.push({ projectId: r.id, why: `its sandbox (${leftSandbox.dir}) could not be removed; the next start tries again` });
       }
       // The reservation of a step whose job was interrupted is closed (package 1.3's close, as at a step's end):
       // nothing runs that step any more, so the cost panel must not go on showing its room as reserved (review of
@@ -1126,10 +1188,22 @@ export class Journey {
           this.o.onFault?.("An interrupted step's reservation could not be closed at start; it is closed at its deadline.", { project: r.id, step_hold: h.id, error: err instanceof Error ? err.message : String(err) });
         }
       }
-      touched.push(r.id);
+      out.touched.push(r.id);
     }
-    return touched;
+    return out;
   }
+}
+
+/** Whether `p` settles by the time `until` (milliseconds since the epoch); a promise already settled counts, however late. */
+function settledBy(p: Promise<unknown>, until: number): Promise<boolean> {
+  let timer: NodeJS.Timeout | undefined;
+  return Promise.race([
+    p.then(
+      () => true,
+      () => true,
+    ),
+    new Promise<boolean>((r) => (timer = setTimeout(() => r(false), Math.max(0, until - Date.now())))),
+  ]).finally(() => clearTimeout(timer));
 }
 
 const CONTROL = /[\u0000-\u001f\u007f-\u009f]/;
