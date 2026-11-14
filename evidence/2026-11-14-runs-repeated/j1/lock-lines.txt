@@ -1,0 +1,4 @@
+The run's lock lines (flock, then the run, then these), on 835f483 (builder/ tree 37ae8c2), working tree of builder/: 0 changed files:
+Lock held from 11:16:05 UTC.
+run exit code: 0
+Lock released at 11:17:32 UTC.
