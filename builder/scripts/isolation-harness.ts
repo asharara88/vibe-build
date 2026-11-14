@@ -10,12 +10,17 @@
  * - Real: `ensureRunnerImage` (the acceptance runner's image, from the approved browser zip), `startRealProject`
  *   (example 1 made by the product's own functions: makeExample1, the scripted engine's steps 01 and 02,
  *   buildAndStart; the app and tools images are the template's build), `imageFacts` and `realImageProblemsFrom`
- *   (is each image the real one), `probeServiceSeen` (the probe in a one-off container of a service, with Docker
+ *   (does any image have the settings of one of the three stand-ins of 13 Nov), `imageContents` and
+ *   `imageContentProblemsFrom` (does the app image hold the pages the scripted engine's step 02 adds, and the tools
+ *   image the two tools the product runs in it), `probeServiceSeen` (the probe in a one-off container of a service, with Docker
  *   asked which image the container runs), `probeInPlace` (the probe inside a RUNNING container, through
  *   `sandbox.exec`), `editCompose` (a deliberate misconfiguration, as a text edit of the Compose file the manager
  *   wrote, before anything starts) and `destroyRealProject`.
+ *   Added after the review of 14 Nov 2026: `portTakenProblem`, `gatewayPortProblem`, `ownContainerIds`, `folderLeft`
+ *   and `leftOfProjectId` (see each).
  * - Either: `probeService`, `probeInNetworkOf`, `probeComparison`, `devProbeSettings`, `startCanary`, `leftOf`,
- *   `removeImages` (which refuses any image that is not the sandbox's own project's).
+ *   `removeImages` (which refuses every name but the three a project's own images can have: its app, tools and
+ *   runner stand-in images).
  * Nothing here is package 2.2's engine: that engine does not exist. The scripted engine's container (package 2.1)
  * and the engine service placed as 2.2's option would place it are each named for what they are.
  *
@@ -37,16 +42,17 @@
  */
 import { execFile, spawn, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import http from "node:http";
 import net, { type AddressInfo } from "node:net";
+import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { createInterface } from "node:readline";
 import { promisify } from "node:util";
 import { buildRunnerImage, RUNNER_IMAGE, runnerImageLabelProblem, runnerImageProblem } from "../src/acceptance/runner-image.js";
 import { readMachineAddresses, readMachineSide, sessionProxyHostPort } from "../src/sandbox/isolation.js";
 import { appImageName, composeProjectName, DEFAULT_IMAGES, dockerEnv, HARDENING, sandbox, toolsImageName, type Sandbox, type StreamingRun } from "../src/sandbox/manager.js";
-import { buildAndStart, destroyExample1, makeExample1, runStep, type Example1 } from "./example-1-sandbox.js";
+import { buildAndStart, destroyExample1, makeExample1, portFree, runStep, type Example1 } from "./example-1-sandbox.js";
 
 const run = promisify(execFile);
 export const builderDir = resolve(import.meta.dirname, "..");
@@ -76,13 +82,19 @@ export function buildStandIns(sb: Sandbox, projectId: string): string[] {
   return images;
 }
 
+/** The only names an image of this project can have here: its app image, its tools image and its runner stand-in. */
+export const ownImageNames = (sb: Pick<Sandbox, "projectName">): string[] => [`${sb.projectName}-app:latest`, `${sb.projectName}-tools:latest`, runnerStandInImage(sb)];
+
 /**
  * Remove images of the sandbox's own project, by name. Any other name is refused before Docker is asked anything
  * (14 Nov 2026): the acceptance runner's image is machine-wide and shared with other sessions, and must never be
  * removed from here. Removal is by name only, never by id: two projects built from the same files can share one id.
+ * After the review of 14 Nov 2026 a name must be exactly one of the three this project can have (`ownImageNames`).
+ * As first written, any name that began with the project's name and a dash was taken as its own, so the images of
+ * a project whose id is this id, a dash, and more (project ids may hold dashes) would have been accepted.
  */
 export async function removeImages(sb: Sandbox, images: string[]): Promise<void> {
-  const notOurs = images.filter((image) => !image.startsWith(`${sb.projectName}-`));
+  const notOurs = images.filter((image) => !ownImageNames(sb).includes(image));
   if (notOurs.length) throw new Error(`The isolation harness removes only images of its own project (${sb.projectName}-...); refused: ${notOurs.join(", ")}.`);
   for (const image of images) await run("docker", ["image", "rm", "-f", image], { env: dockerEnv(sb) }).catch(() => undefined);
 }
@@ -102,8 +114,38 @@ export const FRONT_STAND_IN = "preview-front-stand-in";
 /** Package J3: a stand-in for the preview front on 127.0.0.1:`port` (4041, the automated run's), so that it is listening while the machine's listeners are read for group M. */
 export async function startFrontStandIn(port: number): Promise<{ port: number; close: () => Promise<void> }> {
   const server = http.createServer((_req, res) => res.writeHead(200, { server: FRONT_STAND_IN, "content-type": "text/plain" }).end("stand-in preview front"));
-  await new Promise<void>((r) => server.listen(port, "127.0.0.1", r));
+  // After the review of 14 Nov 2026: a port that is taken is a plain failure, at once. Before, the server's error had
+  // no handler, so this never settled and each test that waited for it ran to its own time limit.
+  await new Promise<void>((ok, no) => {
+    server.once("error", (err: NodeJS.ErrnoException) =>
+      no(new Error(`The preview front's stand-in cannot listen on 127.0.0.1:${port} (${err.code ?? err.message}). ${WHO_HOLDS_THE_PORT}`)),
+    );
+    server.listen(port, "127.0.0.1", ok);
+  });
   return { port, close: () => new Promise((r) => server.close(() => r())) };
+}
+
+const WHO_HOLDS_THE_PORT = "Something else holds that port: another run of a live test, or the builder's own preview front. Stop it, then run this again.";
+
+/**
+ * Why the preview front's stand-in could not take 127.0.0.1:`port` now, in plain words, or null when nothing accepts
+ * a connection there. It asks by opening one connection and closing it (`portFree`, the product helper's own), not
+ * by listening: so the question itself never takes the port from another run for a moment.
+ */
+export async function portTakenProblem(port: number): Promise<string | null> {
+  return (await portFree(port)) ? null : `Something already accepts connections on 127.0.0.1:${port}, the port the preview front's stand-in needs. ${WHO_HOLDS_THE_PORT}`;
+}
+
+/**
+ * Why the machine's listening sockets (as `devProbeSettings` reads them) show something on the gateway's port, or
+ * null. A real example-1 project is given the gateway address 127.0.0.1:`port` (4010, the real model gateway's
+ * default port), and the runs in real containers say that nothing listens behind it. This is the check of that
+ * sentence (added after the review of 14 Nov 2026): with a gateway running on the machine, a container put on the
+ * `out` network on purpose would send it one request through the door.
+ */
+export function gatewayPortProblem(machineListeners: string[], port: number): string | null {
+  const there = machineListeners.filter((l) => l.split(":").pop() === String(port));
+  return there.length ? `Something listens on the machine at ${there.join(", ")}: that is the gateway address a real example-1 project is given. This run says nothing is behind it, and would send it a request through the door; it does not go on. Stop what listens there, then run this again.` : null;
 }
 
 /** A stand-in gateway on 127.0.0.1, on a port the system chooses. */
@@ -300,7 +342,9 @@ export async function leftOf(sb: Sandbox): Promise<string> {
     `named containers: ${await ask(["ps", "-a", "--filter", `name=${sb.projectName}-`, "--format", "{{.Names}}"])}`,
     `networks: ${await ask(["network", "ls", "--filter", label, "--format", "{{.Name}}"])}`,
     `volumes: ${await ask(["volume", "ls", "--filter", label, "--format", "{{.Name}}"])}`,
-    // Every image made here is named `<project>-<name>`; the dash keeps another project whose name starts the same out.
+    // Every image made here is named `<project>-<name>`. The dash keeps out another project whose name starts the same
+    // and goes on with an underscore (as every id used here does); a project whose id is this id, a dash, and more
+    // would be listed too, here and under "named containers". This only reads: listing too much makes a red result.
     `images: ${await ask(["images", "--format", "{{.Repository}}:{{.Tag}}", "--filter", `reference=${sb.projectName}-*`])}`,
   ].join("; ");
 }
@@ -334,13 +378,15 @@ export interface ImageFacts {
   labels: Record<string, string>;
   /** Set when Docker could not show the image: its own first line. */
   missing?: string;
+  /** The time Docker gives the image (`.Created`). A time before the project was made means `docker build` gave the name to an image Docker already held (its build cache). */
+  created?: string;
 }
 
 export async function imageFacts(sb: Pick<Sandbox, "dir">, image: string): Promise<ImageFacts> {
   try {
     const { stdout } = await run("docker", ["image", "inspect", image, "--format", "{{json .}}"], { env: dockerEnv(sb), maxBuffer: 8 * 1024 * 1024 });
-    const i = JSON.parse(stdout) as { Id?: string; Config?: { User?: string; Cmd?: string[] | null; Entrypoint?: string[] | null; WorkingDir?: string; Labels?: Record<string, string> | null } };
-    return { name: image, id: i.Id ?? "", user: i.Config?.User ?? "", command: i.Config?.Cmd ?? [], entrypoint: i.Config?.Entrypoint ?? [], workingDir: i.Config?.WorkingDir ?? "", labels: i.Config?.Labels ?? {} };
+    const i = JSON.parse(stdout) as { Id?: string; Created?: string; Config?: { User?: string; Cmd?: string[] | null; Entrypoint?: string[] | null; WorkingDir?: string; Labels?: Record<string, string> | null } };
+    return { name: image, id: i.Id ?? "", user: i.Config?.User ?? "", command: i.Config?.Cmd ?? [], entrypoint: i.Config?.Entrypoint ?? [], workingDir: i.Config?.WorkingDir ?? "", labels: i.Config?.Labels ?? {}, created: i.Created ?? "" };
   } catch (err) {
     const e = err as { stderr?: string; message?: string };
     return { name: image, id: "", user: "", command: [], entrypoint: [], workingDir: "", labels: {}, missing: ((e.stderr || e.message || "no answer").trim().split("\n")[0] ?? "").slice(0, 200) };
@@ -356,11 +402,15 @@ export interface RealImages {
 }
 
 /**
- * Why these are not the real images, one plain sentence per problem; empty when they are. A plain function: it
- * asks Docker nothing. The app image must be the template's `run` stage (user "app", command node server.js),
- * the tools image its `tools` stage (user "node", working folder /app), neither may be the approved Node image
- * under another name, and the acceptance service's image must be the runner's own, carrying the approved zip's
- * label. The stand-in images of 13 Nov (`buildStandIns`) fail each of these.
+ * A check against the three stand-in images of 13 Nov (`buildStandIns`): one plain sentence per problem, empty when
+ * none is found. It is NOT proof that an image is the template's build (said after the review of 14 Nov 2026). It
+ * reads an image's settings only, and asks Docker nothing: the app image must have the settings of the template's
+ * `run` stage (user "app", command node server.js), the tools image those of its `tools` stage (user "node",
+ * working folder /app), neither may be the approved Node image under another name, and the acceptance service's
+ * image must have the runner's own name and carry the approved zip's label. Each stand-in of 13 Nov fails these.
+ * Any other image given the same settings passes. What makes the images real in a run is that the product's own
+ * build (`sandbox.build`, in `buildAndStart`) made them from the project's workspace just before; what their
+ * content shows is `imageContentProblemsFrom`.
  */
 export function realImageProblemsFrom(f: RealImages): string[] {
   const imageProblems: string[] = [];
@@ -375,6 +425,55 @@ export function realImageProblemsFrom(f: RealImages): string[] {
   const label = runnerImageLabelProblem(f.acceptance.name, JSON.stringify(f.acceptance.labels));
   if (label) imageProblems.push(label);
   return imageProblems;
+}
+
+/**
+ * What must be found in the real images of an example-1 project after the scripted engine's two steps (added after
+ * the review of 14 Nov 2026; the paths were read in a real image that day). In the app image: the server the
+ * template's build makes, and the two "my requests" pages, which only step 02 adds to the workspace. In the tools
+ * image: the two tools the product itself runs there (`buildAndStart`). Paths are relative to /app.
+ */
+export const REAL_IMAGE_CONTENTS = {
+  app: ["server.js", ".next/server/app/[locale]/my-requests/page.js", ".next/server/app/[locale]/my-requests/new/page.js"],
+  tools: ["node_modules/.bin/drizzle-kit", "scripts/seed.ts"],
+} as const;
+
+/** For each path asked about, whether it was there, as read inside a container of the image. */
+export type ImageContents = Record<"app" | "tools", Record<string, boolean>>;
+
+/**
+ * Read `REAL_IMAGE_CONTENTS` in a one-off container of the app service and one of the tools service (the sandbox
+ * manager's own `runOnce`), each started from the image's name with a one-line Node command in place of the
+ * service's own. Nothing is written. A container that prints something else gives every path as not there.
+ */
+export async function imageContents(sb: Sandbox, runOnce: (sb: Sandbox, service: string, cmd: string[]) => Promise<string> = sandbox.runOnce): Promise<ImageContents> {
+  const script = "const fs=require('fs');console.log(JSON.stringify(Object.fromEntries(process.argv.slice(1).map((p)=>[p,fs.existsSync('/app/'+p)]))))";
+  const read = async (service: "app" | "tools"): Promise<Record<string, boolean>> => {
+    const asked = REAL_IMAGE_CONTENTS[service];
+    let said: Record<string, unknown> = {};
+    try {
+      said = JSON.parse((await runOnce(sb, service, ["node", "-e", script, ...asked])).trim().split("\n").pop() ?? "") as Record<string, unknown>;
+    } catch {
+      /* the container did not start, or printed something else: every path reads as not there */
+    }
+    return Object.fromEntries(asked.map((p) => [p, said[p] === true]));
+  };
+  return { app: await read("app"), tools: await read("tools") };
+}
+
+/**
+ * What the images do not hold of `REAL_IMAGE_CONTENTS`, one plain sentence per image; empty when all is there. A
+ * plain function: it asks Docker nothing. This shows that the app image is a build of the workspace AFTER step 02,
+ * and that the tools image holds the product's two tools. It is still not proof of how the image was made: an image
+ * built on purpose to hold files of those names would pass.
+ */
+export function imageContentProblemsFrom(c: ImageContents): string[] {
+  const out: string[] = [];
+  for (const service of ["app", "tools"] as const) {
+    const notThere = REAL_IMAGE_CONTENTS[service].filter((p) => c[service]?.[p] !== true);
+    if (notThere.length) out.push(`the ${service} image does not hold ${notThere.map((p) => `/app/${p}`).join(", ")}: it is not the build of the workspace after the scripted engine's two steps`);
+  }
+  return out;
 }
 
 /** One text edit of a Compose file: `from` must occur exactly once, in the named service's block or, with no service, in the whole file. */
@@ -540,6 +639,20 @@ export interface InPlaceProbe {
  *    lines printed so far kept;
  * 4. the file is removed, always, and seen gone.
  * `o.exec`, `o.containerId` and `o.probeFile` are for the unit tests, which use no Docker.
+ *
+ * Two things a caller must know (written after the review of 14 Nov 2026):
+ * - Which container. The running container's id is read first (`docker compose ps -q`), and the probe is refused
+ *   when there is none, because the manager's `exec` can enter a ONE-OFF container of the service when the service's
+ *   own container is not running (measured by the reviewer, 14 Nov). This function reads the id before and after; it
+ *   is the caller that must compare both with the id of the container it means (test L4 and L6 do).
+ * - Whom it trusts. The file is written, fingerprinted and run in three separate commands, each as the container's
+ *   own user, in the container's own /tmp. Code already running in that container as that user (the app itself)
+ *   could replace the file between the fingerprint and the run, or read the probe and its settings: the settings
+ *   (the machine's listening ports and addresses, the session proxy's host and port) are a command argument, shown
+ *   in the container's process list while the probe runs. So the fingerprint guards against accident, not against
+ *   the container's own code, and the result is only as trustworthy as the app being probed. Today that is the
+ *   house template after two fixed steps. Before an app a model wrote is probed in place, an engineer should decide
+ *   how the file and the settings are handed over (proposed known gap 185).
  */
 export async function probeInPlace(sb: Sandbox, service: string, settings: string, o: { exec?: ExecInService; containerId?: (sb: Sandbox, service: string) => Promise<string>; probeFile?: string } = {}): Promise<InPlaceProbe> {
   const exec = o.exec ?? sandbox.exec;
@@ -578,15 +691,53 @@ export async function probeInPlace(sb: Sandbox, service: string, settings: strin
   return { lines, sha256: { repository, inside }, container: { before, after: await idOf(sb, service) }, removed, encodedLength: encoded.length };
 }
 
+/** What `destroyRealProject` asks `docker ps` to print for each container: its id, its names, and the Compose project it is labelled with. */
+export const OWN_CONTAINERS_FORMAT = '{{.ID}}\t{{.Names}}\t{{.Label "com.docker.compose.project"}}';
+
 /**
- * Remove a real project: any probe container a failed run left, then the project's containers, networks, volume,
- * its two images (by name) and its folder (`destroyExample1`). Returns what is left, as `leftOf` reads it. The
- * acceptance runner's image is not the project's and is never touched.
+ * Which containers are this project's to remove, from `docker ps` lines in `OWN_CONTAINERS_FORMAT`: those Compose
+ * labels with exactly this project's name, and the harness's own probe containers, named `<project>-isolation-...`.
+ * A plain function. After the review of 14 Nov 2026: as first written, every container whose name held the
+ * project's name and a dash was removed, and project ids may hold dashes, so removing project X also removed the
+ * containers of a project whose id is X, a dash, and more (shown by the reviewer). Such a neighbour is left alone now.
+ */
+export function ownContainerIds(psLines: string[], projectName: string): string[] {
+  return psLines
+    .map((l) => l.split("\t"))
+    .filter(([id, names = "", project = ""]) => Boolean(id) && (project === projectName || names.split(",").some((n) => n.startsWith(`${projectName}-isolation-`))))
+    .map(([id]) => id!);
+}
+
+/** Whether a project's folder (its Compose file, its made-up secrets, its copy of the template) is still on the machine. */
+export const folderLeft = (x: Pick<Example1, "dir">): string => (existsSync(x.dir) ? `still there (${x.dir})` : "gone");
+
+/**
+ * Remove a real project: any probe container a failed run left (`ownContainerIds`), then the project's containers,
+ * networks, volume, its two images (by name) and its folder (`destroyExample1`). Returns what is left, as `leftOf`
+ * reads it; `folderLeft` says whether the folder is gone. The acceptance runner's image is not the project's and is
+ * never touched.
+ * After the review of 14 Nov 2026 the folder is removed whatever Docker said. Before, when Docker did not answer,
+ * this stopped before the folder was removed, and the folder (with the project's made-up secrets) stayed on the
+ * machine unreported. Docker's failure is still passed on to the caller.
  */
 export async function destroyRealProject(x: Example1): Promise<string> {
   const env = dockerEnv(x.sb);
-  const left = await run("docker", ["ps", "-aq", "--filter", `name=${x.sb.projectName}-`], { env }).catch(() => ({ stdout: "" }));
-  for (const id of left.stdout.split("\n").filter(Boolean)) await run("docker", ["rm", "-f", id], { env }).catch(() => undefined);
-  await destroyExample1(x);
+  try {
+    const listed = await run("docker", ["ps", "-a", "--filter", `name=${x.sb.projectName}`, "--format", OWN_CONTAINERS_FORMAT], { env }).catch(() => ({ stdout: "" }));
+    for (const id of ownContainerIds(listed.stdout.split("\n"), x.sb.projectName)) await run("docker", ["rm", "-f", id], { env }).catch(() => undefined);
+    await destroyExample1(x);
+  } finally {
+    rmSync(x.dir, { recursive: true, force: true });
+  }
   return leftOf(x.sb);
+}
+
+/**
+ * What is on the machine of a project that has not been made yet, by its id (`leftOf`, for a project with no
+ * folder). Added after the review of 14 Nov 2026: a run that was interrupted (its process killed) leaves its
+ * containers, networks, volume and images behind under the same fixed names, and the next run would start on top of
+ * them. The live test and the demonstration read this first and stop, naming what is there.
+ */
+export function leftOfProjectId(projectId: string): Promise<string> {
+  return leftOf({ projectName: composeProjectName(projectId), dir: join(tmpdir(), `builder-no-such-folder-${projectId}`) } as Sandbox);
 }
