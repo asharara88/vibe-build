@@ -37,7 +37,7 @@
  */
 import { execFile } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { existsSync, lstatSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, lstatSync, readdirSync, readFileSync, rmSync, unlinkSync } from "node:fs";
 import { basename, isAbsolute, join, resolve } from "node:path";
 import { promisify } from "node:util";
 import { runAcceptance, type AcceptanceReport, type AcceptanceRunInput } from "../acceptance/runner.js";
@@ -45,8 +45,8 @@ import { RUNNER_IMAGE, runnerImageProblem } from "../acceptance/runner-image.js"
 import type { EngineRunner } from "../engine/scripted.js";
 import { appImageName, composeProjectName, dockerEnv, PROJECT_NETWORK, sandbox, toolsImageName, type Sandbox, type StreamingEnd } from "../sandbox/manager.js";
 import { buildAndStart, makeExample1, portFree, stageBrokenStep as stageBrokenStepInto, type Example1 } from "../../scripts/example-1-sandbox.js";
-import { parseImages, parseNameLabel, projectLeftovers } from "../../scripts/journey-restart-checks.js";
-import { brokenStageTargetProblem, JourneyRefused, SandboxNotRemoved, type SandboxRecord } from "./journey.js";
+import { projectLeftovers } from "../../scripts/journey-restart-checks.js";
+import { brokenStageTargetProblem, DOCKER_NOT_ASKED, JourneyRefused, SandboxNotRemoved, type SandboxRecord } from "./journey.js";
 import type { AppStream } from "../sandbox/manager.js";
 
 const run = promisify(execFile);
@@ -116,26 +116,93 @@ export interface Sandboxes {
   destroyRecorded(projectId: string, rec: SandboxRecord): Promise<string>;
 }
 
+export { DOCKER_NOT_ASKED };
+/** The time limit of each Docker command of a removal's sweep and check. Chosen, not measured. */
+export const REMOVAL_DOCKER_TIMEOUT_MS = 60_000;
+
+/**
+ * The form the check asks Docker's lists in (after the review of known gap 180's fix): one JSON object a line, holding
+ * the name and the Compose project label, each written by Docker's own `json`. A tab or a line break in a name is
+ * written as JSON writes it, inside the name, so no name can shift the label out of sight or pass for a second line.
+ */
+const NAME_AND_PROJECT = (name: "Names" | "Name") => `{"name":{{json .${name}}},"project":{{json (.Label "com.docker.compose.project")}}}`;
+const REPOSITORY_AND_TAG = '{"repository":{{json .Repository}},"tag":{{json .Tag}}}';
+
+/** One of Docker's lists, printed one JSON object a line: each line's two named texts. A line that is not such an object throws: it is never passed over. */
+function jsonLines<A extends string, B extends string>(out: string, a: A, b: B, what: string): Array<Record<A | B, string>> {
+  return out
+    .split("\n")
+    .filter((l) => l.trim() !== "")
+    .flatMap((l) => {
+      let o: unknown;
+      try {
+        o = JSON.parse(l);
+      } catch {
+        o = null;
+      }
+      const r = (typeof o === "object" && o !== null ? o : {}) as Record<string, unknown>;
+      if (typeof r[a] !== "string" || typeof r[b] !== "string") throw new Error(`a line of Docker's list of ${what} could not be read`);
+      return [{ [a]: r[a], [b]: r[b] } as Record<A | B, string>];
+    });
+}
+
+/**
+ * Why a Docker command gave no answer, in Docker's own words (after the review of known gap 180's fix): past its time
+ * limit, that; else the last non-empty line the docker program wrote on its error output; else the error's own message
+ * (the program not found, a list that could not be read). Never the command line, which is what Node puts first in the
+ * message of a command that failed.
+ */
+export function dockerSaid(err: unknown, timeoutMs: number): string {
+  const e = (typeof err === "object" && err !== null ? err : {}) as { killed?: unknown; code?: unknown; stderr?: unknown };
+  if (e.code === "ERR_CHILD_PROCESS_STDIO_MAXBUFFER") return "its answer was longer than the builder reads";
+  if (e.killed === true) return `no answer within ${timeoutMs / 1000} s`;
+  const said = typeof e.stderr === "string" ? e.stderr.split("\n").map((l) => l.trim()).filter((l) => l !== "") : [];
+  const last = said.at(-1);
+  if (last !== undefined) return last.slice(0, 300);
+  const message = (err instanceof Error ? err.message : String(err)).split("\n")[0]!;
+  return (message.startsWith("Command failed:") ? `the docker program ended with exit code ${String(e.code)} and said nothing` : message).slice(0, 300);
+}
+
+/** A folder that does not exist, and that only the machine's administrator could make: the place of a Docker client folder when none may be read. */
+const NO_DOCKER_CLIENT = "/nonexistent/builder-removal";
+
+/**
+ * The settings every Docker command of a removal runs with (after the review of known gap 180's fix): the sandbox's own
+ * (manager.ts, `dockerEnv`), so that the sweep and the check ask the daemon the sandbox's commands asked, and a Docker
+ * context the sandbox refuses is refused here too. `clientDir` is the sandbox's folder, whose own Docker client folder
+ * the commands read as the sandbox's do (if the folder is gone, there is none to read); null when the folder may not be
+ * read (`recordedSandboxRefusal`): Docker's client is then pointed at a client folder that does not exist, so it reads
+ * no configuration and reaches the daemon DOCKER_HOST names, or the default one. Throws what `dockerEnv` throws.
+ */
+function removalDockerEnv(clientDir: string | null): NodeJS.ProcessEnv {
+  return dockerEnv({ dir: clientDir ?? NO_DOCKER_CLIENT });
+}
+
 /**
  * What Docker still lists of a journey project: its containers, volumes and networks (by the Compose project's name
- * or label) and its images, matched as J2's automated run matches them (`projectLeftovers`, rule N, without the
- * processes and the folder). If Docker cannot be asked, that is said as one line: a list that could not be read is not
- * read as "nothing left".
+ * or label) and its images, matched by the rule J2's automated run uses (`projectLeftovers`, rule N, without the
+ * processes and the folder). A control character in a name is shown as JSON writes it (a tab as \t). If Docker cannot be
+ * asked (its settings refused, the docker program missing or failing, no answer within `timeoutMs`, a line that cannot
+ * be read), that is said as one line starting `DOCKER_NOT_ASKED`, with Docker's own words: a list that could not be
+ * read is not read as "nothing left". `env`: the Docker settings to ask with; the sandbox's, with no client folder,
+ * when none is given.
  */
-export async function dockerLeftovers(projectId: string, env: NodeJS.ProcessEnv = plainDockerEnv()): Promise<string[]> {
+export async function dockerLeftovers(projectId: string, env?: NodeJS.ProcessEnv, o: { timeoutMs?: number } = {}): Promise<string[]> {
   checkJourneyId(projectId);
-  const label = '{{.Label "com.docker.compose.project"}}';
+  const timeoutMs = o.timeoutMs ?? REMOVAL_DOCKER_TIMEOUT_MS;
   try {
+    const ask = { env: env ?? removalDockerEnv(null), timeout: timeoutMs, maxBuffer: 16 * 1024 * 1024 };
     const [containers, volumes, networks, images] = await Promise.all([
-      run("docker", ["ps", "-a", "--format", `{{.Names}}\t${label}`], { env }),
-      run("docker", ["volume", "ls", "--format", `{{.Name}}\t${label}`], { env }),
-      run("docker", ["network", "ls", "--format", `{{.Name}}\t${label}`], { env }),
-      run("docker", ["image", "ls", "--format", "{{.Repository}}:{{.Tag}}"], { env }),
+      run("docker", ["ps", "-a", "--format", NAME_AND_PROJECT("Names")], ask),
+      run("docker", ["volume", "ls", "--format", NAME_AND_PROJECT("Name")], ask),
+      run("docker", ["network", "ls", "--format", NAME_AND_PROJECT("Name")], ask),
+      run("docker", ["image", "ls", "--format", REPOSITORY_AND_TAG], ask),
     ]);
-    const seen = { containers: parseNameLabel(containers.stdout), volumes: parseNameLabel(volumes.stdout), networks: parseNameLabel(networks.stdout), images: parseImages(images.stdout) };
-    return projectLeftovers(projectId, seen, [], { path: null, exists: false });
+    const named = (out: string, what: string) => jsonLines(out, "name", "project", what).map((x) => ({ name: x.name, composeProject: x.project }));
+    const seen = { containers: named(containers.stdout, "containers"), volumes: named(volumes.stdout, "volumes"), networks: named(networks.stdout, "networks"), images: jsonLines(images.stdout, "repository", "tag", "images") };
+    return projectLeftovers(projectId, seen, [], { path: null, exists: false }).map((line) => line.replace(/[\u0000-\u001f\u007f]/g, (c) => JSON.stringify(c).slice(1, -1)));
   } catch (err) {
-    return [`Docker's lists could not be read (${(err instanceof Error ? err.message : String(err)).split("\n")[0]!.slice(0, 200)})`];
+    return [`${DOCKER_NOT_ASKED} (${dockerSaid(err, timeoutMs)})`];
   }
 }
 
@@ -144,25 +211,91 @@ export async function dockerLeftovers(projectId: string, env: NodeJS.ProcessEnv 
  * Compose project is removed by its label, then its two images; then Docker's own lists are read. Only if they hold
  * nothing of the project is its folder removed. Otherwise the folder is kept and `SandboxNotRemoved` is thrown, naming
  * what is left: the caller records `removed: false`, and a later start, or a second "Close project", tries again.
+ *
+ * After the fix's review: `env` is the sandbox's own Docker settings (`removalDockerEnv`), and each command has a time
+ * limit. `leave` is why the recorded folder may not be touched (`recordedSandboxRefusal`), or null: with a reason, the
+ * sweep and the check are made all the same (they need no folder), the folder is left exactly as it is, and
+ * `SandboxNotRemoved` names it, with the reason, after whatever Docker still lists.
  */
-async function sweepAndCheck(projectId: string, dir: string): Promise<string> {
+async function sweepAndCheck(projectId: string, dir: string, env: NodeJS.ProcessEnv, leave: string | null = null): Promise<string> {
   checkJourneyId(projectId);
   const name = composeProjectName(projectId);
-  const env = plainDockerEnv();
-  const list = async (what: string[]) => (await run("docker", what, { env }).catch(() => ({ stdout: "" }))).stdout.split("\n").filter(Boolean);
+  const quiet = (what: string[]) => run("docker", what, { env, timeout: REMOVAL_DOCKER_TIMEOUT_MS }).catch(() => ({ stdout: "" }));
+  const list = async (what: string[]) => (await quiet(what)).stdout.split("\n").filter(Boolean);
   const label = `label=com.docker.compose.project=${name}`;
   const ids = await list(["ps", "-aq", "--filter", label]);
-  if (ids.length) await run("docker", ["rm", "-f", ...ids], { env }).catch(() => undefined);
+  if (ids.length) await quiet(["rm", "-f", ...ids]);
   const volumes = await list(["volume", "ls", "-q", "--filter", label]);
-  if (volumes.length) await run("docker", ["volume", "rm", "-f", ...volumes], { env }).catch(() => undefined);
+  if (volumes.length) await quiet(["volume", "rm", "-f", ...volumes]);
   const networks = await list(["network", "ls", "-q", "--filter", label]);
-  if (networks.length) await run("docker", ["network", "rm", ...networks], { env }).catch(() => undefined);
-  for (const image of [appImageName(projectId), toolsImageName(projectId)]) await run("docker", ["image", "rm", "-f", image], { env }).catch(() => undefined);
+  if (networks.length) await quiet(["network", "rm", ...networks]);
+  for (const image of [appImageName(projectId), toolsImageName(projectId)]) await quiet(["image", "rm", "-f", image]);
   const left = await dockerLeftovers(projectId, env);
+  if (leave !== null) throw new SandboxNotRemoved(projectId, [...left, `folder ${dir} (left as it is: ${leave})`], `The sandbox of ${projectId} was not removed: ${leave}.`);
   if (left.length) throw new SandboxNotRemoved(projectId, left);
-  rmSync(dir, { recursive: true, force: true });
-  if (existsSync(dir)) throw new SandboxNotRemoved(projectId, [`folder ${dir}`]);
+  removeSandboxFolder(projectId, dir);
   return `containers removed by the sweep: ${ids.length}; nothing of the project left in Docker's lists; folder removed`;
+}
+
+/**
+ * Remove a sandbox's folder, once Docker lists nothing of its project (after the review of known gap 180's fix).
+ * Everything in it but its compose file goes first, each entry tried even if one before it could not be removed; the
+ * compose file and the folder itself go last, and only if all the rest went. So a removal cut off part-way, or an
+ * entry that cannot be removed, leaves a folder that still passes `recordedSandboxRefusal`, and the next attempt runs
+ * in full. What cannot be removed is said as `SandboxNotRemoved`, naming the folder and the error's code
+ * (`removalErrorCode`): never as a plain error, which "Close project" would show as "Something went wrong" and record
+ * nothing of.
+ */
+function removeSandboxFolder(projectId: string, dir: string): void {
+  const errors: unknown[] = [];
+  const attempt = (f: () => void) => {
+    try {
+      f();
+    } catch (err) {
+      errors.push(err);
+    }
+  };
+  if (lstatSync(dir, { throwIfNoEntry: false })?.isDirectory()) {
+    let entries: string[] = [];
+    attempt(() => (entries = readdirSync(dir)));
+    for (const entry of entries.filter((e) => e !== "compose.yaml")) attempt(() => rmSync(join(dir, entry), { recursive: true, force: true }));
+  }
+  if (errors.length === 0) attempt(() => rmSync(dir, { recursive: true, force: true }));
+  if (errors.length === 0 && existsSync(dir)) errors.push(new Error("still there"));
+  if (errors.length === 0) return;
+  const first = errors[0];
+  const code = removalErrorCode(first);
+  throw new SandboxNotRemoved(projectId, [`folder ${dir} (not removed: ${code})`]);
+}
+
+/**
+ * The code of an error from removing a file or a folder. For a file it could not remove, Node's recursive removal
+ * reports ENOTDIR (it goes on to try the file as a folder; measured on Node 22.23.4, 14 Nov 2026), which is not why the
+ * file stayed. So for that code the file itself is asked once more, and its own code is given (EPERM for a file that
+ * may not be removed).
+ */
+function removalErrorCode(err: unknown): string {
+  const e = (typeof err === "object" && err !== null ? err : {}) as NodeJS.ErrnoException;
+  if (e.code === "ENOTDIR" && typeof e.path === "string" && lstatSync(e.path, { throwIfNoEntry: false })?.isFile()) {
+    try {
+      unlinkSync(e.path);
+    } catch (own) {
+      return (own as NodeJS.ErrnoException).code ?? "ENOTDIR";
+    }
+  }
+  return e.code ?? (err instanceof Error ? err.message : String(err));
+}
+
+/**
+ * `removalDockerEnv`, for a removal: settings the sandbox refuses (a Docker context it does not support) mean Docker
+ * cannot be asked, so nothing is removed and the removal is reported as not done, with the refusal's own words.
+ */
+function removalEnvOrNotRemoved(projectId: string, clientDir: string | null): NodeJS.ProcessEnv {
+  try {
+    return removalDockerEnv(clientDir);
+  } catch (err) {
+    throw new SandboxNotRemoved(projectId, [`${DOCKER_NOT_ASKED} (${(err instanceof Error ? err.message : String(err)).slice(0, 300)})`]);
+  }
 }
 
 /** Only a journey project's id: "j1-" and 12 hexadecimal characters, so its Compose name starts "builder_j1-". */
@@ -188,13 +321,6 @@ export function recordedSandboxRefusal(projectId: string, dir: string): string |
   const first = readFileSync(compose, "utf8").split("\n").find((l) => l.startsWith("name:"));
   if (first !== `name: ${JSON.stringify(composeProjectName(projectId))}`) return "the recorded folder's compose file names another project";
   return null;
-}
-
-/** The narrow environment for a Docker command with no sandbox folder (the daemon's settings only). */
-function plainDockerEnv(): NodeJS.ProcessEnv {
-  const env: NodeJS.ProcessEnv = { PATH: process.env.PATH ?? "/usr/local/bin:/usr/bin:/bin", HOME: process.env.HOME ?? "/root" };
-  for (const k of ["DOCKER_HOST", "DOCKER_TLS", "DOCKER_TLS_VERIFY", "DOCKER_CERT_PATH"]) if (process.env[k]) env[k] = process.env[k];
-  return env;
 }
 
 /**
@@ -379,18 +505,23 @@ export function example1Sandboxes(o: { runnerImage?: string; buildProxyPort?: nu
     async destroy(x) {
       checkJourneyId(x.projectId);
       x.appStarted = false;
+      // After the fix's review: the sandbox's own Docker settings, asked for before anything is removed, so that a
+      // Docker context the sandbox refuses is said by name and not swallowed with Compose's errors below.
+      const env = removalEnvOrNotRemoved(x.projectId, x.dir);
       // Known gap 180's fix (14 Nov 2026): Compose's own removal, as before, then the same sweep and the same check as
       // for a recorded sandbox. Before, this path removed the folder and returned whatever Docker had said.
       await sandbox.destroy(x.sb).catch(() => undefined);
       await sandbox.removeImage(x.sb).catch(() => undefined);
-      return sweepAndCheck(x.projectId, x.dir);
+      return sweepAndCheck(x.projectId, x.dir, env);
     },
     async destroyRecorded(projectId, rec) {
       checkJourneyId(projectId);
+      // After the fix's review: a recorded folder that fails its own check is left exactly as it is, and never read;
+      // Docker's side is removed and checked all the same, and the removal is reported as not done, naming the folder.
       const why = recordedSandboxRefusal(projectId, rec.dir);
-      if (why) throw new Error(`The sandbox of ${projectId} was not removed: ${why}.`);
+      const env = removalEnvOrNotRemoved(projectId, why === null ? rec.dir : null);
       const name = composeProjectName(projectId);
-      if (existsSync(join(rec.dir, "compose.yaml"))) {
+      if (why === null && existsSync(join(rec.dir, "compose.yaml"))) {
         const sb: Sandbox = {
           dir: rec.dir,
           composeFile: join(rec.dir, "compose.yaml"),
@@ -400,7 +531,7 @@ export function example1Sandboxes(o: { runnerImage?: string; buildProxyPort?: nu
         await sandbox.destroy(sb).catch(() => undefined);
         await sandbox.removeImage(sb).catch(() => undefined);
       }
-      return sweepAndCheck(projectId, rec.dir);
+      return sweepAndCheck(projectId, rec.dir, env, why);
     },
   };
 }

@@ -25,7 +25,7 @@ import { BROKEN_STEP_ID, changeSetFolders, PASSED_SUMMARY, PNG_1X1, slowPoolFor,
 import type { BuildEngine } from "../src/engine/interface.js";
 import { ScriptedEngine } from "../src/engine/scripted.js";
 import { DEFAULT_PROFILES } from "../src/gateway/hold.js";
-import { brokenStageTargetProblem, diskRefusal, EV, EventQueue, EXPORT_LABEL, JOB_RULES, jobRunFinished, Journey, JourneyRefused, JOURNEY_STAND_IN_LABEL, orderedEngine, runOutcome, scriptedEngineFor, scriptedOnlyProblem, engineEventHandler, SIGN_OFF_LABEL, signOffRefusal, type JobRecord, type JourneyState } from "../src/orchestrator/journey.js";
+import { brokenStageTargetProblem, diskRefusal, EV, EventQueue, EXPORT_LABEL, JOB_RULES, jobRunFinished, Journey, JourneyRefused, JOURNEY_STAND_IN_LABEL, orderedEngine, runOutcome, scriptedEngineFor, scriptedOnlyProblem, engineEventHandler, SIGN_OFF_LABEL, signOffRefusal, type JobRecord, type JourneyState, CLOSE_NOT_REMOVED, FOUND_AT_START, NOT_REMOVED_AT_START, NOT_REMOVED_AT_STOP, REMOVED_AT_STOP, SandboxNotRemoved } from "../src/orchestrator/journey.js";
 import { LivePreview } from "../src/web/preview.js";
 import { runBudgetedStep } from "../src/orchestrator/steps.js";
 import { sandbox as sandboxManager, type Sandbox, type StreamingOptions } from "../src/sandbox/manager.js";
@@ -2307,12 +2307,153 @@ describe("J2 (c): the clean stop and restart, the journey's part (stand-in sandb
     }
   });
 
-  it("C16 (known gap 180's fix): Docker's lists that cannot be read are not read as nothing left: one line says so; a project that is not a journey project is refused before anything is asked", async () => {
+  it("C16 (known gap 180's fix): Docker's lists that cannot be read are not read as nothing left: one line says so; for an id that is not a journey project's the call is rejected", async () => {
     // No docker program on this PATH: the lists cannot be read.
     const left = await dockerLeftovers("j1-0123456789ab", { PATH: "/nonexistent-for-this-test" });
-    expect(left).toHaveLength(1);
-    expect(left[0]).toMatch(/^Docker's lists could not be read \(/);
+    expect(left).toEqual(["Docker could not be asked (spawn docker ENOENT)"]);
     await expect(dockerLeftovers("p_not_a_journey_project", { PATH: "/nonexistent-for-this-test" })).rejects.toThrow();
+  });
+
+  it("C20 (known gap 180, after its review): the three reasons written when a removal left something do not hold the word \"removed\", and the automated run's record checks do not take them for a removal that completed, even beside removed: true", () => {
+    for (const reason of [NOT_REMOVED_AT_STOP, NOT_REMOVED_AT_START, CLOSE_NOT_REMOVED]) {
+      expect(reason).not.toMatch(/removed/i);
+      expect(reason.startsWith("Found at start")).toBe(false);
+    }
+    // Made-up records, as C8's: a clean stop with step 2 running, and a crash then the next start.
+    let n = 0;
+    const ev = (kind: string, payload: Record<string, unknown>, step: string | null = null) => ({ id: String(++n), kind, step, payload });
+    const step = "02-submitter-screen";
+    const started = ev(EV.jobStarted, { job_id: "job-0000aaaa", kind: "build_step", step }, step);
+    const write = ev(EV.engineEvent, { type: "tool_call", tool: "scripted.write", input: { path: "made-up.ts" } }, step);
+    const stop = (removed: Record<string, unknown>) => [
+      started,
+      write,
+      ev("step.hold_closed", { reason: "step_ended" }, step),
+      ev(EV.jobInterrupted, { job_id: "job-0000aaaa", reason: "The interface stopped while this job ran: The interface was stopped on purpose (SIGTERM). The job was stopped part-way and is not resumed." }, step),
+      ev(EV.sandboxRemoved, removed),
+    ];
+    const crash = (removed: Record<string, unknown>) => [
+      started,
+      write,
+      ev(EV.jobInterrupted, { job_id: "job-0000aaaa", reason: "The interface stopped while this job ran. It is not resumed." }, step),
+      ev(EV.sandboxRemoved, removed),
+      ev("step.hold_closed", { reason: "job_interrupted" }, step),
+    ];
+    const removalCheck = (rows: Array<{ name: string; ok: boolean }>) => rows.filter((r) => r.name.startsWith("journey.sandbox.removed")).map((r) => r.ok);
+    const left = ["network made-up"];
+    // A removal that completed, as the journey writes it: the run's check passes.
+    expect(removalCheck(cleanStopRecordChecks(stop({ reason: REMOVED_AT_STOP, interrupted: true, removed: true }), "job-0000aaaa", step))).toEqual([true]);
+    expect(removalCheck(crashRestartRecordChecks(crash({ reason: FOUND_AT_START, interrupted: true, removed: true }), "job-0000aaaa", step))).toEqual([true]);
+    // A removal that left something, as the journey writes it: it does not.
+    expect(removalCheck(cleanStopRecordChecks(stop({ reason: NOT_REMOVED_AT_STOP, interrupted: true, removed: false, left }), "job-0000aaaa", step))).toEqual([false]);
+    expect(removalCheck(crashRestartRecordChecks(crash({ reason: NOT_REMOVED_AT_START, interrupted: true, removed: false, left }), "job-0000aaaa", step))).toEqual([false]);
+    // Nor on the reason alone: the same reasons beside a (wrong) removed: true are still not taken for a completed removal.
+    expect(removalCheck(cleanStopRecordChecks(stop({ reason: NOT_REMOVED_AT_STOP, interrupted: true, removed: true }), "job-0000aaaa", step))).toEqual([false]);
+    expect(removalCheck(crashRestartRecordChecks(crash({ reason: NOT_REMOVED_AT_START, interrupted: true, removed: true }), "job-0000aaaa", step))).toEqual([false]);
+  });
+
+  it("C21 (known gap 180, after its review): how Docker's lists are asked and read, on a made-up docker program (no container): one JSON object a line, so a tab or a line break in a name shifts nothing; a line that cannot be read, Docker's own failure and no answer within the time limit are each \"Docker could not be asked\", in Docker's own words and never the command line", async () => {
+    const P = "j1-0123456789ab";
+    const Q = "j1-ba9876543210";
+    const bin = mkdtempSync(join(tmpdir(), "builder-journey-standin-docker-"));
+    // The made-up program notes each call, then does what `does` says.
+    const program = (does: string[]) => writeFileSync(join(bin, "docker"), ["#!/bin/sh", 'here="$(dirname "$0")"', 'echo "$*" >> "$here/calls"', ...does, ""].join("\n"), { mode: 0o755 });
+    const lists = (o: { ps?: unknown[]; volume?: unknown[]; network?: Array<unknown>; image?: unknown[] }) => {
+      for (const kind of ["ps", "volume", "network", "image"] as const) writeFileSync(join(bin, kind), (o[kind] ?? []).map((x) => (typeof x === "string" ? x : JSON.stringify(x))).join("\n") + "\n");
+      program(['cat "$here/$1"', "exit 0"]);
+    };
+    const env = { PATH: `${bin}:/usr/bin:/bin` };
+    try {
+      // 1. The lists, each line as Docker's own `json` writes it: a tab and a line break inside a name stay inside it.
+      lists({
+        ps: [{ name: `builder_${P}-app-1`, project: `builder_${P}` }, { name: "made-up-holder", project: "" }],
+        volume: [{ name: "made-up-volume", project: `builder_${P}` }],
+        network: [
+          // Labelled as the project's, with a tab in its name: before, the tab shifted the label out of sight.
+          { name: "made-up-net\tx", project: `builder_${P}` },
+          // Not the project's, with a line break in its name: before, its second line passed for a network of the project.
+          { name: `x\nbuilder_${P}_y`, project: "" },
+          { name: `builder_${P}_front`, project: "" },
+          { name: `builder_${Q}_front`, project: `builder_${Q}` },
+        ],
+        image: [{ repository: `builder_${P}-app`, tag: "latest" }, { repository: "node", tag: "22-alpine" }],
+      });
+      expect(readFileSync(join(bin, "network"), "utf8").split("\n").filter(Boolean)).toHaveLength(4);
+      expect(await dockerLeftovers(P, env)).toEqual([`container builder_${P}-app-1`, "volume made-up-volume", "network made-up-net\\tx", `network builder_${P}_front`, `image builder_${P}-app:latest`]);
+      // What was asked: the four lists, each for one JSON object a line.
+      const label = '{{json (.Label "com.docker.compose.project")}}';
+      expect(readFileSync(join(bin, "calls"), "utf8").trim().split("\n").sort()).toEqual(
+        [`ps -a --format {"name":{{json .Names}},"project":${label}}`, `volume ls --format {"name":{{json .Name}},"project":${label}}`, `network ls --format {"name":{{json .Name}},"project":${label}}`, 'image ls --format {"repository":{{json .Repository}},"tag":{{json .Tag}}}'].sort(),
+      );
+      // 2. A line that cannot be read is not passed over: nothing is known, and that is said.
+      for (const bad of ["made-up text, not JSON", `{"name":"builder_${P}_front"}`, `builder_${P}_front\tbuilder_${P}`]) {
+        lists({ network: [bad] });
+        expect(await dockerLeftovers(P, env), bad).toEqual(["Docker could not be asked (a line of Docker's list of networks could not be read)"]);
+      }
+      // 3. Docker's own failure: its own last line, not the command line Node puts first.
+      program(['echo "made-up first line" >&2', 'echo "failed to connect to the docker API at unix:///made-up.sock; check if the path is correct and if the daemon is running" >&2', "exit 1"]);
+      const failed = await dockerLeftovers(P, env);
+      expect(failed).toEqual(["Docker could not be asked (failed to connect to the docker API at unix:///made-up.sock; check if the path is correct and if the daemon is running)"]);
+      expect(failed[0]).not.toMatch(/Command failed|--format/);
+      program(["exit 3"]);
+      expect(await dockerLeftovers(P, env)).toEqual(["Docker could not be asked (the docker program ended with exit code 3 and said nothing)"]);
+      // 4. No answer within the time limit (here 0.3 s; the made-up program would answer "nothing" after 5 s).
+      program(["exec sleep 5"]);
+      const t0 = Date.now();
+      expect(await dockerLeftovers(P, env, { timeoutMs: 300 })).toEqual(["Docker could not be asked (no answer within 0.3 s)"]);
+      expect(Date.now() - t0).toBeLessThan(4000);
+    } finally {
+      rmSync(bin, { recursive: true, force: true });
+    }
+  });
+
+  it("C22 (known gap 180, after its review): a removal asks Docker with the sandbox's own settings: with a Docker context the sandbox refuses, the removal with a handle and the removal from the record each report \"Docker could not be asked\" in the refusal's own words, ask Docker nothing and keep the folder; with the context unset, the same removal asks with the sandbox's own client folder and completes (a made-up docker program; no container)", async () => {
+    const P = "j1-0123456789ab";
+    const base = mkdtempSync(join(tmpdir(), "builder-journey-removal-settings-"));
+    const bin = join(base, "bin");
+    mkdirSync(bin);
+    // The made-up program notes the client folder it was given and its call, and lists nothing.
+    writeFileSync(join(bin, "docker"), ["#!/bin/sh", 'echo "DOCKER_CONFIG=$DOCKER_CONFIG $*" >> "$(dirname "$0")/calls"', "exit 0", ""].join("\n"), { mode: 0o755 });
+    const dir = join(base, "builder-acceptance-made-up");
+    mkdirSync(dir);
+    writeFileSync(join(dir, "compose.yaml"), `name: "builder_${P}"\nservices: {}\n`);
+    const saved = { PATH: process.env.PATH, DOCKER_CONTEXT: process.env.DOCKER_CONTEXT, DOCKER_HOST: process.env.DOCKER_HOST };
+    const REFUSED = "The sandbox names its Docker daemon with DOCKER_HOST; a Docker context chosen with DOCKER_CONTEXT is not supported. Unset DOCKER_CONTEXT, and set DOCKER_HOST if the daemon is not the default one.";
+    try {
+      process.env.PATH = `${bin}:${saved.PATH ?? ""}`;
+      process.env.DOCKER_CONTEXT = "made-up-other-context";
+      const x = { projectId: P, dir, appStarted: true, sb: { dir, composeFile: join(dir, "compose.yaml"), projectName: `builder_${P}` } } as unknown as ProjectSandbox;
+      const removals: Array<[string, () => Promise<string>]> = [
+        ["with a handle", () => example1Sandboxes().destroy(x)],
+        ["from the record", () => example1Sandboxes().destroyRecorded(P, { dir })],
+      ];
+      for (const [path, remove] of removals) {
+        const e = await remove().then(() => null, (err: unknown) => err);
+        expect(e, path).toBeInstanceOf(SandboxNotRemoved);
+        expect((e as SandboxNotRemoved).left, path).toEqual([`Docker could not be asked (${REFUSED})`]);
+        expect(existsSync(join(dir, "compose.yaml")), path).toBe(true);
+        expect(existsSync(join(bin, "calls")), path).toBe(false);
+      }
+      expect(x.appStarted).toBe(false);
+      // The check alone, given no settings, says the same in its one line.
+      expect(await dockerLeftovers(P)).toEqual([`Docker could not be asked (${REFUSED})`]);
+      expect(existsSync(join(bin, "calls"))).toBe(false);
+      // With the context unset: the same removal asks the made-up program, every time with the sandbox's own client folder, and completes.
+      delete process.env.DOCKER_CONTEXT;
+      delete process.env.DOCKER_HOST;
+      expect(await example1Sandboxes().destroyRecorded(P, { dir })).toContain("nothing of the project left in Docker's lists; folder removed");
+      expect(existsSync(dir)).toBe(false);
+      const calls = readFileSync(join(bin, "calls"), "utf8").trim().split("\n");
+      expect(calls.length).toBeGreaterThanOrEqual(9);
+      for (const c of calls) expect(c.startsWith(`DOCKER_CONFIG=${join(dir, "docker-client")} `), c).toBe(true);
+      expect(calls.some((c) => c.includes(" network ls --format "))).toBe(true);
+    } finally {
+      for (const [k, v] of Object.entries(saved)) {
+        if (v === undefined) delete process.env[k];
+        else process.env[k] = v;
+      }
+      rmSync(base, { recursive: true, force: true });
+    }
   });
 
   it("C8 (regression guard): the automated run's pure checks on made-up lists: N reports a container, a volume, a network, an image, a process or the folder of the project, each alone, and nothing of another project; the record checks for a clean stop, a crash and a step running", () => {

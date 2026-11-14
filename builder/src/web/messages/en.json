@@ -331,7 +331,8 @@
   "build.approve_after_broken": "Go on to the preview with this broken step (no quality check after a step yet)",
   "acceptance.failed_at_step": "Failed at step: {step}",
   "interrupted.no_job": "The interface stopped while this project's app was set up or running. Its containers are removed at the stop or at the next start; nothing is resumed. Close the project, or start a new one.",
-  "removal.left": "Not everything of this project could be removed. Still listed by Docker: {left}. The interface tries again at its next start, and \"Close project\" tries again too.",
+  "removal.left": "The last try to remove this project did not finish. What it recorded as left: {left}. Pressing \"{close}\" tries again, and so does the interface at its next start; a new try may end the same way.",
+  "removal.not_finished": "This project's removal is not finished. Nothing of it is built, previewed, checked, approved, signed off, exported or opened any more. Close the project to try the removal again, or start a new one.",
   "cost.stopped_part_way": "stopped part-way when the interface stopped; not resumed",
   "build.step_pause": "Demonstration setting: the scripted engine pauses {ms} ms before each write, so that a stop part-way can be shown."
 }

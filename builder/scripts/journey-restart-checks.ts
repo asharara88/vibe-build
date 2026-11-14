@@ -12,6 +12,14 @@
  * - a process's command line holds `builder_<P>`;
  * - and the sandbox folder P's `journey.sandbox.made` records, while it exists.
  * It imports nothing from src/: the run reads the record's own words.
+ *
+ * Since known gap 180's fix (14 Nov 2026) the product itself uses `projectLeftovers` as its matching rule: the end of
+ * every removal of a journey project's sandbox calls it on Docker's lists (src/orchestrator/example-1-adapter.ts,
+ * `dockerLeftovers`). So a change to that rule here changes when the product reports a removal as done; and where the
+ * run reports N after a stop or a close, Docker's lists are matched by the product's own rule: for those lists the run
+ * is no longer a second opinion on the product (it still adds the processes, the folder and a later moment). The
+ * product reads Docker's lists in a form of its own (one JSON object a line), not through `parseNameLabel` and
+ * `parseImages` below, which stay the run's.
  */
 
 export interface DockerSeen {

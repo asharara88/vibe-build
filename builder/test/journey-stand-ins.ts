@@ -47,8 +47,12 @@ export class StandInSandboxes implements Sandboxes {
   runnerCalls: Array<{ step: string; container: string; cmd: string[] }> = [];
   destroyed: string[] = [];
   destroyedRecorded: Array<{ projectId: string; rec: SandboxRecord }> = [];
-  /** Known gap 180's fix: what a removal leaves, as the real adapter reports it (it throws, and keeps the folder); null: nothing. */
-  notRemoved: string[] | null = null;
+  /**
+   * Known gap 180's fix: what a removal leaves, as the real adapter reports it (it throws, and keeps the folder); null:
+   * nothing. After the fix's review: a list is what every project's removal leaves; an object, by project id, what the
+   * removal of each project named leaves (the others' removals complete).
+   */
+  notRemoved: string[] | Record<string, string[]> | null = null;
   stoppedApps: string[] = [];
   started: string[] = [];
   /** A file the next step also writes, which its fixed change does not name: the step then fails. */
@@ -311,8 +315,20 @@ export class StandInSandboxes implements Sandboxes {
     x.appStarted = false;
   }
 
+  /** What the removal of one project leaves (`notRemoved`), or null. */
+  private leftOf(projectId: string): string[] | null {
+    const n = this.notRemoved;
+    return n === null ? null : Array.isArray(n) ? n : (n[projectId] ?? null);
+  }
+
   async destroy(x: ProjectSandbox): Promise<string> {
-    if (this.notRemoved) throw new SandboxNotRemoved(x.projectId, this.notRemoved);
+    const left = this.leftOf(x.projectId);
+    if (left) {
+      // As the real removal (after the fix's review): by the time it reports what is left, it has stopped the app and
+      // removed what it could; the folder is kept.
+      x.appStarted = false;
+      throw new SandboxNotRemoved(x.projectId, left);
+    }
     this.destroyed.push(x.projectId);
     x.appStarted = false;
     rmSync(x.dir, { recursive: true, force: true });
@@ -320,7 +336,8 @@ export class StandInSandboxes implements Sandboxes {
   }
 
   async destroyRecorded(projectId: string, rec: SandboxRecord): Promise<string> {
-    if (this.notRemoved) throw new SandboxNotRemoved(projectId, this.notRemoved);
+    const left = this.leftOf(projectId);
+    if (left) throw new SandboxNotRemoved(projectId, left);
     this.destroyedRecorded.push({ projectId, rec });
     return "stand-in";
   }

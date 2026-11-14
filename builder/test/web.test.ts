@@ -13,7 +13,7 @@ import { join, resolve } from "node:path";
 import type pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { openStore, sha256, STAND_IN_NOTE } from "../src/acceptance/store.js";
-import { APPROVE_INTERRUPTED, CLOSE_NOT_REMOVED, closeNotRemovedRefusal, EV, EXPORT_LABEL, FOUND_AT_START, Journey, JourneyRefused, NOT_REMOVED_AT_START, NOT_REMOVED_AT_STOP } from "../src/orchestrator/journey.js";
+import { APPROVE_INTERRUPTED, CLOSE_NOT_REMOVED, closeNotRemovedRefusal, EV, EXPORT_LABEL, FOUND_AT_START, Journey, JourneyRefused, NOT_REMOVED_AT_START, NOT_REMOVED_AT_STOP, REMOVAL_NOT_FINISHED, removalNotFinished } from "../src/orchestrator/journey.js";
 import { JourneyJobs, PRICED_MODEL, REFUSAL_EXTRA } from "../src/orchestrator/journey-jobs.js";
 import { createPool } from "../src/store/db.js";
 import { appendEvent, listEvents } from "../src/store/events.js";
@@ -25,7 +25,7 @@ import { createProject } from "../src/store/projects.js";
 import { createWebApp, PUBLIC_PATHS } from "../src/web/app.js";
 import { PASSWORD_FILE, PasswordState, passwordFromSettings, Sessions, SignInLimiter, digestPassword } from "../src/web/auth.js";
 import { journeyFolder } from "../src/web/files.js";
-import { holdInstanceLock, LOCK_LOST, readSettings, SCRUBBED, stopAfterLockLost, StopFlag, stopOnSignal, stopSignalHandler, unavailableReason } from "../src/web/main.js";
+import { holdInstanceLock, LOCK_LOST, readSettings, SCRUBBED, startRecoveryLines, stopAfterLockLost, StopFlag, stopOnSignal, stopSignalHandler, unavailableReason } from "../src/web/main.js";
 import { frontTexts, messageKeys, t } from "../src/web/pages.js";
 import { LivePreview } from "../src/web/preview.js";
 import { testPool, TEST_DB_URL, uniqueId } from "./helpers.js";
@@ -2274,6 +2274,14 @@ describe("J2 (c) interface: the clean stop and restart (stand-in sandboxes, no c
     };
   }
   const removedEvents = async (db: pg.Pool, id: string) => (await listEvents(db, id, EV.sandboxRemoved)).map((e) => e.payload);
+  /**
+   * Known gap 180, after its review: the note a project's pages carry when its last removal left something, as the page
+   * writes it: what was left in English, isolated left to right, and "Close project" in the words of the button `close`.
+   */
+  const leftNote = (lang: "en" | "ar", left: string[], close: string) => {
+    const [before, after] = t(lang, "removal.left", { close }).split("{left}");
+    return `<p class="warn" data-removal-left>${esc(before!)}<span lang="en" dir="ltr">${esc(left.join("; "))}</span>${esc(after!)}</p>`;
+  };
 
   it("C1: stopOnSignal (SIGTERM) with step 2 running: the engine's container is killed, the job recorded interrupted with the stop's reason, its reservation closed step_ended, the sandbox removed and recorded, and only then the lock released; exit 0", async () => {
     const f = await freshDb();
@@ -2475,7 +2483,7 @@ describe("J2 (c) interface: the clean stop and restart (stand-in sandboxes, no c
     }
   });
 
-  it("C14 (known gap 180's fix): a removal that leaves something at the stop is recorded removed: false, naming what is left; the project stays recorded for the next start; a line names it; exit 1. The next start tries again: still left, recorded so again; then nothing left, recorded removed", async () => {
+  it("C14 (known gap 180's fix): a removal that leaves something at the stop is recorded removed: false, naming what is left; the project stays recorded for the next start; a line names it; exit 1. The next start tries again: still left, recorded so again, and its lines name the project left and do not count it as removed; then nothing left, recorded removed", async () => {
     const f = await freshDb();
     try {
       const calls: string[] = [];
@@ -2488,7 +2496,8 @@ describe("J2 (c) interface: the clean stop and restart (stand-in sandboxes, no c
       await stopOnSignal("SIGTERM", stopOpts(j, calls, log));
       expect(calls).toEqual(["server closed", "lock released", "pool ended", "exit 1"]);
       expect(await removedEvents(f.db, id)).toEqual([{ reason: NOT_REMOVED_AT_STOP, interrupted: true, removed: false, left }]);
-      expect(log.join("\n")).toContain(`Project ${id} is left for the next start: its sandbox (${dir}) could not be removed (left: network builder_${id}_front); the next start tries again`);
+      const why = `its sandbox (${dir}) could not be removed (left: network builder_${id}_front); the next start tries again`;
+      expect(log).toContain(`[interface stopping] Project ${id} is left for the next start: ${why}.`);
       expect(log).toContain("Projects with a sandbox, marked interrupted and removed at the stop: 0.");
       expect(log.join("\n")).not.toContain("was removed at the stop");
       expect(existsSync(dir)).toBe(true);
@@ -2497,24 +2506,38 @@ describe("J2 (c) interface: the clean stop and restart (stand-in sandboxes, no c
       let s = await second.j.state(id);
       expect(s.sandbox?.dir).toBe(dir);
       expect(s.interrupted).toBe(true);
-      expect(await second.j.recoverInterrupted()).toEqual([id]);
+      // After the fix's review: what the start did, and its lines as main.ts prints them (startRecoveryLines). The
+      // project left is named in the stop's own words, and the count line does not count it as removed.
+      const again = await second.j.recoverAtStart();
+      expect(again).toEqual({ touched: [id], removed: [], left: [{ projectId: id, why }] });
+      expect(startRecoveryLines(again)).toEqual([
+        `[interface starting] Project ${id} is left for the next start: ${why}.`,
+        "Projects with a job or a sandbox left by an interface that stopped, marked interrupted and removed at start: 0.",
+      ]);
       expect(await removedEvents(f.db, id)).toEqual([
         { reason: NOT_REMOVED_AT_STOP, interrupted: true, removed: false, left },
         { reason: NOT_REMOVED_AT_START, interrupted: true, removed: false, left },
       ]);
       expect((await second.j.state(id)).sandbox?.dir).toBe(dir);
-      // The screen says so, naming what is left, in both languages; it does not leave "removed" to be understood.
+      // The screen says so, in both languages: what the last try recorded as left, in English and left to right, with
+      // "Close project" in the words of the button beside it. It does not leave "removed" to be understood.
       const app = createWebApp({ journey: second.j, jobs: second.jobs, password: new PasswordState("env", digestPassword(PASSWORD), null), sessions: new Sessions(), limiter: new SignInLimiter(), dataDir });
       const cookie = await signIn(app);
       for (const lang of ["en", "ar"] as const) {
         const html = await (await get(app, `/projects/${id}/build?lang=${lang}`, cookie)).text();
-        expect(html, lang).toContain(`<p class="warn" data-removal-left>${esc(t(lang, "removal.left", { left: left.join("; ") }))}</p>`);
+        expect(html, lang).toContain(leftNote(lang, left, t(lang, "interrupted.close")));
+        expect(html, lang).toContain(`<button type="submit">${esc(t(lang, "interrupted.close"))}</button>`);
+        expect(html.match(/data-removal-left/g), lang).toHaveLength(1);
       }
-      expect(t("en", "removal.left", { left: "X" })).toBe('Not everything of this project could be removed. Still listed by Docker: X. The interface tries again at its next start, and "Close project" tries again too.');
-      // Then nothing is left: recorded removed, and the sandbox no longer named.
+      expect(t("en", "removal.left", { left: "X", close: "Close project" })).toBe('The last try to remove this project did not finish. What it recorded as left: X. Pressing "Close project" tries again, and so does the interface at its next start; a new try may end the same way.');
+      expect(t("ar", "removal.left")).toContain("«{close}»");
+      expect(t("ar", "removal.left")).toContain("{left}");
+      // Then nothing is left: recorded removed, counted as removed, and the sandbox no longer named.
       f.sandboxes.notRemoved = null;
       const third = make(f, []);
-      expect(await third.j.recoverInterrupted()).toEqual([id]);
+      const last = await third.j.recoverAtStart();
+      expect(last).toEqual({ touched: [id], removed: [{ projectId: id, dir }], left: [] });
+      expect(startRecoveryLines(last)).toEqual(["Projects with a job or a sandbox left by an interface that stopped, marked interrupted and removed at start: 1."]);
       expect((await removedEvents(f.db, id)).at(-1)).toEqual({ reason: FOUND_AT_START, interrupted: true, removed: true });
       s = await third.j.state(id);
       expect(s.sandbox).toBeNull();
@@ -2527,7 +2550,7 @@ describe("J2 (c) interface: the clean stop and restart (stand-in sandboxes, no c
     }
   });
 
-  it("C15 (known gap 180's fix): Close project when the removal leaves something: refused with what is left, recorded removed: false, the project not closed; pressed again with nothing left, it closes", async () => {
+  it("C15 (known gap 180's fix): Close project when the removal leaves something: refused, saying what happened and what is left, recorded removed: false, the project not closed; pressed again with nothing left, it closes", async () => {
     const f = await freshDb();
     try {
       const { j, jobs } = make(f, []);
@@ -2537,7 +2560,14 @@ describe("J2 (c) interface: the clean stop and restart (stand-in sandboxes, no c
       const refused = await j.closeProject(id).then(() => null, (e: unknown) => e);
       expect(refused).toBeInstanceOf(JourneyRefused);
       expect((refused as Error).message).toBe(closeNotRemovedRefusal(left));
-      expect((refused as Error).message).toContain(`left: container builder_${id}-app-1`);
+      // After the fix's review: the refusal says what happened. It no longer says that nothing else was changed (the
+      // app is stopped and what could be removed is gone by then), and it does not advise restarting the interface.
+      expect(closeNotRemovedRefusal(left)).toBe(
+        `The project was not closed: its removal did not finish. What could be removed of it was removed, and its app is stopped, except for what is named as left. Left: container builder_${id}-app-1. Nothing of this project is built, previewed, checked or opened any more. Pressing "Close project" again tries the removal again.`,
+      );
+      expect(closeNotRemovedRefusal(["Docker could not be asked (made-up words)"])).toBe(
+        'The project was not closed: its removal did not finish. Docker could not be asked, so it is not known what of the project went, or whether its app is stopped. Left: Docker could not be asked (made-up words). Nothing of this project is built, previewed, checked or opened any more. Pressing "Close project" again tries the removal again.',
+      );
       let s = await j.state(id);
       expect(s.stage).not.toBe("closed");
       expect(s.sandbox).not.toBeNull();
@@ -2547,9 +2577,12 @@ describe("J2 (c) interface: the clean stop and restart (stand-in sandboxes, no c
       // Through the screen: the project's page carries the note beside "Close project"; a POST to close gets the plain refusal.
       const app = createWebApp({ journey: j, jobs, password: new PasswordState("env", digestPassword(PASSWORD), null), sessions: new Sessions(), limiter: new SignInLimiter(), dataDir });
       const cookie = await signIn(app);
-      const page = await (await get(app, `/projects/${id}/build?lang=en`, cookie)).text();
-      expect(page).toContain(`<p class="warn" data-removal-left>${esc(t("en", "removal.left", { left: left.join("; ") }))}</p>`);
-      expect(page.match(/data-removal-left/g)).toHaveLength(1);
+      for (const lang of ["en", "ar"] as const) {
+        const page = await (await get(app, `/projects/${id}/build?lang=${lang}`, cookie)).text();
+        expect(page, lang).toContain(leftNote(lang, left, t(lang, "close.button")));
+        expect(page, lang).toContain(`<button type="submit" data-close-again>${esc(t(lang, "close.button"))}</button>`);
+        expect(page.match(/data-removal-left/g), lang).toHaveLength(1);
+      }
       const posted = await post(app, `/projects/${id}/close`, {}, { cookie });
       expect(posted.status).toBe(409);
       expect(await posted.text()).toContain(esc(closeNotRemovedRefusal(left)));
@@ -2560,6 +2593,98 @@ describe("J2 (c) interface: the clean stop and restart (stand-in sandboxes, no c
       expect(s.stage).toBe("closed");
       expect((await removedEvents(f.db, id)).at(-1)).toEqual({ reason: "The project was closed.", interrupted: false });
       expect(await listEvents(f.db, id, EV.closed)).toHaveLength(1);
+    } finally {
+      f.sandboxes.notRemoved = null;
+      await f.drop();
+    }
+  });
+
+  it("C18 (known gap 180, after its review): a stop with two projects, one whose removal leaves something and one that is removed: each is recorded and named for what happened to it, the count line counts the one removed, exit 1", async () => {
+    const f = await freshDb();
+    try {
+      const calls: string[] = [];
+      const log: string[] = [];
+      const { j, jobs } = make(f, calls);
+      // The project whose removal leaves something is the older one, so the stop's loop meets it first.
+      const stuck = await idle(j, jobs, "Its removal leaves a volume (made-up)");
+      const clean = await idle(j, jobs, "Removed at the stop (made-up)");
+      const dirs = { stuck: (await j.state(stuck)).sandbox!.dir, clean: (await j.state(clean)).sandbox!.dir };
+      const left = [`volume builder_${stuck}_pgdata`];
+      f.sandboxes.notRemoved = { [stuck]: left };
+      await stopOnSignal("SIGTERM", stopOpts(j, calls, log));
+      expect(calls).toEqual(["server closed", `removed ${clean}`, "lock released", "pool ended", "exit 1"]);
+      // The record of each.
+      expect(await removedEvents(f.db, stuck)).toEqual([{ reason: NOT_REMOVED_AT_STOP, interrupted: true, removed: false, left }]);
+      expect(await removedEvents(f.db, clean)).toEqual([{ reason: AT_STOP, interrupted: true, removed: true }]);
+      const after = { stuck: await j.state(stuck), clean: await j.state(clean) };
+      expect(after.stuck.sandbox?.dir).toBe(dirs.stuck);
+      expect(after.stuck.removalLeft).toEqual(left);
+      expect(after.clean.sandbox).toBeNull();
+      expect(after.clean.removalLeft).toBeNull();
+      // The lines of each, the count and the exit code.
+      expect(log).toContain(`[interface stopping] Project ${clean}: its sandbox (${dirs.clean}) was removed at the stop: its containers, images and folder. It is marked interrupted, not resumed.`);
+      expect(log).toContain(`[interface stopping] Project ${stuck} is left for the next start: its sandbox (${dirs.stuck}) could not be removed (left: volume builder_${stuck}_pgdata); the next start tries again.`);
+      expect(log.join("\n")).not.toContain(`Project ${stuck}: its sandbox`);
+      expect(log.join("\n")).not.toContain(`Project ${clean} is left`);
+      expect(log).toContain("Projects with a sandbox, marked interrupted and removed at the stop: 1.");
+      expect(log.at(-1)).toBe("[interface stopped] Lock released. Exit code 1: a project is left for the next start.");
+      expect(f.sandboxes.destroyed).toEqual([clean]);
+      expect(existsSync(dirs.stuck)).toBe(true);
+      expect(existsSync(dirs.clean)).toBe(false);
+    } finally {
+      f.sandboxes.notRemoved = null;
+      await f.drop();
+    }
+  });
+
+  it("C19 (known gap 180, after its review): a refused Close project on a project with a step still to build: its build screen offers no build, only Close project and New project, and a build asked anyway is refused; the next start treats it as any open project left by an interface that stopped: it tries the removal again and marks it interrupted", async () => {
+    const f = await freshDb();
+    try {
+      const { j, jobs } = make(f, []);
+      // Step 1 built and approved, step 2 not built: the build screen would offer "Build step 2".
+      const id = await idle(j, jobs, "Close refused, then a restart (made-up)");
+      await j.approveStep(id, "01-data");
+      const dir = (await j.state(id)).sandbox!.dir;
+      const app = createWebApp({ journey: j, jobs, password: new PasswordState("env", digestPassword(PASSWORD), null), sessions: new Sessions(), limiter: new SignInLimiter(), dataDir });
+      const cookie = await signIn(app);
+      expect(await (await get(app, `/projects/${id}/build`, cookie)).text()).toContain('data-build="02-submitter-screen"');
+      const left = [`network builder_${id}_front`];
+      f.sandboxes.notRemoved = { [id]: left };
+      await expect(j.closeProject(id)).rejects.toThrow(closeNotRemovedRefusal(left));
+      let s = await j.state(id);
+      expect(removalNotFinished(s)).toBe(true);
+      expect(s.interrupted).toBe(false);
+      for (const lang of ["en", "ar"] as const) {
+        const page = await (await get(app, `/projects/${id}/build?lang=${lang}`, cookie)).text();
+        expect(page, lang).toContain(`<p class="warn" data-removal-not-finished>${esc(t(lang, "removal.not_finished"))}</p>`);
+        expect(page, lang).not.toMatch(/data-(build|approve)=/);
+        expect([...page.matchAll(/<form method="post" action="([^"]+)"/g)].map((m) => m[1]), lang).toEqual(["/language", "/sign-out", `/projects/${id}/close`]);
+        expect(page, lang).toContain(`<a href="/projects/new">${esc(t(lang, "projects.new"))}</a>`);
+      }
+      const asked = await post(app, `/projects/${id}/build`, { step: "02-submitter-screen" }, { cookie });
+      expect(asked.status).toBe(409);
+      expect(await asked.text()).toContain(esc(REMOVAL_NOT_FINISHED));
+      expect(f.sandboxes.runnerCalls.filter((c) => c.step === "02-submitter-screen")).toEqual([]);
+      // The next start, as a new interface on the same record (it holds no handle): still left.
+      const second = make(f, []);
+      expect((await second.j.recoverAtStart()).left.map((x) => x.projectId)).toEqual([id]);
+      expect(await removedEvents(f.db, id)).toEqual([
+        { reason: CLOSE_NOT_REMOVED, interrupted: false, removed: false, left },
+        { reason: NOT_REMOVED_AT_START, interrupted: true, removed: false, left },
+      ]);
+      s = await second.j.state(id);
+      expect(s.interrupted).toBe(true);
+      expect(removalNotFinished(s)).toBe(true);
+      // Then nothing is left: the start after it removes the sandbox, through the record.
+      f.sandboxes.notRemoved = null;
+      const third = make(f, []);
+      expect(await third.j.recoverAtStart()).toEqual({ touched: [id], removed: [{ projectId: id, dir }], left: [] });
+      expect((await removedEvents(f.db, id)).at(-1)).toEqual({ reason: FOUND_AT_START, interrupted: true, removed: true });
+      s = await third.j.state(id);
+      expect(s.sandbox).toBeNull();
+      expect(removalNotFinished(s)).toBe(false);
+      expect(s.interrupted).toBe(true);
+      expect(f.sandboxes.destroyedRecorded.map((x) => x.projectId)).toEqual([id]);
     } finally {
       f.sandboxes.notRemoved = null;
       await f.drop();
@@ -2921,8 +3046,123 @@ describe("Sign-off and the live app (stand-in sandbox, the real front; after the
       gate.hold = { started, release: new Promise<void>((r) => (release = r)) };
       return { asked, release };
     };
-    return { j, app, cookie, id, port, live, holdNextClose };
+    return { j, jobs, app, cookie, id, port, live, holdNextClose };
   };
+
+  it("C17 (known gap 180, after its review): after a refused Close project on a project whose preview finished and whose checklist passed, the project is \"removal not finished\": its live session is ended and its app stopped; every build, preview, checklist run, approval, sign-off, export and live opening is refused with the one sentence naming that state, through the journey and through the routes, and nothing is written; its pages offer only Close project and New project, with the note of what is left; the same from the record alone, as after a restart; Close project again, with nothing left, closes it", async () => {
+    const esc = (x: string) => x.replace(/&/g, "&amp;").replace(/'/g, "&#39;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    const x = await checkedInterface("Leave requests (made-up, close refused)");
+    const { j, jobs, app, cookie, id } = x;
+    const left = [`network builder_${id}_front`];
+    try {
+      // A live session open, as the owner may have one when "Close project" is pressed.
+      expect((await post(app, `/projects/${id}/live`, {}, { cookie })).status).toBe(200);
+      await j.waitForJob();
+      expect(x.live.session()?.projectId).toBe(id);
+      expect(jobs.handle(id)?.appStarted).toBe(true);
+      sandboxes.notRemoved = { [id]: left };
+      const closed = await post(app, `/projects/${id}/close`, {}, { cookie });
+      expect(closed.status).toBe(409);
+      expect(await closed.text()).toContain(esc(closeNotRemovedRefusal(left)));
+      // As the real removal leaves it: the live session ended, the app stopped, the handle and the folder kept.
+      expect(x.live.session()).toBeNull();
+      expect(jobs.handle(id)?.appStarted).toBe(false);
+      expect(existsSync(jobs.handle(id)!.dir)).toBe(true);
+      let s = await j.state(id);
+      expect(s.stage).toBe("acceptance");
+      expect(s.appRunning).toBe(false);
+      expect(s.interrupted).toBe(false);
+      expect(s.acceptanceRun?.outcome).toBe("passed");
+      expect(s.removalLeft).toEqual(left);
+      expect(removalNotFinished(s)).toBe(true);
+      expect(REMOVAL_NOT_FINISHED).toBe(
+        'This project\'s removal is not finished, so nothing of it is built, previewed, checked, approved, signed off, exported or opened any more: press "Close project" to try the removal again, or start a new project.',
+      );
+      const written = (await listEvents(pool, id)).length;
+      // Through the journey: each is refused with the one sentence that names the state.
+      const asks = (jn: Journey, jb: JourneyJobs): Array<[string, () => Promise<unknown>]> => [
+        ["build a step", () => jb.buildStep(id, "01-data")],
+        ["preview", () => jb.preview(id)],
+        ["run the checklist", () => jb.acceptance(id)],
+        ["approve a step", () => jn.approveStep(id, "02-submitter-screen")],
+        ["approve and go on", () => jb.approve(id, "02-submitter-screen")],
+        ["sign off", () => jn.signOff(id)],
+        ["export", () => jb.exportProject(id)],
+        ["a live job", () => jn.startJob(id, "live", async () => undefined)],
+      ];
+      for (const [what, ask] of [...asks(j, jobs), ["open the live app", () => jobs.openLive(id, "made-up-sign-in-session")] as [string, () => Promise<unknown>]]) {
+        const e = await ask().then(() => null, (err: unknown) => err);
+        expect(e, what).toBeInstanceOf(JourneyRefused);
+        expect((e as Error).message, what).toBe(REMOVAL_NOT_FINISHED);
+      }
+      // Through the routes: each a plain 409 with the same sentence.
+      const routes: Array<[string, Record<string, string>]> = [["build", { step: "01-data" }], ["approve", { step: "02-submitter-screen" }], ["preview", {}], ["acceptance", {}], ["sign-off", {}], ["export", {}], ["live", {}]];
+      for (const [path, body] of routes) {
+        const r = await post(app, `/projects/${id}/${path}`, body, { cookie });
+        expect(r.status, path).toBe(409);
+        expect(await r.text(), path).toContain(esc(REMOVAL_NOT_FINISHED));
+      }
+      expect(x.live.session()).toBeNull();
+      s = await j.state(id);
+      expect(s.signedOff).toBe(false);
+      expect((await listEvents(pool, id)).length).toBe(written);
+      // The pages: the panel with the note of what is left, and nothing offered but "Close project" and "New project".
+      const pagesOf = async (a: typeof app, c: string) => {
+        for (const lang of ["en", "ar"] as const) {
+          const [before, after] = t(lang, "removal.left", { close: t(lang, "close.button") }).split("{left}");
+          for (const screen of ["build", "preview", "acceptance", "export", "cost", "record"]) {
+            const html = await (await get(a, `/projects/${id}/${screen}?lang=${lang}`, c)).text();
+            const where = `${screen} ${lang}`;
+            expect(html, where).toContain(`<p class="warn" data-removal-not-finished>${esc(t(lang, "removal.not_finished"))}</p>`);
+            expect(html, where).toContain(`<p class="warn" data-removal-left>${esc(before!)}<span lang="en" dir="ltr">${esc(left.join("; "))}</span>${esc(after!)}</p>`);
+            expect(html, where).toContain(`<button type="submit" data-close-again>${esc(t(lang, "close.button"))}</button>`);
+            expect(html, where).toContain(`<a href="/projects/new">${esc(t(lang, "projects.new"))}</a>`);
+            const forms = [...html.matchAll(/<form method="post" action="([^"]+)"/g)].map((m) => m[1]!).filter((f) => f !== "/language" && f !== "/sign-out");
+            expect([...new Set(forms)], where).toEqual([`/projects/${id}/close`]);
+            expect(html, where).not.toMatch(/data-(build|approve|live-open|live-show|live-end)[=>\s]/);
+            expect(html, where).not.toContain('data-go="preview"');
+          }
+        }
+      };
+      await pagesOf(app, cookie);
+      // From the record alone, as after a restart: a new journey and new jobs, which hold no handle and no memory of the close.
+      const box: { jobs?: JourneyJobs } = {};
+      const j2 = new Journey({ pool, dataDir, cleanupProject: (pid, rec) => box.jobs!.cleanup(pid, rec) });
+      const jobs2 = new JourneyJobs({ journey: j2, sandboxes, measureFree: () => 50 * 1024 ** 3 });
+      box.jobs = jobs2;
+      expect(jobs2.handle(id)).toBeUndefined();
+      expect(removalNotFinished(await j2.state(id))).toBe(true);
+      for (const [what, ask] of asks(j2, jobs2)) {
+        const e = await ask().then(() => null, (err: unknown) => err);
+        expect(e, `after a restart: ${what}`).toBeInstanceOf(JourneyRefused);
+        expect((e as Error).message, `after a restart: ${what}`).toBe(REMOVAL_NOT_FINISHED);
+      }
+      const app2 = createWebApp({ journey: j2, jobs: jobs2, password: new PasswordState("env", digestPassword(PASSWORD), null), sessions: new Sessions(), limiter: new SignInLimiter(), dataDir });
+      const cookie2 = await signIn(app2);
+      const signOff2 = await post(app2, `/projects/${id}/sign-off`, {}, { cookie: cookie2 });
+      expect(signOff2.status).toBe(409);
+      expect(await signOff2.text()).toContain(esc(REMOVAL_NOT_FINISHED));
+      await pagesOf(app2, cookie2);
+      expect((await listEvents(pool, id)).length).toBe(written);
+      // "Close project" again, with nothing left: through the handle the first interface kept; the project closes.
+      sandboxes.notRemoved = null;
+      const destroyedBefore = sandboxes.destroyed.length;
+      expect((await post(app, `/projects/${id}/close`, {}, { cookie })).status).toBe(303);
+      s = await j.state(id);
+      expect(s.stage).toBe("closed");
+      expect(removalNotFinished(s)).toBe(false);
+      expect(sandboxes.destroyed.slice(destroyedBefore)).toEqual([id]);
+      expect(jobs.handle(id)).toBeUndefined();
+      expect((await listEvents(pool, id, EV.sandboxRemoved)).map((e) => e.payload)).toEqual([
+        { reason: CLOSE_NOT_REMOVED, interrupted: false, removed: false, left },
+        { reason: "The project was closed.", interrupted: false },
+      ]);
+    } finally {
+      sandboxes.notRemoved = null;
+      await j.waitForJob();
+      await j.closeProject(id);
+    }
+  }, 60_000);
 
   it("signed off, Open the live app is refused: the preview screen offers no open button and says why, in both languages; a POST made anyway is refused (409) with that reason; no live session, no live job, nothing recorded as opened (after the review of 14787d8)", async () => {
     const t = await checkedInterface("Leave requests (made-up, signed off then open)");
