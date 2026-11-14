@@ -1,0 +1,165 @@
+# Package 3.2, part C: the controls, 14 Nov 2026
+Each safeguard removed by exact text replacement (the old text occurring exactly once), its test run, the file put back
+with `git checkout -- <file>`, and `git status --porcelain` checked clean after each. Every control must fail its test.
+Fast tests: `npx vitest run test/export.test.ts -t <its name>` (the other tests of the file are left out by the filter,
+which vitest counts as skipped). Live tests: the whole of test/export-live.test.ts under the shared lock, since each
+live test needs the ones before it (the export, the started copy); the failure that counts is the safeguard's own test.
+Paths under the session's temporary folder are written <tmp>.
+Code at e63df43 for every control (the code did not change after it). C1 to C4 ran at 14:02 UTC; the live controls from
+14:02:40 to 14:31:47 UTC: C4L, C5 and C6 with the live file at e63df43, C7 to C15 with the file at 227ec8c, whose L2 waits
+for the door as well as the app. C5 also failed L2 for that reason (the ports read before the door was up), besides L3's
+tampered case, the test it was for; design section 13, C15. Docker's lists of containers, images, volumes and networks were
+the same after the live controls as before them.
+
+## C1: S31, --checklist-items made optional (a default of 6)
+In builder/src/export/check-from-copy.ts: 'for (const f of FLAGS) if (!seen.has(f)) throw'
+  -> 'for (const f of FLAGS) if (!seen.has(f) && f !== "--checklist-items") throw'
+In builder/src/export/check-from-copy.ts: 'const n = seen.get("--checklist-items")!;'
+  -> 'const n = seen.get("--checklist-items") ?? "6";'
+  run: test/export.test.ts -t E17
+  result: vitest exit 1 after 1 s; Tests  2 failed | 1 passed | 57 skipped (60); FAILED, as it must
+  failed: × the script's values: all six are needed; without --checklist-items, or with a count that is not a whole numb
+  failed: × the script itself refuses to run without --checklist-items, before anything else: exit code 2, the flag name
+  checkout after: clean
+    first error line: AssertionError: expected [Function] to throw an error
+    first error line: AssertionError: expected 'The check could not be run: The copy …' to match /--checklist-items/
+
+## C2: S31, the reading takes the manifest's item count, not the count given
+In builder/src/export/check-from-copy.ts: 'checklistItems: args.checklistItems });'
+  -> 'checklistItems: facts.manifest.items.length });'
+  run: test/export.test.ts -t E17
+  result: vitest exit 1 after 1 s; Tests  1 failed | 2 passed | 57 skipped (60); FAILED, as it must
+  failed: × a made-up results folder, read with the count given: 6 gives "version passed; checklist incomplete (5 of the
+  checkout after: clean
+    first error line: AssertionError: expected 'version passed' to be 'version passed; checklist incomplete …' // Object.is equality
+
+## C3: T8, the runner's read-only root dropped
+In builder/src/export/check-from-copy.ts: '...(svc.read_only ? ["--read-only"] : []),'
+  -> ''
+  run: test/export.test.ts -t T8
+  result: vitest exit 1 after 1 s; Tests  1 failed | 59 skipped (60); FAILED, as it must
+  failed: × the runner's docker run arguments are acceptanceService's fields and HARDENING, field by field; the forwarde
+  checkout after: clean
+    first error line: AssertionError: expected [ '--cap-drop', '--entrypoint', …(12) ] to deeply equal [ '--cap-drop', '--entrypoint', …(13) ]
+
+## C4: S27/T8, the runner not in the forwarder's namespace (no network)
+In builder/src/export/check-from-copy.ts: '`container:${o.forwarder}`,'
+  -> '"none",'
+  run: test/export.test.ts -t T8
+  result: vitest exit 1 after 1 s; Tests  1 failed | 59 skipped (60); FAILED, as it must
+  failed: × the runner's docker run arguments are acceptanceService's fields and HARDENING, field by field; the forwarde
+  checkout after: clean
+    first error line: AssertionError: expected [ 'none' ] to deeply equal [ Array(1) ]
+
+## C4L: S27, the runner not in the forwarder's namespace (no network), live
+In builder/src/export/check-from-copy.ts: '`container:${o.forwarder}`,'
+  -> '"none",'
+  run: test/export-live.test.ts (live, under the lock)
+  result: vitest exit 1 after 137 s; Tests  1 failed | 9 passed (10); FAILED, as it must
+  failed: × L3 (S25, S26, S27, S31) and L3c: the check from the copy, against the app the copy's own command started: ve
+  checkout after: clean
+    first error line: AssertionError: expected { code: 1, timedOut: false } to deeply equal { code: +0, timedOut: false }
+
+## C5: S25, the version check before the start removed
+In builder/src/export/check-from-copy.ts: 'if (!check.ok) refused = `the version does not match its manifest: ${check.problems.join("; ")}`;'
+  -> ''
+  run: test/export-live.test.ts (live, under the lock)
+  result: vitest exit 1 after 178 s; Tests  2 failed | 8 passed (10); FAILED, as it must
+  failed: × L2: the copy's own start, by its README's one command in the unpacked folder (PATH, HOME and APP_PORT only):
+  failed: × L3 (S25): a test in the copy loosened after export (/waiting/i made /./): refused before the start, the file
+  checkout after: clean
+    first error line: AssertionError: expected [] to deeply equal [ { service: 'door', …(4) } ]
+    first error line: TypeError: .toMatch() expects to receive a string, but got object
+
+## C6: S26, the app not chosen by its project's working folder
+In builder/src/export/check-from-copy.ts: '&& same(c.Config?.Labels?.["com.docker.compose.project.working_dir"], copyReal));'
+  -> ');'
+  run: test/export-live.test.ts (live, under the lock)
+  result: vitest exit 1 after 144 s; Tests  1 failed | 9 passed (10); FAILED, as it must
+  failed: × L3b (S26): refused before the start when the app is not the one this copy started: a second copy in a folder
+  checkout after: clean
+    first error line: AssertionError: expected 'the app is not the one this copy star…' to match /no app container was started from thi…/
+
+## C7: S26, the app container's image not compared by id
+In builder/src/export/check-from-copy.ts: "if (c.Image !== image.Id) return `the app container's image"
+  -> "if (false) return `the app container's image"
+  run: test/export-live.test.ts (live, under the lock)
+  result: vitest exit 1 after 144 s; Tests  1 failed | 9 passed (10); FAILED, as it must
+  failed: × L3b (S26): refused before the start when the app is not the one this copy started: a second copy in a folder
+  checkout after: clean
+    first error line: AssertionError: expected 'the app is not the one this copy star…' to match /the app container's image is not the …/
+
+## C8: S26, other containers on the project's front network allowed
+In builder/src/export/check-from-copy.ts: 'if (others.length) return `'
+  -> 'if (false) return `'
+  run: test/export-live.test.ts (live, under the lock)
+  result: vitest exit 1 after 146 s; Tests  1 failed | 9 passed (10); FAILED, as it must
+  failed: × L3b (S26): refused before the start when the app is not the one this copy started: a second copy in a folder
+  checkout after: clean
+    first error line: TypeError: .toMatch() expects to receive a string, but got object
+
+## C9: S27, the forwarder made on the project's data network, and its own network check removed
+In builder/src/export/check-from-copy.ts: 'forwarderRunArgs({ name: forwarderName, network: app.front,'
+  -> 'forwarderRunArgs({ name: forwarderName, network: `${app.project}_data`,'
+In builder/src/export/check-from-copy.ts: 'if (nets.length !== 1 || nets[0] !== app.front) refused ='
+  -> 'if (false) refused ='
+  run: test/export-live.test.ts (live, under the lock)
+  result: vitest exit 1 after 142 s; Tests  1 failed | 9 passed (10); FAILED, as it must
+  failed: × L3 (S25, S26, S27, S31) and L3c: the check from the copy, against the app the copy's own command started: ve
+  checkout after: clean
+    first error line: AssertionError: expected [ 'j1-8c5c26d5efbe_data' ] to deeply equal [ 'j1-8c5c26d5efbe_front' ]
+
+## C10: S30, Compose's two readings no longer compared
+In builder/src/export/export-check.ts: 'differences(a, b, "", diffs, 20);'
+  -> ''
+  run: test/export-live.test.ts (live, under the lock)
+  result: vitest exit 1 after 142 s; Tests  1 failed | 9 passed (10); FAILED, as it must
+  failed: × L2b (S30): what Compose reads from an unpacked copy, with only PATH and HOME set, equals what it reads from
+  checkout after: clean
+    first error line: AssertionError: expected { id: 'compose_config', …(3) } to match object { id: 'compose_config', passed: false }
+
+## C11: S17, a development-only package under /app of the run image allowed
+In builder/src/export/export-check.ts: 'if (c.path === "/app" || c.path.startsWith("/app/")) problems.push('
+  -> 'if (false) problems.push('
+  run: test/export-live.test.ts (live, under the lock)
+  result: vitest exit 1 after 137 s; Tests  1 failed | 9 passed (10); FAILED, as it must
+  failed: × L1: the image checks refuse, on made-up images made from the checked ones: lightningcss under /app (S17), a
+  checkout after: clean
+    first error line: AssertionError: expected 'The image the app runs from holds dev…' to contain 'lightningcss 1.30.1 at /app/node_modu…'
+
+## C12: S17, any copy outside /app of the run image allowed
+In builder/src/export/export-check.ts: 'else if (!(c.path === KNOWN_BASE_COPY.path && c.name === KNOWN_BASE_COPY.name && c.version === KNOWN_BASE_COPY.version))'
+  -> 'else if (false)'
+  run: test/export-live.test.ts (live, under the lock)
+  result: vitest exit 1 after 140 s; Tests  1 failed | 9 passed (10); FAILED, as it must
+  failed: × L1: the image checks refuse, on made-up images made from the checked ones: lightningcss under /app (S17), a
+  checkout after: clean
+    first error line: AssertionError: expected { id: 'run_image_packages', …(9) } to match object { id: 'run_image_packages', …(1) }
+
+## C13: S18, no notices file in the run image allowed
+In builder/src/export/export-check.ts: 'if (!inImage) return { passed: false, summary: "The image the app runs from has no /app/THIRD-PARTY-NOTICES.md." };'
+  -> 'if (!inImage) return { passed: true, summary: "made-up control: not checked" };'
+  run: test/export-live.test.ts (live, under the lock)
+  result: vitest exit 1 after 133 s; Tests  1 failed | 9 passed (10); FAILED, as it must
+  failed: × L1: the image checks refuse, on made-up images made from the checked ones: lightningcss under /app (S17), a
+  checkout after: clean
+    first error line: AssertionError: expected [ Array(2) ] to deeply equal [ Array(2) ]
+
+## C14: S19, the template's licence check read as passed whatever it said
+In builder/src/export/export-check.ts: 'const passed = code === 0 && results === 2 && notices;'
+  -> 'const passed = true;'
+  run: test/export-live.test.ts (live, under the lock)
+  result: vitest exit 1 after 134 s; Tests  1 failed | 9 passed (10); FAILED, as it must
+  failed: × L1: the image checks refuse, on made-up images made from the checked ones: lightningcss under /app (S17), a
+  checkout after: clean
+    first error line: AssertionError: expected [ …(2) ] to deeply equal [ …(2) ]
+
+## C15: S24, a drift no longer refuses the start
+In builder/src/sandbox/tables.ts: 'if (!drift.ok) throw new Error('
+  -> 'if (false) throw new Error('
+  run: test/export-live.test.ts (live, under the lock)
+  result: vitest exit 1 after 151 s; Tests  1 failed | 9 passed (10); FAILED, as it must
+  failed: × L4 (S24): a schema change with no migration: the start is refused by the drift check after the tables were m
+  checkout after: clean
+    first error line: AssertionError: expected null not to be null
+

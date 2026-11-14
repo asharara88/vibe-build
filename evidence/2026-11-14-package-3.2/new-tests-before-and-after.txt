@@ -234,3 +234,274 @@ code and tests); test/licence-rule.test.ts 51 passed. Test Files 6 passed (6); T
 
 Expectations in existing files that changed with part B, none loosened: none in the test files. The camera's check of the
 export label (builder/camera/builder-shots.mjs) follows the new label's first sentences, still a match from its start.
+
+## Part C: the check from the exported copy, and the live tests (design sections 3 and 6), 14 Nov 2026
+
+New tests: in builder/test/export.test.ts, E17 (S31, three tests) and T8 (one test); a new file,
+builder/test/export-live.test.ts, with L1 (two tests), L2 (two), L2b, L3 and L3c (one), L3 tampered (one), L3b (one), L4
+(one), and a first test that names any missing prerequisite (ten tests). Committed first, at 5ca2677 (then 305f637,
+a comment respelt, before any code), then run with builder/src, builder/scripts, builder/scripted, builder/camera
+and templates/ as they are at 839be17 ('git checkout 839be17 -- <those paths>'), then put back with
+'git checkout HEAD -- <those paths>'; git status was clean afterwards.
+
+What each shows failing before, as section 6 says:
+- E17 and T8: there is no check script, src/export/check-from-copy.ts does not exist, and acceptanceService is not exported.
+- The live tests fail before only because what they call does not exist (L1: writeExport takes no checks and records
+  none; L2: the export has no compose.yaml and no README command; L2b to L3b: no Compose comparison or check from the
+  copy), or because the old code did what section 2 replaces (L4: the old start pushed the schema with the column added
+  and started the app, so no drift was refused). Section 6: "That red proves little, so their proof is in their
+  controls" (part-c-controls.txt). The live file was run before with Docker answering, under the shared lock;
+  Docker's lists of containers and images were the same after it as before.
+- Not run first, as section 6 allows: the store's tests of verifyVersion (test/acceptance.test.ts:132-217), which pass
+  unchanged after verifyVersion became a wrapper around verifyVersionAt (AFTER, below).
+
+### BEFORE, fast (code as at 839be17; tests at 5ca2677), run 2026-11-14 13:44:57 UTC
+Command: npx vitest run test/export.test.ts -t "E17|T8" (the other tests of the file are left out by the filter, which
+vitest counts as skipped).
+
+
+ RUN  v5.1.0 <scratch>/wt-32/builder
+
+ ❯ test/export.test.ts (60 tests | 4 failed | 56 skipped) 141ms
+   ❯ E17 (S31): the check script's reading uses the checklist count recorded in the event (3)
+     × the script's values: all six are needed; without --checklist-items, or with a count that is not a whole number of at least 1, it refuses 16ms
+     × the script itself refuses to run without --checklist-items, before anything else: exit code 2, the flag named 94ms
+     × a made-up results folder, read with the count given: 6 gives "version passed; checklist incomplete (5 of the app spec's 6 checklist items have no test)"; 1 gives "version passed" 17ms
+   ❯ T8: the check from the copy starts 3.1's runner from 3.1's own service definition, not a second one (1)
+     × the runner's docker run arguments are acceptanceService's fields and HARDENING, field by field; the forwarder's namespace in place of front is the one difference; exactly 3.1's three mounts; BASE_URL and RUN_ID only; 3.1's command 12ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 4 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/export.test.ts > E17 (S31): the check script's reading uses the checklist count recorded in the event > the script's values: all six are needed; without --checklist-items, or with a count that is not a whole number of at least 1, it refuses
+Error: Cannot find module '/src/export/check-from-copy.js' imported from <scratch>/wt-32/builder/test/export.test.ts
+ ❯ test/export.test.ts:1160:15
+    1158| describe("E17 (S31): the check script's reading uses the checklist cou…
+    1159|   it("the script's values: all six are needed; without --checklist-ite…
+    1160|     const c = await checkModule();
+       |               ^
+    1161|     expect(c.parseCheckArgs(CHECK_ARGS)).toEqual({
+    1162|       copyDir: `/made/up/exports/${COPY_PROJECT}`,
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/4]⎯
+
+ FAIL  test/export.test.ts > E17 (S31): the check script's reading uses the checklist count recorded in the event > the script itself refuses to run without --checklist-items, before anything else: exit code 2, the flag named
+AssertionError: 
+node:internal/modules/esm/resolve:275
+    throw new ERR_MODULE_NOT_FOUND(
+          ^
+
+Error [ERR_MODULE_NOT_FOUND]: Cannot find module '<scratch>/wt-32/builder/scripts/check-export.ts' imported from <scratch>/wt-32/builder/
+    at finalizeResolution (node:internal/modules/esm/resolve:275:11)
+    at moduleResolve (node:internal/modules/esm/resolve:865:10)
+    at defaultResolve (node:internal/modules/esm/resolve:989:11)
+    at #cachedDefaultResolve (node:internal/modules/esm/loader:747:20)
+    at #resolveAndMaybeBlockOnLoaderThread (node:internal/modules/esm/loader:783:38)
+    at nextStep (node:internal/modules/customization_hooks:189:26)
+    at resolveBaseSync (file://<scratch>/wt-32/builder/node_modules/tsx/dist/register-nyXW-TH3.mjs:2:11092)
+    at resolveDirectorySync (file://<scratch>/wt-32/builder/node_modules/tsx/dist/register-nyXW-TH3.mjs:2:12398)
+    at resolveTsPathsSync (file://<scratch>/wt-32/builder/node_modules/tsx/dist/register-nyXW-TH3.mjs:2:13605)
+    at resolve (file://<scratch>/wt-32/builder/node_modules/tsx/dist/register-nyXW-TH3.mjs:2:16832) {
+  code: 'ERR_MODULE_NOT_FOUND',
+  url: 'file://<scratch>/wt-32/builder/scripts/check-export.ts'
+}
+
+Node.js v22.23.4
+: expected 1 to be 2 // Object.is equality
+
+- Expected
++ Received
+
+- 2
++ 1
+
+ ❯ resolveBaseSync node_modules/tsx/dist/register-nyXW-TH3.mjs:2:11092
+ ❯ resolveDirectorySync node_modules/tsx/dist/register-nyXW-TH3.mjs:2:12398
+ ❯ resolveTsPathsSync node_modules/tsx/dist/register-nyXW-TH3.mjs:2:13605
+ ❯ test/export.test.ts:1183:50
+    1181|       timeout: 60_000,
+    1182|     });
+    1183|     expect(r.status, `${r.stdout}\n${r.stderr}`).toBe(2);
+       |                                                  ^
+    1184|     expect(r.stderr).toMatch(/--checklist-items/);
+    1185|     expect(r.stdout).toBe("");
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/4]⎯
+
+ FAIL  test/export.test.ts > E17 (S31): the check script's reading uses the checklist count recorded in the event > a made-up results folder, read with the count given: 6 gives "version passed; checklist incomplete (5 of the app spec's 6 checklist items have no test)"; 1 gives "version passed"
+Error: Cannot find module '/src/export/check-from-copy.js' imported from <scratch>/wt-32/builder/test/export.test.ts
+ ❯ test/export.test.ts:1189:15
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/4]⎯
+
+ FAIL  test/export.test.ts > T8: the check from the copy starts 3.1's runner from 3.1's own service definition, not a second one > the runner's docker run arguments are acceptanceService's fields and HARDENING, field by field; the forwarder's namespace in place of front is the one difference; exactly 3.1's three mounts; BASE_URL and RUN_ID only; 3.1's command
+Error: Cannot find module '/src/export/check-from-copy.js' imported from <scratch>/wt-32/builder/test/export.test.ts
+ ❯ test/export.test.ts:1244:15
+    1242|     const runner = await import("../src/acceptance/runner.js");
+    1243|     const image = await import("../src/acceptance/runner-image.js");
+    1244|     const c = await checkModule();
+       |               ^
+    1245|     const common = { cap_drop: m.HARDENING.cap_drop, security_opt: m.H…
+    1246|     const appUrl = "http://localhost:3191";
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/4]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  4 failed | 56 skipped (60)
+   Start at  13:44:57
+   Duration  597ms (transform 42%, tests 32%, import 25%, worker 1%)
+
+
+### BEFORE, live (code as at 839be17; tests at 5ca2677), run 2026-11-14 13:45:13 to 13:46:23 UTC
+Command: flock <scratch>/live-tests.lock npx vitest run test/export-live.test.ts
+
+
+ RUN  v5.1.0 <scratch>/wt-32/builder
+
+ ❯ test/export-live.test.ts (10 tests | 9 failed) 69344ms
+   ❯ package 3.2, live: the export's checks, the exported copy's own start, and the check from the copy (10)
+     × L1: a real export of example 1 (the scripted engine's two steps, the stand-in version), checked with Docker by the export job's own checks: all eight checks passed, in order; the run image holds only the base image's npm copy of a development-only package; no check image is left 1181ms
+     × L1: the image checks refuse, on made-up images made from the checked ones: lightningcss under /app (S17), a second spdx-ranges outside /app (S17), no notices file in the run image (S18), and the tools image of a copy whose notices file has one line more (S19) 19ms
+     × L2: the copy's own start, by its README's one command in the unpacked folder (PATH, HOME and APP_PORT only): it builds, makes its three keys, applies both migrations, adds the three made-up users, and the app is healthy; one port, on the machine's loopback address; the tests are in neither image 13ms
+     × L2b (S30): what Compose reads from an unpacked copy, with only PATH and HOME set, equals what it reads from the template's compose.yaml alone; a compose.override.yaml put beside it after export fails the comparison, naming the door's privileged 13ms
+     × L3 (S25, S26, S27, S31) and L3c: the check from the copy, against the app the copy's own command started: version passed, checklist incomplete (5 of 6), labelled as the stand-in; the runner, inspected while it runs, shares the forwarder's namespace, which is on the project's front network alone; the forwarder is removed; the copy is unchanged 8ms
+     × L3 (S25): a test in the copy loosened after export (/waiting/i made /./): refused before the start, the file named; every item 'did not run', 'not passed'; no forwarder or runner is started 3ms
+     × L3b (S26): refused before the start when the app is not the one this copy started: a second copy in a folder of the same name; the image named <project>-app not the one the container runs; a container that is not the project's on its front network 2ms
+     × L2: a second start keeps the keys, applies no migration again and adds no user, and the app is healthy; then `docker compose down --volumes` leaves no container, volume or network of the copy 73ms
+     × L4 (S24): a schema change with no migration: the start is refused by the drift check after the tables were made by drizzle-kit migrate, naming what generate wrote; the app is not started 54010ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 9 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/export-live.test.ts > package 3.2, live: the export's checks, the exported copy's own start, and the check from the copy > L1: a real export of example 1 (the scripted engine's two steps, the stand-in version), checked with Docker by the export job's own checks: all eight checks passed, in order; the run image holds only the base image's npm copy of a development-only package; no check image is left
+TypeError: Cannot read properties of undefined (reading 'map')
+ ❯ test/export-live.test.ts:194:23
+    192|       check: (p) => sbx.checkExport(x1, p),
+    193|     });
+    194|     expect(out.checks.map((c) => [c.id, c.passed])).toEqual(
+       |                       ^
+    195|       ["archive_contents", "fixed_files", "images_built", "compose_con…
+    196|     );
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/9]⎯
+
+ FAIL  test/export-live.test.ts > package 3.2, live: the export's checks, the exported copy's own start, and the check from the copy > L1: the image checks refuse, on made-up images made from the checked ones: lightningcss under /app (S17), a second spdx-ranges outside /app (S17), no notices file in the run image (S18), and the tools image of a copy whose notices file has one line more (S19)
+TypeError: exportCheckImageNames is not a function or its return value is not iterable
+ ❯ test/export-live.test.ts:214:36
+    212|     await run("tar", ["--extract", "--gzip", "--file", out.path, "--di…
+    213|     const copy = join(top, PROJECT);
+    214|     const [runImage, toolsImage] = exportCheckImageNames(PROJECT);
+       |                                    ^
+    215|     await sandbox.build({ ...x!.sb, appBuild: { ...x!.sb.appBuild!, co…
+    216|     const env = plainEnv();
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/9]⎯
+
+ FAIL  test/export-live.test.ts > package 3.2, live: the export's checks, the exported copy's own start, and the check from the copy > L2: the copy's own start, by its README's one command in the unpacked folder (PATH, HOME and APP_PORT only): it builds, makes its three keys, applies both migrations, adds the three made-up users, and the app is healthy; one port, on the machine's loopback address; the tests are in neither image
+TypeError: startItCommand is not a function
+ ❯ test/export-live.test.ts:259:21
+    257|     copyDir = join(top, PROJECT);
+    258|     copyFolders.push(copyDir);
+    259|     const command = startItCommand(readFileSync(join(copyDir, "README.…
+       |                     ^
+    260|     expect(command).toBe("docker compose up --build");
+    261|     started = startCopy(copyDir, command!);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/9]⎯
+
+ FAIL  test/export-live.test.ts > package 3.2, live: the export's checks, the exported copy's own start, and the check from the copy > L2b (S30): what Compose reads from an unpacked copy, with only PATH and HOME set, equals what it reads from the template's compose.yaml alone; a compose.override.yaml put beside it after export fails the comparison, naming the door's privileged
+TypeError: ec.composeConfigCheck is not a function
+ ❯ test/export-live.test.ts:288:25
+    286|     await run("tar", ["--extract", "--gzip", "--file", out.path, "--di…
+    287|     const other = join(top, PROJECT);
+    288|     const ok = await ec.composeConfigCheck(other, mkdtempSync(join(wor…
+       |                         ^
+    289|     expect(ok).toMatchObject({ id: "compose_config", passed: true });
+    290|     const override = join(other, "compose.override.yaml");
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/9]⎯
+
+ FAIL  test/export-live.test.ts > package 3.2, live: the export's checks, the exported copy's own start, and the check from the copy > L3 (S25, S26, S27, S31) and L3c: the check from the copy, against the app the copy's own command started: version passed, checklist incomplete (5 of 6), labelled as the stand-in; the runner, inspected while it runs, shares the forwarder's namespace, which is on the project's front network alone; the forwarder is removed; the copy is unchanged
+Error: Cannot find module '/src/export/check-from-copy.js' imported from <scratch>/wt-32/builder/test/export-live.test.ts
+ ❯ test/export-live.test.ts:301:15
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/9]⎯
+
+ FAIL  test/export-live.test.ts > package 3.2, live: the export's checks, the exported copy's own start, and the check from the copy > L3 (S25): a test in the copy loosened after export (/waiting/i made /./): refused before the start, the file named; every item 'did not run', 'not passed'; no forwarder or runner is started
+Error: Cannot find module '/src/export/check-from-copy.js' imported from <scratch>/wt-32/builder/test/export-live.test.ts
+ ❯ test/export-live.test.ts:370:15
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/9]⎯
+
+ FAIL  test/export-live.test.ts > package 3.2, live: the export's checks, the exported copy's own start, and the check from the copy > L3b (S26): refused before the start when the app is not the one this copy started: a second copy in a folder of the same name; the image named <project>-app not the one the container runs; a container that is not the project's on its front network
+Error: Cannot find module '/src/export/check-from-copy.js' imported from <scratch>/wt-32/builder/test/export-live.test.ts
+ ❯ test/export-live.test.ts:392:15
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/9]⎯
+
+ FAIL  test/export-live.test.ts > package 3.2, live: the export's checks, the exported copy's own start, and the check from the copy > L2: a second start keeps the keys, applies no migration again and adds no user, and the app is healthy; then `docker compose down --volumes` leaves no container, volume or network of the copy
+TypeError: Cannot read properties of null (reading 'ended')
+ ❯ test/export-live.test.ts:434:27
+    432|     needsPrerequisites();
+    433|     await docker(["compose", "down"], { cwd: copyDir, env: copyEnv(), …
+    434|     expect(await started!.ended).not.toBeUndefined();
+       |                           ^
+    435|     started = startCopy(copyDir, "docker compose up --build");
+    436|     await waitHealthy(copyDir, started);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/9]⎯
+
+ FAIL  test/export-live.test.ts > package 3.2, live: the export's checks, the exported copy's own start, and the check from the copy > L4 (S24): a schema change with no migration: the start is refused by the drift check after the tables were made by drizzle-kit migrate, naming what generate wrote; the app is not started
+AssertionError: expected null not to be null
+ ❯ test/export-live.test.ts:460:21
+    458|     let err: Error | null = null;
+    459|     await sbx.buildAndStart(x!, (l) => lines.push(l)).catch((e: Error)…
+    460|     expect(err).not.toBeNull();
+       |                     ^
+    461|     const message = (err as unknown as Error).message;
+    462|     expect(message).toMatch(/^The tables were made, but the drift chec…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/9]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  9 failed | 1 passed (10)
+   Start at  13:45:13
+   Duration  69.97s (tests 99%)
+
+
+### AFTER, fast (code and tests at 227ec8c), run 2026-11-14 14:32:51 to 14:35:28 UTC
+On a fresh test database, builder_test_x32c, created for this run and dropped after it. The new tests (E17, T8), the
+store's tests of verifyVersion, unchanged, and every test file part C's changes touch: export, acceptance, journey,
+sandbox, web, the image scan and the gate's scan (which reads the new live file and finds no skipped test).
+Command: npx vitest run test/export.test.ts test/acceptance.test.ts test/journey.test.ts test/sandbox.test.ts test/approved-images.test.ts test/acceptance-gate.test.ts test/web.test.ts
+
+ Test Files  7 passed (7)
+      Tests  337 passed (337)
+   Duration  156.22s (tests 99%, import 1%)
+
+Also at 227ec8c: npm run typecheck, exit 0; npm run check:licences, exit 0 (RESULT: PASSED). The whole suite (npm test) was
+not run in this part: its other live files (acceptance, preview) rebuild or use the owner's runner image and the shared
+browser cache, which part C does not change.
+
+### AFTER, live (code and tests at 227ec8c), run 2026-11-14 14:35:40 to 14:38:04 UTC, under the shared lock
+Command: flock <scratch>/live-tests.lock npx vitest run test/export-live.test.ts --reporter=verbose
+10 of 10 passed in 144 s; every test's own lines, and what it saw, are in part-c-live-run.txt. Docker's lists of
+containers, images, volumes and networks were the same after the run as before it.
+
+✓ its prerequisites are here: Docker answers, the runner image, the two approved images, the session's proxy, two free ports 2ms
+✓ L1: a real export of example 1 (the scripted engine's two steps, the stand-in version), checked with Docker by the export job's own checks: all eight checks passed, in order; the run image holds only the base image's npm copy of a development-only package; no check image is left 20338ms
+✓ L1: the image checks refuse, on made-up images made from the checked ones: lightningcss under /app (S17), a second spdx-ranges outside /app (S17), no notices file in the run image (S18), and the tools image of a copy whose notices file has one line more (S19) 27307ms
+✓ L2: the copy's own start, by its README's one command in the unpacked folder (PATH, HOME and APP_PORT only): it builds, makes its three keys, applies both migrations, adds the three made-up users, and the app is healthy; one port, on the machine's loopback address; the tests are in neither image 20216ms
+✓ L2b (S30): what Compose reads from an unpacked copy, with only PATH and HOME set, equals what it reads from the template's compose.yaml alone; a compose.override.yaml put beside it after export fails the comparison, naming the door's privileged 382ms
+✓ L3 (S25, S26, S27, S31) and L3c: the check from the copy, against the app the copy's own command started: version passed, checklist incomplete (5 of 6), labelled as the stand-in; the runner, inspected while it runs, shares the forwarder's namespace, which is on the project's front network alone; the forwarder is removed; the copy is unchanged 5221ms
+✓ L3 (S25): a test in the copy loosened after export (/waiting/i made /./): refused before the start, the file named; every item 'did not run', 'not passed'; no forwarder or runner is started 28ms
+✓ L3b (S26): refused before the start when the app is not the one this copy started: a second copy in a folder of the same name; the image named <project>-app not the one the container runs; a container that is not the project's on its front network 1185ms
+✓ L2: a second start keeps the keys, applies no migration again and adds no user, and the app is healthy; then `docker compose down --volumes` leaves no container, volume or network of the copy 36118ms
+✓ L4 (S24): a schema change with no migration: the start is refused by the drift check after the tables were made by drizzle-kit migrate, naming what generate wrote; the app is not started 13561ms
+ Test Files  1 passed (1)
+      Tests  10 passed (10)
+   Duration  143.25s (tests 100%)
