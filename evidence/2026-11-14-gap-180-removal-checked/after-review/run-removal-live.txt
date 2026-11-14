@@ -1,0 +1,24 @@
+Known gap 180, after its review: test/removal-live.test.ts on real Docker, all of it, on commit b86680a (builder/ tree dd9d7c8), working tree as committed, 2026-11-14T14:14:49Z. Command: flock <scratchpad>/live-tests.lock npx vitest run test/removal-live.test.ts --reporter=verbose. Database builder_test_g180fix (not used by this file). TMPDIR <scratchpad>/t2.
+Waiting for the lock from 14:14:49 UTC.
+Lock held from 14:14:49 UTC.
+Before: containers named removal-test-*: 0; networks named removal-test-* or builder_j1-*: 0; volumes named removal-test-*: 0
+
+ RUN  v5.1.0 <scratchpad>/wt180/builder
+
+ ✓ test/removal-live.test.ts > Known gap 180's fix, live: a removal is reported done only when Docker lists nothing of the project > its prerequisites are here: Docker answers and the approved Node image is on this machine 1ms
+ ✓ test/removal-live.test.ts > Known gap 180's fix, live: a removal is reported done only when Docker lists nothing of the project > a network of the project that Docker will not remove (held in use by a container that is not the project's): the removal throws, names the network, and keeps the folder 556ms
+ ✓ test/removal-live.test.ts > Known gap 180's fix, live: a removal is reported done only when Docker lists nothing of the project > the removal with a handle, as Close project and a clean stop make it in a running interface, while the same network is held: it throws, names the network, keeps the folder, and leaves the container that is not the project's alone 448ms
+ ✓ test/removal-live.test.ts > Known gap 180's fix, live: a removal is reported done only when Docker lists nothing of the project > once nothing holds it: the same removal removes the network and then the folder, and Docker lists nothing of the project 820ms
+ ✓ test/removal-live.test.ts > Known gap 180's fix, live: a removal is reported done only when Docker lists nothing of the project > a network carrying the project's label with a tab in its name, held in use by a container that is not the project's: it is reported as left and the folder is kept; a network that is not the project's, with a line break in its name, is not reported 1792ms
+ ✓ test/removal-live.test.ts > Known gap 180's fix, live: a removal is reported done only when Docker lists nothing of the project > a folder that cannot be removed in full (one file made unremovable with chattr +i), Docker's side being clean: the removal throws SandboxNotRemoved naming the folder and the error's code, not a plain error; the rest of the folder is gone and its compose file kept for last, so the folder still passes its own check; once the file can be removed, the same removal completes 722ms
+ ✓ test/removal-live.test.ts > Known gap 180's fix, live: a removal is reported done only when Docker lists nothing of the project > a recorded folder that fails its own check (it holds no compose file): the folder is left exactly as it is; Docker's side is removed and checked all the same; the removal throws SandboxNotRemoved, with the sentence it always had, naming what Docker still lists and the folder with why it was left alone 1319ms
+
+ Test Files  1 passed (1)
+      Tests  7 passed (7)
+   Start at  14:14:50
+   Duration  6.68s (tests 97%, import 2%, transform 1%)
+
+vitest exit code: 0
+After: containers named removal-test-*: 0; networks named removal-test-* or builder_j1-*: 0; volumes named removal-test-*: 0
+After the six controls: containers named removal-test-*: 0; networks named removal-test-* or builder_j1-*: 0; volumes named removal-test-*: 0
+Lock released at 14:15:25 UTC.

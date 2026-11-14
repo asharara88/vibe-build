@@ -1,0 +1,21 @@
+J2 controls, 2026-11-14, on HEAD b86680a of builder/ (working tree as committed: `git diff HEAD -- .` empty before: yes). Each safeguard removed in turn by exact replacement (each text to replace occurring exactly once in its file), the test or tests that guard it run alone (npx vitest run <file> -t <name>), the verdict of each, then the files restored with git checkout and the tree checked unchanged.
+
+1. Baseline: each named test on the tree as committed (it must pass, alone).
+Columns: file | name given to -t | verdict | vitest's summary lines
+test/removal-live.test.ts | a folder that cannot be removed in full | passed, alone | Test Files  1 passed (1) | Tests  1 passed | 6 skipped (7)
+test/removal-live.test.ts | a network of the project that Docker will not remove | passed, alone | Test Files  1 passed (1) | Tests  1 passed | 6 skipped (7)
+test/removal-live.test.ts | a recorded folder that fails its own check | passed, alone | Test Files  1 passed (1) | Tests  1 passed | 6 skipped (7)
+test/removal-live.test.ts | the removal with a handle | passed, alone | Test Files  1 passed (1) | Tests  1 passed | 6 skipped (7)
+test/removal-live.test.ts | with a tab in its name | passed, alone | Test Files  1 passed (1) | Tests  1 passed | 6 skipped (7)
+
+2. The controls.
+Columns: control | what was removed | verdict | for each test: file, name, vitest's summary lines
+J2-C54 | gap 180: the end of a removal does not read Docker's lists (whatever is left, it reports the removal as done) | FAILED, as it should with the safeguard removed | test/removal-live.test.ts -t "a network of the project that Docker will not remove": failed: Test Files  1 failed (1) | Tests  1 failed | 6 skipped (7)
+J2-C59 | gap 180 review, item 1: Docker's lists asked and read as tab-separated text again, not one JSON object a line (a tab in a name shifts its label out of sight) | FAILED, as it should with the safeguard removed | test/removal-live.test.ts -t "with a tab in its name": failed: Test Files  1 failed (1) | Tests  1 failed | 6 skipped (7)
+J2-C61 | gap 180 review, item 2 (a): a folder that cannot be removed gives a plain error again, not SandboxNotRemoved | FAILED, as it should with the safeguard removed | test/removal-live.test.ts -t "a folder that cannot be removed in full": failed: Test Files  1 failed (1) | Tests  1 failed | 6 skipped (7)
+J2-C62 | gap 180 review, item 2 (b): the compose file is not kept for last when the folder is removed | FAILED, as it should with the safeguard removed | test/removal-live.test.ts -t "a folder that cannot be removed in full": failed: Test Files  1 failed (1) | Tests  1 failed | 6 skipped (7)
+J2-C63 | gap 180 review, item 2 (c): a recorded folder that fails its own check stops the removal before Docker is asked, with a plain error, as before | FAILED, as it should with the safeguard removed | test/removal-live.test.ts -t "a recorded folder that fails its own check": failed: Test Files  1 failed (1) | Tests  1 failed | 6 skipped (7)
+J2-C78 | gap 180 review, item 9: the removal with a handle removes the folder with no sweep and no check, as before the fix | FAILED, as it should with the safeguard removed | test/removal-live.test.ts -t "the removal with a handle": failed: Test Files  1 failed (1) | Tests  1 failed | 6 skipped (7)
+
+After every control: `git diff HEAD -- .` empty: yes
+Result: baseline every named test passed, alone; controls: 6 run, every one failed its tests, as it should.

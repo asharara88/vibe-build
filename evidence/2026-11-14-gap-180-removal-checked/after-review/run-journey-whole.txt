@@ -1,0 +1,11 @@
+Known gap 180, after its review: the whole of test/journey.test.ts, once, on commit b86680a (builder/ tree dd9d7c8), working tree as committed, 2026-11-14T14:04:44Z. Database builder_test_g180fix. TMPDIR <scratchpad>/t2.
+
+ RUN  v5.1.0 <scratchpad>/wt180/builder
+
+
+ Test Files  1 passed (1)
+      Tests  75 passed (75)
+   Start at  14:06:13
+   Duration  26.59s (tests 99%, import 1%)
+
+vitest exit code: 0

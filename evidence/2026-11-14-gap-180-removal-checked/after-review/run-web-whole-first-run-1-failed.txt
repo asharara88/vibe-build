@@ -1,0 +1,31 @@
+Known gap 180, after its review: the whole of test/web.test.ts, once, on commit b86680a (builder/ tree dd9d7c8), working tree as committed, 2026-11-14T14:04:44Z. Database builder_test_g180fix. TMPDIR <scratchpad>/t2.
+
+ RUN  v5.1.0 <scratchpad>/wt180/builder
+
+ ❯ test/web.test.ts (78 tests | 1 failed) 57092ms
+   ❯ J2 (c) interface: the clean stop and restart (stand-in sandboxes, no container; each test on a database of its own) (16)
+     × C13 (after the review of pull request #49): the wait for a job that will not stop counts from the halt, the live preview's stop included: with a preview whose stop takes longer than the wait, nothing more is waited after it 3027ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/web.test.ts > J2 (c) interface: the clean stop and restart (stand-in sandboxes, no container; each test on a database of its own) > C13 (after the review of pull request #49): the wait for a job that will not stop counts from the halt, the live preview's stop included: with a preview whose stop takes longer than the wait, nothing more is waited after it
+error: permission denied to terminate process
+ ❯ node_modules/pg-pool/index.js:45:11
+ ❯ Object.drop test/web.test.ts:2195:9
+    2193|         sandboxes.removeAll();
+    2194|         await db.end();
+    2195|         await pool.query(`drop database if exists "${name}" with (forc…
+       |         ^
+    2196|       },
+    2197|     };
+ ❯ test/web.test.ts:2482:7
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 77 passed (78)
+   Start at  14:05:15
+   Duration  57.51s (tests 99%)
+
+vitest exit code: 1
