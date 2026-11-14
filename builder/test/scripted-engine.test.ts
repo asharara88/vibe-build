@@ -173,6 +173,41 @@ describe("scripted engine: the fixed change sets of example 1", () => {
     for (const i of imports) expect(i, i).toMatch(/^node:/);
     expect(code).not.toMatch(/\brequire\(|import\(/);
   });
+
+  it("T4 (package 3.2): the template carries its own first migration, and step 01 adds the data step's and replaces the journal (7 files); after each, the journal lists exactly the migrations there are, each with its SQL and snapshot", () => {
+    type Journal = { dialect: string; entries: Array<{ idx: number; tag: string }> };
+    const tplJournal = JSON.parse(readFileSync(join(templateDir, "drizzle", "meta", "_journal.json"), "utf8")) as Journal;
+    expect(walkFiles(join(templateDir, "drizzle")).map((f) => relative(templateDir, f)).sort()).toEqual(["drizzle/0000_template.sql", "drizzle/meta/0000_snapshot.json", "drizzle/meta/_journal.json"]);
+    expect(tplJournal.dialect).toBe("postgresql");
+    expect(tplJournal.entries.map((e) => [e.idx, e.tag])).toEqual([[0, "0000_template"]]);
+    // The template's migration makes exactly the four protected sign-in tables.
+    const sql0 = readFileSync(join(templateDir, "drizzle", "0000_template.sql"), "utf8");
+    expect([...sql0.matchAll(/CREATE TABLE "([a-z_]+)"/g)].map((m) => m[1])).toEqual(["account", "session", "user", "verification"]);
+    const one = readManifest(changeSets, EXAMPLE, "01-data");
+    expect(one.files.map((f) => [f.path, f.op])).toEqual([
+      ["src/db/app-schema.ts", "add"],
+      ["drizzle.config.ts", "replace"],
+      ["drizzle/0001_leave_request.sql", "add"],
+      ["drizzle/meta/0001_snapshot.json", "add"],
+      ["drizzle/meta/_journal.json", "replace"],
+      ["messages/en.json", "replace"],
+      ["messages/ar.json", "replace"],
+    ]);
+    const stepJournal = JSON.parse(readFileSync(join(changeSets, EXAMPLE, "01-data", "files", "drizzle", "meta", "_journal.json"), "utf8")) as Journal;
+    expect(stepJournal.entries.map((e) => [e.idx, e.tag])).toEqual([
+      [0, "0000_template"],
+      [1, "0001_leave_request"],
+    ]);
+    // The template's entry is kept as it was.
+    expect(stepJournal.entries[0]).toEqual(tplJournal.entries[0]);
+    // The data step's migration makes the leave-request table only: no table of the template's is touched.
+    const sql1 = readFileSync(join(changeSets, EXAMPLE, "01-data", "files", "drizzle", "0001_leave_request.sql"), "utf8");
+    expect([...sql1.matchAll(/CREATE TABLE "([a-z_]+)"/g)].map((m) => m[1])).toEqual(["leave_request"]);
+    expect([...sql1.matchAll(/ALTER TABLE "([a-z_]+)"/g)].every((m) => m[1] === "leave_request")).toBe(true);
+    expect(sql1).not.toMatch(/\bDROP\s|\bTRUNCATE\s|\bDELETE\s+FROM\b/i);
+    // Step 02 adds no migration and does not touch the drizzle/ folder.
+    expect(readManifest(changeSets, EXAMPLE, "02-submitter-screen").files.filter((f) => f.path.startsWith("drizzle"))).toEqual([]);
+  });
 });
 
 const base: Omit<SandboxSpec, "profile" | "dir"> = {
@@ -330,9 +365,17 @@ describe("scripted engine: the class, against a stand-in runner (no container, n
     expect(res.failureReason).toBeUndefined();
     expect(res.ok).toBe(true);
     expect(res.usage).toEqual({ input_tokens: 0, output_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0, cache_creation_1h_tokens: 0, speed: "standard" });
-    expect(res.turns).toBe(4);
-    expect(res.changedFiles).toEqual(["drizzle.config.ts", "messages/ar.json", "messages/en.json", "src/db/app-schema.ts"]);
-    expect(events.map((e) => e.type)).toEqual(["text", "text", "tool_call", "tool_call", "tool_call", "tool_call", "finished"]);
+    expect(res.turns).toBe(7);
+    expect(res.changedFiles).toEqual([
+      "drizzle.config.ts",
+      "drizzle/0001_leave_request.sql",
+      "drizzle/meta/0001_snapshot.json",
+      "drizzle/meta/_journal.json",
+      "messages/ar.json",
+      "messages/en.json",
+      "src/db/app-schema.ts",
+    ]);
+    expect(events.map((e) => e.type)).toEqual(["text", "text", "tool_call", "tool_call", "tool_call", "tool_call", "tool_call", "tool_call", "tool_call", "finished"]);
     expect((events[0] as { text: string }).text).toMatch(/^Scripted engine: fixed change example-1\/01-data\. The instruction \(25 characters\) is not read\. No model is called\.$/);
     expect(events.filter((e) => e.type === "tool_call").every((e) => (e as { tool: string }).tool === "scripted.write")).toBe(true);
     // What the container was asked to do.
@@ -408,6 +451,78 @@ describe("scripted engine: the class, against a stand-in runner (no container, n
     }
     // The certificate that was there before is kept.
     expect(existsSync(join(repo.workTree, "certs", "session-ca.crt"))).toBe(true);
+  });
+
+  /**
+   * Package 3.2 (S23): a made-up change set, outside builder/scripted, whose step writes the files it lists, as a
+   * misbehaving engine past the applier might; the runner stands in for the engine container.
+   */
+  function madeUpSets(example: string, steps: Record<string, Array<{ path: string; content: string }>>): { sets: string; runner: EngineRunner } {
+    const sets = join(dir, "made-up-sets");
+    for (const [stepId, files] of Object.entries(steps)) {
+      const at = join(sets, example, stepId);
+      for (const f of files) {
+        mkdirSync(dirname(join(at, "files", f.path)), { recursive: true });
+        writeFileSync(join(at, "files", f.path), f.content);
+      }
+      writeFileSync(join(at, "manifest.json"), JSON.stringify({ example, step: stepId, label: `A made-up change: ${stepId}`, files: files.map((f) => ({ path: f.path, op: "add", sha256: sha256Of(f.content) })) }));
+    }
+    const runner: EngineRunner = (a) => {
+      const stepId = a.cmd[a.cmd.indexOf("--step") + 1]!;
+      const m = readManifest(sets, example, stepId);
+      const done = (async (): Promise<StreamingEnd> => {
+        a.onLine(JSON.stringify({ kind: "start", example, step: stepId, files: m.files.length, label: m.label }));
+        for (const f of m.files) {
+          mkdirSync(dirname(join(repo.workTree, f.path)), { recursive: true });
+          writeFileSync(join(repo.workTree, f.path), readFileSync(join(sets, example, stepId, "files", f.path)));
+          a.onLine(JSON.stringify({ kind: "write", op: f.op, path: f.path, sha256: f.sha256 }));
+        }
+        a.onLine(JSON.stringify({ kind: "done", written: m.files.length }));
+        return { code: 0, stderrTail: "" };
+      })();
+      return { container: a.container, done, kill: async () => undefined };
+    };
+    return { sets, runner };
+  }
+
+  it("package 3.2 (S23): a step that writes compose.yaml fails, the file named as protected, even when its change names it; nothing is committed", async () => {
+    const { sets, runner } = madeUpSets("test-compose", { "01-compose": [{ path: "compose.yaml", content: "services: {}\n" }] });
+    const head = await git(repo, ["rev-parse", "HEAD"]);
+    const res = await new ScriptedEngine({ sandbox: fakeSandbox, workspace: repo.workTree, gitDir: repo.gitDir, changeSetsDir: sets, example: "test-compose", runner }).runStep(step("01-compose"), () => undefined);
+    expect(res).toMatchObject({ ok: false, failureReason: "protected files changed: compose.yaml", changedFiles: ["compose.yaml"] });
+    expect(await git(repo, ["rev-parse", "HEAD"])).toBe(head);
+    expect((await resetToLastCommit(repo)).unrestorable).toEqual([]);
+    expect(await workspaceChanges(repo)).toEqual(CLEAN);
+  });
+
+  it("package 3.2 (S23, S29): a step that adds compose.override.yaml, or any other file Docker Compose or the image build reads without being told, fails, the file named, even when its change names it; nothing is committed", async () => {
+    const names = [
+      "compose.override.yaml",
+      "compose.override.yml",
+      "docker-compose.override.yaml",
+      "docker-compose.override.yml",
+      "compose.yml",
+      "docker-compose.yaml",
+      "docker-compose.yml",
+      "deploy/docker-compose.yml",
+      "Dockerfile.dockerignore",
+      "src/.dockerignore",
+    ];
+    const { sets, runner } = madeUpSets(
+      "test-names",
+      Object.fromEntries(names.map((p, i) => [`${String(i + 1).padStart(2, "0")}-name`, [{ path: p, content: "services:\n  door:\n    privileged: true\n" }]])),
+    );
+    for (const [i, p] of names.entries()) {
+      const head = await git(repo, ["rev-parse", "HEAD"]);
+      const res = await new ScriptedEngine({ sandbox: fakeSandbox, workspace: repo.workTree, gitDir: repo.gitDir, changeSetsDir: sets, example: "test-names", runner }).runStep(
+        step(`${String(i + 1).padStart(2, "0")}-name`),
+        () => undefined,
+      );
+      expect(res, p).toMatchObject({ ok: false, failureReason: `files that Docker Compose or the image build would read without being told: ${p}`, changedFiles: [p] });
+      expect(await git(repo, ["rev-parse", "HEAD"]), p).toBe(head);
+      expect((await resetToLastCommit(repo)).unrestorable, p).toEqual([]);
+      expect(await workspaceChanges(repo), p).toEqual(CLEAN);
+    }
   });
 
   it("stop() kills the running container and resolves only once the step has ended 'stopped'", async () => {
@@ -787,7 +902,7 @@ describe("scripted engine: live, in the engine container (development profile)",
 
   it("applies both fixed steps in the engine container; each is committed as [scripted] by the scripted engine, with zero usage", async () => {
     const engine = new ScriptedEngine({ sandbox: sb, workspace, gitDir: repo.gitDir, changeSetsDir: sets, example: EXAMPLE });
-    for (const [stepId, files] of [["01-data", 4], ["02-submitter-screen", 8]] as const) {
+    for (const [stepId, files] of [["01-data", 7], ["02-submitter-screen", 8]] as const) {
       const events: EngineEvent[] = [];
       const res = await engine.runStep({ projectId: "p_engine_live", stepId, instruction: "Made-up instruction.", protectedPaths: PROTECTED, maxTurns: 50 }, (e) => events.push(e));
       expect(res.failureReason, stepId).toBeUndefined();

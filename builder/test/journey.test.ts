@@ -98,7 +98,7 @@ describe("J1 journey: nothing is built before both confirmations, nothing export
     const plan = events.at(-1)!;
     expect(plan.payload).toMatchObject({ acceptance_version: "v001", acceptance_label: JOURNEY_STAND_IN_LABEL, quality_gate_after_each_step: "not done (milestone 1)" });
     expect((plan.payload.steps as Array<{ step: string; files: number }>).map((s) => [s.step, s.files])).toEqual([
-      ["01-data", 4],
+      ["01-data", 7],
       ["02-submitter-screen", 8],
     ]);
     expect(statSync(join(dataDir, "acceptance", id, "v001")).isDirectory()).toBe(true);
@@ -343,7 +343,7 @@ describe("J1 journey, part 2: the build, preview, checklist and export jobs (sta
   };
   const stepEvents = async (id: string, step: string) => (await listEvents(pool, id)).filter((e) => e.step === step);
 
-  it("step 1 runs through the step hold: its sandbox made, $1.5552 reserved and released, the engine's events in order and step.hold_closed after the last of them; step 2 only after step 1 is approved", async () => {
+  it("step 1 runs through the step hold: its sandbox made, $2.7216 reserved and released, the engine's events in order and step.hold_closed after the last of them; step 2 only after step 1 is approved", async () => {
     // Every engine event's write is held 150 ms: written without waiting, they would land after step.hold_closed.
     const { j, jobs } = make({ pool: slowPoolFor(pool, EV.engineEvent, 150) });
     const id = await ready(j);
@@ -352,11 +352,11 @@ describe("J1 journey, part 2: the build, preview, checklist and export jobs (sta
     await jobs.buildStep(id, "01-data");
     await j.waitForJob();
     const kinds = (await stepEvents(id, "01-data")).map((e) => e.kind);
-    expect(kinds).toEqual([EV.jobStarted, EV.sandboxMade, "step.hold_opened", ...Array(7).fill(EV.engineEvent), "step.hold_closed", EV.jobFinished]);
+    expect(kinds).toEqual([EV.jobStarted, EV.sandboxMade, "step.hold_opened", ...Array(10).fill(EV.engineEvent), "step.hold_closed", EV.jobFinished]);
     const ev = await stepEvents(id, "01-data");
-    expect(ev.filter((e) => e.kind === EV.engineEvent).map((e) => e.payload.type)).toEqual(["text", "text", "tool_call", "tool_call", "tool_call", "tool_call", "finished"]);
-    expect(ev.find((e) => e.kind === "step.hold_opened")!.payload).toMatchObject({ step_budget_usd: 1.5552, turns: 4, model: "claude-opus-5-5" });
-    expect(ev.find((e) => e.kind === "step.hold_closed")!.payload).toMatchObject({ released_usd: 1.5552, spent_in_step_usd: 0, calls_drawn: 0 });
+    expect(ev.filter((e) => e.kind === EV.engineEvent).map((e) => e.payload.type)).toEqual(["text", "text", "tool_call", "tool_call", "tool_call", "tool_call", "tool_call", "tool_call", "tool_call", "finished"]);
+    expect(ev.find((e) => e.kind === "step.hold_opened")!.payload).toMatchObject({ step_budget_usd: 2.7216, turns: 7, model: "claude-opus-5-5" });
+    expect(ev.find((e) => e.kind === "step.hold_closed")!.payload).toMatchObject({ released_usd: 2.7216, spent_in_step_usd: 0, calls_drawn: 0 });
     expect(JSON.stringify(ev.map((e) => e.payload))).not.toMatch(/bpt_/);
     await expect(jobs.buildStep(id, "01-data")).rejects.toThrow("This step is already built.");
     await expect(jobs.preview(id)).rejects.toThrow(/Every step must be built and approved/);
@@ -379,7 +379,7 @@ describe("J1 journey, part 2: the build, preview, checklist and export jobs (sta
     await j.waitForJob();
     const s = await j.state(id);
     expect(s.stepJobs.get("01-data")).toMatchObject({ state: "failed" });
-    expect(s.stepJobs.get("01-data")!.reason).toMatch(/^This step needs up to \$1\.56 to finish \(4 turns\); this project has \$1\.00 left of its budget of \$1\.00 .*The step was not started\. A cap of at least \$1\.56 would let it start now\.$/);
+    expect(s.stepJobs.get("01-data")!.reason).toMatch(/^This step needs up to \$2\.73 to finish \(7 turns\); this project has \$1\.00 left of its budget of \$1\.00 .*The step was not started\. A cap of at least \$2\.73 would let it start now\.$/);
     const kinds = (await stepEvents(id, "01-data")).map((e) => e.kind);
     expect(kinds).toContain("step.refused");
     expect(kinds).not.toContain("step.hold_opened");
@@ -1715,7 +1715,7 @@ describe("J2 (a): the broken copy rejected (stand-in sandboxes, each with its ow
     expect(plan).toMatchObject({ broken_copy: true, quality_check_after_each_step_and_retry: "not done (milestones 1 and 3)", quality_gate_after_each_step: "not done (milestone 1)", acceptance_label: JOURNEY_STAND_IN_LABEL });
     const label = (step: string) => (JSON.parse(readFileSync(join(builderDir, "scripted", "example-1", step, "manifest.json"), "utf8")) as { label: string }).label;
     expect((plan.steps as Array<{ step: string; label: string; files: number }>).map((x) => [x.step, x.label, x.files])).toEqual([
-      ["01-data", label("01-data"), 4],
+      ["01-data", label("01-data"), 7],
       ["02-submitter-screen", label("02-submitter-screen"), 8],
       [BROKEN, brokenManifest().label, 3],
     ]);
@@ -2032,14 +2032,14 @@ describe("J2 (a): the broken copy rejected (stand-in sandboxes, each with its ow
     await j.closeProject(id);
   });
 
-  it("A5: step 3's reservation is sized for its 3 files: $1.1664 made and released, after $1.5552 and $3.1104; spent $0.00", async () => {
+  it("A5: step 3's reservation is sized for its 3 files: $1.1664 made and released, after $2.7216 and $3.1104; spent $0.00", async () => {
     const { j, jobs } = make();
     const id = await broken(j);
     await throughStep2(j, jobs, id);
     const holds = (await listEvents(pool, id)).filter((e) => e.kind === "step.hold_opened" || e.kind === "step.hold_closed");
     expect(holds.map((e) => [e.kind, e.step, e.kind === "step.hold_opened" ? e.payload.step_budget_usd : e.payload.released_usd, e.payload.turns ?? null, e.payload.spent_in_step_usd ?? null])).toEqual([
-      ["step.hold_opened", "01-data", 1.5552, 4, null],
-      ["step.hold_closed", "01-data", 1.5552, null, 0],
+      ["step.hold_opened", "01-data", 2.7216, 7, null],
+      ["step.hold_closed", "01-data", 2.7216, null, 0],
       ["step.hold_opened", "02-submitter-screen", 3.1104, 8, null],
       ["step.hold_closed", "02-submitter-screen", 3.1104, null, 0],
       ["step.hold_opened", BROKEN, 1.1664, 3, null],
@@ -2380,7 +2380,7 @@ describe("J2 (c): the clean stop and restart, the journey's part (stand-in sandb
 
   it("the automated run's record checks of the broken copy (scripts/journey-restart-checks.ts, brokenCopyRecordChecks), on a made-up record: all pass on it, and each fault given alone is reported by its own check", () => {
     const steps = ["01-data", "02-submitter-screen", "03-wrong-status"];
-    const reservations = [1.5552, 3.1104, 1.1664];
+    const reservations = [2.7216, 3.1104, 1.1664];
     const x = { step: "03-wrong-status", source: "builder/scripted-broken/example-1/03-wrong-status", label: "made-up label", manifestSha256: "a".repeat(64), steps, reservations, bannerEn: "Made-up English sentence.", bannerAr: "جملة عربية مختلقة." };
     const failureText = Buffer.from("made-up runner error: expected Waiting, received Approved");
     const digest = (b: Buffer) => createHash("sha256").update(b).digest("hex");
