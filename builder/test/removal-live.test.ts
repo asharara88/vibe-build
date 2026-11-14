@@ -11,8 +11,11 @@
  * which the check used not to see; a folder that cannot be removed in full; and a recorded folder that fails its own
  * check, which is left alone while Docker's side is removed and checked all the same.
  *
- * Needs Docker and the approved Node image; one test also needs `chattr` and a file system under TMPDIR that takes its
- * +i flag (to make a file that cannot be removed). It fails, never skips, without them. It makes and removes only
+ * After the second review round: a folder whose own removal is refused (its parent made unchangeable), which keeps its
+ * compose file and so can still be removed from the record once the parent can be changed.
+ *
+ * Needs Docker and the approved Node image; two tests also need `chattr` and a file system under TMPDIR that takes its
+ * +i flag (to make a file that cannot be removed, and a folder that cannot be changed). It fails, never skips, without them. It makes and removes only
  * things carrying a made-up project id of its own, or a name starting "removal-test-". No model is called.
  */
 import { execFile } from "node:child_process";
@@ -194,6 +197,39 @@ describe("Known gap 180's fix, live: a removal is reported done only when Docker
     }
     expect(await example1Sandboxes().destroyRecorded(p.id, { dir: p.folder })).toContain("nothing of the project left in Docker's lists; folder removed");
     expect(existsSync(p.folder)).toBe(false);
+  }, 120_000);
+
+  it("second review round: the folder itself cannot be removed (its parent made unchangeable with chattr +i), Docker's side being clean: the removal throws SandboxNotRemoved naming the folder and the error's code; the folder's own removal was asked for before its compose file was touched, so everything else in it is gone, its compose file is still there and the folder still passes its own check; a second try ends the same way; once the parent can be changed, the same removal from the record completes", async () => {
+    expect(dockerProblem).toBeNull();
+    // A parent of its own, so that making it unchangeable touches nothing else of this test file.
+    const parent = join(base!, `removal-test-parent-${hex(4)}`);
+    mkdirSync(parent);
+    const id = `j1-${hex(6)}`;
+    const folder = join(parent, `builder-acceptance-${id.slice(3)}`);
+    mkdirSync(join(folder, "workspace"), { recursive: true });
+    writeFileSync(join(folder, "compose.yaml"), `name: ${JSON.stringify(composeProjectName(id))}\nservices: {}\n`);
+    writeFileSync(join(folder, "workspace", "made-up.txt"), "made-up\n");
+    made.unremovable.push(parent);
+    const flagged = await run("chattr", ["+i", parent]).then(
+      () => null,
+      (e: unknown) => (e instanceof Error ? e.message : String(e)).split("\n").slice(0, 2).join(" "),
+    );
+    if (flagged !== null) throw new Error(`This test needs chattr and a file system under TMPDIR that takes its +i flag, to make a folder that cannot be changed. It fails, never skips, without them (${flagged}).`);
+    try {
+      for (const attempt of ["first try", "second try"]) {
+        const failed = await removal(() => example1Sandboxes().destroyRecorded(id, { dir: folder }));
+        expect(failed, attempt).toBeInstanceOf(SandboxNotRemoved);
+        expect((failed as SandboxNotRemoved).left, attempt).toEqual([`folder ${folder} (not removed: EPERM)`]);
+        // The compose file was not touched: the folder is not left empty, and it still passes its own check.
+        expect(readdirSync(folder), attempt).toEqual(["compose.yaml"]);
+        expect(recordedSandboxRefusal(id, folder), attempt).toBeNull();
+      }
+    } finally {
+      await run("chattr", ["-i", parent]).catch(() => undefined);
+    }
+    expect(await example1Sandboxes().destroyRecorded(id, { dir: folder })).toContain("nothing of the project left in Docker's lists; folder removed");
+    expect(existsSync(folder)).toBe(false);
+    expect(readdirSync(parent)).toEqual([]);
   }, 120_000);
 
   it("a recorded folder that fails its own check (it holds no compose file): the folder is left exactly as it is; Docker's side is removed and checked all the same; the removal throws SandboxNotRemoved, with the sentence it always had, naming what Docker still lists and the folder with why it was left alone", async () => {

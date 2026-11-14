@@ -2560,11 +2560,14 @@ describe("J2 (c) interface: the clean stop and restart (stand-in sandboxes, no c
       const refused = await j.closeProject(id).then(() => null, (e: unknown) => e);
       expect(refused).toBeInstanceOf(JourneyRefused);
       expect((refused as Error).message).toBe(closeNotRemovedRefusal(left));
-      // After the fix's review: the refusal says what happened. It no longer says that nothing else was changed (the
-      // app is stopped and what could be removed is gone by then), and it does not advise restarting the interface.
+      // After the fix's review: the refusal says what happened. It no longer says that nothing else was changed, and it
+      // does not advise restarting the interface. Second review round: it no longer says "its app is stopped" either,
+      // which nothing checks (here the thing left is the app's own container): it says what Docker's lists held after
+      // the removal, and that a container named as left may still be running.
       expect(closeNotRemovedRefusal(left)).toBe(
-        `The project was not closed: its removal did not finish. What could be removed of it was removed, and its app is stopped, except for what is named as left. Left: container builder_${id}-app-1. Nothing of this project is built, previewed, checked or opened any more. Pressing "Close project" again tries the removal again.`,
+        `The project was not closed: its removal did not finish. After the removal, Docker's lists were read: they hold nothing more of this project than what is named as left. A container named there may still be running. Left: container builder_${id}-app-1. Nothing of this project is built, previewed, checked or opened any more. Pressing "Close project" again tries the removal again.`,
       );
+      expect(closeNotRemovedRefusal(left)).not.toMatch(/app is stopped/);
       expect(closeNotRemovedRefusal(["Docker could not be asked (made-up words)"])).toBe(
         'The project was not closed: its removal did not finish. Docker could not be asked, so it is not known what of the project went, or whether its app is stopped. Left: Docker could not be asked (made-up words). Nothing of this project is built, previewed, checked or opened any more. Pressing "Close project" again tries the removal again.',
       );
@@ -3049,7 +3052,7 @@ describe("Sign-off and the live app (stand-in sandbox, the real front; after the
     return { j, jobs, app, cookie, id, port, live, holdNextClose };
   };
 
-  it("C17 (known gap 180, after its review): after a refused Close project on a project whose preview finished and whose checklist passed, the project is \"removal not finished\": its live session is ended and its app stopped; every build, preview, checklist run, approval, sign-off, export and live opening is refused with the one sentence naming that state, through the journey and through the routes, and nothing is written; its pages offer only Close project and New project, with the note of what is left; the same from the record alone, as after a restart; Close project again, with nothing left, closes it", async () => {
+  it("C17 (known gap 180, after its review): after a refused Close project on a project whose preview finished and whose checklist passed, the project is \"removal not finished\": its live session is ended and its app stopped; every build, preview, checklist run, approval, sign-off, export and live opening is refused with the one sentence naming that state, through the journey and through the routes, and nothing is written; its pages offer only Close project and New project, with the note of what is left, and its preview screen does not say that the app is not running any more; the same through a second journey on the same record that holds no handle (not a real start, which would first mark the project interrupted: C19); Close project again, with nothing left, closes it, and the preview screen says that sentence again", async () => {
     const esc = (x: string) => x.replace(/&/g, "&amp;").replace(/'/g, "&#39;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     const x = await checkedInterface("Leave requests (made-up, close refused)");
     const { j, jobs, app, cookie, id } = x;
@@ -3121,11 +3124,16 @@ describe("Sign-off and the live app (stand-in sandbox, the real front; after the
             expect([...new Set(forms)], where).toEqual([`/projects/${id}/close`]);
             expect(html, where).not.toMatch(/data-(build|approve|live-open|live-show|live-end)[=>\s]/);
             expect(html, where).not.toContain('data-go="preview"');
+            // Second review round: the record marks the app as not running after every removal event, also one that
+            // left something. The preview screen does not turn that into "The app is not running any more."
+            expect(html, where).not.toContain(esc(t(lang, "preview.app_stopped")));
+            expect(html, where).not.toContain("data-app-running");
           }
         }
       };
       await pagesOf(app, cookie);
-      // From the record alone, as after a restart: a new journey and new jobs, which hold no handle and no memory of the close.
+      // From the record alone: a second journey and second jobs on the same record, which hold no handle and no memory of
+      // the close. (Not a real start: its recovery would first mark the project interrupted, as C19 shows.)
       const box: { jobs?: JourneyJobs } = {};
       const j2 = new Journey({ pool, dataDir, cleanupProject: (pid, rec) => box.jobs!.cleanup(pid, rec) });
       const jobs2 = new JourneyJobs({ journey: j2, sandboxes, measureFree: () => 50 * 1024 ** 3 });
@@ -3157,6 +3165,10 @@ describe("Sign-off and the live app (stand-in sandbox, the real front; after the
         { reason: CLOSE_NOT_REMOVED, interrupted: false, removed: false, left },
         { reason: "The project was closed.", interrupted: false },
       ]);
+      // Second review round: the removal completed, so the preview screen says again that the app is not running.
+      for (const lang of ["en", "ar"] as const) {
+        expect(await (await get(app, `/projects/${id}/preview?lang=${lang}`, cookie)).text(), lang).toContain(`<p class="note">${esc(t(lang, "preview.app_stopped"))}</p>`);
+      }
     } finally {
       sandboxes.notRemoved = null;
       await j.waitForJob();

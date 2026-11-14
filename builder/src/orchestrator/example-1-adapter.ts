@@ -37,7 +37,7 @@
  */
 import { execFile } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { existsSync, lstatSync, readdirSync, readFileSync, rmSync, unlinkSync } from "node:fs";
+import { existsSync, lstatSync, readdirSync, readFileSync, rmdirSync, rmSync, unlinkSync } from "node:fs";
 import { basename, isAbsolute, join, resolve } from "node:path";
 import { promisify } from "node:util";
 import { runAcceptance, type AcceptanceReport, type AcceptanceRunInput } from "../acceptance/runner.js";
@@ -147,10 +147,12 @@ function jsonLines<A extends string, B extends string>(out: string, a: A, b: B, 
 }
 
 /**
- * Why a Docker command gave no answer, in Docker's own words (after the review of known gap 180's fix): past its time
- * limit, that; else the last non-empty line the docker program wrote on its error output; else the error's own message
- * (the program not found, a list that could not be read). Never the command line, which is what Node puts first in the
- * message of a command that failed.
+ * Why a Docker command gave no answer (after the review of known gap 180's fix). Docker's own words only where Docker
+ * said something: the last non-empty line the docker program wrote on its error output. Otherwise the builder's words:
+ * past its time limit, "no answer within N s"; an answer too long; an exit with no output, its exit code; else the
+ * error's own message (the program not found, a list that could not be read). Never the command line, which is what
+ * Node puts first in the message of a command that failed. (Second review round: this comment said "in Docker's own
+ * words" for every case.)
  */
 export function dockerSaid(err: unknown, timeoutMs: number): string {
   const e = (typeof err === "object" && err !== null ? err : {}) as { killed?: unknown; code?: unknown; stderr?: unknown };
@@ -183,9 +185,9 @@ function removalDockerEnv(clientDir: string | null): NodeJS.ProcessEnv {
  * or label) and its images, matched by the rule J2's automated run uses (`projectLeftovers`, rule N, without the
  * processes and the folder). A control character in a name is shown as JSON writes it (a tab as \t). If Docker cannot be
  * asked (its settings refused, the docker program missing or failing, no answer within `timeoutMs`, a line that cannot
- * be read), that is said as one line starting `DOCKER_NOT_ASKED`, with Docker's own words: a list that could not be
- * read is not read as "nothing left". `env`: the Docker settings to ask with; the sandbox's, with no client folder,
- * when none is given.
+ * be read), that is said as one line starting `DOCKER_NOT_ASKED`, with why (`dockerSaid`: Docker's own last line where
+ * Docker said something, the builder's words otherwise): a list that could not be read is not read as "nothing left".
+ * `env`: the Docker settings to ask with; the sandbox's, with no client folder, when none is given.
  */
 export async function dockerLeftovers(projectId: string, env?: NodeJS.ProcessEnv, o: { timeoutMs?: number } = {}): Promise<string[]> {
   checkJourneyId(projectId);
@@ -240,11 +242,25 @@ async function sweepAndCheck(projectId: string, dir: string, env: NodeJS.Process
 /**
  * Remove a sandbox's folder, once Docker lists nothing of its project (after the review of known gap 180's fix).
  * Everything in it but its compose file goes first, each entry tried even if one before it could not be removed; the
- * compose file and the folder itself go last, and only if all the rest went. So a removal cut off part-way, or an
- * entry that cannot be removed, leaves a folder that still passes `recordedSandboxRefusal`, and the next attempt runs
- * in full. What cannot be removed is said as `SandboxNotRemoved`, naming the folder and the error's code
- * (`removalErrorCode`): never as a plain error, which "Close project" would show as "Something went wrong" and record
- * nothing of.
+ * compose file and the folder itself go last, and only if all the rest went. What cannot be removed is said as
+ * `SandboxNotRemoved`, naming the folder and the error's code (`removalErrorCode`): never as a plain error, which
+ * "Close project" would show as "Something went wrong" and record nothing of.
+ *
+ * What a removal that did not finish leaves, and whether the next attempt from the record can run (second review
+ * round; this comment said that every such folder still passes `recordedSandboxRefusal`, which was shown only for the
+ * first case):
+ * - An entry that cannot be removed: the folder keeps its compose file, passes `recordedSandboxRefusal`, and the next
+ *   attempt runs in full (shown on real Docker, test/removal-live.test.ts).
+ * - The folder itself cannot be removed (its parent may not be changed; the folder is a mount point): before the
+ *   compose file is touched, the folder's own removal is asked for with `rmdir`, which removes nothing but an empty
+ *   folder. For a folder that still holds its compose file, Linux answers ENOTEMPTY when nothing else stands in the
+ *   way, and the reason (EPERM, EACCES, EBUSY) when something does (measured for a parent made unchangeable with
+ *   `chattr +i`, 14 Nov 2026; not measured for a mount point). With a reason, the compose file is kept, so this folder
+ *   too still passes the check (shown on real Docker, the same test file).
+ * - Still possible, and not closed here: the process ends, or the parent changes, between the compose file's removal
+ *   and the folder's own. The folder is then left empty with no compose file, and `recordedSandboxRefusal` refuses it
+ *   at every later attempt from the record ("holds no compose file"; an earlier test fixes that answer for an empty
+ *   folder) until someone removes the empty folder by hand (known gap 180, point (q)).
  */
 function removeSandboxFolder(projectId: string, dir: string): void {
   const errors: unknown[] = [];
@@ -255,10 +271,15 @@ function removeSandboxFolder(projectId: string, dir: string): void {
       errors.push(err);
     }
   };
-  if (lstatSync(dir, { throwIfNoEntry: false })?.isDirectory()) {
+  // Asked inside `attempt` (second review round): for a path it cannot look at (ENOTDIR, EACCES) Node throws here even
+  // when told not to throw for a path that does not exist (measured on Node 22.23.4, 14 Nov 2026).
+  let isFolder = false;
+  attempt(() => (isFolder = lstatSync(dir, { throwIfNoEntry: false })?.isDirectory() === true));
+  if (isFolder) {
     let entries: string[] = [];
     attempt(() => (entries = readdirSync(dir)));
     for (const entry of entries.filter((e) => e !== "compose.yaml")) attempt(() => rmSync(join(dir, entry), { recursive: true, force: true }));
+    if (errors.length === 0) attempt(() => folderItselfCanGo(dir));
   }
   if (errors.length === 0) attempt(() => rmSync(dir, { recursive: true, force: true }));
   if (errors.length === 0 && existsSync(dir)) errors.push(new Error("still there"));
@@ -269,6 +290,21 @@ function removeSandboxFolder(projectId: string, dir: string): void {
 }
 
 /**
+ * Ask whether a folder's own removal is allowed, before its last file is removed (second review round): `rmdir`, which
+ * removes nothing but an empty folder. "Not empty" (ENOTEMPTY, or EEXIST as some systems say it) means nothing else
+ * stood in the way; an empty folder is removed by the call itself; one already gone is not an error. Anything else is
+ * thrown: the reason the folder itself cannot go.
+ */
+function folderItselfCanGo(dir: string): void {
+  try {
+    rmdirSync(dir);
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code;
+    if (code !== "ENOTEMPTY" && code !== "EEXIST" && code !== "ENOENT") throw err;
+  }
+}
+
+/**
  * The code of an error from removing a file or a folder. For a file it could not remove, Node's recursive removal
  * reports ENOTDIR (it goes on to try the file as a folder; measured on Node 22.23.4, 14 Nov 2026), which is not why the
  * file stayed. So for that code the file itself is asked once more, and its own code is given (EPERM for a file that
@@ -276,9 +312,10 @@ function removeSandboxFolder(projectId: string, dir: string): void {
  */
 function removalErrorCode(err: unknown): string {
   const e = (typeof err === "object" && err !== null ? err : {}) as NodeJS.ErrnoException;
-  if (e.code === "ENOTDIR" && typeof e.path === "string" && lstatSync(e.path, { throwIfNoEntry: false })?.isFile()) {
+  if (e.code === "ENOTDIR" && typeof e.path === "string") {
+    // The file is looked at and asked inside one `try` (second review round): looking at it can itself throw.
     try {
-      unlinkSync(e.path);
+      if (lstatSync(e.path, { throwIfNoEntry: false })?.isFile()) unlinkSync(e.path);
     } catch (own) {
       return (own as NodeJS.ErrnoException).code ?? "ENOTDIR";
     }
@@ -308,12 +345,18 @@ export function checkJourneyId(projectId: string): void {
 /**
  * Why a recorded sandbox folder may not be removed, or null: it must be an absolute path whose last part
  * starts "builder-acceptance-" (as `makeExample1` names it), not a link, and hold a compose file naming this
- * project's Compose project.
+ * project's Compose project. Second review round: a folder that cannot be looked at (Node throws ENOTDIR or EACCES for
+ * such a path) is refused with the error's code, where it used to throw a plain error.
  */
 export function recordedSandboxRefusal(projectId: string, dir: string): string | null {
   if (!isAbsolute(dir) || resolve(dir) !== dir) return "the recorded folder is not an absolute, plain path";
   if (!basename(dir).startsWith("builder-acceptance-")) return "the recorded folder is not one makeExample1 makes";
-  const st = lstatSync(dir, { throwIfNoEntry: false });
+  let st: ReturnType<typeof lstatSync>;
+  try {
+    st = lstatSync(dir, { throwIfNoEntry: false });
+  } catch (err) {
+    return `the recorded folder could not be looked at (${(err as NodeJS.ErrnoException).code ?? "an error with no code"})`;
+  }
   if (!st) return null; // gone already: only the containers and images are left to remove
   if (!st.isDirectory()) return "the recorded folder is not a folder";
   const compose = join(dir, "compose.yaml");
@@ -504,10 +547,13 @@ export function example1Sandboxes(o: { runnerImage?: string; buildProxyPort?: nu
     },
     async destroy(x) {
       checkJourneyId(x.projectId);
-      x.appStarted = false;
       // After the fix's review: the sandbox's own Docker settings, asked for before anything is removed, so that a
       // Docker context the sandbox refuses is said by name and not swallowed with Compose's errors below.
       const env = removalEnvOrNotRemoved(x.projectId, x.dir);
+      // Second review round: the handle's flag is cleared only once Docker is about to be asked. With the settings
+      // refused above, nothing was asked or removed, and the handle goes on saying what it said. (From here on the
+      // flag is cleared whatever becomes of the app's container: one Docker would not remove is named in `left`.)
+      x.appStarted = false;
       // Known gap 180's fix (14 Nov 2026): Compose's own removal, as before, then the same sweep and the same check as
       // for a recorded sandbox. Before, this path removed the folder and returned whatever Docker had said.
       await sandbox.destroy(x.sb).catch(() => undefined);
@@ -516,8 +562,12 @@ export function example1Sandboxes(o: { runnerImage?: string; buildProxyPort?: nu
     },
     async destroyRecorded(projectId, rec) {
       checkJourneyId(projectId);
-      // After the fix's review: a recorded folder that fails its own check is left exactly as it is, and never read;
-      // Docker's side is removed and checked all the same, and the removal is reported as not done, naming the folder.
+      // After the fix's review: a recorded folder that fails its own check is left exactly as it is; Docker's side is
+      // removed by label and checked all the same, and the removal is reported as not done, naming the folder. Second
+      // review round, said exactly: the folder's own check looks at the folder and reads its compose file, once, to
+      // judge it. After that nothing of a refused folder is read, changed or given to Docker: its Docker client folder
+      // is not used (the first condition below), and Compose's own removal, which reads the folder's compose file and
+      // acts on whatever project that file names, is not run (the second). Each condition has its test (C23).
       const why = recordedSandboxRefusal(projectId, rec.dir);
       const env = removalEnvOrNotRemoved(projectId, why === null ? rec.dir : null);
       const name = composeProjectName(projectId);

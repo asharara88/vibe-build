@@ -406,14 +406,18 @@ export const CLOSE_NOT_REMOVED = "\"Close project\" was asked; the removal of th
 export const DOCKER_NOT_ASKED = "Docker could not be asked";
 /**
  * What the owner is told then (after the fix's review): what happened, not "nothing else was changed". By the time the
- * removal reports what is left, the project's live session is ended and Compose's removal and the sweep have removed
- * what they could; if Docker could not be asked, what went is not known, and that is said instead.
+ * removal reports what is left, the project's live session is ended, Compose's removal and the sweep have been tried,
+ * and Docker's lists have been read; if Docker could not be asked, what went is not known, and that is said instead.
+ *
+ * Second review round: the sentence said "its app is stopped, except for what is named as left". Nothing checks that
+ * the app stopped: what the removal knows is what Docker's lists held afterwards. So the sentence now says that, and
+ * that a container named as left may still be running.
  */
 export const closeNotRemovedRefusal = (left: string[]) =>
   `The project was not closed: its removal did not finish. ${
     left.some((x) => x.startsWith(DOCKER_NOT_ASKED))
       ? "Docker could not be asked, so it is not known what of the project went, or whether its app is stopped."
-      : "What could be removed of it was removed, and its app is stopped, except for what is named as left."
+      : "After the removal, Docker's lists were read: they hold nothing more of this project than what is named as left. A container named there may still be running."
   } Left: ${left.join("; ")}. Nothing of this project is built, previewed, checked or opened any more. Pressing "Close project" again tries the removal again.`;
 
 /**

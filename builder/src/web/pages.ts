@@ -923,9 +923,12 @@ export function previewPage(lang: Lang, s: JourneyState, live: { port: number; s
   // failed part-way and whose files are kept (review bot on defb9c4).
   const shots = lastPreview ? s.events.filter((e) => e.kind === EV.screenshot && BigInt(e.id) > BigInt(lastPreview.startedEventId)) : [];
   const canStart = !s.runningJob && !noMoreWork(s) && JOB_RULES.preview(s) === null;
+  // Second review round: "The app is not running any more" is not said while the project's last removal left something
+  // (`removalNotFinished`): the record marks the app as not running after every removal event, also one that could not
+  // ask Docker or that names the app's own container as left. The note of what was left, above, is what is known then.
   const status = html`${runningNote(lang, s)}
 ${lastPreview?.state === "failed" ? html`<p class="warn">${t(lang, "preview.failed")}</p><p class="warn" lang="en" dir="ltr">${lastPreview.reason ?? ""}</p>` : ""}
-${s.appRunning ? html`<p class="ok" data-app-running>${t(lang, "preview.app_running")}</p>` : s.previewFinished ? html`<p class="note">${t(lang, "preview.app_stopped")}</p>` : ""}
+${s.appRunning ? html`<p class="ok" data-app-running>${t(lang, "preview.app_running")}</p>` : s.previewFinished && !removalNotFinished(s) ? html`<p class="note">${t(lang, "preview.app_stopped")}</p>` : ""}
 ${canStart ? html`<div class="actions">${postButton(`/projects/${id}/preview`, t(lang, "preview.start"))}</div>` : ""}
 ${lines.length ? html`<details${s.runningJob?.kind === "preview" ? html` open` : ""}><summary>${t(lang, "preview.lines")}</summary><ol class="lines">${lines.map((e) => html`<li lang="en" dir="ltr">${String(e.payload.line ?? "")}</li>`)}</ol></details>` : ""}
 <p class="note">${t(lang, "preview.not_live")}</p>`;
