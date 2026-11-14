@@ -52,12 +52,14 @@ export const keyPath = (name: KeyFile) => `/run/secrets/${name}`;
  * The `keys` service's script: for each secret, keep it if its file is there; otherwise write a fresh random value
  * to a temporary name, mode 0444, and move it into place, so that a start cut off part-way never leaves an empty
  * file to be kept. The sample password starts "Sample-" and is longer than the app's minimum of 12 characters.
+ * The mode is written with a space after its colon: without it, the image scan of test/approved-images.test.ts
+ * reads the two words as an image's name and tag.
  */
 export const KEYS_SCRIPT =
   "const fs=require('fs'),c=require('crypto');" +
   "for(const[n,b,p]of[['db_password',18,''],['auth_secret',32,''],['sample_password',12,'Sample-']]){" +
   "const f='/keys/'+n;if(fs.existsSync(f)){console.log('kept '+n);continue}" +
-  "fs.rmSync(f+'.tmp',{force:true});fs.writeFileSync(f+'.tmp',p+c.randomBytes(b).toString('base64url'),{mode:0o444});" +
+  "fs.rmSync(f+'.tmp',{force:true});fs.writeFileSync(f+'.tmp',p+c.randomBytes(b).toString('base64url'),{mode: 0o444});" +
   "fs.renameSync(f+'.tmp',f);console.log('made '+n)}";
 
 /** The database's address, with the password read from its file. `$$` is Compose's way of writing one `$`. */

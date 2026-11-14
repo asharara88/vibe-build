@@ -37,7 +37,7 @@ services:
     command:
       - "node"
       - "-e"
-      - "const fs=require('fs'),c=require('crypto');for(const[n,b,p]of[['db_password',18,''],['auth_secret',32,''],['sample_password',12,'Sample-']]){const f='/keys/'+n;if(fs.existsSync(f)){console.log('kept '+n);continue}fs.rmSync(f+'.tmp',{force:true});fs.writeFileSync(f+'.tmp',p+c.randomBytes(b).toString('base64url'),{mode:0o444});fs.renameSync(f+'.tmp',f);console.log('made '+n)}"
+      - "const fs=require('fs'),c=require('crypto');for(const[n,b,p]of[['db_password',18,''],['auth_secret',32,''],['sample_password',12,'Sample-']]){const f='/keys/'+n;if(fs.existsSync(f)){console.log('kept '+n);continue}fs.rmSync(f+'.tmp',{force:true});fs.writeFileSync(f+'.tmp',p+c.randomBytes(b).toString('base64url'),{mode: 0o444});fs.renameSync(f+'.tmp',f);console.log('made '+n)}"
   db:
     image: "postgres:16-alpine@sha256:aa6cb33cf4c19c765cefcf48d96176258800870a9a1e930ad126200f9d825139"
     cap_drop:

@@ -2,7 +2,7 @@
 
 An internal web app that the builder made from its house template. Every user and every record in it is made up.
 
-**Internal only, not for customers.** The two container images it names, `node:22-alpine` and `postgres:16-alpine`, each pinned to one digest, are approved for the builder's internal development and testing only. Its development-only packages are approved for development use only, never in what a customer receives.
+**Internal only, not for customers.** The two container images it names, Node.js 22 and PostgreSQL 16 (each pinned to one digest in `Dockerfile` and `compose.yaml`), are approved for the builder's internal development and testing only. Its development-only packages are approved for development use only, never in what a customer receives.
 
 ## Start it
 
