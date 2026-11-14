@@ -1,0 +1,8 @@
+Which program leaves node-compile-cache in TMPDIR. Each command below is run once, in builder/, with TMPDIR set to a new, empty folder; then that folder's entries and size (du -sh) are listed. Node v22.23.4, npm 10.9.9, vitest 5.1.0. No test file is run.
+$ node -e 0   -> left: (du -sh: 4.0K)
+$ npm --version   -> left: node-compile-cache (du -sh: 412K)
+$ npx vitest --version   -> left: node-compile-cache (du -sh: 2.6M)
+$ npx tsc --version   -> left: node-compile-cache (du -sh: 2.6M)
+$ node node_modules/vitest/vitest.mjs --version   -> left: (du -sh: 4.0K)
+$ node node_modules/typescript/bin/tsc --version   -> left: (du -sh: 4.0K)
+Reading: npm (and so npx) leaves node-compile-cache, Node's compile cache, in TMPDIR; Node itself, vitest and tsc started without npm do not.

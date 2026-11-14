@@ -1,0 +1,48 @@
+Run 'review': the whole suite, live tests included (npx vitest run), in builder/, on commit 9f65b54, builder/ tree 3920a31, working tree: 1 changed files (evidence/2026-11-14-sandbox-test-tmpdir/after-review/ ).
+Test database builder_test_tmpdir_review, made new. TMPDIR=<scratchpad>/fr, made new and empty; entries in it before the run: 0. BUILDER_BROWSER_CACHE=<scratchpad>/browser-cache.
+Free disk before (df -h /): 23G free of 252G
+Containers on this machine before (docker ps -aq, count): 0
+Waiting for the shared lock (flock <scratchpad>/live-tests.lock) from 04:02:03 UTC.
+Lock held from 04:02:03 UTC.
+
+ RUN  v5.1.0 /home/user/vibe-build/builder
+
+{"at":"2026-11-14T04:18:39.425Z","method":"CONNECT","host":"registry.example.test","port":443,"decision":"allowed"}
+(node:28451) Warning: Closing file descriptor 25 on garbage collection
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28451) [DEP0137] DeprecationWarning: Closing a FileHandle object on garbage collection is deprecated. Please close FileHandle objects explicitly using FileHandle.prototype.close(). In the future, an error will be thrown if a file descriptor is closed during garbage collection.
+(node:28451) Warning: Closing file descriptor 24 on garbage collection
+(node:28451) Warning: Closing file descriptor 26 on garbage collection
+(node:28451) Warning: Closing file descriptor 27 on garbage collection
+(node:28451) Warning: Closing file descriptor 28 on garbage collection
+(node:28451) Warning: Closing file descriptor 29 on garbage collection
+(node:28451) Warning: Closing file descriptor 24 on garbage collection
+(node:28451) Warning: Closing file descriptor 25 on garbage collection
+(node:28451) Warning: Closing file descriptor 26 on garbage collection
+(node:28451) Warning: Closing file descriptor 28 on garbage collection
+(node:28451) Warning: Closing file descriptor 25 on garbage collection
+(node:28451) Warning: Closing file descriptor 26 on garbage collection
+(node:28451) Warning: Closing file descriptor 27 on garbage collection
+(node:28451) Warning: Closing file descriptor 28 on garbage collection
+(node:28451) Warning: Closing file descriptor 25 on garbage collection
+(node:28451) Warning: Closing file descriptor 26 on garbage collection
+(node:28451) Warning: Closing file descriptor 27 on garbage collection
+
+ Test Files  29 passed (29)
+      Tests  692 passed (692)
+   Start at  04:02:04
+   Duration  1022.72s (tests 100%)
+
+vitest exit code: 0
+Lock released at 04:19:07 UTC.
+Containers on this machine after (docker ps -aq, count): 0
+Free disk after (df -h /): 23G free of 252G
+
+What is left in TMPDIR after the run (entries directly in it: 2; everything below it: 572):
+du -sh of each entry, largest first:
+2.6M	node-compile-cache
+356K	tsx-0
+du -sh of TMPDIR as a whole: 2.9M
+Entries by name, with the part after the last '-' dropped (count):
+      1 node-compile-*
+      1 tsx-*

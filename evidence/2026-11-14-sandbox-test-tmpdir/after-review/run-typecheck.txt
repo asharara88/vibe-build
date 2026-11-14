@@ -1,0 +1,6 @@
+npm run typecheck in builder/, on commit 9f65b54 (builder/ tree 3920a31), working tree of builder/: 0 changed files, 2026-11-14T04:01:52Z.
+
+> builder@0.0.1 typecheck
+> tsc --noEmit
+
+exit code: 0
