@@ -1,0 +1,13 @@
+waiting for the lock from 12:33:21 UTC
+Lock held from 12:33:21 UTC.
+
+ RUN  v5.1.0 <scratchpad>/run06c/builder
+
+
+ Test Files  1 passed (1)
+      Tests  10 passed (10)
+   Start at  12:33:22
+   Duration  499.70s (tests 100%)
+
+vitest exit code: 0
+Lock released at 12:41:41 UTC.

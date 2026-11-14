@@ -9,6 +9,8 @@
 | Result | Each of the six project containers matched its expected list exactly, attempt by attempt, who answered included (`demo/run-2/`). The two comparison containers reached the harness's own listener, so the addresses and ports tried were right. Both deliberate misconfigurations failed the check. The whole suite (431 tests, live tests included), the typecheck and the licence check passed; each new safeguard's test failed with the safeguard removed (`checks/`) |
 | State | **Built, not tested.** One adversarial review read it and found nothing blocking; its notes are answered in "After the review" at the end. No engineer has read it (question 7). Tested only when its pull request merges with no blocking finding (build plan section 3, step 9) |
 
+**Correction, 14 November 2026** (by Claude Code; the text above and the tables below are left as first written). The "Result" row above, and three tables below ("What each container reached, and did not"; "What each container reported of itself"; and the isolation run's table in the last section), name the columns "app", "tools" and "runner" and do not say what those columns ran in. They ran in **stand-in images** made from the approved Node image, the app's and the tools' given the real images' names, the runner's under a name of its own (`<project>-runner-standin`), which that project's Compose file named in place of the real runner image: a one-line server for the app, the bare image for tools, the bare image with the runner's user for the runner (`builder/scripts/isolation-harness.ts`, `buildStandIns`). *(This sentence was corrected the same day, after the review of 14 Nov 2026: as first written it said all three were "given the real images' names".)* The probe was not run inside the real app, tools or runner containers. That is narrower than "Done means" asks ("run in each of those containers"). This file said so only further down, under "What this does not show". The "engine" column was the engine service placed as package 2.2's option would place it, in the approved Node image: a placement, not package 2.2's engine, which does not exist. What these runs do show is where the sandbox manager's Compose file places each container. On 14 Nov 2026 the probe was run inside the real app, tools and runner containers of a real example-1 project: `evidence/2026-11-14-package-0.6c-real-containers/network-boundary-real-containers.md`. **This correction does not turn the unmet item into a met one:** the results of 13 Nov stay what they were, results in stand-in images, and the item of "Done means" that names package 2.2's engine is still open.
+
 Measured before it was built: `measurements.md` in this folder (the design's assumptions, items 1 to 9). This file is what was built on those measurements and what its runs showed.
 
 ## In plain words
@@ -43,6 +45,8 @@ The demonstration, `builder/scripts/demo-isolation.ts`, run once at commit `d6db
 
 **What the probe tried, from every container (53 attempts each):** the internet directly (A, B: names and addresses, ports 80 and 443, the cloud's metadata address); the container's own loopback (C) and any port listening inside it (X); **every address the machine holds** (`172.17.0.1` and `192.0.2.2`, read on the machine from the kernel's tables) **on every port listening on the machine** (seven, read from `/proc/net/tcp`: 2024 and the canary on every address; the session's proxy, the builder's database, the stand-in gateway, the build's proxy port, and one more whose owner was not identified, on 127.0.0.1 only) (M); name lookups, outside and the project's own (D); the door's proxy (E); the gateway at the door's port (W); the project's services by name (P); and the cloud session's proxy, bypassing ours (F).
 
+*Read with the correction of 14 Nov 2026 at the top of this file: the app, tools and runner rows ran in stand-in images, and the engine row is a placement in the approved Node image.*
+
 | Container | Networks | Attempts | Got an answer (each on its list) | Compared with its list |
 | --- | --- | --- | --- | --- |
 | app | `data`, `front` | 53 | X41373 connected; D3 found 1 address; Pdb:5432 connected; Papp:3171 connected | PASS: 53 rows PASS, 0 FAIL |
@@ -55,6 +59,8 @@ The demonstration, `builder/scripts/demo-isolation.ts`, run once at commit `d6db
 Every other attempt, in every project container, got no answer. Nothing reached the machine at any of its addresses, nothing outside, no outside name, and not the cloud session's proxy directly. The "X" port in each row is Docker's own name server inside that container.
 
 What each container reported of itself:
+
+*Read with the correction of 14 Nov 2026 at the top of this file: the app, tools and runner rows ran in stand-in images, and the engine row is a placement in the approved Node image.*
 
 | Container | Routes (/proc/net/route) | A way to any address | Proxy settings (names) | Session certificate inside | IPv6 | User id |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -101,6 +107,8 @@ Files: `demo/run-2/comparison-misconfiguration-1.md`, `comparison-misconfigurati
 ## The machine side's and the door's logs
 
 `demo/run-2/egress-host.log`: the egress proxy listening on its socket with the project's list (`registry.npmjs.org`) and the session proxy as its only way out (named by host and port only), the gateway forwarder listening on its socket, the build's proxy on one loopback port; then one line per decision: the registry allowed, example.com refused, for each of the two containers on `out`. `demo/run-2/door.log`: every connection the door passed on, with the address it came from on `out`.
+
+*Correction, 14 November 2026:* the two files named above, `demo/run-2/egress-host.log` and `demo/run-2/door.log`, are not in the repository and never were. The repository's `.gitignore` leaves out every file whose name ends in `.log`, so they were written by the run and not committed; no copy was kept. What this section says of them cannot be checked against a kept file. Since 14 Nov the demonstration writes them as `egress-host-log.txt` and `door-log.txt`, which are kept (`evidence/2026-11-14-package-0.6c-real-containers/demo/`).
 
 ## The other live runs
 
@@ -240,6 +248,8 @@ Seen in passing, not changed: some unit tests in `sandbox.test.ts`, most of them
 | The same file **without** the zip (`BUILDER_BROWSER_CACHE` an empty folder of this run's own) | **7 of 7 failed**, none skipped, exit code 1, each naming the missing zip and how to put it right; under half a second; no container before or after | `checks/merge-live-without-zip.txt` |
 
 **The isolation run** (`scripts/demo-isolation.ts`, as this package's evidence ran it, under the shared lock, 14:39 to 14:44 UTC, 302 s; `checks/merge-isolation.txt`; its probe lines, comparisons and table in `demo/run-merge/`). Every container matched its expected list, attempt by attempt, who answered included:
+
+*Read with the correction of 14 Nov 2026 at the top of this file: the app, tools and runner rows ran in stand-in images, and the engine row is a placement in the approved Node image.*
 
 | Container | Attempts | Got an answer (each on its list) | Compared with its list |
 | --- | --- | --- | --- |

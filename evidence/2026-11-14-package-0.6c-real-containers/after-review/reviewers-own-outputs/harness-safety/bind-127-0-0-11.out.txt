@@ -1,0 +1,7 @@
+Lock held from 14:40:51 UTC.
+user id 100: listening on {"address":"127.0.0.11","family":"IPv4","port":8080}
+listening sockets in /proc/net/tcp (hex address:port): 0B00007F:1F90
+connected to 127.0.0.11:8080 from inside
+exit code: 0
+left: 
+Lock released at 14:40:51 UTC.

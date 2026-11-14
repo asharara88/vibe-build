@@ -1,0 +1,2 @@
+{"at":"2026-11-14T16:07:07.171Z","listening":3128,"to":"/sock/egress.sock"}
+{"at":"2026-11-14T16:07:07.172Z","listening":4010,"to":"/sock/gateway.sock"}

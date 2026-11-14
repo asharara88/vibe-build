@@ -1,0 +1,46 @@
+M2: the user id the probe reports, in place and in one-off containers; M4: the runner image.
+app, in place (the running container): 50 attempts; ended true; reading problems []
+  user id: 100; listening TCP ports seen: 0.0.0.0:3191, 127.0.0.11:35665; default route: no
+  results by word: no name server answered x18; network unreachable x18; refused x9; connected x4; found 1 address x1
+  rows reading "error": none
+  answered: X3191 127.0.0.1:3191: connected; X35665 127.0.0.11:35665: connected; D3 db: found 1 address; Pdb:5432 db:5432: connected; Papp:3191 app:3191: connected
+app service, one-off container (app-real), 35.4 s, exit code 0: 49 attempts; ended true; reading problems []
+  user id: 100; listening TCP ports seen: 127.0.0.11:44395; default route: no
+  results by word: no name server answered x18; network unreachable x18; refused x9; connected x3; found 1 address x1
+  rows reading "error": none
+  answered: X44395 127.0.0.11:44395: connected; D3 db: found 1 address; Pdb:5432 db:5432: connected; Papp:3191 app:3191: connected
+  the exact docker command: docker compose -f <127 characters> --profile tools --profile engine --profile acceptance --profile check run --rm --no-deps -T --name builder_p_iso06c_real_m-isolation-app-real --volume <156 characters> app node /probe/isolation-probe.mjs <445 characters>
+  seen while running: running=true image=sha256:fd753b8049663e8c040dac8e198673e2713ec6dd08dd07710963fccc71814458 configImage=builder_p_iso06c_real_m-app:latest user="app" networkMode=builder_p_iso06c_real_m_data networks={"builder_p_iso06c_real_m_data":{"IPAMConfig":null,"Links":null,"Aliases":["builder_p_iso06c_real_m-isolation-app-real"],"DriverOpts":null,"GwPriority":0,"NetworkID":"7779c81d11bd4cf48579980bdb2874f06b6ab455c55090dbbeb743ca1a585ac0","EndpointID":"ee33919605b5178d7bf2e174f3648abf7cf40a9746837f5777057d9b00b7420c","Gateway":"","IPAddress":"172.18.0.3","MacAddress":"2a:bd:2b:7b:9e:94","IPPrefixLen":16,"IPv6Gateway":"","GlobalIPv6Address":"","GlobalIPv6PrefixLen":0,"DNSNames":["builder_p_iso06c_real_m-isolation-app-real","10076f5ddce3"]},"builder_p_iso06c_real_m_front":{"IPAMConfig":null,"Links":null,"Aliases":["builder_p_iso06c_real_m-isolation-app-real"],"DriverOpts":null,"GwPriority":0,"NetworkID":"a840ee336420c693cfc98b984854c42350d25a1b25b19828aeeb23be3644598e","EndpointID":"6ce6308c317bffdc0b127e038b3d57c17e76413781703121c740132ee6c3be89","Gateway":"","IPAddress":"172.19.0.2","MacAddress":"4a:d3:4f:4b:a1:a0","IPPrefixLen":16,"IPv6Gateway":"","GlobalIPv6Address":"","GlobalIPv6PrefixLen":0,"DNSNames":["builder_p_iso06c_real_m-isolation-app-real","10076f5ddce3"]}} readOnly=true
+tools service, one-off container (tools-real), 35.2 s, exit code 0: 49 attempts; ended true; reading problems []
+  user id: 1000; listening TCP ports seen: 127.0.0.11:34671; default route: no
+  results by word: no name server answered x18; network unreachable x18; refused x9; connected x3; found 1 address x1
+  rows reading "error": none
+  answered: X34671 127.0.0.11:34671: connected; D3 db: found 1 address; Pdb:5432 db:5432: connected; Papp:3191 app:3191: connected
+  the exact docker command: docker compose -f <127 characters> --profile tools --profile engine --profile acceptance --profile check run --rm --no-deps -T --name builder_p_iso06c_real_m-isolation-tools-real --volume <156 characters> tools node /probe/isolation-probe.mjs <445 characters>
+  seen while running: running=true image=sha256:7a261bbfeb16c849dffb9b335ecfb69a356c359542769c5d3ed299ae4eb6b266 configImage=builder_p_iso06c_real_m-tools:latest user="node" networkMode=builder_p_iso06c_real_m_data networks={"builder_p_iso06c_real_m_data":{"IPAMConfig":null,"Links":null,"Aliases":["builder_p_iso06c_real_m-isolation-tools-real"],"DriverOpts":null,"GwPriority":0,"NetworkID":"7779c81d11bd4cf48579980bdb2874f06b6ab455c55090dbbeb743ca1a585ac0","EndpointID":"a54acfd26cd333f512e7e19fa4c784c13c5c8d7e6d19cbd837900ef869d57440","Gateway":"","IPAddress":"172.18.0.3","MacAddress":"8a:c7:4d:ba:d0:e3","IPPrefixLen":16,"IPv6Gateway":"","GlobalIPv6Address":"","GlobalIPv6PrefixLen":0,"DNSNames":["builder_p_iso06c_real_m-isolation-tools-real","d20e2b250265"]}} readOnly=true
+acceptance service, one-off container (runner-real), 0.6 s, exit code 0: 49 attempts; ended true; reading problems []
+  user id: 1001; listening TCP ports seen: 127.0.0.11:41757; default route: no
+  results by word: no name server answered x20; network unreachable x18; refused x9; connected x2
+  rows reading "error": none
+  answered: X41757 127.0.0.11:41757: connected; Papp:3191 app:3191: connected
+  the exact docker command: docker compose -f <127 characters> --profile tools --profile engine --profile acceptance --profile check run --rm --no-deps -T --name builder_p_iso06c_real_m-isolation-runner-real --volume <156 characters> acceptance node /probe/isolation-probe.mjs <445 characters>
+  seen while running: running=true image=sha256:58f6ac3725e29092a1d0b44f8d0c99d18a9fcf6b2b1d63303dd748012ad1479c configImage=builder-acceptance-runner:local user="runner" networkMode=builder_p_iso06c_real_m_front networks={"builder_p_iso06c_real_m_front":{"IPAMConfig":null,"Links":null,"Aliases":["builder_p_iso06c_real_m-isolation-runner-real"],"DriverOpts":null,"GwPriority":0,"NetworkID":"a840ee336420c693cfc98b984854c42350d25a1b25b19828aeeb23be3644598e","EndpointID":"ace54df6d68d9d05346f1115872788ee8174df42190419dd3b778df7deaa110f","Gateway":"","IPAddress":"172.19.0.2","MacAddress":"4a:f4:c0:ad:e0:25","IPPrefixLen":16,"IPv6Gateway":"","GlobalIPv6Address":"","GlobalIPv6PrefixLen":0,"DNSNames":["builder_p_iso06c_real_m-isolation-runner-real","44aab8c39673"]}} readOnly=true
+check service, one-off container (check-real), 38.7 s, exit code 0: 49 attempts; ended true; reading problems []
+  user id: 1000; listening TCP ports seen: 127.0.0.11:35201; default route: no
+  results by word: no name server answered x20; network unreachable x18; refused x9; connected x2
+  rows reading "error": none
+  answered: X35201 127.0.0.11:35201: connected; Papp:3191 app:3191: connected
+  the exact docker command: docker compose -f <127 characters> --profile tools --profile engine --profile acceptance --profile check run --rm --no-deps -T --name builder_p_iso06c_real_m-isolation-check-real --volume <156 characters> check node /probe/isolation-probe.mjs <445 characters>
+  seen while running: running=true image=sha256:0e1754758c2df4cfa3e68d59e2e1b7374bb7fd9ea6328eaaacf15cc934af8202 configImage=node:22-alpine@sha256:0e1754758c2df4cfa3e68d59e2e1b7374bb7fd9ea6328eaaacf15cc934af8202 user="node" networkMode=builder_p_iso06c_real_m_front networks={"builder_p_iso06c_real_m_front":{"IPAMConfig":null,"Links":null,"Aliases":["builder_p_iso06c_real_m-isolation-check-real"],"DriverOpts":null,"GwPriority":0,"NetworkID":"a840ee336420c693cfc98b984854c42350d25a1b25b19828aeeb23be3644598e","EndpointID":"bdd00cf68813c4f3fcd173eabc5e703e27f30e43fed27cdff5b3c6e50679453a","Gateway":"","IPAddress":"172.19.0.2","MacAddress":"c6:25:f0:ca:1a:37","IPPrefixLen":16,"IPv6Gateway":"","GlobalIPv6Address":"","GlobalIPv6PrefixLen":0,"DNSNames":["builder_p_iso06c_real_m-isolation-check-real","753f46c03306"]}} readOnly=true
+engine service, one-off container (engine-real), 40.6 s, exit code 0: 48 attempts; ended true; reading problems []
+  user id: 1000; listening TCP ports seen: none; default route: no
+  results by word: no name server answered x21; network unreachable x18; refused x9
+  rows reading "error": none
+  answered: none
+  the exact docker command: docker compose -f <127 characters> --profile tools --profile engine --profile acceptance --profile check run --rm --no-deps -T --name builder_p_iso06c_real_m-isolation-engine-real --volume <156 characters> engine node /probe/isolation-probe.mjs <445 characters>
+  seen while running: running=true image=sha256:0e1754758c2df4cfa3e68d59e2e1b7374bb7fd9ea6328eaaacf15cc934af8202 configImage=node:22-alpine@sha256:0e1754758c2df4cfa3e68d59e2e1b7374bb7fd9ea6328eaaacf15cc934af8202 user="node" networkMode=none networks={"none":{"IPAMConfig":null,"Links":null,"Aliases":null,"DriverOpts":null,"GwPriority":0,"NetworkID":"c28d0e42fc77a46f0bb8b5fdb5a9a5012b0795cf4e1f7cd434fb51ffb9d5b6fa","EndpointID":"564117a0f9b35910e3b03b38b5bb6693000ee6c99f5ae683190861fc5c96e209","Gateway":"","IPAddress":"","MacAddress":"","IPPrefixLen":0,"IPv6Gateway":"","GlobalIPv6Address":"","GlobalIPv6PrefixLen":0,"DNSNames":null}} readOnly=true
+the database's network namespace (a Node container sharing it), 34.5 s: 49 attempts; ended true; reading problems []
+  user id: 1000; listening TCP ports seen: 0.0.0.0:5432, 127.0.0.11:35035; default route: no
+  results by word: no name server answered x18; network unreachable x18; connected x5; refused x7; found 1 address x1
+  rows reading "error": none
+  answered: C5 127.0.0.1:5432: connected; C7 127.0.0.1:5432: connected; X35035 127.0.0.11:35035: connected; D3 db: found 1 address; Pdb:5432 db:5432: connected; Papp:3191 app:3191: connected

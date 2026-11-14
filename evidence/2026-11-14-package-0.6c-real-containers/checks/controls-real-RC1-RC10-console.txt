@@ -1,0 +1,8 @@
+The new controls RC1 to RC10: flock <scratchpad>/live-tests.lock python3 <this folder>/controls-real.py <worktree> 51d6cc0 <scratchpad>/c06c-real <this folder>/controls-real-RC1-RC10.txt builder_test_06c
+Started 2026-11-14T13:51:28Z.
+Before: 0 containers; images: builder-acceptance-runner:local node:22-alpine postgres:16-alpine ubuntu:<none> 
+Lock held from 13:51:35 UTC.
+done: 11 caught, 0 missed, 0 not run
+exit code: 0
+Lock released at 14:01:16 UTC.
+After: 0 containers; images: builder-acceptance-runner:local node:22-alpine postgres:16-alpine ubuntu:<none> 

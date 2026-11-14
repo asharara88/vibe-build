@@ -1,0 +1,10 @@
+$ df -h /
+Filesystem      Size  Used Avail Use% Mounted on
+/dev/vda        252G   24G   16G  61% /
+
+$ docker system df
+TYPE            TOTAL     ACTIVE    SIZE      RECLAIMABLE
+Images          4         0         1.87GB    1.74GB (93%)
+Containers      0         0         0B        0B
+Local Volumes   0         0         0B        0B
+Build Cache     354       0         10.26GB   7.936GB

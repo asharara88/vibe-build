@@ -1,0 +1,31 @@
+Free disk and Docker's objects at the end of the work after the review, read on 2026-11-14T16:22:25Z, after the last run of this change (the neighbour probe, lock released 16:21:04 UTC).
+The machine is shared: other sessions were running at the time, and what is listed of theirs is not this change's.
+
+$ df -h /
+Filesystem      Size  Used Avail Use% Mounted on
+/dev/vda        252G   24G   15G  62% /
+
+$ docker system df
+TYPE            TOTAL     ACTIVE    SIZE      RECLAIMABLE
+Images          7         4         1.87GB    1.106GB (59%)
+Containers      5         5         61.44kB   0B (0%)
+Local Volumes   1         1         47.8MB    0B (0%)
+Build Cache     369       0         10.38GB   8.061GB
+
+$ docker ps -a (names)
+builder_p_iso06c_live-app-1
+builder_p_iso06c_live-db-1
+builder_p_iso06c_live-egress-1
+builder_p_iso06c_live-egress-host-1
+builder_p_iso06c_live-isolation-tools
+
+$ docker images (names)
+builder-acceptance-runner:local
+builder_p_iso06c_live-app:latest
+builder_p_iso06c_live-runner-standin:latest
+builder_p_iso06c_live-tools:latest
+node:22-alpine
+postgres:16-alpine
+ubuntu:<none>
+
+Of this change's own project ids (p_iso06c_real..., p_iso06c_demo...): containers: 0; networks: 0; volumes: 0; images: 0.

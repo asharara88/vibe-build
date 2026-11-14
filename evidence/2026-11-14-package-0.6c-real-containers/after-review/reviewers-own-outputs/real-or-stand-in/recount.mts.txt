@@ -1,0 +1,16 @@
+// Reviewer: recompute each real column's comparison from the kept probe lines (no container; reads files only).
+import { readFileSync } from "node:fs";
+import { compareWithExpected, expectedOnDevelopment, parseProbeOutput, type DevContainer } from "./copy/builder/src/sandbox/isolation.ts";
+const dir = process.argv[2]!;
+const ctx = { appPort: 3191, gatewayServer: /server: \(no gateway is behind the real project's address in this run\)/, frontServer: /server: preview-front-stand-in/ };
+const cols: Array<[string, DevContainer]> = [["app-running", "app-running"], ["app", "app"], ["tools", "tools"], ["runner", "runner"], ["camera", "camera"], ["check", "check"], ["engine-scripted", "engine-scripted"], ["db", "db"],
+  ["misconfiguration-R1", "app"], ["misconfiguration-R1-in-place", "app-running"], ["misconfiguration-R2", "tools"], ["misconfiguration-R3", "runner"], ["misconfiguration-R4", "engine-scripted"]];
+for (const [key, kind] of cols) {
+  const lines = readFileSync(`${dir}/real-probe-${key}.jsonl`, "utf8").split("\n").filter(Boolean);
+  const r = parseProbeOutput(lines);
+  const c = compareWithExpected(r, expectedOnDevelopment(kind, ctx));
+  const failing = c.rows.filter((x) => !x.pass).map((x) => x.id);
+  console.log(`${key} vs ${kind}: ${c.rows.filter((x) => x.pass).length} PASS, ${failing.length + c.missing.length} FAIL; pass=${c.pass}; ended=${r.ended}; problems=${r.problems.length}; failing=${failing.join(",")}; missing=${c.missing.join(";")}`);
+  // Cross-check: would this column's lines pass a DIFFERENT list? (shows how far each list tells columns apart)
+  if (!key.startsWith("mis")) console.log(`   also passes: ${(["app-running", "app", "tools", "runner", "check", "camera", "engine-scripted", "db"] as DevContainer[]).filter((k) => k !== kind && compareWithExpected(r, expectedOnDevelopment(k, ctx)).pass).join(", ") || "no other list"}`);
+}

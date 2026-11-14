@@ -1,0 +1,99 @@
+// Reviewer's probe 2 (lens: is it really the real containers). A real example-1 project of the reviewer's own
+// (p_iso06c_rev_real), made with the harness under review, then looked at from other directions than the harness's own.
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+import { compareWithExpected, expectedOnDevelopment, parseProbeOutput } from "./copy/builder/src/sandbox/isolation.ts";
+import { dockerEnv, sandbox } from "./copy/builder/src/sandbox/manager.ts";
+import { destroyRealProject, devProbeSettings, probeInPlace, probeServiceSeen, realImageProblemsFrom, runningContainerId, startRealProject, type RealImages } from "./copy/builder/scripts/isolation-harness.ts";
+import type { Example1 } from "./copy/builder/scripts/example-1-sandbox.ts";
+
+const run = promisify(execFile);
+const log = (s = "") => console.log(s);
+const PROJECT = "p_iso06c_rev_real";
+const APP_PORT = 3193;
+const made: Example1[] = [];
+const procs = "const fs=require('fs');console.log('hostname '+require('os').hostname()+' uid '+process.getuid()+' my pid '+process.pid);for(const p of fs.readdirSync('/proc').filter(x=>/^\\d+$/.test(x))){try{console.log('  pid '+p+': '+fs.readFileSync('/proc/'+p+'/cmdline','utf8').split('\\0').join(' ').trim().slice(0,160))}catch{}}";
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+// 0. No Docker: does the realness check accept a look-alike that is not the template's build? (made-up facts)
+{
+  const id = (c: string) => `sha256:${c.repeat(64)}`;
+  const lookAlike: RealImages = {
+    app: { name: "builder_p_x-app:latest", id: id("1"), user: "app", command: ["node", "server.js"], entrypoint: [], workingDir: "/", labels: {} },
+    tools: { name: "builder_p_x-tools:latest", id: id("2"), user: "node", command: ["node"], entrypoint: [], workingDir: "/app", labels: {} },
+    acceptance: { name: "builder-acceptance-runner:local", id: id("3"), user: "", command: [], entrypoint: [], workingDir: "", labels: { "builder.browser-zip-sha256": "a9da028861a0cf789ff25c2fed45f5f1aaf969ed9247835b6a7821a4f7af9d1d" } },
+    node: { name: "node", id: id("4"), user: "", command: ["node"], entrypoint: [], workingDir: "/", labels: {} },
+  };
+  log(`0. realImageProblemsFrom on made-up look-alike facts (an image that only sets USER app and CMD node server.js; a tools image that only sets USER node and WORKDIR /app): ${JSON.stringify(realImageProblemsFrom(lookAlike))}`);
+}
+
+try {
+  const t0 = Date.now();
+  const real = await startRealProject({ projectId: PROJECT, appPort: APP_PORT, onMade: (x) => void made.push(x), log });
+  const { x, images, appContainer } = real;
+  const env = dockerEnv(x.sb);
+  log(`1. Real project ${x.sb.projectName} made in ${Math.round((Date.now() - t0) / 1000)} s. realImageProblemsFrom: ${JSON.stringify(realImageProblemsFrom(images))}`);
+  for (const [k, i] of Object.entries(images)) log(`   image ${k}: ${i.name} id ${i.id} user ${JSON.stringify(i.user)} cmd ${JSON.stringify(i.command).slice(0, 60)} workdir ${i.workingDir} created ${(await run("docker", ["image", "inspect", i.name, "--format", "{{.Created}}"], { env })).stdout.trim()}`);
+  log(`   running app container ${appContainer?.id} image ${appContainer?.imageId}; equal to the app tag's id: ${appContainer?.imageId === images.app.id}`);
+  log(`   docker ps of the project: ${(await run("docker", ["ps", "-a", "--filter", `label=com.docker.compose.project=${x.sb.projectName}`, "--format", "{{.ID}} {{.Names}} {{.Image}} oneoff={{.Label \"com.docker.compose.oneoff\"}} {{.Status}}"], { env })).stdout.trim().split("\n").join(" | ")}`);
+
+  // 2. Where does sandbox.exec land? The hostname inside is the container's id; pid 1 is the container's own command.
+  log("2. sandbox.exec in the app service, no one-off container alive:");
+  log((await sandbox.exec(x.sb, "app", ["node", "-e", procs])).trimEnd());
+  log(`   what the app image holds (ls /app; .next/BUILD_ID; routes): ${(await sandbox.exec(x.sb, "app", ["sh", "-c", "pwd; ls -1 | tr '\\n' ' '; echo; cat .next/BUILD_ID; echo; find .next/server/app -maxdepth 4 -name 'page.js' | head -30 | tr '\\n' ' '"])).trim().split("\n").join(" // ")}`);
+
+  // 3. With a one-off container of the app service alive at the same time: which one does exec enter, and what does `compose ps -q` list?
+  const oneOffName = `${x.sb.projectName}-rev-oneoff`;
+  const oneOff = sandbox.runStreaming(x.sb, "app", ["node", "-e", "setTimeout(()=>{},120000)"], { container: oneOffName, onLine: () => undefined, timeoutMs: 180_000 });
+  let oneOffId = "";
+  for (let i = 0; i < 100 && !oneOffId; i++) {
+    oneOffId = (await run("docker", ["ps", "-q", "--no-trunc", "--filter", `name=${oneOffName}`], { env })).stdout.trim();
+    if (!oneOffId) await sleep(100);
+  }
+  log(`3. A one-off container of the app service is alive too: ${oneOffId.slice(0, 12)} (${oneOffName}).`);
+  log(`   runningContainerId (docker compose ps -q app): ${JSON.stringify((await runningContainerId(x.sb, "app")).split("\n").map((s) => s.slice(0, 12)))}; the running app is ${appContainer?.id.slice(0, 12)}`);
+  log(`   sandbox.exec app -> hostname inside: ${(await sandbox.exec(x.sb, "app", ["node", "-e", "console.log(require('os').hostname())"])).trim()}`);
+  await sandbox.stop(x.sb, ["app"]);
+  log(`   with the app service's own container STOPPED and the one-off still alive: compose ps -q app: ${JSON.stringify(await runningContainerId(x.sb, "app"))}`);
+  const landed = await sandbox.exec(x.sb, "app", ["node", "-e", "console.log(require('os').hostname())"]).then((s) => `ENTERED a container, hostname ${s.trim()}`, (e: { stderr?: string; message?: string }) => `refused: ${(e.stderr || e.message || "").trim().split("\n").pop()}`);
+  log(`   sandbox.exec app then: ${landed}`);
+  const inPlaceStopped = await probeInPlace(x.sb, "app", "{}").then((r) => `RAN: ${r.lines.length} lines, container ${JSON.stringify(r.container)}`, (e: Error) => `refused: ${e.message.slice(0, 200)}`);
+  log(`   probeInPlace then: ${inPlaceStopped}`);
+  await oneOff.kill();
+  await sandbox.up(x.sb, ["app"]);
+  const appNow = await runningContainerId(x.sb, "app");
+  log(`   one-off removed, app started again: compose ps -q app ${appNow.slice(0, 12)} (the same container as before: ${appNow === appContainer?.id})`);
+
+  // 4. The in-place probe, and what else runs in that container while it runs.
+  const { settings, machineListeners } = await devProbeSettings(x.sb, { appPort: APP_PORT, gatewayPort: 4010 });
+  const p = probeInPlace(x.sb, "app", settings);
+  await sleep(6000);
+  log("4. While the in-place probe runs, the processes in the running app container (asked through a second exec):");
+  log((await sandbox.exec(x.sb, "app", ["node", "-e", procs])).trimEnd());
+  const inPlace = await p;
+  const r = parseProbeOutput(inPlace.lines);
+  const ctx = { appPort: APP_PORT, gatewayServer: /no gateway/ };
+  const c = compareWithExpected(r, expectedOnDevelopment("app-running", ctx));
+  const info = (n: string) => r.info.find((i) => i.name === n)?.value;
+  log(`   in place: ${r.attempts.length} attempts; pass against app-running: ${c.pass}; failing: ${JSON.stringify(c.rows.filter((q) => !q.pass).map((q) => q.id))}; missing: ${JSON.stringify(c.missing)}; problems: ${JSON.stringify(r.problems)}`);
+  log(`   user id ${info("user id")}; listening inside: ${info("listening TCP ports seen in /proc/net")}; sha inside == repository: ${inPlace.sha256.inside === inPlace.sha256.repository}; container ${inPlace.container.before.slice(0, 12)} -> ${inPlace.container.after.slice(0, 12)}; removed: ${inPlace.removed}`);
+  log(`   the same lines against the ONE-OFF app list ("app"): pass ${compareWithExpected(r, expectedOnDevelopment("app", ctx)).pass} (the X${APP_PORT} row passes there as "Docker's name server": ${compareWithExpected(r, expectedOnDevelopment("app", ctx)).rows.find((q) => q.id === `X${APP_PORT}`)?.pass})`);
+  log(`   machine listeners given: ${machineListeners.join(", ")}`);
+
+  // 5. What the tools and runner images hold, asked in one-off containers of their services (the product's own runOnce).
+  log(`5. tools service, one-off: ${(await sandbox.runOnce(x.sb, "tools", ["sh", "-c", "id -u; pwd; head -1 /etc/os-release; ls node_modules/.bin/drizzle-kit scripts/seed.ts 2>&1 | tr '\\n' ' '; true"])).trim().split("\n").join(" // ")}`);
+  log(`   acceptance service, one-off: ${(await sandbox.runOnce(x.sb, "acceptance", ["bash", "-c", "id -u; pwd; head -2 /etc/os-release | tr '\\n' ' '; echo; ls | tr '\\n' ' '; echo; ls node_modules/.bin 2>/dev/null | grep -c playwright; true"])).trim().split("\n").join(" // ")}`);
+  // 6. The runner column once, through the harness: Docker's answer about the container, compared with the tag's id read after the build.
+  const seenRunner = await probeServiceSeen(x.sb, "acceptance", "rev-runner", settings);
+  const rr = parseProbeOutput(seenRunner.lines);
+  const cr = compareWithExpected(rr, expectedOnDevelopment("runner", ctx));
+  log(`6. runner one-off through the harness: seen running ${seenRunner.seen.whileRunning}; image ${seenRunner.seen.imageName} ${seenRunner.seen.imageId}; equal to the tag's id read after the build: ${seenRunner.seen.imageId === images.acceptance.id}; networks ${JSON.stringify(seenRunner.seen.networks)}; user setting ${JSON.stringify(seenRunner.seen.user)}; mounts ${JSON.stringify(seenRunner.seen.mounts?.map((m) => `${m.destination}${m.readWrite ? "" : ":ro"}`))}`);
+  log(`   ${rr.attempts.length} attempts; user id ${rr.info.find((i) => i.name === "user id")?.value}; pass against runner: ${cr.pass}; failing ${JSON.stringify(cr.rows.filter((q) => !q.pass).map((q) => q.id))}; problems ${JSON.stringify(rr.problems)}`);
+} catch (err) {
+  const e = err as { stderr?: string; message?: string };
+  log(`FAILED: ${e.message}`);
+  if (e.stderr) log(e.stderr.slice(-2000));
+  process.exitCode = 1;
+} finally {
+  for (const x of made) log(`Removed. Left of ${x.sb.projectName}: ${await destroyRealProject(x).catch((e: Error) => `clean-up failed: ${e.message}`)}`);
+}

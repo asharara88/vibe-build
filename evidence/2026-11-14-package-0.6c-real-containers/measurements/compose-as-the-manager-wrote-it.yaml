@@ -1,0 +1,284 @@
+name: "builder_p_iso06c_real_m"
+networks:
+  data:
+    internal: true
+    enable_ipv6: false
+    driver_opts:
+      com.docker.network.bridge.gateway_mode_ipv4: "isolated"
+  front:
+    internal: true
+    enable_ipv6: false
+    driver_opts:
+      com.docker.network.bridge.gateway_mode_ipv4: "isolated"
+  out:
+    internal: true
+    enable_ipv6: false
+    driver_opts:
+      com.docker.network.bridge.gateway_mode_ipv4: "isolated"
+secrets:
+  db_password:
+    file: "./secrets/db_password"
+volumes:
+  dbdata: {}
+services:
+  app:
+    image: "builder_p_iso06c_real_m-app:latest"
+    pull_policy: "never"
+    cap_drop:
+      - "ALL"
+    security_opt:
+      - "no-new-privileges:true"
+    pids_limit: 256
+    mem_limit: "1g"
+    read_only: true
+    tmpfs:
+      - "/tmp:rw,noexec,nosuid,size=64m"
+      - "/app/.next/cache:rw,nosuid,size=128m"
+    env_file:
+      - "./secrets/app.env"
+    environment:
+      PORT: "3191"
+      DATABASE_URL: "postgres://app:${DB_PASSWORD}@db:5432/app"
+      APP_URL: "http://app:3191"
+    depends_on:
+      db:
+        condition: "service_healthy"
+    healthcheck:
+      test:
+        - "CMD-SHELL"
+        - "wget -q -O /dev/null http://127.0.0.1:3191/en/sign-in || exit 1"
+      interval: "3s"
+      retries: 40
+      start_period: "10s"
+    networks:
+      - "data"
+      - "front"
+  tools:
+    image: "builder_p_iso06c_real_m-tools:latest"
+    pull_policy: "never"
+    profiles:
+      - "tools"
+    cap_drop:
+      - "ALL"
+    security_opt:
+      - "no-new-privileges:true"
+    pids_limit: 256
+    mem_limit: "1g"
+    read_only: true
+    tmpfs:
+      - "/tmp:rw,noexec,nosuid,size=64m"
+    env_file:
+      - "./secrets/app.env"
+    environment:
+      DATABASE_URL: "postgres://app:${DB_PASSWORD}@db:5432/app"
+      APP_URL: "http://app:3191"
+    networks:
+      - "data"
+  engine:
+    image: "node:22-alpine@sha256:0e1754758c2df4cfa3e68d59e2e1b7374bb7fd9ea6328eaaacf15cc934af8202"
+    profiles:
+      - "engine"
+    cap_drop:
+      - "ALL"
+    security_opt:
+      - "no-new-privileges:true"
+    pids_limit: 256
+    mem_limit: "1g"
+    read_only: true
+    tmpfs:
+      - "/tmp:rw,noexec,nosuid,size=16m"
+    user: "node"
+    network_mode: "none"
+    entrypoint: []
+    working_dir: "/workspace"
+    volumes:
+      -
+        type: "bind"
+        source: "<scratchpad>/t06c/builder-acceptance-edJuOx/workspace"
+        target: "/workspace"
+        read_only: false
+        bind:
+          create_host_path: false
+      -
+        type: "bind"
+        source: "<scratchpad>/t06c/builder-acceptance-edJuOx/engine-empty"
+        target: "/workspace/certs"
+        read_only: true
+        bind:
+          create_host_path: false
+      -
+        type: "bind"
+        source: "<scratchpad>/t06c/builder-acceptance-edJuOx/engine-change-sets"
+        target: "/engine"
+        read_only: true
+        bind:
+          create_host_path: false
+  acceptance:
+    image: "builder-acceptance-runner:local"
+    pull_policy: "never"
+    profiles:
+      - "acceptance"
+    cap_drop:
+      - "ALL"
+    security_opt:
+      - "no-new-privileges:true"
+    pids_limit: 256
+    mem_limit: "1g"
+    read_only: true
+    tmpfs:
+      - "/tmp:rw,noexec,nosuid,size=512m"
+    user: "runner"
+    entrypoint: []
+    working_dir: "/runner"
+    environment:
+      BASE_URL: "http://app:3191"
+    networks:
+      - "front"
+  check:
+    image: "node:22-alpine@sha256:0e1754758c2df4cfa3e68d59e2e1b7374bb7fd9ea6328eaaacf15cc934af8202"
+    profiles:
+      - "check"
+    cap_drop:
+      - "ALL"
+    security_opt:
+      - "no-new-privileges:true"
+    pids_limit: 256
+    mem_limit: "1g"
+    read_only: true
+    tmpfs:
+      - "/tmp:rw,noexec,nosuid,size=16m"
+    user: "node"
+    entrypoint: []
+    networks:
+      - "front"
+  db:
+    image: "postgres:16-alpine@sha256:aa6cb33cf4c19c765cefcf48d96176258800870a9a1e930ad126200f9d825139"
+    cap_drop:
+      - "ALL"
+    security_opt:
+      - "no-new-privileges:true"
+    pids_limit: 256
+    mem_limit: "1g"
+    cap_add:
+      - "CHOWN"
+      - "DAC_OVERRIDE"
+      - "FOWNER"
+      - "SETGID"
+      - "SETUID"
+    read_only: false
+    environment:
+      POSTGRES_USER: "app"
+      POSTGRES_PASSWORD_FILE: "/run/secrets/db_password"
+      POSTGRES_DB: "app"
+    secrets:
+      - "db_password"
+    volumes:
+      - "dbdata:/var/lib/postgresql/data"
+    networks:
+      - "data"
+    healthcheck:
+      test:
+        - "CMD-SHELL"
+        - "pg_isready -h 127.0.0.1 -p 5432 -U app -d app"
+      interval: "2s"
+      retries: 30
+  egress:
+    image: "node:22-alpine@sha256:0e1754758c2df4cfa3e68d59e2e1b7374bb7fd9ea6328eaaacf15cc934af8202"
+    cap_drop:
+      - "ALL"
+    security_opt:
+      - "no-new-privileges:true"
+    pids_limit: 256
+    mem_limit: "1g"
+    read_only: true
+    tmpfs:
+      - "/tmp:rw,noexec,nosuid,size=32m"
+    working_dir: "/builder"
+    user: "1000:1000"
+    command:
+      - "node"
+      - "--import"
+      - "tsx"
+      - "src/sandbox/door-main.ts"
+    environment:
+      DOOR_ROUTES: "3128=/sock/egress.sock,4010=/sock/gateway.sock"
+    volumes:
+      -
+        type: "bind"
+        source: "<scratchpad>/run06c/builder"
+        target: "/builder"
+        read_only: true
+        bind:
+          create_host_path: false
+      -
+        type: "bind"
+        source: "<scratchpad>/t06c/builder-acceptance-edJuOx/egress-sockets"
+        target: "/sock"
+        read_only: true
+        bind:
+          create_host_path: false
+    networks:
+      - "out"
+    depends_on:
+      egress-host:
+        condition: "service_healthy"
+    healthcheck:
+      test:
+        - "CMD"
+        - "node"
+        - "-e"
+        - "process.exit(require('fs').readFileSync('/proc/net/tcp','utf8').includes(' 00000000:0C38 00000000:0000 0A')?0:1)"
+      interval: "60s"
+      start_period: "60s"
+      start_interval: "1s"
+  egress-host:
+    image: "node:22-alpine@sha256:0e1754758c2df4cfa3e68d59e2e1b7374bb7fd9ea6328eaaacf15cc934af8202"
+    cap_drop:
+      - "ALL"
+    security_opt:
+      - "no-new-privileges:true"
+    pids_limit: 256
+    mem_limit: "1g"
+    read_only: true
+    tmpfs:
+      - "/tmp:rw,noexec,nosuid,size=32m"
+    working_dir: "/builder"
+    user: "1000:1000"
+    network_mode: "host"
+    command:
+      - "node"
+      - "--import"
+      - "tsx"
+      - "src/sandbox/egress-machine-main.ts"
+    environment:
+      EGRESS_ALLOW: "registry.npmjs.org"
+      EGRESS_UPSTREAM_PROXY: "http://127.0.0.1:38369"
+      EGRESS_SOCKET: "/sock/egress.sock"
+      GATEWAY_SOCKET: "/sock/gateway.sock"
+      GATEWAY_TARGET: "127.0.0.1:4010"
+      EGRESS_BUILD_PORT: "40511"
+      EGRESS_BUILD_ALLOW: "registry.npmjs.org"
+    volumes:
+      -
+        type: "bind"
+        source: "<scratchpad>/run06c/builder"
+        target: "/builder"
+        read_only: true
+        bind:
+          create_host_path: false
+      -
+        type: "bind"
+        source: "<scratchpad>/t06c/builder-acceptance-edJuOx/egress-sockets"
+        target: "/sock"
+        read_only: false
+        bind:
+          create_host_path: false
+    healthcheck:
+      test:
+        - "CMD"
+        - "node"
+        - "-e"
+        - "const fs=require('fs');for(const p of ['/sock/egress.sock','/sock/gateway.sock'])if(!fs.statSync(p,{throwIfNoEntry:false})?.isSocket())process.exit(1);process.exit(require('fs').readFileSync('/proc/net/tcp','utf8').includes(' 0100007F:9E3F 00000000:0000 0A')?0:1)"
+      interval: "60s"
+      start_period: "60s"
+      start_interval: "1s"

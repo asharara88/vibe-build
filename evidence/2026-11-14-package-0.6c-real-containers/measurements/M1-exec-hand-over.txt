@@ -1,0 +1,8 @@
+M1: the probe file is 44486 bytes; as base64 59316 characters, given as ONE argument; SHA-256 of the repository's file 3afbd7d85547d1a9dd650e11a198eb590a3db83b9fe413009ecd063dd746c084.
+write through sandbox.exec (docker compose exec -T app node -e <script> /tmp/isolation-probe.mjs <base64>): written 44486 bytes in 0.2 s
+SHA-256 read back inside the running app container: 3afbd7d85547d1a9dd650e11a198eb590a3db83b9fe413009ecd063dd746c084
+equal to the repository file's: true
+a second write to the same place: refused (Error: EEXIST: file already exists, open '/tmp/isolation-probe.mjs')
+run in place (docker compose exec -T app node /tmp/isolation-probe.mjs <settings>): 67 lines in 34.3 s
+removed afterwards: gone
+the running app container's id before 35721bda43aa and after 35721bda43aa: the same

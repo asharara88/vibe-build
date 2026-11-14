@@ -1,0 +1,9 @@
+The kept 0.6c controls (C1 to C41, C12b, and package 3.1b's five), through the existing script, unchanged:
+flock <scratchpad>/live-tests.lock python3 evidence/2026-11-13-package-0.6c/checks/controls-merge.py 51d6cc0 <scratchpad>/c06c-kept <this folder>/controls-kept-C1-C41.txt builder_test_06c
+Started 2026-11-14T14:01:16Z.
+Lock held from 14:01:22 UTC.
+<scratchpad>/wt06c/evidence/2026-11-13-package-0.6c/checks/controls-merge.py:112: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  f.write(f"# Package 0.6c brought up to date with the integration branch: controls, {datetime.datetime.utcnow().isoformat(timespec='seconds')}Z,\n")
+done: 46 caught, 0 missed, 1 not run
+exit code: 0
+Lock released at 14:03:39 UTC.

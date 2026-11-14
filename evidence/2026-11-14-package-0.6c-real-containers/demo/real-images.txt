@@ -1,0 +1,17 @@
+app: builder_p_iso06c_real_demo-app:latest
+  id: sha256:bdf5679a7d1e739b32a4cde688361decab89a0a16d5836993162b32ab9af0f1a
+  user: "app"; command: ["node","server.js"]; entrypoint: ["docker-entrypoint.sh"]; working folder: "/app"; labels: {}
+  how it was made: built in this run by sandbox.build from the project's workspace (the house template after the scripted engine's steps 01 and 02), the Dockerfile's `run` stage
+tools: builder_p_iso06c_real_demo-tools:latest
+  id: sha256:1556da4e2e4f7c5d8a54f13acf900ce0dbe10569efcb3d24d76c05ba9cfdf388
+  user: "node"; command: ["node","-e","console.error('The tools image runs one named command at a time, e.g. drizzle-kit push or the seed.'); pro; entrypoint: []; working folder: "/app"; labels: {}
+  how it was made: built in this run by sandbox.build from the same workspace, the Dockerfile's `tools` stage
+acceptance runner: builder-acceptance-runner:local
+  id: sha256:2e1340795a27782bde30b20f6f815aa87c3eda7634112a8a2e91d48ee44843e1
+  user: "runner"; command: ["/bin/bash"]; entrypoint: []; working folder: "/runner"; labels: {"builder.browser-zip-sha256":"a9da028861a0cf789ff25c2fed45f5f1aaf969ed9247835b6a7821a4f7af9d1d","builder.never-pushed":"true","builder.package":"3.1","org.opencontainers.image.version":"24.04"}
+  how it was made: built by buildRunnerImage from builder/runner and the approved browser zip; machine-wide, never removed here
+approved Node image (check, engine, door): node:22-alpine@sha256:0e1754758c2df4cfa3e68d59e2e1b7374bb7fd9ea6328eaaacf15cc934af8202
+  id: sha256:0e1754758c2df4cfa3e68d59e2e1b7374bb7fd9ea6328eaaacf15cc934af8202
+  user: ""; command: ["node"]; entrypoint: ["docker-entrypoint.sh"]; working folder: "/"; labels: {}
+  how it was made: the approved Node image, by its digest
+The running app container 4c0e0c1e4e80 runs image sha256:bdf5679a7d1e739b32a4cde688361decab89a0a16d5836993162b32ab9af0f1a.

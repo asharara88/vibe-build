@@ -74,6 +74,41 @@ import {
   startGatewayStandIn,
 } from "../scripts/isolation-harness.js";
 import { cameraSocket } from "../src/web/preview.js";
+// For the unit tests of the run in real containers (14 Nov 2026); the imports above are as they were.
+import { readFileSync } from "node:fs";
+import { BROWSER_ZIP_LABEL, BROWSER_ZIP_SHA256, RUNNER_IMAGE } from "../src/acceptance/runner-image.js";
+import { renderComparison, type Expected } from "../src/sandbox/isolation.js";
+import { appImageName, DEFAULT_IMAGES, toolsImageName } from "../src/sandbox/manager.js";
+import { makeExample1 } from "../scripts/example-1-sandbox.js";
+import {
+  editCompose,
+  editComposeText,
+  IN_PLACE_MAX_ENCODED,
+  IN_PLACE_PATH,
+  PROBE_FILE,
+  probeInPlace,
+  REAL_MISCONFIGURATIONS,
+  realImageProblemsFrom,
+  type ExecInService,
+  type RealImages,
+} from "../scripts/isolation-harness.js";
+// For the unit tests added after the review of 14 Nov 2026; the imports above are as they were.
+import { existsSync } from "node:fs";
+import { composeProjectName } from "../src/sandbox/manager.js";
+import type { Example1 } from "../scripts/example-1-sandbox.js";
+import {
+  destroyRealProject,
+  folderLeft,
+  gatewayPortProblem,
+  imageContentProblemsFrom,
+  imageContents,
+  OWN_CONTAINERS_FORMAT,
+  ownContainerIds,
+  ownImageNames,
+  portTakenProblem,
+  REAL_IMAGE_CONTENTS,
+  type ImageContents,
+} from "../scripts/isolation-harness.js";
 
 // Package 0.6a. The unit tests call the probe's functions only. Those that make an attempt make it only
 // against made-up servers the test itself starts on the loopback address (127.0.0.1 and "localhost"):
@@ -366,6 +401,440 @@ describe("isolation harness: comparing a container's attempts with its expected 
     const otherPort = parseProbeOutput([attempt({ id: "M172.17.0.1:40001", toward: "host", result: "connected", code: null }), end(1)]);
     expect(compareWithExpected(otherPort, expectedPositiveControls("default-bridge", { canaryPort: 4000, bridgeAddress: "172.17.0.1" }), false).pass).toBe(false);
     expect(compareWithExpected(otherPort, expectedPositiveControls("machine", { canaryPort: 4000, bridgeAddress: "172.17.0.1" }), false).pass).toBe(false);
+  });
+});
+
+// The run in real containers (14 Nov 2026): the two new lists, the optional target of an entry, and the harness's
+// helpers. No container is started here; `probeInPlace` is given a made-up command runner, and the image facts are
+// made up. A group of its own, so that the group above is exactly what it was.
+describe("isolation harness: lists and helpers for the real-container run (unit)", () => {
+  const ctx = { appPort: 3191, gatewayServer: /server: gateway-stand-in/ };
+  const end = (n: number) => JSON.stringify({ kind: "end", attempts: n });
+  const failingIds = (c: Comparison) => c.rows.filter((r) => !r.pass).map((r) => r.id);
+  // What a container on `data` and `front` gets, as the app does: silence outside, its database and the app by name.
+  const onDataAndFront = [
+    attempt({ id: "A2", result: "timed out", code: "TIMEOUT" }),
+    attempt({ id: "D3", toward: "lookup", target: "db", result: "found 1 address", code: null }),
+    attempt({ id: "Pdb:5432", toward: "project", target: "db:5432", result: "connected", code: null }),
+    attempt({ id: "Papp:3191", toward: "project", target: "app:3191", result: "connected", code: null }),
+  ];
+  const ownListener = attempt({ id: "X3191", toward: "host", target: "127.0.0.1:3191", result: "connected", code: null });
+  const nameServer = attempt({ id: "X41000", toward: "host", target: "127.0.0.11:41000", result: "connected", code: null });
+
+  it("the running app's list: its own listener at 127.0.0.1 and Docker's name server at 127.0.0.11 pass; a third listening port fails; without its own listener's row the list reads not tried", () => {
+    const list = () => expectedOnDevelopment("app-running", ctx);
+    const ok = compareWithExpected(parseProbeOutput([...onDataAndFront, ownListener, nameServer, end(6)]), list());
+    expect(ok.rows.map((r) => `${r.id} ${r.pass ? "PASS" : "FAIL"}`)).toEqual(["A2 PASS", "X3191 PASS", "X41000 PASS", "D3 PASS", "Papp:3191 PASS", "Pdb:5432 PASS"]);
+    expect(ok.missing).toEqual([]);
+    expect(ok.pass).toBe(true);
+    // A third listening port inside, at the container's own loopback address: not the app's port, not the name server's address.
+    const third = attempt({ id: "X9229", toward: "host", target: "127.0.0.1:9229", result: "connected", code: null });
+    const c = compareWithExpected(parseProbeOutput([...onDataAndFront, ownListener, nameServer, third, end(7)]), list());
+    expect(c.pass).toBe(false);
+    expect(failingIds(c)).toEqual(["X9229"]);
+    // The app's own port answering anywhere but at 127.0.0.1 fails too, and so does a second listener at another 127.0.0.x address.
+    const elsewhere = attempt({ id: "X3191", toward: "host", target: "127.0.0.11:3191", result: "connected", code: null });
+    expect(failingIds(compareWithExpected(parseProbeOutput([...onDataAndFront, elsewhere, nameServer, end(6)]), list()))).toEqual(["X3191"]);
+    const near = attempt({ id: "X41001", toward: "host", target: "127.0.0.111:41001", result: "connected", code: null });
+    expect(failingIds(compareWithExpected(parseProbeOutput([...onDataAndFront, ownListener, nameServer, near, end(7)]), list()))).toEqual(["X41001"]);
+    // Without the app's own listener (a one-off container of the service, not the running one): the entry was not tried.
+    const oneOff = compareWithExpected(parseProbeOutput([...onDataAndFront, nameServer, end(5)]), list());
+    expect(oneOff.pass).toBe(false);
+    expect(oneOff.rows.every((r) => r.pass)).toBe(true);
+    expect(oneOff.missing).toEqual(["^X3191$: the app itself, listening inside its own container"]);
+    expect(renderComparison("app, in place", oneOff)).toContain("| (not tried) | | ^X3191$: the app itself, listening inside its own container | not tried | FAIL |");
+    // The one-off container's own list is as it was: the same lines pass it, own listener or not.
+    expect(compareWithExpected(parseProbeOutput([...onDataAndFront, nameServer, end(5)]), expectedOnDevelopment("app", ctx)).pass).toBe(true);
+    // The rest of the app's list still holds in place: an answer from outside fails.
+    const leak = attempt({ id: "A2", result: "HTTP 301", code: null });
+    expect(failingIds(compareWithExpected(parseProbeOutput([leak, ...onDataAndFront.slice(1), ownListener, nameServer, end(6)]), list()))).toEqual(["A2"]);
+  });
+
+  it("the scripted engine's list is empty: all silent passes; one connected row, one listening port inside, or one unnamed error each fails", () => {
+    expect(expectedOnDevelopment("engine-scripted", ctx)).toEqual([]);
+    const silent = [
+      attempt({ id: "A1", result: "no name server answered", code: "EAI_AGAIN" }),
+      attempt({ id: "B1", result: "network unreachable", code: "ENETUNREACH" }),
+      attempt({ id: "C6", toward: "host", result: "refused", code: "ECONNREFUSED" }),
+      attempt({ id: "D3", toward: "lookup", result: "no name server answered", code: "EAI_AGAIN" }),
+      attempt({ id: "Papp:3191", toward: "project", result: "no name server answered", code: "EAI_AGAIN" }),
+    ];
+    const compare = (...more: string[]) => compareWithExpected(parseProbeOutput([...silent, ...more, end(silent.length + more.length)]), expectedOnDevelopment("engine-scripted", ctx));
+    const quiet = compare();
+    expect(quiet.missing).toEqual([]);
+    expect(quiet.pass).toBe(true);
+    const door = compare(attempt({ id: "Pegress:3128", toward: "project", target: "egress:3128", result: "connected", code: null }));
+    expect(door.pass).toBe(false);
+    expect(failingIds(door)).toEqual(["Pegress:3128"]);
+    // A listening port inside, even Docker's own name server: a container with no network has none.
+    const listening = compare(attempt({ id: "X41000", toward: "host", target: "127.0.0.11:41000", result: "connected", code: null }));
+    expect(listening.pass).toBe(false);
+    expect(failingIds(listening)).toEqual(["X41000"]);
+    const unnamed = compare(attempt({ id: "B4", result: "error", code: "ESOMETHING" }));
+    expect(unnamed.pass).toBe(false);
+    expect(failingIds(unnamed)).toEqual(["B4"]);
+  });
+
+  it("an entry's target, when given, must match the address the attempt was aimed at; an entry without one behaves as before", () => {
+    const entry = (target?: RegExp): Expected[] => [{ ids: /^X/, result: /^connected$/, ...(target ? { target } : {}), why: "made-up" }];
+    const at = (target: string) => parseProbeOutput([attempt({ id: "X5000", toward: "host", target, result: "connected", code: null }), end(1)]);
+    const pinned = /^127\.0\.0\.11:\d+$/;
+    expect(compareWithExpected(at("127.0.0.11:5000"), entry(pinned)).pass).toBe(true);
+    const elsewhere = compareWithExpected(at("127.0.0.1:5000"), entry(pinned));
+    expect(elsewhere.pass).toBe(false);
+    // The row says where the answer had to come from, and where the attempt was aimed.
+    expect(elsewhere.rows).toEqual([{ id: "X5000", target: "127.0.0.1:5000", expected: "connected, aimed at 127.0.0.11:<port>: made-up", actual: "connected", pass: false }]);
+    // The result still has to be right as well: the right address, refused, fails.
+    const refused = parseProbeOutput([attempt({ id: "X5000", toward: "host", target: "127.0.0.11:5000", result: "refused" }), end(1)]);
+    expect(compareWithExpected(refused, entry(pinned)).pass).toBe(false);
+    // Without a target, as before: wherever it was aimed, it passes, and the words are the old ones.
+    expect(compareWithExpected(at("127.0.0.1:5000"), entry()).rows).toEqual([{ id: "X5000", target: "127.0.0.1:5000", expected: "connected: made-up", actual: "connected", pass: true }]);
+    // An existing list renders exactly as it did before this change (the runner's, package 0.6c).
+    const runner = parseProbeOutput([
+      attempt({ id: "A2", result: "timed out", code: "TIMEOUT" }),
+      attempt({ id: "Papp:3131", toward: "project", target: "app:3131", result: "connected", code: null }),
+      attempt({ id: "X41000", toward: "host", target: "127.0.0.11:41000", result: "connected", code: null }),
+      end(3),
+    ]);
+    expect(renderComparison("runner", compareWithExpected(runner, expectedOnDevelopment("runner", { ...ctx, appPort: 3131 }))).split("\n")).toEqual([
+      "| Id | Target | Expected | Actual | runner |",
+      "| --- | --- | --- | --- | --- |",
+      "| A2 | t:1 | no answer (refused, timed out, name not found, no name server, network unreachable) | timed out (TIMEOUT) | PASS |",
+      "| X41000 | 127.0.0.11:41000 | connected: Docker's own name server, inside this container's own network namespace (127.0.0.11) | connected | PASS |",
+      "| Papp:3131 | app:3131 | connected: the project's app, on the front network (the runner's only peer) | connected | PASS |",
+    ]);
+  });
+
+  it("each real misconfiguration's edits match the Compose file makeExample1 itself writes exactly once; an edit whose text is found no times, or twice, is refused", async () => {
+    // The product's own function writes the file; nothing is started (no container, no image, no network).
+    const x = await makeExample1({ projectId: "p_iso06c_real_unit", appPort: 3191, buildProxyPort: await freePort(), runnerImage: RUNNER_IMAGE });
+    onTestFinished(() => rmSync(x.dir, { recursive: true, force: true }));
+    const text = readFileSync(x.sb.composeFile, "utf8");
+    const edited = Object.fromEntries(Object.entries(REAL_MISCONFIGURATIONS).map(([name, m]) => [name, editComposeText(text, m.edits)]));
+    expect(Object.keys(edited)).toEqual(["R1", "R2", "R3", "R4"]);
+    const block = (yaml: string, service: string) => new RegExp(`^  ${service}:\\n(?:    .*\\n|      .*\\n)*`, "m").exec(yaml)?.[0] ?? "";
+    // R1: an ordinary bridge is added, and the app is on it too.
+    expect(edited.R1).toContain("\n  ext:\n    enable_ipv6: false\nsecrets:\n");
+    expect(block(edited.R1!, "app")).toContain('    networks:\n      - "data"\n      - "front"\n      - "ext"\n');
+    expect(block(text, "app")).not.toContain('"ext"');
+    // R2: the data network keeps `internal` and loses the isolated gateway mode; front and out keep it.
+    expect(edited.R2).toContain("  data:\n    internal: true\n    enable_ipv6: false\n  front:\n");
+    expect(edited.R2!.split('com.docker.network.bridge.gateway_mode_ipv4: "isolated"')).toHaveLength(3);
+    expect(text.split('com.docker.network.bridge.gateway_mode_ipv4: "isolated"')).toHaveLength(4);
+    // R3: the runner's service is also on data; the check service, which has the same lines, is not touched.
+    expect(block(edited.R3!, "acceptance")).toContain('    networks:\n      - "front"\n      - "data"\n');
+    expect(block(edited.R3!, "check")).toBe(block(text, "check"));
+    // R4: the scripted engine's container is on out, where it had no network.
+    expect(block(text, "engine")).toContain('    network_mode: "none"\n');
+    expect(block(edited.R4!, "engine")).toContain('    networks:\n      - "out"\n');
+    expect(block(edited.R4!, "engine")).not.toContain("network_mode");
+    // Each changes only its own lines: every other line of the file is as the manager wrote it.
+    for (const [name, yaml] of Object.entries(edited)) expect(yaml.split("\n").filter((l) => !text.split("\n").includes(l)).length, name).toBeLessThanOrEqual(2);
+    // Refused: a text that is not there; a text that is there twice (the runner's and the check's lines, with no service named);
+    // a text that is not in the service named; a service that is not there; and the same edit a second time (its text has gone).
+    expect(() => editComposeText(text, [{ from: "no such text in the file\n", to: "x" }])).toThrow("A Compose edit is refused: its text was found 0 times, not once, in the file");
+    expect(() => editComposeText(text, [{ from: '    networks:\n      - "front"\n', to: "x" }])).toThrow("A Compose edit is refused: its text was found 2 times, not once, in the file");
+    expect(() => editComposeText(text, [{ service: "db", from: '    network_mode: "none"\n', to: "x" }])).toThrow("A Compose edit is refused: its text was found 0 times, not once, in the db service");
+    expect(() => editComposeText(text, [{ service: "no-such-service", from: "x", to: "y" }])).toThrow("The Compose file has no no-such-service service.");
+    expect(() => editComposeText(edited.R4!, REAL_MISCONFIGURATIONS.R4.edits)).toThrow("found 0 times, not once, in the engine service");
+    // Through the file, as the live run does it: the file then holds exactly the edited text, and a refused edit leaves it alone.
+    editCompose(x.sb, REAL_MISCONFIGURATIONS.R4.edits);
+    expect(readFileSync(x.sb.composeFile, "utf8")).toBe(edited.R4);
+    expect(() => editCompose(x.sb, REAL_MISCONFIGURATIONS.R4.edits)).toThrow("found 0 times, not once, in the engine service");
+    expect(readFileSync(x.sb.composeFile, "utf8")).toBe(edited.R4);
+  }, 120_000);
+
+  it("probeInPlace does not run a file whose fingerprint inside differs from the repository's, refuses an encoded file over the size guard, and still asks for the file's removal after a failure", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "builder-iso-in-place-"));
+    onTestFinished(() => rmSync(dir, { recursive: true, force: true }));
+    // A made-up sandbox and a made-up command runner: nothing reaches Docker.
+    const sb = { dir, composeFile: join(dir, "compose.yaml"), projectName: "builder_p_made_up" } as Sandbox;
+    const containerId = async () => "made-up-container-id";
+    const is = (cmd: string[], word: string) => cmd[0] === "node" && cmd[1] === "-e" && (cmd[2] ?? "").includes(word);
+    const isRun = (cmd: string[]) => cmd[0] === "node" && cmd[1] === IN_PLACE_PATH;
+    const madeUp = (answers: { hash: string; run?: () => Promise<string>; write?: () => Promise<string> }) => {
+      const calls: string[][] = [];
+      const exec: ExecInService = async (_sb, service, cmd) => {
+        expect(service).toBe("app");
+        calls.push(cmd);
+        if (is(cmd, "writeFileSync")) return answers.write ? answers.write() : "written 1\n";
+        if (is(cmd, "createHash")) return `${answers.hash}\n`;
+        if (is(cmd, "rmSync")) return "gone\n";
+        if (isRun(cmd)) return answers.run ? answers.run() : `${JSON.stringify({ kind: "end", attempts: 0 })}\n`;
+        throw new Error(`a command the harness should not send: ${cmd.join(" ").slice(0, 80)}`);
+      };
+      return { calls, exec };
+    };
+    const repository = (await run("sha256sum", [PROBE_FILE])).stdout.split(" ")[0]!;
+
+    // 1. The file read back inside is not the repository's probe: it is not run, and its removal is still asked for.
+    const other = madeUp({ hash: "0".repeat(64) });
+    await expect(probeInPlace(sb, "app", "{}", { exec: other.exec, containerId })).rejects.toThrow(`The file written into the running app container has SHA-256 ${"0".repeat(64)}, not the repository's probe (${repository}); it was not run.`);
+    expect(other.calls.some(isRun)).toBe(false);
+    expect(other.calls.map((c) => (isRun(c) ? "run" : is(c, "writeFileSync") ? "write" : is(c, "createHash") ? "fingerprint" : is(c, "rmSync") ? "remove" : "?"))).toEqual(["write", "fingerprint", "remove"]);
+    // What was written: the place, and one base64 argument that is the repository's file, byte for byte.
+    expect(other.calls[0]!.slice(3, 4)).toEqual([IN_PLACE_PATH]);
+    expect(other.calls[0]).toHaveLength(5);
+    expect(Buffer.from(other.calls[0]![4]!, "base64").equals(readFileSync(PROBE_FILE))).toBe(true);
+    expect(other.calls.at(-1)).toEqual(["node", "-e", expect.stringContaining("rmSync"), IN_PLACE_PATH]);
+
+    // 2. The right fingerprint: it is run with the settings, its lines come back, the file is removed, the container is the same.
+    const good = madeUp({ hash: repository });
+    const r = await probeInPlace(sb, "app", '{"made-up":"settings"}', { exec: good.exec, containerId });
+    expect(good.calls.filter(isRun)).toEqual([["node", IN_PLACE_PATH, '{"made-up":"settings"}']]);
+    expect(r).toEqual({ lines: ['{"kind":"end","attempts":0}'], sha256: { repository, inside: repository }, container: { before: "made-up-container-id", after: "made-up-container-id" }, removed: true, encodedLength: other.calls[0]![4]!.length });
+
+    // 3. The probe ends with an error part-way: the lines it printed are kept, an error line is added, the removal is still asked for.
+    const partWay = madeUp({ hash: repository, run: () => Promise.reject(Object.assign(new Error("Command failed"), { stdout: `${JSON.stringify({ kind: "info", name: "user id", value: "100" })}\n`, stderr: "made-up failure" })) });
+    const p = await probeInPlace(sb, "app", "{}", { exec: partWay.exec, containerId });
+    expect(p.lines).toEqual(['{"kind":"info","name":"user id","value":"100"}', '{"kind":"error","reason":"the probe run in place ended with an error: made-up failure"}']);
+    expect(parseProbeOutput(p.lines).problems).toEqual(["the probe stopped: the probe run in place ended with an error: made-up failure", "the probe's closing line is missing: it did not finish"]);
+    expect(p.removed).toBe(true);
+    expect(is(partWay.calls.at(-1)!, "rmSync")).toBe(true);
+
+    // 4. A file too big to hand over as one argument: refused before anything is sent.
+    const big = join(dir, "too-big.mjs");
+    writeFileSync(big, "x".repeat(Math.ceil((IN_PLACE_MAX_ENCODED * 3) / 4) + 3));
+    const none = madeUp({ hash: repository });
+    await expect(probeInPlace(sb, "app", "{}", { exec: none.exec, containerId, probeFile: big })).rejects.toThrow(/^The probe file is 10000[0-9] characters once encoded, over the 100000 that can be handed to a running container as one argument; nothing was sent\.$/);
+    expect(none.calls).toEqual([]);
+
+    // 5. Something is already at that place: it is not overwritten, the probe is not run, and what was there is not removed.
+    const taken = madeUp({ hash: repository, write: () => Promise.reject(Object.assign(new Error("Command failed"), { stderr: "Error: EEXIST: file already exists, open '/tmp/isolation-probe.mjs'" })) });
+    await expect(probeInPlace(sb, "app", "{}", { exec: taken.exec, containerId })).rejects.toThrow("Something is already at /tmp/isolation-probe.mjs in the running app container; it was not overwritten and not removed, and the probe was not run.");
+    expect(taken.calls).toHaveLength(1);
+
+    // 6. No running container: nothing is sent.
+    const stopped = madeUp({ hash: repository });
+    await expect(probeInPlace(sb, "app", "{}", { exec: stopped.exec, containerId: async () => "" })).rejects.toThrow("The app service has no running container to probe in place.");
+    expect(stopped.calls).toEqual([]);
+  });
+
+  it("realImageProblemsFrom: nothing for the images as the template's Dockerfile and the runner's build state them; each of the three stand-in images of 13 Nov is named", () => {
+    const id = (c: string) => `sha256:${c.repeat(64)}`;
+    const real: RealImages = {
+      app: { name: appImageName("p_made_up"), id: id("a"), user: "app", command: ["node", "server.js"], entrypoint: ["docker-entrypoint.sh"], workingDir: "/app", labels: {} },
+      tools: { name: toolsImageName("p_made_up"), id: id("b"), user: "node", command: ["node", "-e", "made-up"], entrypoint: [], workingDir: "/app", labels: {} },
+      acceptance: { name: RUNNER_IMAGE, id: id("c"), user: "runner", command: [], entrypoint: [], workingDir: "/runner", labels: { [BROWSER_ZIP_LABEL]: BROWSER_ZIP_SHA256 } },
+      node: { name: DEFAULT_IMAGES.node, id: id("d"), user: "", command: ["node"], entrypoint: ["docker-entrypoint.sh"], workingDir: "", labels: {} },
+    };
+    expect(realImageProblemsFrom(real)).toEqual([]);
+    // The stand-ins, as buildStandIns makes them: the app's runs as "node" with a one-line server as its command;
+    // the tools' has no user and no working folder; the runner's has another name and no label.
+    const standInApp = { ...real.app, user: "node", command: ["node", "-e", "require('http').createServer((q,s)=>{s.end('stand-in app')}).listen(Number(process.env.PORT),'0.0.0.0')"], entrypoint: [], workingDir: "" };
+    const standInTools = { ...real.tools, user: "", command: ["node"], workingDir: "" };
+    const standInRunner = { ...real.acceptance, name: runnerStandInImageFor("p_made_up"), user: "", labels: {} };
+    expect(realImageProblemsFrom({ ...real, app: standInApp })).toEqual([
+      `the app image ${real.app.name} runs as user "node", not "app" as the template's Dockerfile sets it: it is not the template's build`,
+      expect.stringMatching(/^the app image \S+ starts \["node","-e","require\('http'\).*, not \["node","server\.js"\]: it is not the template's build$/),
+    ]);
+    expect(realImageProblemsFrom({ ...real, tools: standInTools })).toEqual([
+      `the tools image ${real.tools.name} runs as user "", not "node" as the template's Dockerfile sets it: it is not the template's tools stage`,
+      `the tools image ${real.tools.name} works in "", not "/app": it is not the template's tools stage`,
+    ]);
+    expect(realImageProblemsFrom({ ...real, acceptance: standInRunner })).toEqual([
+      `the acceptance service's image is ${standInRunner.name}, not ${RUNNER_IMAGE}: it is not the acceptance runner's real image`,
+      expect.stringMatching(/^the runner image \S+ has no builder\.browser-zip-sha256 label/),
+    ]);
+    expect(realImageProblemsFrom({ ...real, app: standInApp, tools: standInTools, acceptance: standInRunner })).toHaveLength(6);
+    // The approved Node image itself, given the app's name: a stand-in whatever its settings say.
+    expect(realImageProblemsFrom({ ...real, app: { ...real.app, id: real.node.id } })).toEqual([`the image ${real.app.name} is the approved Node image itself under another name (id ${real.node.id}): a stand-in, not the template's build`]);
+    // The runner's own name on an image built from another zip, and an image that is not on the machine.
+    expect(realImageProblemsFrom({ ...real, acceptance: { ...real.acceptance, labels: { [BROWSER_ZIP_LABEL]: "0".repeat(64) } } })).toEqual([expect.stringMatching(/was built from a browser zip with another fingerprint/)]);
+    expect(realImageProblemsFrom({ ...real, tools: { ...real.tools, id: "", user: "", workingDir: "", missing: "made-up: no such image" } })[0]).toBe(`the tools image ${real.tools.name} is not on this machine (made-up: no such image)`);
+  });
+
+  it("removeImages refuses a name that is not the sandbox's own project's, before Docker is asked anything", async () => {
+    const sb = { dir: tmpdir(), composeFile: "/made-up/compose.yaml", projectName: "builder_p_iso06c_made_up" } as Sandbox;
+    // A made-up name of another project, whose own name only starts like this one's. No such image exists, so even
+    // with this refusal taken away nothing real could be removed.
+    const anothers = appImageName("p_iso06c_made_up_other");
+    await expect(removeImages(sb, [anothers])).rejects.toThrow(`The isolation harness removes only images of its own project (builder_p_iso06c_made_up-...); refused: ${anothers}.`);
+    // One name that is not its own refuses the whole call, its own names included.
+    await expect(removeImages(sb, [appImageName("p_iso06c_made_up"), anothers])).rejects.toThrow(`refused: ${anothers}.`);
+  });
+});
+
+// Added after the review of 14 Nov 2026 (three fresh reviewers; docs/reviews/2026-11-14-package-0.6c-real-containers.md).
+// A group of its own, so that the two groups above are exactly what they were. No container is started here: where a
+// function would ask Docker, Docker is pointed at an address where nothing listens, or a made-up runner is given.
+describe("isolation harness: after the review of the real-container run (unit)", () => {
+  const ctx = { appPort: 3191, gatewayServer: /server: gateway-stand-in/ };
+  const end = (n: number) => JSON.stringify({ kind: "end", attempts: n });
+  const failingIds = (c: Comparison) => c.rows.filter((r) => !r.pass).map((r) => r.id);
+  const onDataAndFront = [
+    attempt({ id: "A2", result: "timed out", code: "TIMEOUT" }),
+    attempt({ id: "D3", toward: "lookup", target: "db", result: "found 1 address", code: null }),
+    attempt({ id: "Pdb:5432", toward: "project", target: "db:5432", result: "connected", code: null }),
+    attempt({ id: "Papp:3191", toward: "project", target: "app:3191", result: "connected", code: null }),
+  ];
+  const ownListener = attempt({ id: "X3191", toward: "host", target: "127.0.0.1:3191", result: "connected", code: null });
+  const nameServer = attempt({ id: "X41000", toward: "host", target: "127.0.0.11:41000", result: "connected", code: null });
+  const second = attempt({ id: "X8080", toward: "host", target: "127.0.0.11:8080", result: "connected", code: null });
+  /** Run `f` with Docker pointed at an address where nothing listens: whatever `f` asks of Docker fails, and nothing reaches the machine's Docker. */
+  const withNoDocker = async <T>(f: () => Promise<T>): Promise<T> => {
+    const was = process.env.DOCKER_HOST;
+    process.env.DOCKER_HOST = "tcp://127.0.0.1:1";
+    try {
+      return await f();
+    } finally {
+      if (was === undefined) delete process.env.DOCKER_HOST;
+      else process.env.DOCKER_HOST = was;
+    }
+  };
+
+  it("the running app's list: a second listening port at 127.0.0.11 fails, both rows, since only one can be Docker's name server; an entry not marked single takes any number, as before", () => {
+    const list = () => expectedOnDevelopment("app-running", ctx);
+    // As the kept runs saw it: the app's own listener and one port at 127.0.0.11.
+    expect(compareWithExpected(parseProbeOutput([...onDataAndFront, ownListener, nameServer, end(6)]), list()).pass).toBe(true);
+    // A process inside the container listens at 127.0.0.11 too (any process can): the list cannot tell which is Docker's.
+    const two = compareWithExpected(parseProbeOutput([...onDataAndFront, ownListener, nameServer, second, end(7)]), list());
+    expect(two.pass).toBe(false);
+    expect(failingIds(two)).toEqual(["X8080", "X41000"]);
+    expect(two.missing).toEqual([]);
+    expect(two.rows.find((r) => r.id === "X8080")).toEqual({
+      id: "X8080",
+      target: "127.0.0.11:8080",
+      expected: "connected, aimed at 127.0.0.11:<port>, one such attempt only: Docker's own name server, inside this container's own network namespace",
+      actual: "connected; 2 attempts meet this entry, which allows one",
+      pass: false,
+    });
+    // Three there: all three fail, and the app's own row is not touched.
+    const third = attempt({ id: "X8081", toward: "host", target: "127.0.0.11:8081", result: "connected", code: null });
+    const three = compareWithExpected(parseProbeOutput([...onDataAndFront, ownListener, nameServer, second, third, end(8)]), list());
+    expect(failingIds(three)).toEqual(["X8080", "X8081", "X41000"]);
+    expect(three.rows.find((r) => r.id === "X3191")?.pass).toBe(true);
+    // A port at 127.0.0.11 that refuses does not meet the entry: it fails on its own, and the one that connected still passes.
+    const closed = attempt({ id: "X8082", toward: "host", target: "127.0.0.11:8082", result: "refused" });
+    expect(failingIds(compareWithExpected(parseProbeOutput([...onDataAndFront, ownListener, nameServer, closed, end(7)]), list()))).toEqual(["X8082"]);
+    // The mark on a made-up entry: one attempt passes and reads as before but for its words; two fail.
+    const one: Expected[] = [{ ids: /^X/, result: /^connected$/, single: true, why: "made-up" }];
+    const a = (id: string) => attempt({ id, toward: "host", target: `127.0.0.1:${id.slice(1)}`, result: "connected", code: null });
+    expect(compareWithExpected(parseProbeOutput([a("X1"), end(1)]), one).rows).toEqual([{ id: "X1", target: "127.0.0.1:1", expected: "connected, one such attempt only: made-up", actual: "connected", pass: true }]);
+    expect(compareWithExpected(parseProbeOutput([a("X1"), a("X2"), end(2)]), one).pass).toBe(false);
+    // Not marked: any number passes, as before. So the older lists still take every port at 127.0.0.11 (and anywhere)
+    // for Docker's name server: said in the evidence under "What this does not show", not changed here.
+    const unmarked: Expected[] = [{ ids: /^X/, result: /^connected$/, why: "made-up" }];
+    expect(compareWithExpected(parseProbeOutput([a("X1"), a("X2"), end(2)]), unmarked).pass).toBe(true);
+    expect(compareWithExpected(parseProbeOutput([...onDataAndFront, nameServer, second, end(6)]), expectedOnDevelopment("app", ctx)).pass).toBe(true);
+    // The scripted engine's empty list, on its own, passes a probe that made no attempt: it must be used with the
+    // planned-attempts check (test L4 and the demonstration do). Recorded here so that the limit is not forgotten.
+    expect(compareWithExpected(parseProbeOutput([end(0)]), expectedOnDevelopment("engine-scripted", ctx)).pass).toBe(true);
+    expect(compareWithExpected(parseProbeOutput([end(0)]), expectedOnDevelopment("runner", ctx)).pass).toBe(false);
+  });
+
+  it("the preview front's stand-in, on a port that is taken, fails at once in plain words; portTakenProblem names a taken port and says nothing of a free one", async () => {
+    // A port of this test's own, which the system chose; nothing else uses it.
+    const holder = net.createServer();
+    await new Promise<void>((r) => holder.listen(0, "127.0.0.1", r));
+    onTestFinished(() => new Promise<void>((r) => holder.close(() => r())));
+    const port = (holder.address() as AddressInfo).port;
+    const who = "Something else holds that port: another run of a live test, or the builder's own preview front. Stop it, then run this again.";
+    // Within two seconds, where before it never settled.
+    const settled = await Promise.race([startFrontStandIn(port).then(() => "it listened", (err: Error) => err.message), new Promise<string>((r) => setTimeout(() => r("it did not settle within 2 s"), 2000))]);
+    expect(settled).toBe(`The preview front's stand-in cannot listen on 127.0.0.1:${port} (EADDRINUSE). ${who}`);
+    // Asked beforehand, by one connection and no listener: the same port is named.
+    expect(await portTakenProblem(port)).toBe(`Something already accepts connections on 127.0.0.1:${port}, the port the preview front's stand-in needs. ${who}`);
+    // A free port: nothing to say, and the port is free again afterwards (the stand-in can then take it).
+    const free = await freePort();
+    expect(await portTakenProblem(free)).toBeNull();
+    const front = await startFrontStandIn(free);
+    await front.close();
+  });
+
+  it("removeImages takes only the three names a project's own images can have, and refuses those of a project whose id is this id, a dash, and more; ownContainerIds leaves that project's containers alone", async () => {
+    const sb = { dir: tmpdir(), composeFile: "/made-up/compose.yaml", projectName: composeProjectName("p_iso06c_made_up") } as Sandbox;
+    expect(ownImageNames(sb)).toEqual([appImageName("p_iso06c_made_up"), toolsImageName("p_iso06c_made_up"), runnerStandInImageFor("p_iso06c_made_up")]);
+    // Project ids may hold dashes (composeProjectName keeps them): this one is another project.
+    expect(composeProjectName("p_iso06c_made_up-b")).toBe("builder_p_iso06c_made_up-b");
+    // And two names that begin as this project's do but are not one of its three: another last part, another tag.
+    // (Made from the real name, so that no made-up image name is written out here; no such image exists.)
+    const anotherPart = appImageName("p_iso06c_made_up").replace("-app:", "-anything:");
+    const anotherTag = appImageName("p_iso06c_made_up").replace(/:latest$/, ":other");
+    expect([anotherPart.startsWith("builder_p_iso06c_made_up-anything"), anotherTag.startsWith("builder_p_iso06c_made_up-app")]).toEqual([true, true]);
+    // Docker is pointed at nothing for these calls: even with the refusal taken away (the control does that), no name reaches Docker.
+    for (const neighbours of [appImageName("p_iso06c_made_up-b"), toolsImageName("p_iso06c_made_up-b"), runnerStandInImageFor("p_iso06c_made_up-b"), anotherPart, anotherTag])
+      await withNoDocker(() => expect(removeImages(sb, [neighbours])).rejects.toThrow(`The isolation harness removes only images of its own project (builder_p_iso06c_made_up-...); refused: ${neighbours}.`));
+
+    // The containers a removal may force-remove, from made-up `docker ps` lines in the format the harness asks for.
+    expect(OWN_CONTAINERS_FORMAT).toBe('{{.ID}}\t{{.Names}}\t{{.Label "com.docker.compose.project"}}');
+    const lines = [
+      "id-own-app\tbuilder_p-app-1\tbuilder_p",
+      "id-own-one-off\tbuilder_p-isolation-app-real\tbuilder_p",
+      "id-own-comparison\tbuilder_p-isolation-control-host\t",
+      "id-neighbour-app\tbuilder_p-b-app-1\tbuilder_p-b",
+      "id-neighbour-probe\tbuilder_p-b-isolation-app-real\tbuilder_p-b",
+      "id-neighbour-comparison\tbuilder_p-b-isolation-control-host\t",
+      "id-unlabelled-lookalike\tbuilder_p-app-9\t",
+      "id-other\tbuilder_p_other-app-1\tbuilder_p_other",
+      "",
+    ];
+    expect(ownContainerIds(lines, "builder_p")).toEqual(["id-own-app", "id-own-one-off", "id-own-comparison"]);
+    expect(ownContainerIds(lines, "builder_p-b")).toEqual(["id-neighbour-app", "id-neighbour-probe", "id-neighbour-comparison"]);
+    expect(ownContainerIds([], "builder_p")).toEqual([]);
+  });
+
+  it("destroyRealProject removes the project's folder even when Docker does not answer, and passes Docker's failure on", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "builder-acceptance-unit-"));
+    onTestFinished(() => rmSync(dir, { recursive: true, force: true }));
+    mkdirSync(join(dir, "secrets"));
+    writeFileSync(join(dir, "secrets", "db_password"), "made-up");
+    writeFileSync(join(dir, "compose.yaml"), "services: {}\n");
+    const x = { projectId: "p_iso06c_made_up", dir, sb: { dir, composeFile: join(dir, "compose.yaml"), projectName: composeProjectName("p_iso06c_made_up") } } as unknown as Example1;
+    expect(folderLeft(x)).toBe(`still there (${dir})`);
+    // Docker is pointed at an address where nothing listens, for this call only: nothing reaches the machine's Docker.
+    await withNoDocker(() => expect(destroyRealProject(x)).rejects.toThrow(/Command failed: docker ps -a --filter label=com\.docker\.compose\.project=builder_p_iso06c_made_up/));
+    expect(existsSync(join(dir, "secrets", "db_password"))).toBe(false);
+    expect(folderLeft(x)).toBe("gone");
+  }, 60_000);
+
+  it("gatewayPortProblem names every listener on the machine at the gateway's port, and says nothing when there is none", () => {
+    // As the kept run read the machine: nothing on 4010.
+    expect(gatewayPortProblem(["0.0.0.0:2024", "127.0.0.1:34803", "127.0.0.1:4041", "127.0.0.1:5432"], 4010)).toBeNull();
+    expect(gatewayPortProblem([], 4010)).toBeNull();
+    // A port that only ends the same, or holds it, is not the gateway's.
+    expect(gatewayPortProblem(["127.0.0.1:14010", "127.0.0.1:40100", "0.0.0.0:401"], 4010)).toBeNull();
+    expect(gatewayPortProblem(["0.0.0.0:2024", "127.0.0.1:4010"], 4010)).toBe(
+      "Something listens on the machine at 127.0.0.1:4010: that is the gateway address a real example-1 project is given. This run says nothing is behind it, and would send it a request through the door; it does not go on. Stop what listens there, then run this again.",
+    );
+    expect(gatewayPortProblem(["0.0.0.0:4010", "[::]:4010"], 4010)).toMatch(/^Something listens on the machine at 0\.0\.0\.0:4010, \[::\]:4010: /);
+  });
+
+  it("imageContentProblemsFrom: nothing when every path is there; an image that has only the real one's settings is named; imageContents asks one container of each service and takes anything else for not there", async () => {
+    const all = (service: "app" | "tools", there: boolean) => Object.fromEntries(REAL_IMAGE_CONTENTS[service].map((p) => [p, there]));
+    const real: ImageContents = { app: all("app", true), tools: all("tools", true) };
+    expect(imageContentProblemsFrom(real)).toEqual([]);
+    // A look-alike: an image that only sets the user and the command, and holds none of the build's files.
+    expect(imageContentProblemsFrom({ app: all("app", false), tools: all("tools", false) })).toEqual([
+      "the app image does not hold /app/server.js, /app/.next/server/app/[locale]/my-requests/page.js, /app/.next/server/app/[locale]/my-requests/new/page.js: it is not the build of the workspace after the scripted engine's two steps",
+      "the tools image does not hold /app/node_modules/.bin/drizzle-kit, /app/scripts/seed.ts: it is not the build of the workspace after the scripted engine's two steps",
+    ]);
+    // The build of the template before step 02: the server is there, the two pages are not.
+    expect(imageContentProblemsFrom({ ...real, app: { ...real.app, ".next/server/app/[locale]/my-requests/page.js": false, ".next/server/app/[locale]/my-requests/new/page.js": false } })).toEqual([
+      "the app image does not hold /app/.next/server/app/[locale]/my-requests/page.js, /app/.next/server/app/[locale]/my-requests/new/page.js: it is not the build of the workspace after the scripted engine's two steps",
+    ]);
+    // A path left out of what was read counts as not there.
+    expect(imageContentProblemsFrom({ app: {}, tools: real.tools })).toHaveLength(1);
+
+    // imageContents, with a made-up runner in place of the sandbox manager's: one container of each service, asked
+    // about exactly the listed paths, by a one-line Node command; nothing reaches Docker.
+    const sb = { dir: tmpdir(), composeFile: "/made-up/compose.yaml", projectName: "builder_p_made_up" } as Sandbox;
+    const calls: Array<{ service: string; cmd: string[] }> = [];
+    const answers = async (_sb: Sandbox, service: string, cmd: string[]) => {
+      calls.push({ service, cmd });
+      // The app's container answers for every path; the tools' prints something that is not the command's line.
+      return service === "app" ? `a line of noise\n${JSON.stringify(Object.fromEntries(cmd.slice(3).map((p) => [p, true])))}\n` : "sh: node: not found\n";
+    };
+    const read = await imageContents(sb, answers);
+    expect(calls.map((c) => c.service)).toEqual(["app", "tools"]);
+    expect(calls[0]!.cmd.slice(0, 2)).toEqual(["node", "-e"]);
+    expect(calls[0]!.cmd.slice(3)).toEqual([...REAL_IMAGE_CONTENTS.app]);
+    expect(calls[1]!.cmd.slice(3)).toEqual([...REAL_IMAGE_CONTENTS.tools]);
+    expect(read).toEqual({ app: all("app", true), tools: all("tools", false) });
+    expect(imageContentProblemsFrom(read)).toHaveLength(1);
+    // A container that does not start at all: every path reads as not there, and that is a problem, never a pass.
+    const none = await imageContents(sb, () => Promise.reject(new Error("made-up: the container did not start")));
+    expect(imageContentProblemsFrom(none)).toHaveLength(2);
   });
 });
 
@@ -857,6 +1326,10 @@ describe("isolation probe: live, the engine container (development profile)", ()
  * misconfigurations. Stand-in images for the app, tools and runner (scripts/isolation-harness.ts): the
  * networks come from the Compose file, which is the sandbox manager's, unchanged. The egress proxy goes out
  * through this session's proxy, so E2 needs the registry to answer through it.
+ *
+ * Said plainly (14 Nov 2026): this run is in stand-in images for the app, tools and runner, not in the real
+ * containers. It shows where the Compose file places each container. The run inside the real containers of a
+ * real example-1 project is test/isolation-real-live.test.ts. No assertion, list or misconfiguration here changed.
  */
 describe("isolation: live, every project container on the development profile, compared with its expected list (package 0.6c)", () => {
   const APP_PORT = 3161;
@@ -919,7 +1392,7 @@ describe("isolation: live, every project container on the development profile, c
     await camera?.close();
   });
 
-  it("each project container (app, tools, db, runner, the door, the engine as package 2.2 would place it, and package J3's stream container and live camera) reaches exactly what its list allows", async () => {
+  it("each project container (app, tools, db, runner, the door, the engine as package 2.2 would place it, and package J3's stream container and live camera) reaches exactly what its list allows, in stand-in images for the app, tools and runner", async () => {
     gateway = await startGatewayStandIn();
     canary = await startCanary();
     front = await startFrontStandIn(4041);

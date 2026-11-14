@@ -1,0 +1,79 @@
+
+ RUN  v5.1.0 /tmp/claude-0/-home-user-vibe-build/121da6b0-2980-566b-82d7-1563934e4c7d/scratchpad/rev-06c-harness-risk
+
+ × taken-port.test.ts > startFrontStandIn on a taken port, under vitest > first test that needs the listeners (time limit 4 s here; 40 minutes in L4) 4007ms
+   → Test timed out in 4000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ × taken-port.test.ts > startFrontStandIn on a taken port, under vitest > second test that needs the listeners (time limit 4 s here; 10 to 40 minutes in L5 to L9) 4001ms
+   → Test timed out in 4000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  taken-port.test.ts > startFrontStandIn on a taken port, under vitest > first test that needs the listeners (time limit 4 s here; 40 minutes in L4)
+Error: Test timed out in 4000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ taken-port.test.ts:20:3
+     18|   };
+     19|   afterAll(() => new Promise<void>((r) => taken.close(() => r())));
+     20|   it("first test that needs the listeners (time limit 4 s here; 40 min…
+       |   ^
+     21|     await listeners();
+     22|     expect(true).toBe(true);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  taken-port.test.ts > startFrontStandIn on a taken port, under vitest > second test that needs the listeners (time limit 4 s here; 10 to 40 minutes in L5 to L9)
+Error: Test timed out in 4000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ taken-port.test.ts:24:3
+     22|     expect(true).toBe(true);
+     23|   }, 4000);
+     24|   it("second test that needs the listeners (time limit 4 s here; 10 to…
+       |   ^
+     25|     await listeners();
+     26|     expect(true).toBe(true);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+⎯⎯⎯⎯⎯⎯ Unhandled Errors ⎯⎯⎯⎯⎯⎯
+
+Vitest caught 2 unhandled errors during the test run.
+This might cause false positive tests. Resolve unhandled errors to make sure your tests are not affected.
+
+⎯⎯⎯⎯⎯ Uncaught Exception ⎯⎯⎯⎯⎯
+Error: listen EADDRINUSE: address already in use 127.0.0.1:37159
+ ❯ Server.setupListenHandle [as _listen2] node:net:1941:16
+ ❯ listenInCluster node:net:1998:12
+ ❯ node:net:2207:7
+ ❯ process.processTicksAndRejections node:internal/process/task_queues:89:21
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+Serialized Error: { code: 'EADDRINUSE', errno: -98, syscall: 'listen', address: '127.0.0.1', port: 37159 }
+This error originated in "taken-port.test.ts" test file. It doesn't mean the error was thrown inside the file itself, but while it was running.
+The last test to run before this error was "first test that needs the listeners (time limit 4 s here; 40 minutes in L4)". This means either:
+- the error was thrown while Vitest was running this test, or
+- the error was thrown after the test completed, and this was the most recent test at that point.
+
+⎯⎯⎯⎯⎯ Uncaught Exception ⎯⎯⎯⎯⎯
+Error: listen EADDRINUSE: address already in use 127.0.0.1:37159
+ ❯ Server.setupListenHandle [as _listen2] node:net:1941:16
+ ❯ listenInCluster node:net:1998:12
+ ❯ node:net:2207:7
+ ❯ process.processTicksAndRejections node:internal/process/task_queues:89:21
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+Serialized Error: { code: 'EADDRINUSE', errno: -98, syscall: 'listen', address: '127.0.0.1', port: 37159 }
+This error originated in "taken-port.test.ts" test file. It doesn't mean the error was thrown inside the file itself, but while it was running.
+The last test to run before this error was "second test that needs the listeners (time limit 4 s here; 10 to 40 minutes in L5 to L9)". This means either:
+- the error was thrown while Vitest was running this test, or
+- the error was thrown after the test completed, and this was the most recent test at that point.
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed (2)
+     Errors  2 errors
+   Start at  14:37:24
+   Duration  8.48s (tests 96%, transform 3%, import 1%)
+
