@@ -4,7 +4,7 @@
 >
 > **Everything below this box says "nothing is built". That is true of the `main` branch only.** A branch is a named line of history in the repository; `main` is the one a new session starts from.
 >
-> The work done since 11 November is on a different branch, **`claude/stage-1`**. It is 445 commits ahead of `main` (at commit `bdfd911`, last changed 14 November 2026, 05:05 UTC) and has never been merged into `main`. It has its own `docs/STATUS.md`, `docs/BUILD-PLAN.md` and `docs/QUESTIONS.md`, and those are the current ones.
+> The work done since 11 November is on a different branch, **`claude/stage-1`**. When this session read it (14 November 2026, 05:30 UTC) it was 445 commits ahead of `main`, at commit `bdfd911`, and it has never been merged into `main`. It is still moving: by 06:10 UTC the same day it was at `b87cd00`, 451 commits ahead, because another session is working on it. The table below describes it as read at `bdfd911`. It has its own `docs/STATUS.md`, `docs/BUILD-PLAN.md` and `docs/QUESTIONS.md`, and those are the current ones.
 >
 > **What went wrong.** A session that starts from `main` reads this file, is told nothing is built, and is sent to start work that already exists. That happened twice on 14 November 2026: in the session behind pull request #44, and in this one, which was asked to "start the walking skeleton".
 >
@@ -28,7 +28,9 @@
 >
 > **Also not on `claude/stage-1` yet:** the decision of 14 November 2026 on connectors (no other vendor's app builder; the Supabase, Vercel, Render, HubSpot and Gmail connectors not used). It is only in pull request #44, against `main`.
 >
-> **Waiting on the owner:** which line of work continues. Until that is answered, do not start product code from `main`.
+> **Decided by the owner, 14 November 2026:** the work continues on `claude/stage-1`. Nothing is built again from `main`. This session's only output is this correction to the record (`docs/DECISIONS.md`, last row).
+>
+> **Next, for any session that starts here:** do not build from `main`. Switch to `claude/stage-1`, read its `docs/STATUS.md`, and follow its `docs/BUILD-PLAN.md`. Two decisions are recorded on `main` only and still have to be copied into that branch's `docs/DECISIONS.md`: the connector decision of 14 November, and the decision above. `main` itself stays as it is until that branch's plan says it is merged; that is the owner's call (`docs/KNOWN-GAPS.md`, gap 18).
 
 Read this first in every session. Update it before every session ends. Nothing else carries over between sessions.
 
@@ -77,6 +79,7 @@ At the end of the session a one-page test server was started inside the session 
 
 | Date | What was done |
 | --- | --- |
+| 14 Nov 2026 (second session) | Asked to start the walking skeleton from `main`. Found it already built on `claude/stage-1`. Wrote no product code. Added the notice at the top of this file, a line in `README.md`, a row in `docs/DECISIONS.md` (the owner's choice to continue on `claude/stage-1`) and gap 18. Pull request #46 |
 | 14 Nov 2026 | Listed the connectors on the owner's account (36 installed, about 22 connected) and recommended adding none. Recorded the decision not to use other vendors' app builders or the connectors holding real contact data. Confirmed pull request #1 is merged. Made the screens mock-up on a design canvas at the owner's request. No product code written |
 | 11 Nov 2026 (later) | The owner issued an edited handover (Decision F) and then approved the design note and answered its questions. Decisions recorded. Network hosts allowed with the owner's approval. Prices and blocked documentation re-fetched (see the design note, section 4.3 and `docs/SOURCES.md`) |
 | 11 Nov 2026 | Repository set up from the empty state. Environment measured. Task 0 documents written. Specification cut from the handover. Stage 1 design note written as a proposal. Draft pull request opened. Preview test started |
