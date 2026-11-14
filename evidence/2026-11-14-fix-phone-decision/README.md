@@ -1,6 +1,6 @@
 # The phone test's decision: GO ON only when every check has its evidence
 
-*Written by Claude Code on 14 Nov 2026, branch `claude/fix-phone-test-decision` from `claude/stage-1` at `14787d8`. It answers the first finding of the independent review of `14787d8`. Not yet checked by a reviewer who did not write it. Not pushed.*
+*Written by Claude Code on 14 Nov 2026, branch `claude/fix-phone-test-decision` from `claude/stage-1` at `14787d8`. It answers the first finding of the independent review of `14787d8`. Not pushed when written. *Added 14 Nov 2026:* read by one fresh reviewer who did not write it: nothing blocking; its notes are listed in the pull request and in "Notes from the review" at the end of this file.*
 
 ## In plain words
 
@@ -114,3 +114,12 @@ Before and after (`before-and-after.txt`, part 2; before = the decision as at `1
 - **Checked:** the old report's GO ON on two page openings (run); each new test before and after; each control; the typecheck; the licence check; that nothing but the interface's own environment turns the live preview on (read, lines above).
 - **Assumed, not checked:** three browser behaviours the new STOP cases rest on (Sec-Fetch-Site same-origin, the Origin of a form, cookies shared across ports), from web standards that could not be reached from this session; each only adds a STOP (`docs/SOURCES.md`, 14 Nov 2026). How your phone's browser and the Claude app behave is what the test itself measures.
 - **Not done:** the phone test itself. The instructions you were given (`docs/QUESTIONS.md`, "J3's phone test") do not yet ask the step 5 and step 6 questions above; they are left for the next update of that file. What the report cannot decide is known gap 168.
+
+## Notes from the review
+
+*Added 14 Nov 2026 by Claude Code.* One fresh reviewer read the claims, the evidence and the code, reran the 40 new tests (40 of 40) and two controls in a scratch copy. Nothing blocking. Its notes, none changed here:
+- **The report cannot tell whose browser made the record.** A whole run from a desktop or headless browser, with the three answers, also gives GO ON; item (viii) only needs a User-Agent to be present. The three answers rest on whoever types them. Already in gap 168.
+- **STOP is checked before "not decided"**, so a record with steps missing can still give STOP (never GO ON). This follows the design ("stop on the evidence that decides it"); read strictly against "missing evidence must return not decided", it is an interpretation, for the owner to know.
+- **Nothing in code ties the live preview's switch to a recorded GO ON:** it stays a setting turned on by hand, only after the result is recorded with the owner.
+- **The instructions now ask the three answers** (`docs/QUESTIONS.md`, and "Your phone test" in `evidence/2026-11-13-journey-j3/live-preview.md`), changed after the review in `1cbd356`.
+
