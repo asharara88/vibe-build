@@ -1,0 +1,206 @@
+The phone test's decision after the review of 14787d8: before and after, 2026-11-14T03:28:44Z, on 6db89da. Made-up logs in made-up-logs/ (reserved .test addresses, a made-up browser name).
+
+1. The report as a command (npx tsx <script> --report <log> [answers]).
+
+1a. BEFORE: the script as at 14787d8 (git show 14787d8:builder/scripts/probe-phone.ts), on two-pages.jsonl (each page opened once, no step pressed):
+    Host seen by probe-a: p4032.preview.example.test; by probe-b: p4033.preview.example.test
+    (i) Origin of a POST to itself: (no Origin, or not done)
+    (iv) Sec-Fetch-Dest / Sec-Fetch-Site seen: document / none
+    (v) header names seen: host, sec-fetch-dest, sec-fetch-site, user-agent; cookie names: (none)
+    (vi) the unreported port 4034 answered: no
+    (vii) the cached page reached the probe 0 time(s)
+    (viii) User-Agent: MadeUpPhone/1.0 (a made-up test browser)
+    (ix) opened when signed out: as the owner tells
+    DECISION: GO ON: same-site (with the cookie prefix, every-value cookie reads on 4020 too, and gap 157)
+    exit code: 0
+
+1b. AFTER: the script as at 6db89da, on the same log:
+    Host seen by probe-a: p4032.preview.example.test; by probe-b: p4033.preview.example.test
+    (i) probe-a: Origin of a POST to itself: (not done)
+    (i) probe-b: Origin of a POST to itself: (not done)
+    (ii) GET /from-a seen by probe-b: not done
+    (ii) POST /from-a-form seen by probe-b: not done
+    (ii) GET /from-b seen by probe-a: not done
+    (ii) POST /from-b-form seen by probe-a: not done
+    (iii) probe-a opened again: not done
+    (iii) probe-b opened again: not done
+    (iv) Sec-Fetch-Dest / Sec-Fetch-Site seen: document / none
+    (v) header names seen: host, sec-fetch-dest, sec-fetch-site, user-agent; cookie names: (none)
+    (vi) the unreported port 4034 answered: no request reached it; the owner's answer: not given
+    (vii) the cached page reached the probe 0 time(s); the owner's answer: not given
+    (viii) User-Agent: MadeUpPhone/1.0 (a made-up test browser)
+    (ix) probe-a opened when signed out: the owner's answer: not given
+    Each mandatory item (design section 6, M1):
+      MISSING (i) probe-a: step 1 on probe-a (a form sent to this page) not done
+      MISSING (i) probe-b: step 1 on probe-b (a form sent to this page) not done
+      MISSING (ii) probe-a to probe-b, link: step 3 on probe-a (a link to probe B) not done
+      MISSING (ii) probe-a to probe-b, form: step 4 on probe-a (a form to probe B) not done
+      MISSING (ii) probe-b to probe-a, link: step 3 on probe-b (a link to probe A) not done
+      MISSING (ii) probe-b to probe-a, form: step 4 on probe-b (a form to probe A) not done
+      MISSING (iii) probe-a: step 2 on probe-a (open this page again) not done
+      MISSING (iv) probe-a: step 2 on probe-a not done (its Sec-Fetch-Dest is read there)
+      MISSING (iii) probe-b: step 2 on probe-b (open this page again) not done
+      MISSING (iv) probe-b: step 2 on probe-b not done (its Sec-Fetch-Dest is read there)
+      done    (v): recorded on every request
+      MISSING (vi): no request reached 4034: the owner's answer is needed (--port-4034=answered or did-not-open)
+      MISSING (vii): step 6 on probe-a (the cached page) not done
+      done    (viii): recorded
+      MISSING (ix): the owner's answer is needed (--signed-out=opened, did-not-open or could-not-try)
+    The owner's answers: --port-4034 not given; --cached-number not given; --signed-out not given
+    DECISION: not decided: missing (i) probe-a; (i) probe-b; (ii) probe-a to probe-b, link; (ii) probe-a to probe-b, form; (ii) probe-b to probe-a, link; (ii) probe-b to probe-a, form; (iii) probe-a; (iv) probe-a; (iii) probe-b; (iv) probe-b; (vi); (vii); (ix)
+    This report changes no setting: the live preview stays off until BUILDER_LIVE_PREVIEW=1 is set by hand for the owner's interface, which is done only after a GO ON is recorded.
+    exit code: 0
+
+1c. AFTER, on whole-run.jsonl (every step of both pages, step 5 reaching nothing, the cached page twice), without the owner's answers:
+      MISSING (vi): no request reached 4034: the owner's answer is needed (--port-4034=answered or did-not-open)
+      MISSING (ix): the owner's answer is needed (--signed-out=opened, did-not-open or could-not-try)
+    The owner's answers: --port-4034 not given; --cached-number not given; --signed-out not given
+    DECISION: not decided: missing (vi); (ix)
+
+1d. AFTER, on whole-run.jsonl with the owner's answers --port-4034=did-not-open --signed-out=could-not-try:
+    Host seen by probe-a: p4032.preview.example.test; by probe-b: p4033.preview.example.test
+    (i) probe-a: Origin of a POST to itself: https://p4032.preview.example.test
+    (i) probe-b: Origin of a POST to itself: https://p4033.preview.example.test
+    (ii) GET /from-a seen by probe-b: Sec-Fetch-Site same-site
+    (ii) POST /from-a-form seen by probe-b: Sec-Fetch-Site same-site
+    (ii) GET /from-b seen by probe-a: Sec-Fetch-Site same-site
+    (ii) POST /from-b-form seen by probe-a: Sec-Fetch-Site same-site
+    (iii) probe-a opened again: cookies back: probe_a_lax, probe_a_strict; its own Lax cookie came back, its own Strict cookie came back
+    (iii) probe-b opened again: cookies back: probe_b_lax, probe_b_strict; its own Lax cookie came back, its own Strict cookie came back
+    (iv) Sec-Fetch-Dest / Sec-Fetch-Site seen: document / none; document / same-origin; document / same-site
+    (v) header names seen: host, sec-fetch-dest, sec-fetch-site, user-agent, origin; cookie names: probe_a_lax, probe_a_strict, probe_b_lax, probe_b_strict
+    (vi) the unreported port 4034 answered: no request reached it; the owner's answer: did-not-open
+    (vii) the cached page reached the probe 2 time(s) (numbers 1, 2); the owner's answer: not given
+    (viii) User-Agent: MadeUpPhone/1.0 (a made-up test browser)
+    (ix) probe-a opened when signed out: the owner's answer: could-not-try
+    Each mandatory item (design section 6, M1):
+      done    (i) probe-a: Host p4032.preview.example.test; Origin of its form to itself https://p4032.preview.example.test
+      done    (i) probe-b: Host p4033.preview.example.test; Origin of its form to itself https://p4033.preview.example.test
+      done    (ii) probe-a to probe-b, link: Sec-Fetch-Site same-site
+      done    (ii) probe-a to probe-b, form: Sec-Fetch-Site same-site
+      done    (ii) probe-b to probe-a, link: Sec-Fetch-Site same-site
+      done    (ii) probe-b to probe-a, form: Sec-Fetch-Site same-site
+      done    (iii) probe-a: its own Lax cookie came back, its own Strict cookie came back
+      done    (iv) probe-a: Sec-Fetch-Dest document
+      done    (iii) probe-b: its own Lax cookie came back, its own Strict cookie came back
+      done    (iv) probe-b: Sec-Fetch-Dest document
+      done    (v): recorded on every request
+      done    (vi): did not open (the owner's answer); no request reached 4034
+      done    (vii): reached the probe twice or more: no cache on the way seen
+      done    (viii): recorded
+      done    (ix): the owner's answer: could-not-try
+    The owner's answers: --port-4034=did-not-open; --cached-number not given; --signed-out=could-not-try
+    DECISION: GO ON: same-site (with the cookie prefix, every-value cookie reads on 4020 too, and gap 157)
+    This report changes no setting: the live preview stays off until BUILDER_LIVE_PREVIEW=1 is set by hand for the owner's interface, which is done only after a GO ON is recorded.
+    exit code: 0
+
+1e. AFTER, an answer that is not one of its words (--signed-out=maybe):
+    --signed-out must be one of: opened, did-not-open, could-not-try (given: maybe)
+    Usage: npx tsx scripts/probe-phone.ts <log file>
+           npx tsx scripts/probe-phone.ts --report <log file> [--port-4034=answered|did-not-open] [--cached-number=same|changed] [--signed-out=opened|did-not-open|could-not-try]
+    exit code: 2
+
+2. The new tests (test/probe-phone.test.ts as committed in 6db89da). Command, from builder/: npx vitest run test/probe-phone.test.ts --reporter=verbose; only the tests run, the failures' first lines and the summary are kept.
+
+2a. BEFORE the fix: builder/scripts/probe-phone.ts as at 6c3bdd5 (git checkout 6c3bdd5 -- scripts/probe-phone.ts), which is 14787d8's with only the guard added (git diff 14787d8 6c3bdd5 --stat: ' 1 file changed, 15 insertions(+), 10 deletions(-)'). Expected: the regression tests and the new STOP and answer tests fail; the 8 behaviour controls (the three GO ON rows on a whole run, the STOP rows, a page never opened, an unreported port that answered) pass.
+    builder/scripts/probe-phone.ts differs from 6c3bdd5's: 0 lines of diff (0: none)
+ × test/probe-phone.test.ts > the phone test's decision, after the review of 14787d8: GO ON only with the evidence of every mandatory item (design section 6, M1) > both pages opened and nothing else is not decided, and every item but (v) and (viii), which every request records, is named as missing (the review's case; regression for incomplete results) 8ms
+ × test/probe-phone.test.ts > the phone test's decision, after the review of 14787d8: GO ON only with the evidence of every mandatory item (design section 6, M1) > a whole run without probe-a's step 1 (its form to itself) is not decided, naming what is missing (regression for incomplete results) 1ms
+ × test/probe-phone.test.ts > the phone test's decision, after the review of 14787d8: GO ON only with the evidence of every mandatory item (design section 6, M1) > a whole run without probe-b's step 1 (its form to itself) is not decided, naming what is missing (regression for incomplete results) 1ms
+ × test/probe-phone.test.ts > the phone test's decision, after the review of 14787d8: GO ON only with the evidence of every mandatory item (design section 6, M1) > a whole run without the Origin of probe-a's form to itself is not decided, naming what is missing (regression for incomplete results) 1ms
+ × test/probe-phone.test.ts > the phone test's decision, after the review of 14787d8: GO ON only with the evidence of every mandatory item (design section 6, M1) > a whole run without an Origin other than null on probe-b's form to itself is not decided, naming what is missing (regression for incomplete results) 1ms
+ × test/probe-phone.test.ts > the phone test's decision, after the review of 14787d8: GO ON only with the evidence of every mandatory item (design section 6, M1) > a whole run without one address for probe-a (a second Host for it in the log) is not decided, naming what is missing (regression for incomplete results) 1ms
+ × test/probe-phone.test.ts > the phone test's decision, after the review of 14787d8: GO ON only with the evidence of every mandatory item (design section 6, M1) > a whole run without probe-a's step 3 (its link to probe-b) is not decided, naming what is missing (regression for incomplete results) 1ms
+ × test/probe-phone.test.ts > the phone test's decision, after the review of 14787d8: GO ON only with the evidence of every mandatory item (design section 6, M1) > a whole run without probe-a's step 4 (its form to probe-b) is not decided, naming what is missing (regression for incomplete results) 1ms
+ × test/probe-phone.test.ts > the phone test's decision, after the review of 14787d8: GO ON only with the evidence of every mandatory item (design section 6, M1) > a whole run without probe-b's step 3 (its link to probe-a) is not decided, naming what is missing (regression for incomplete results) 1ms
+ × test/probe-phone.test.ts > the phone test's decision, after the review of 14787d8: GO ON only with the evidence of every mandatory item (design section 6, M1) > a whole run without probe-b's step 4 (its form to probe-a) is not decided, naming what is missing (regression for incomplete results) 1ms
+ × test/probe-phone.test.ts > the phone test's decision, after the review of 14787d8: GO ON only with the evidence of every mandatory item (design section 6, M1) > a whole run without the Sec-Fetch-Site of probe-b's form to probe-a is not decided, naming what is missing (regression for incomplete results) 1ms
+ × test/probe-phone.test.ts > the phone test's decision, after the review of 14787d8: GO ON only with the evidence of every mandatory item (design section 6, M1) > a whole run without probe-a's step 2 (the page opened again) is not decided, naming what is missing (regression for incomplete results) 1ms
+ × test/probe-phone.test.ts > the phone test's decision, after the review of 14787d8: GO ON only with the evidence of every mandatory item (design section 6, M1) > a whole run without probe-b's step 2 (the page opened again) is not decided, naming what is missing (regression for incomplete results) 0ms
+ × test/probe-phone.test.ts > the phone test's decision, after the review of 14787d8: GO ON only with the evidence of every mandatory item (design section 6, M1) > a whole run without the Sec-Fetch-Dest of probe-b's step 2 is not decided, naming what is missing (regression for incomplete results) 0ms
+ × test/probe-phone.test.ts > the phone test's decision, after the review of 14787d8: GO ON only with the evidence of every mandatory item (design section 6, M1) > a whole run without the owner's answer on step 5 (4034), when no request reached it is not decided, naming what is missing (regression for incomplete results) 0ms
+ × test/probe-phone.test.ts > the phone test's decision, after the review of 14787d8: GO ON only with the evidence of every mandatory item (design section 6, M1) > a whole run without an answer on step 5 that the log contradicts (it answered, yet no request reached 4034) is not decided, naming what is missing (regression for incomplete results) 0ms
+ × test/probe-phone.test.ts > the phone test's decision, after the review of 14787d8: GO ON only with the evidence of every mandatory item (design section 6, M1) > a whole run without the cached page (probe-a's step 6) is not decided, naming what is missing (regression for incomplete results) 0ms
+ × test/probe-phone.test.ts > the phone test's decision, after the review of 14787d8: GO ON only with the evidence of every mandatory item (design section 6, M1) > a whole run without the cached page's second open reaching the probe, with no answer on its number is not decided, naming what is missing (regression for incomplete results) 2ms
+ × test/probe-phone.test.ts > the phone test's decision, after the review of 14787d8: GO ON only with the evidence of every mandatory item (design section 6, M1) > a whole run without an answer on the cached number that the log contradicts (it changed, yet the page reached the probe once) is not decided, naming what is missing (regression for incomplete results) 1ms
+ × test/probe-phone.test.ts > the phone test's decision, after the review of 14787d8: GO ON only with the evidence of every mandatory item (design section 6, M1) > a whole run without the User-Agent on probe-b's requests is not decided, naming what is missing (regression for incomplete results) 0ms
+ × test/probe-phone.test.ts > the phone test's decision, after the review of 14787d8: GO ON only with the evidence of every mandatory item (design section 6, M1) > a whole run without the owner's answer on the signed-out window (ix) is not decided, naming what is missing (regression for incomplete results) 0ms
+ × test/probe-phone.test.ts > the phone test's decision, after the review of 14787d8: GO ON only with the evidence of every mandatory item (design section 6, M1) > pages whose address does not show their port: steps 3 to 5 cannot be offered, so the result is not decided, naming (ii) and (vi) (regression for incomplete results) 1ms
+ × test/probe-phone.test.ts > the phone test's decision, after the review of 14787d8: GO ON only with the evidence of every mandatory item (design section 6, M1) > a whole run lists every mandatory item as done, with the owner's answers needed for it 1ms
+ ✓ test/probe-phone.test.ts > the phone test's decision, after the review of 14787d8: GO ON only with the evidence of every mandatory item (design section 6, M1) > a whole run, the same host on another port: GO ON with the cookie prefix (control) 1ms
+ ✓ test/probe-phone.test.ts > the phone test's decision, after the review of 14787d8: GO ON only with the evidence of every mandatory item (design section 6, M1) > a whole run, same-site: GO ON with the cookie prefix (control) 0ms
+ ✓ test/probe-phone.test.ts > the phone test's decision, after the review of 14787d8: GO ON only with the evidence of every mandatory item (design section 6, M1) > a whole run, cross-site: GO ON (control) 0ms
+ × test/probe-phone.test.ts > the phone test's decision, after the review of 14787d8: GO ON only with the evidence of every mandatory item (design section 6, M1) > a whole run with every answer given, the cached number changed: GO ON, and the answers are in the facts 5ms
+ ✓ test/probe-phone.test.ts > the phone test's decision, after the review of 14787d8: GO ON only with the evidence of every mandatory item (design section 6, M1) > the same Host for both pages: STOP, on a whole run and on the two page loads alone (control) 0ms
+ ✓ test/probe-phone.test.ts > the phone test's decision, after the review of 14787d8: GO ON only with the evidence of every mandatory item (design section 6, M1) > the Lax cookie back on neither page's step 2: STOP and use (B) (control) 0ms
+ ✓ test/probe-phone.test.ts > the phone test's decision, after the review of 14787d8: GO ON only with the evidence of every mandatory item (design section 6, M1) > framed and cross-site: STOP and use (B), on a whole run and on the two page loads alone (control) 0ms
+ ✓ test/probe-phone.test.ts > the phone test's decision, after the review of 14787d8: GO ON only with the evidence of every mandatory item (design section 6, M1) > probe-b never opened: not decided, both pages must be opened (control) 0ms
+ ✓ test/probe-phone.test.ts > the phone test's decision, after the review of 14787d8: GO ON only with the evidence of every mandatory item (design section 6, M1) > an unreported port that answered: GO ON with gap 157 (control) 0ms
+ × test/probe-phone.test.ts > the phone test's decision, after the review of 14787d8: GO ON only with the evidence of every mandatory item (design section 6, M1) > the same Origin on both pages' forms to themselves, under Hosts that differ (a tunnel that rewrites Host): STOP, same origin 4ms
+ × test/probe-phone.test.ts > the phone test's decision, after the review of 14787d8: GO ON only with the evidence of every mandatory item (design section 6, M1) > Sec-Fetch-Site same-origin on a request from the other page: STOP, same origin 1ms
+ × test/probe-phone.test.ts > the phone test's decision, after the review of 14787d8: GO ON only with the evidence of every mandatory item (design section 6, M1) > probe-b's own Lax cookie not back on its step 2, though probe-a's was (a shared host sends it to both): STOP and use (B) 2ms
+ × test/probe-phone.test.ts > the phone test's decision, after the review of 14787d8: GO ON only with the evidence of every mandatory item (design section 6, M1) > a cache on the way: the cached page reached the probe once and the owner saw the same number twice: GO ON with gap 157 1ms
+ × test/probe-phone.test.ts > the phone test's decision, after the review of 14787d8: GO ON only with the evidence of every mandatory item (design section 6, M1) > probe-a opened when signed out: GO ON with gaps 153 and 157 1ms
+ × test/probe-phone.test.ts > the phone test's report as a command (npx tsx scripts/probe-phone.ts --report; nothing listens) > both pages opened and nothing else: each item printed done or MISSING, the owner's answers printed, not decided, and no setting changed (regression for incomplete results) 120ms
+ × test/probe-phone.test.ts > the phone test's report as a command (npx tsx scripts/probe-phone.ts --report; nothing listens) > a whole run with the owner's answers: every item done, the answers recorded, GO ON 108ms
+ × test/probe-phone.test.ts > the phone test's report as a command (npx tsx scripts/probe-phone.ts --report; nothing listens) > an answer that is not one of its words, or an unknown option, is refused (exit code 2), and nothing is decided 103ms
+AssertionError: expected 'GO ON: same-site (with the cookie pre…' to match /^not decided: missing /
+AssertionError: expected 'GO ON: same-site (with the cookie pre…' to match /^not decided: missing /
+AssertionError: expected 'GO ON: same-site (with the cookie pre…' to match /^not decided: missing /
+AssertionError: expected 'Host seen by probe-a: pv4032.test; by…' to contain 'could-not-try'
+AssertionError: expected 'GO ON: the same host on another port …' to be 'STOP: both pages had the same origin …' // Object.is equality
+AssertionError: expected 'GO ON: same-site (with the cookie pre…' to match /^STOP: both pages had the sam…/from-a\)
+AssertionError: expected 'GO ON: the same host on another port …' to be 'STOP and use (B): the Lax cookie did …' // Object.is equality
+AssertionError: expected 'GO ON: same-site (with the cookie pre…' to be 'GO ON: same-site (with the cookie pre…' // Object.is equality
+AssertionError: expected 'GO ON: cross-site' to be 'GO ON: cross-site; and probe-a opened…' // Object.is equality
+AssertionError: (i) probe-a: expected 'Host seen by probe-a: p4032.preview.e…' to contain 'MISSING (i) probe-a:'
+AssertionError: (i) probe-a: expected 'Host seen by probe-a: p4032.preview.e…' to contain 'done    (i) probe-a:'
+AssertionError: --signed-out=maybe: Host seen by probe-a: p4032.preview.example.test; by probe-b: p4033.preview.example.test
+ Test Files  1 failed (1)
+      Tests  32 failed | 8 passed (40)
+
+2b. AFTER the fix: the same command on 6db89da (builder/scripts/probe-phone.ts differs from HEAD's: 0 lines of diff (0: none)).
+ ✓ test/probe-phone.test.ts > the phone test's decision, after the review of 14787d8: GO ON only with the evidence of every mandatory item (design section 6, M1) > both pages opened and nothing else is not decided, and every item but (v) and (viii), which every request records, is named as missing (the review's case; regression for incomplete results) 4ms
+ ✓ test/probe-phone.test.ts > the phone test's decision, after the review of 14787d8: GO ON only with the evidence of every mandatory item (design section 6, M1) > a whole run without probe-a's step 1 (its form to itself) is not decided, naming what is missing (regression for incomplete results) 1ms
+ ✓ test/probe-phone.test.ts > the phone test's decision, after the review of 14787d8: GO ON only with the evidence of every mandatory item (design section 6, M1) > a whole run without probe-b's step 1 (its form to itself) is not decided, naming what is missing (regression for incomplete results) 0ms
+ ✓ test/probe-phone.test.ts > the phone test's decision, after the review of 14787d8: GO ON only with the evidence of every mandatory item (design section 6, M1) > a whole run without the Origin of probe-a's form to itself is not decided, naming what is missing (regression for incomplete results) 1ms
+ ✓ test/probe-phone.test.ts > the phone test's decision, after the review of 14787d8: GO ON only with the evidence of every mandatory item (design section 6, M1) > a whole run without an Origin other than null on probe-b's form to itself is not decided, naming what is missing (regression for incomplete results) 0ms
+ ✓ test/probe-phone.test.ts > the phone test's decision, after the review of 14787d8: GO ON only with the evidence of every mandatory item (design section 6, M1) > a whole run without one address for probe-a (a second Host for it in the log) is not decided, naming what is missing (regression for incomplete results) 0ms
+ ✓ test/probe-phone.test.ts > the phone test's decision, after the review of 14787d8: GO ON only with the evidence of every mandatory item (design section 6, M1) > a whole run without probe-a's step 3 (its link to probe-b) is not decided, naming what is missing (regression for incomplete results) 0ms
+ ✓ test/probe-phone.test.ts > the phone test's decision, after the review of 14787d8: GO ON only with the evidence of every mandatory item (design section 6, M1) > a whole run without probe-a's step 4 (its form to probe-b) is not decided, naming what is missing (regression for incomplete results) 0ms
+ ✓ test/probe-phone.test.ts > the phone test's decision, after the review of 14787d8: GO ON only with the evidence of every mandatory item (design section 6, M1) > a whole run without probe-b's step 3 (its link to probe-a) is not decided, naming what is missing (regression for incomplete results) 1ms
+ ✓ test/probe-phone.test.ts > the phone test's decision, after the review of 14787d8: GO ON only with the evidence of every mandatory item (design section 6, M1) > a whole run without probe-b's step 4 (its form to probe-a) is not decided, naming what is missing (regression for incomplete results) 0ms
+ ✓ test/probe-phone.test.ts > the phone test's decision, after the review of 14787d8: GO ON only with the evidence of every mandatory item (design section 6, M1) > a whole run without the Sec-Fetch-Site of probe-b's form to probe-a is not decided, naming what is missing (regression for incomplete results) 0ms
+ ✓ test/probe-phone.test.ts > the phone test's decision, after the review of 14787d8: GO ON only with the evidence of every mandatory item (design section 6, M1) > a whole run without probe-a's step 2 (the page opened again) is not decided, naming what is missing (regression for incomplete results) 0ms
+ ✓ test/probe-phone.test.ts > the phone test's decision, after the review of 14787d8: GO ON only with the evidence of every mandatory item (design section 6, M1) > a whole run without probe-b's step 2 (the page opened again) is not decided, naming what is missing (regression for incomplete results) 0ms
+ ✓ test/probe-phone.test.ts > the phone test's decision, after the review of 14787d8: GO ON only with the evidence of every mandatory item (design section 6, M1) > a whole run without the Sec-Fetch-Dest of probe-b's step 2 is not decided, naming what is missing (regression for incomplete results) 0ms
+ ✓ test/probe-phone.test.ts > the phone test's decision, after the review of 14787d8: GO ON only with the evidence of every mandatory item (design section 6, M1) > a whole run without the owner's answer on step 5 (4034), when no request reached it is not decided, naming what is missing (regression for incomplete results) 0ms
+ ✓ test/probe-phone.test.ts > the phone test's decision, after the review of 14787d8: GO ON only with the evidence of every mandatory item (design section 6, M1) > a whole run without an answer on step 5 that the log contradicts (it answered, yet no request reached 4034) is not decided, naming what is missing (regression for incomplete results) 0ms
+ ✓ test/probe-phone.test.ts > the phone test's decision, after the review of 14787d8: GO ON only with the evidence of every mandatory item (design section 6, M1) > a whole run without the cached page (probe-a's step 6) is not decided, naming what is missing (regression for incomplete results) 2ms
+ ✓ test/probe-phone.test.ts > the phone test's decision, after the review of 14787d8: GO ON only with the evidence of every mandatory item (design section 6, M1) > a whole run without the cached page's second open reaching the probe, with no answer on its number is not decided, naming what is missing (regression for incomplete results) 0ms
+ ✓ test/probe-phone.test.ts > the phone test's decision, after the review of 14787d8: GO ON only with the evidence of every mandatory item (design section 6, M1) > a whole run without an answer on the cached number that the log contradicts (it changed, yet the page reached the probe once) is not decided, naming what is missing (regression for incomplete results) 0ms
+ ✓ test/probe-phone.test.ts > the phone test's decision, after the review of 14787d8: GO ON only with the evidence of every mandatory item (design section 6, M1) > a whole run without the User-Agent on probe-b's requests is not decided, naming what is missing (regression for incomplete results) 0ms
+ ✓ test/probe-phone.test.ts > the phone test's decision, after the review of 14787d8: GO ON only with the evidence of every mandatory item (design section 6, M1) > a whole run without the owner's answer on the signed-out window (ix) is not decided, naming what is missing (regression for incomplete results) 0ms
+ ✓ test/probe-phone.test.ts > the phone test's decision, after the review of 14787d8: GO ON only with the evidence of every mandatory item (design section 6, M1) > pages whose address does not show their port: steps 3 to 5 cannot be offered, so the result is not decided, naming (ii) and (vi) (regression for incomplete results) 0ms
+ ✓ test/probe-phone.test.ts > the phone test's decision, after the review of 14787d8: GO ON only with the evidence of every mandatory item (design section 6, M1) > a whole run lists every mandatory item as done, with the owner's answers needed for it 0ms
+ ✓ test/probe-phone.test.ts > the phone test's decision, after the review of 14787d8: GO ON only with the evidence of every mandatory item (design section 6, M1) > a whole run, the same host on another port: GO ON with the cookie prefix (control) 0ms
+ ✓ test/probe-phone.test.ts > the phone test's decision, after the review of 14787d8: GO ON only with the evidence of every mandatory item (design section 6, M1) > a whole run, same-site: GO ON with the cookie prefix (control) 0ms
+ ✓ test/probe-phone.test.ts > the phone test's decision, after the review of 14787d8: GO ON only with the evidence of every mandatory item (design section 6, M1) > a whole run, cross-site: GO ON (control) 0ms
+ ✓ test/probe-phone.test.ts > the phone test's decision, after the review of 14787d8: GO ON only with the evidence of every mandatory item (design section 6, M1) > a whole run with every answer given, the cached number changed: GO ON, and the answers are in the facts 0ms
+ ✓ test/probe-phone.test.ts > the phone test's decision, after the review of 14787d8: GO ON only with the evidence of every mandatory item (design section 6, M1) > the same Host for both pages: STOP, on a whole run and on the two page loads alone (control) 0ms
+ ✓ test/probe-phone.test.ts > the phone test's decision, after the review of 14787d8: GO ON only with the evidence of every mandatory item (design section 6, M1) > the Lax cookie back on neither page's step 2: STOP and use (B) (control) 0ms
+ ✓ test/probe-phone.test.ts > the phone test's decision, after the review of 14787d8: GO ON only with the evidence of every mandatory item (design section 6, M1) > framed and cross-site: STOP and use (B), on a whole run and on the two page loads alone (control) 0ms
+ ✓ test/probe-phone.test.ts > the phone test's decision, after the review of 14787d8: GO ON only with the evidence of every mandatory item (design section 6, M1) > probe-b never opened: not decided, both pages must be opened (control) 0ms
+ ✓ test/probe-phone.test.ts > the phone test's decision, after the review of 14787d8: GO ON only with the evidence of every mandatory item (design section 6, M1) > an unreported port that answered: GO ON with gap 157 (control) 0ms
+ ✓ test/probe-phone.test.ts > the phone test's decision, after the review of 14787d8: GO ON only with the evidence of every mandatory item (design section 6, M1) > the same Origin on both pages' forms to themselves, under Hosts that differ (a tunnel that rewrites Host): STOP, same origin 0ms
+ ✓ test/probe-phone.test.ts > the phone test's decision, after the review of 14787d8: GO ON only with the evidence of every mandatory item (design section 6, M1) > Sec-Fetch-Site same-origin on a request from the other page: STOP, same origin 0ms
+ ✓ test/probe-phone.test.ts > the phone test's decision, after the review of 14787d8: GO ON only with the evidence of every mandatory item (design section 6, M1) > probe-b's own Lax cookie not back on its step 2, though probe-a's was (a shared host sends it to both): STOP and use (B) 0ms
+ ✓ test/probe-phone.test.ts > the phone test's decision, after the review of 14787d8: GO ON only with the evidence of every mandatory item (design section 6, M1) > a cache on the way: the cached page reached the probe once and the owner saw the same number twice: GO ON with gap 157 0ms
+ ✓ test/probe-phone.test.ts > the phone test's decision, after the review of 14787d8: GO ON only with the evidence of every mandatory item (design section 6, M1) > probe-a opened when signed out: GO ON with gaps 153 and 157 0ms
+ ✓ test/probe-phone.test.ts > the phone test's report as a command (npx tsx scripts/probe-phone.ts --report; nothing listens) > both pages opened and nothing else: each item printed done or MISSING, the owner's answers printed, not decided, and no setting changed (regression for incomplete results) 116ms
+ ✓ test/probe-phone.test.ts > the phone test's report as a command (npx tsx scripts/probe-phone.ts --report; nothing listens) > a whole run with the owner's answers: every item done, the answers recorded, GO ON 111ms
+ ✓ test/probe-phone.test.ts > the phone test's report as a command (npx tsx scripts/probe-phone.ts --report; nothing listens) > an answer that is not one of its words, or an unknown option, is refused (exit code 2), and nothing is decided 427ms
+ Test Files  1 passed (1)
+      Tests  40 passed (40)
+
+Working tree of builder/ after (git status --porcelain, count): 0
