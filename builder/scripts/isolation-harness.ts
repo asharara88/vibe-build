@@ -378,7 +378,7 @@ export interface ImageFacts {
   labels: Record<string, string>;
   /** Set when Docker could not show the image: its own first line. */
   missing?: string;
-  /** The time Docker gives the image (`.Created`). A time before the project was made means `docker build` gave the name to an image Docker already held (its build cache). */
+  /** The date Docker gives the image (`.Created`). A date before the project was made means that the build's last step did not run for this project: Docker took it from its build cache. */
   created?: string;
 }
 

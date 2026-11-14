@@ -64,8 +64,8 @@
  * CHANGED AFTER THE REVIEW OF 14 NOV 2026 (part A; part B's checks are as they were):
  * - before anything is made, it reads what an interrupted earlier run left of part A's fixed-name projects, and
  *   part A does not start on top of it;
- * - beside each image's id it prints when the image's content was made, and says in so many words whether that was
- *   in this run or before it (then the content came from Docker's build cache). The helper's own line, "the
+ * - beside each image's id it prints the date Docker gives the image, and says in so many words whether that is
+ *   after this project was made or before it (then the build's last step came from Docker's build cache). The helper's own line, "the
  *   template's guard check and next build ran in the build", is its fixed wording and is true only of a build that
  *   was not taken from the cache: the line after it says which this was;
  * - it reads what the app and tools images hold (the pages step 02 adds; the product's two tools);
@@ -241,13 +241,17 @@ async function realContainers(): Promise<void> {
   const madeAt = new Date();
   const real = await startRealProject({ projectId: REAL_PROJECT, appPort: REAL_APP_PORT, onMade: (x) => void realMade.push(x), log });
   const { x, images, appContainer } = real;
-  /** The time Docker gives an image (`.Created`), against when this project was made: after it, or before it (then the image was held already, in Docker's build cache). */
+  /**
+   * The date Docker gives an image (`.Created`), against when this project was made. A date before the project means
+   * that the build's last step did not run for it: Docker took that step from its build cache, where an earlier build
+   * of identical files had left it. (The image's id is still this build's own: it differs from project to project.)
+   */
   const whenMade = (i: ImageFacts, since: Date) => {
     const at = Date.parse(i.created ?? "");
     if (!Number.isFinite(at)) return "Docker gave no creation time for it, so whether its content was built in this run is not known";
     return at >= since.getTime()
       ? `Docker dates it ${i.created}, after this project was made (${since.toISOString()}): its last step, at least, ran in this run (earlier steps may still have come from Docker's build cache)`
-      : `Docker dates it ${i.created}, ${Math.round((since.getTime() - at) / 1000)} s BEFORE this project was made (${since.toISOString()}): docker build gave the name to an image Docker already held from an earlier build of identical files (its build cache). That the guard check and next build ran in THIS run is not shown`;
+      : `Docker dates it ${i.created}, ${Math.round((since.getTime() - at) / 1000)} s BEFORE this project was made (${since.toISOString()}): so the build's last step did not run in this run. docker build took it from Docker's build cache, where an earlier build of identical files had left it, and gave the result this project's name. That the guard check and next build ran in THIS run is not shown`;
   };
   log(`  The helper's line above ("the template's guard check and next build ran in the build") is its fixed wording. What this run shows: the app image: ${whenMade(images.app, madeAt)}. The tools image: ${whenMade(images.tools, madeAt)}.`);
   log(`  The door (egress, with egress-host) was started too; the product does not start it for a scripted-engine project today.`);
