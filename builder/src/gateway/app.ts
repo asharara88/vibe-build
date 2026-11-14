@@ -35,6 +35,12 @@
  *   operator's set-aside of such a line naming a hold freezes that hold's project (kind 'journal_line_set_aside');
  *   it is refused as above, with its own message (store/freezes.ts, `frozenMessage`), until the owner reconciles
  *   that hold.
+ * - Since 14 Nov 2026 (known gap 145, on the owner's instruction: "Ensure a detected overrun blocks further forwarding
+ *   for that project before completion is exposed"): when the usage figures read from a streamed answer, priced as a
+ *   settlement prices them, already put the call above its hold, the project is stopped at once in this gateway's
+ *   memory (checked with no await before each forward), and the stop is written on the call's hold
+ *   (store/holds.ts, `markReadAboveHold`; refused under the project's lock by `openHold`) before any further byte of
+ *   that answer, so before its end marker, is passed on. A stream with no such figures is passed on as it comes.
  *
  * Design note: docs/design/stage-1.md, sections 2.4 and 5.5. Build plan: packages 1.2 and 1.4.
  */
@@ -43,7 +49,7 @@ import { Hono } from "hono";
 import type pg from "pg";
 import { appendEvent } from "../store/events.js";
 import { activeFreeze, frozenMessage, type UnrecordedEnding } from "../store/freezes.js";
-import { expireHolds, keepHold, openHold, recoverHolds, releaseUnsentHold, settleHold } from "../store/holds.js";
+import { expireHolds, holdReadAbove, keepHold, markReadAboveHold, micro, openHold, readAboveHoldMessage, recoverHolds, releaseUnsentHold, settleHold } from "../store/holds.js";
 import { tokenOwner, type Project } from "../store/projects.js";
 import { costUsd, emptyUsage, itemisedCacheWrites, mergeUsage, statesSpeed, USAGE_COUNTS, usageAsPriced, usageIsReadable, type ProviderUsage, type Usage } from "./cost.js";
 import { betasNotAllowed, computeHold, countRequestBody, DEFAULT_PROFILES, guardRequest, mayAskForOneHourCache, type MeteredRequest, type ProfileLimits } from "./hold.js";
@@ -271,6 +277,19 @@ export function createGateway(opts: GatewayOptions) {
   const stoppedNow = (): "journal" | "gate" | "liveness" | null =>
     gate.unreadableLines().length > 0 ? "journal" : gate.closed() ? "gate" : opts.liveness && !opts.liveness.ok() ? "liveness" : null;
   const stoppedBody = (why: "journal" | "gate" | "liveness", sent: string) => (why === "journal" ? journalUnreadable(sent) : why === "gate" ? gateClosed(sent) : livenessLost(sent));
+  /**
+   * Known gap 145 (closed 14 Nov 2026 on the owner's instruction). The projects one of whose streamed calls, through
+   * this gateway, has read usage figures above its hold, by that call's hold: set the moment the figures are read,
+   * before anything is awaited, and checked with no await in between just before each forward (a passed-through
+   * request, a counting call, a metered call), so a request that is under way when the figures are read is not
+   * forwarded after them. Cleared once that call's ending is recorded: by then the stop written on its hold
+   * (`markReadAboveHold`), and after it package 1.4c's freeze, refuse the project in every gateway.
+   */
+  const readAbove = new Map<string, Map<string, { holdId: string; holdUsd: number; costUsd: number }>>();
+  const readAboveHere = (projectId: string) => {
+    const m = readAbove.get(projectId);
+    return m && m.size > 0 ? [...m.values()][0]! : null;
+  };
 
   // The health check. Package 1.4b, after its review: while the journal held a line that could not be read at start-up,
   // the gateway forwards nothing until an operator recovers it and restarts the gateway, so the check answers 503 with
@@ -366,12 +385,23 @@ export function createGateway(opts: GatewayOptions) {
       await appendEvent(opts.pool, project.id, "gateway.refused", { reason: "project_frozen", freeze_id: Number(frozen.id), freeze_kind: frozen.kind, journal_id: frozen.journal_id, path }, step);
       return c.json(errorBody("project_frozen", frozenMessage(frozen)), 402);
     }
+    // Known gap 145: a call of this project read usage figures above its hold, and its ending is not recorded yet. In
+    // the database once the stop is written (any gateway); in this gateway's memory from the moment the figures were
+    // read, checked again just before each forward below.
+    const aboveHold = await holdReadAbove(opts.pool, project.id);
+    const aboveRefusal = async (a: { holdId: string; holdUsd: number; costUsd: number }) => {
+      await appendEvent(opts.pool, project.id, "gateway.refused", { reason: "call_above_hold_in_flight", hold_id: Number(a.holdId), cost_usd_as_read: a.costUsd, path }, step);
+      return c.json(errorBody("project_frozen", readAboveHoldMessage(a)), 402);
+    };
+    if (aboveHold) return aboveRefusal({ holdId: aboveHold.id, holdUsd: Number(aboveHold.amount_usd), costUsd: Number(aboveHold.read_above_hold_usd) });
 
     if (passthrough) {
       // The gate and the liveness lock checked again (review bot on 899cbf0). Nothing has been forwarded or held, so
       // nothing is written. No await stands between this and the forward.
       const stoppedBeforePassthrough = stoppedNow();
       if (stoppedBeforePassthrough) return c.json(stoppedBody(stoppedBeforePassthrough, "Nothing was forwarded."), 503);
+      const aboveBeforePassthrough = readAboveHere(project.id);
+      if (aboveBeforePassthrough) return aboveRefusal(aboveBeforePassthrough);
       let res: Response;
       try {
         res = await forward();
@@ -400,6 +430,8 @@ export function createGateway(opts: GatewayOptions) {
     // is written. No await stands between this and the counting call.
     const stoppedBeforeCount = stoppedNow();
     if (stoppedBeforeCount) return c.json(stoppedBody(stoppedBeforeCount, "Nothing was forwarded."), 503);
+    const aboveBeforeCount = readAboveHere(project.id);
+    if (aboveBeforeCount) return aboveRefusal(aboveBeforeCount);
     let counted: number;
     try {
       const countHeaders = new Headers(headers);
@@ -447,6 +479,9 @@ export function createGateway(opts: GatewayOptions) {
       const b = opened.budget;
       const s = opened.step;
       if (opened.reason === "project_frozen" && opened.freeze) return c.json(errorBody("project_frozen", frozenMessage(opened.freeze)), 402);
+      if (opened.reason === "call_above_hold_in_flight" && opened.above) {
+        return c.json(errorBody("project_frozen", readAboveHoldMessage({ holdUsd: Number(opened.above.amount_usd), costUsd: Number(opened.above.read_above_hold_usd) })), 402);
+      }
       // A step call (package 1.3). Nothing was forwarded in any of these cases.
       if (opened.reason === "step_closed") {
         return c.json(errorBody("step_closed", "This step has ended, so its token no longer lets calls through. The gateway forwarded nothing."), 401);
@@ -481,9 +516,19 @@ export function createGateway(opts: GatewayOptions) {
       );
     }
     const holdId = opened.hold.id;
+    const holdAmountUsd = Number(opened.hold.amount_usd);
 
     // 4: forward. Exactly one ending is recorded for the hold.
     let ended = false;
+    /** Known gap 145: the write of this call's stop (`markReadAboveHold`), once its figures were read above its hold. */
+    let stopping: Promise<void> | null = null;
+    /** Known gap 145: once this call's ending is recorded (or handed to the journal's path), its stop leaves this gateway's memory. */
+    const unstop = () => {
+      const m = readAbove.get(project.id);
+      if (!m) return;
+      m.delete(holdId);
+      if (m.size === 0) readAbove.delete(project.id);
+    };
     /**
      * The write recording this call's ending failed (package 1.4). The gate closes at once, before anything
      * is awaited; then the record goes to the journal (forced to disk) and, if the database takes it, the
@@ -526,6 +571,7 @@ export function createGateway(opts: GatewayOptions) {
     const settle = async (usage: Usage, status: number, servedModel: string, extra: Record<string, unknown> = {}, itemised: number | null = null) => {
       if (ended) return;
       ended = true;
+      if (stopping) await stopping; // known gap 145: the stop is written before the ending
       const asPriced = usageAsPriced(usage, itemised, oneHourPossible);
       const note =
         asPriced.notItemised > 0
@@ -553,6 +599,8 @@ export function createGateway(opts: GatewayOptions) {
       } catch (err) {
         // The hold stays open in the database at its full amount: nothing was released.
         await unrecorded({ ending: "settle", kept_reason: null, cost_usd_as_read: cost ?? null, call: fields, ended_at: endedAt }, err, "A finished model call could not be written to the event log. Its hold stays open at its full amount.");
+      } finally {
+        unstop();
       }
     };
     /**
@@ -578,6 +626,7 @@ export function createGateway(opts: GatewayOptions) {
     const keep = async (reason: string, usage: Usage, status: number, servedModel: string, extra: Record<string, unknown> = {}, asRead: { usage: Usage; itemised: number | null } | null = null) => {
       if (ended) return;
       ended = true;
+      if (stopping) await stopping; // known gap 145: the stop is written before the ending
       const { fields } = callFields(usage, status, servedModel, extra);
       const endedAt = new Date().toISOString();
       const least = leastCost(asRead, servedModel);
@@ -602,6 +651,8 @@ export function createGateway(opts: GatewayOptions) {
         }
       } catch (err) {
         await unrecorded({ ending: "keep", kept_reason: reason, cost_usd_as_read: least?.usd ?? null, call: fields, ended_at: endedAt }, err, "A model call that ended without readable usage could not be noted in the event log. Its hold stays open at its full amount.");
+      } finally {
+        unstop();
       }
     };
     const clientGone = c.req.raw.signal;
@@ -623,6 +674,20 @@ export function createGateway(opts: GatewayOptions) {
         fault("A hold for a call that was never sent could not be closed. It stays open at its full amount.", { project: project.id, hold: holdId, error: errorSummary(err) });
       }
       return c.json(stoppedBody(stoppedSince, "This call was not forwarded (only the counting call, assumed to cost nothing, was sent)."), 503);
+    }
+    // Known gap 145: a call of this project read usage figures above its hold while this one waited at its counting call
+    // or for the lock (its hold may have opened before that stop was written, so the check under the lock did not see
+    // it). Not forwarded, and as only the counting call was sent, its hold is given back. No await stands between this
+    // and the forward.
+    const aboveSince = readAboveHere(project.id);
+    if (aboveSince) {
+      ended = true;
+      try {
+        await releaseUnsentHold(opts.pool, { projectId: project.id, holdId, step, reason: `a call of this project (hold ${aboveSince.holdId}) read usage figures above its hold before this call was forwarded (only the counting call, assumed to cost nothing, was sent)` });
+      } catch (err) {
+        fault("A hold for a call that was never sent could not be closed. It stays open at its full amount.", { project: project.id, hold: holdId, error: errorSummary(err) });
+      }
+      return c.json(errorBody("project_frozen", readAboveHoldMessage(aboveSince, "This call was not forwarded (only the counting call, assumed to cost nothing, was sent)")), 402);
     }
     // A caller that left before the call was forwarded: only the counting call has been sent, and
     // the call itself has not been forwarded, so the hold is settled at nothing with that reason. No
@@ -736,6 +801,42 @@ export function createGateway(opts: GatewayOptions) {
        * fell, no frame was unreadable and fast mode was not taken back. Then a kept call is compared with its hold.
        */
       const trusted = () => (sawInput && !sawUnreadable ? { usage, itemised } : null);
+      /**
+       * Known gap 145: what the figures read so far, when the gateway trusts them, put the call's cost at, priced as a
+       * settlement prices them (cache writes not split by lifetime at the one-hour rate when the request may ask for
+       * it), or at the lower rate where a settlement would not take them (a hold that allowed for fast mode, with no
+       * speed stated); null while that is not above the hold. Figures in a usage block only grow.
+       */
+      const holdMicro = micro(holdAmountUsd);
+      const aboveHoldNow = (): number | null => {
+        const t = trusted();
+        if (!t) return null;
+        if (servedModel && servedModel !== requestedModel && !Object.hasOwn(PRICES, servedModel)) return null;
+        const priced = Object.hasOwn(PRICES, servedModel) ? servedModel : requestedModel;
+        const usd = costUsd(priced, usageAsPriced(t.usage, t.itemised, oneHourPossible && !(fastHeld && !speedStated)).usage);
+        return usd !== null && micro(usd) > holdMicro ? usd : null;
+      };
+      /**
+       * Known gap 145: the project is stopped in this gateway's memory now, before anything is awaited, and the stop is
+       * written on this call's hold; the bytes that carried those figures, and every byte after them (the end marker
+       * among them), are passed on only once that write is done. If it fails, the stop stays in this gateway's memory
+       * until the call's ending is recorded.
+       */
+      const stopProject = (usd: number) => {
+        const mine = readAbove.get(project.id) ?? new Map<string, { holdId: string; holdUsd: number; costUsd: number }>();
+        mine.set(holdId, { holdId, holdUsd: holdAmountUsd, costUsd: usd });
+        readAbove.set(project.id, mine);
+        stopping = markReadAboveHold(opts.pool, { projectId: project.id, holdId, step, costUsd: usd, gateway: gatewayId, usage: { ...usage } }).then(
+          () => undefined,
+          (err: unknown) =>
+            fault("A streamed call's usage figures put it above its hold, and the stop could not be written to the database. This gateway refuses the project's calls until the call's ending is recorded.", {
+              project: project.id,
+              hold: holdId,
+              cost_usd_as_read: usd,
+              error: errorSummary(err),
+            }),
+        );
+      };
       // Pull from the provider ourselves so that every ending is seen: a clean end, a provider
       // failure part-way, the time limit, or the client going away.
       const reader = res.body.getReader();
@@ -765,6 +866,12 @@ export function createGateway(opts: GatewayOptions) {
               return;
             }
             consume(decoder.decode(value, { stream: true }));
+            // Known gap 145: figures above the hold stop the project before these bytes, or any after them, go on.
+            if (stopping === null && !ended) {
+              const above = aboveHoldNow();
+              if (above !== null) stopProject(above);
+            }
+            if (stopping) await stopping;
             ctrl.enqueue(value);
           } catch (err) {
             stopTimer();

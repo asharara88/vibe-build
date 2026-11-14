@@ -56,6 +56,13 @@ export interface Hold {
   actual_usd: string | null;
   /** The step hold this call's hold was drawn from (package 1.3), or null. */
   step_hold_id: string | null;
+  /**
+   * Known gap 145 (14 Nov 2026, migration 013): the call's cost as the usage figures read from its streamed answer
+   * priced it, above this hold, written before the gateway passed on any further byte of that answer; null otherwise.
+   * While the hold is open and its call's ending is not recorded, it stops the project (`openHold`).
+   */
+  read_above_hold_usd: string | null;
+  read_above_hold_at: Date | null;
 }
 
 /** Money is compared in millionths of a dollar, as whole numbers, so sums never drift. */
@@ -99,7 +106,9 @@ export type OpenRefusal =
   /** A step call: a model, `max_tokens` or hold outside the limits its step's budget was worked out from. */
   | "step_call_outside_limits"
   /** The project is frozen after a fault (package 1.4): a call's ending could not be recorded. */
-  | "project_frozen";
+  | "project_frozen"
+  /** Known gap 145: one of the project's calls, its ending not yet recorded, read usage figures above its hold. */
+  | "call_above_hold_in_flight";
 
 export type OpenResult =
   | { ok: true; hold: Hold; budget: Budget }
@@ -110,7 +119,88 @@ export type OpenResult =
       step?: { room: number; budget: number; perTurn: number; model: string; maxTokensCeiling: number; which?: "model" | "max_tokens" | "hold" };
       /** For `project_frozen`: the freeze. */
       freeze?: Freeze;
+      /** For `call_above_hold_in_flight`: the hold whose call read figures above it. */
+      above?: Hold;
     };
+
+/**
+ * Known gap 145 (closed 14 Nov 2026 on the owner's instruction: "Ensure a detected overrun blocks further forwarding
+ * for that project before completion is exposed"). An open hold of the project whose call read usage figures above it
+ * (`markReadAboveHold`) and whose ending the gateway has not yet recorded (`kept_reason` is null; a settlement closes
+ * the hold). Read under the project's lock by `openHold`, and by the gateway before a counting call.
+ *
+ * Once the call's ending is recorded, package 1.4c's freeze takes over: the settlement's ('bill_above_hold'), or the
+ * keep's ('kept_above_hold') when the figures it trusts still price the call above its hold. A keep whose figures can
+ * no longer be trusted freezes nothing, as in 1.4c, and the stop no longer applies.
+ */
+export async function holdReadAboveIn(q: Queryable, projectId: string): Promise<Hold | null> {
+  const r = await q.query<Hold>(
+    "select * from holds where project_id = $1 and state = 'open' and read_above_hold_at is not null and kept_reason is null order by id limit 1",
+    [projectId],
+  );
+  return r.rows[0] ?? null;
+}
+
+export function holdReadAbove(pool: pg.Pool, projectId: string): Promise<Hold | null> {
+  return holdReadAboveIn(pool, projectId);
+}
+
+/** An amount in dollars to the millionth, as a stop's message shows it. */
+const exactUsd = (m: number): string => (m / 1e6).toFixed(6);
+
+/**
+ * The message a caller sees while the project is stopped by a call read above its hold (known gap 145). The wording is
+ * Claude Code's, for the owner to confirm, as the freezes' is (docs/QUESTIONS.md, "Yours to confirm").
+ */
+export function readAboveHoldMessage(a: { holdUsd: number; costUsd: number }, sent = "The gateway forwarded nothing"): string {
+  const hold = micro(a.holdUsd);
+  const cost = micro(a.costUsd);
+  return (
+    `This project is stopped: one of its model calls had already used $${exactUsd(cost)} by the usage figures the gateway read from its answer, more than its hold of $${exactUsd(hold)} (above it by $${exactUsd(cost - hold)}). ` +
+    `${sent}, and no further call will be made for this project until that call's ending is recorded and the owner records what it cost.`
+  );
+}
+
+/**
+ * Known gap 145: write on a call's open hold that the usage figures read from its streamed answer, priced as the
+ * gateway prices a bill, already put it above the hold, with a `hold.read_above_hold` event. One transaction under the
+ * project's lock, so an admission (`openHold`) is judged either before it, or after it and refused. The gateway awaits
+ * it before it passes on any further byte of that answer, so before the provider's end-of-message marker reaches the
+ * caller. It neither closes nor releases the hold, and settles nothing: the call's ending is written later, as before.
+ * Written once per hold; a hold not open, or a cost that is not a real amount above the hold, writes nothing.
+ */
+export async function markReadAboveHold(
+  pool: pg.Pool,
+  p: { projectId: string; holdId: string; step: string | null; costUsd: number; gateway: string; usage: Record<string, unknown> },
+): Promise<{ marked: boolean; hold: Hold | null }> {
+  return inTransaction(pool, p.projectId, async (c) => {
+    const cur = (await c.query<Hold>("select * from holds where id = $1 and project_id = $2 for update", [p.holdId, p.projectId])).rows[0];
+    // Not on a hold already closed, already stopped, or whose call's ending is already recorded (kept).
+    if (!cur || cur.state !== "open" || cur.read_above_hold_at !== null || cur.kept_reason !== null) return { marked: false, hold: cur ?? null };
+    const amountUsd = Number(cur.amount_usd);
+    if (!Number.isFinite(p.costUsd) || p.costUsd < 0 || p.costUsd >= 1e8 || micro(p.costUsd) <= micro(amountUsd)) return { marked: false, hold: cur };
+    const costUsd = micro(p.costUsd) / 1e6;
+    const r = await c.query<Hold>("update holds set read_above_hold_usd = $2, read_above_hold_at = clock_timestamp() where id = $1 returning *", [cur.id, costUsd]);
+    const hold = r.rows[0]!;
+    await event(
+      c,
+      p.projectId,
+      "hold.read_above_hold",
+      {
+        hold_id: Number(hold.id),
+        amount_usd: amountUsd,
+        cost_usd_as_read: costUsd,
+        above_by_usd: (micro(costUsd) - micro(amountUsd)) / 1e6,
+        usage_as_read: p.usage,
+        gateway: p.gateway,
+        project_stopped: true,
+        read_at: hold.read_above_hold_at!.toISOString(),
+      },
+      p.step,
+    );
+    return { marked: true, hold };
+  });
+}
 
 /**
  * Check the budget equation and, if the hold fits, open it. One transaction, under the
@@ -149,6 +239,20 @@ export async function openHold(
       const budget = await readBudget(c, p.projectId);
       await event(c, p.projectId, "gateway.refused", { reason: "project_frozen", freeze_id: Number(freeze.id), freeze_kind: freeze.kind, journal_id: freeze.journal_id, this_hold_usd: p.amountUsd, path: p.path, ...(p.stepHoldId ? { step_hold_id: Number(p.stepHoldId) } : {}) }, p.step);
       return { ok: false as const, budget, reason: "project_frozen" as const, freeze };
+    }
+    // Known gap 145: a call of the project read usage figures above its hold, and its ending is not recorded yet.
+    // Refused here, under the same lock as the stop's write, before the budget is summed.
+    const above = await holdReadAboveIn(c, p.projectId);
+    if (above) {
+      const budget = await readBudget(c, p.projectId);
+      await event(
+        c,
+        p.projectId,
+        "gateway.refused",
+        { reason: "call_above_hold_in_flight", hold_id: Number(above.id), cost_usd_as_read: Number(above.read_above_hold_usd), this_hold_usd: p.amountUsd, path: p.path, ...(p.stepHoldId ? { step_hold_id: Number(p.stepHoldId) } : {}) },
+        p.step,
+      );
+      return { ok: false as const, budget, reason: "call_above_hold_in_flight" as const, above };
     }
     const now = new Date();
     await expireHoldsIn(c, p.projectId, now);
@@ -475,6 +579,10 @@ export const OWNER_GONE = "the gateway that opened it was found gone while the c
  * event when it was found at an earlier start, while its owner was still running. A running owner's holds
  * are left alone. There is no later re-check: a hold whose owner goes after this start is marked at its
  * deadline (step 4), or by the next gateway to start.
+ *
+ * Known gap 145 (14 Nov 2026): a hold found so, whose call had read usage figures above it (`markReadAboveHold`) and
+ * whose ending was not recorded, also freezes its project (kind 'kept_above_hold', at the cost as read), so the stop
+ * written before the call's end marker went out outlives the gateway that wrote it.
  */
 export async function recoverHolds(
   pool: pg.Pool,
@@ -495,6 +603,23 @@ export async function recoverHolds(
       if (gone && !cur.unreconciled) {
         ownerGone++;
         await c.query("update holds set unreconciled = true, kept_reason = coalesce(kept_reason, $2) where id = $1", [cur.id, OWNER_GONE]);
+        // Known gap 145: its call had read usage figures above the hold, and its gateway went before recording the
+        // ending. Kept, as above, with what that keep is in package 1.4c: the project frozen, naming this hold, at the
+        // cost as read (kind 'kept_above_hold'), in this transaction. The owner's reconciliation of the hold clears it.
+        if (cur.read_above_hold_usd !== null && cur.kept_reason === null) {
+          const costUsd = Number(cur.read_above_hold_usd);
+          await freezeAfterOverrunIn(c, {
+            kind: "kept_above_hold",
+            projectId: cur.project_id,
+            holdId: cur.id,
+            holdAmountUsd: Number(cur.amount_usd),
+            billUsd: costUsd,
+            step: cur.step,
+            gateway: cur.gateway,
+            endedAt: cur.read_above_hold_at ?? now,
+            record: { kept_reason: OWNER_GONE, cost_usd_as_read: costUsd, read_above_hold_at: cur.read_above_hold_at?.toISOString() ?? null, found_by: gateway },
+          });
+        }
       }
       if (!cur.seen_at_startup) {
         await c.query("update holds set seen_at_startup = true where id = $1", [cur.id]);

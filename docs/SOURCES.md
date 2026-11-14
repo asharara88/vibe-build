@@ -319,6 +319,15 @@ The phone test's report (`builder/scripts/probe-phone.ts`, after the review of `
 | A browser sends `Sec-Fetch-Site: same-origin` only when the request's initiator and its target have the same origin (and so on every redirect); otherwise same-site, cross-site, or none for a request the user started directly | Fetch Metadata Request Headers, `https://w3c.github.io/webappsec-fetch-metadata/` | STOP when a page's link or form to the other page arrives with same-origin |
 | A form POST carries an `Origin` header with the serialised origin of the page that sent it, or `null` for an opaque origin or under some referrer policies | Fetch Standard, `https://fetch.spec.whatwg.org/` ("origin header") | (i) needs an Origin other than null; STOP when both pages' forms to themselves carry the same Origin |
 | Cookies do not provide isolation by port: a cookie set by one port of a host is sent to the other ports of that host | RFC 6265, section 8.5, `https://www.rfc-editor.org/rfc/rfc6265#section-8.5` | Each page's own Lax cookie is required on its step 2, since a shared host also sends the other page's |
+## Measured on 14 November 2026 for known gap 145 (PostgreSQL 16.15 and Node v22.23.4 on the development machine)
+
+Nothing was read for this change: streams.spec.whatwg.org and developer.mozilla.org could not be reached from this session (the name did not resolve), so the three behaviours below rest on runs, not on a document.
+
+| Fact | Source |
+| --- | --- |
+| **Not read, seen in runs:** a `ReadableStream`'s `pull` is not called again while the promise it returned is pending, so the gateway's wait for the stop's write holds back every later byte of the answer, the end marker among them | Test gap 145 (8) and control FX145-C06 (`evidence/2026-11-14-fix-overrun-freeze/`): with the write slowed to 0.5 s, the marker reached the caller about 0.5 s after the provider sent it; with the wait removed, the test fails |
+| **Not read, seen in runs:** an insert into `events` waits on the project row another transaction holds `FOR UPDATE` (the foreign-key check), as the row of 13 November on `FOR KEY SHARE` (package 1.4, above) found for `holds`; so a refusal decided in the gateway's memory while the stop is being written answers only after that write | Test gap 145 (8): both refusals were decided with no counting call and answered about 0.5 s after the marker was written |
+| **Not read, seen in runs:** `pg_stat_activity` shows a statement of another session as `active`, with its text in `query`, while it runs (here, inside a trigger's `pg_sleep`); the tests use it only to wait for that moment | Tests gap 145 (3) and (8) |
 
 ## Product documentation read on 12 November 2026 for the owner's own set-up; nothing in the repository relies on it
 
