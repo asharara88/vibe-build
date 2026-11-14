@@ -1,0 +1,19 @@
+Why the first whole-suite run failed 11 tests (run-tests-full-first-run.txt), checked 14 Nov 2026 about 03:45 UTC.
+
+This worktree's builder/node_modules and builder/runner/node_modules were links to another worktree's folders (an
+absolute path on the machine). The services that mount builder/ into a container (for example the door's machine side,
+`egress-host`, which runs `node --import tsx src/sandbox/egress-machine-main.ts` from /builder) cannot follow such a
+link: the path it names does not exist inside the container. Each failing test failed where such a service starts
+(`docker compose ... up -d --wait egress-host` / `egress` / `app egress`: "container ...-egress-host-1 exited (1)").
+
+The same thing shown alone, under the shared lock: a folder holding only such a link, mounted read-only at /builder in
+a container with no network (exact name fxphone-linkcheck, removed by --rm):
+  flock <scratchpad>/live-tests.lock docker run --rm --name fxphone-linkcheck --network none \
+    -v <scratchpad>/fxphone-tmp/linkcheck:/builder:ro -w /builder node:22-bookworm-slim node --import tsx -e "..."
+  Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'tsx' imported from /builder/
+  code: 'ERR_MODULE_NOT_FOUND'
+  exit 1
+
+Then the two links were replaced by real copies of the folders they pointed to (cp -a; both kept out of git by
+.git/info/exclude, as the links were), and the whole suite was run again (run-tests-full.txt). Nothing in the builder's
+code or tests was changed for this.
