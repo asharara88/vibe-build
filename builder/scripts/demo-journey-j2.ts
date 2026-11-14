@@ -79,6 +79,8 @@ const say = (s: string) => {
 const dockerEnv = (): NodeJS.ProcessEnv => ({ PATH: process.env.PATH ?? "/usr/bin:/bin", HOME: process.env.HOME ?? "/root", ...(process.env.DOCKER_HOST ? { DOCKER_HOST: process.env.DOCKER_HOST } : {}) });
 const sh = async (cmd: string, args: string[]) => (await run(cmd, args, { env: dockerEnv(), maxBuffer: 32 * 1024 * 1024 })).stdout.trim();
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+/** A wait that does not keep the process alive once everything else has ended (a bound raced against an exit). */
+const bound = (ms: number) => new Promise<null>((r) => setTimeout(() => r(null), ms).unref());
 const sha256 = (b: Buffer) => createHash("sha256").update(b).digest("hex");
 
 const allChecks: Check[] = [];
@@ -272,7 +274,7 @@ async function main(): Promise<number> {
       proc.stdout!.on("data", onData);
       proc.stderr!.on("data", onData);
       void iface.exited.then(() => ok(false));
-      setTimeout(() => ok(false), 90_000);
+      setTimeout(() => ok(false), 90_000).unref();
     });
     say(
       `Start ${n} (${how === "tsx" ? "node_modules/.bin/tsx src/web/main.ts, as npm run web starts it" : "node --import tsx src/web/main.ts"}${pauseMs > 0 ? `, BUILDER_DEMO_STEP_PAUSE_MS=${pauseMs}` : ""}): process ${proc.pid}, ${started ? "listening" : "NOT started"}. Its lines: ${iface.lines.map((l) => l.replaceAll(work, "<run folder>")).join(" | ")}`,
@@ -284,7 +286,7 @@ async function main(): Promise<number> {
   async function signalAndWait(i: Iface, sig: "SIGTERM" | "SIGKILL", ms: number): Promise<{ code: number | null; signal: NodeJS.Signals | null; seconds: number } | null> {
     const t0 = Date.now();
     if (!i.done) process.kill(i.proc.pid!, sig);
-    const r = await Promise.race([i.exited, sleep(ms).then(() => null)]);
+    const r = await Promise.race([i.exited, bound(ms)]);
     if (r) await sleep(200); // the last lines of its pipes
     return r ? { ...r, seconds: (Date.now() - t0) / 1000 } : null;
   }
@@ -404,11 +406,13 @@ async function main(): Promise<number> {
     say(`${part}: ${r ? `exited after ${r.seconds.toFixed(1)} s with code ${r.code}${r.signal ? `, signal ${r.signal}` : ""}` : "NOT exited within 120 s"}. Its lines after the signal: ${after.map((l) => l.replaceAll(work, "<run folder>")).join(" | ")}`);
     count(part, { name: "the process exits with code 0 within 120 s of SIGTERM", ok: r !== null && r.code === 0, detail: r ? `code ${r.code}, ${r.seconds.toFixed(1)} s` : "not exited" });
     count(part, { name: `the interface says "${STOP_LINE} ${removed}."`, ok: after.includes(`${STOP_LINE} ${removed}.`), detail: after.filter((l) => l.startsWith(STOP_LINE)).join(" | ") || "no such line" });
+    count(part, { name: "the interface's own last line gives exit code 0, the code the process exited with", ok: after.at(-1) === "[interface stopped] Lock released. Exit code 0." && r?.code === 0, detail: after.at(-1) ?? "no line" });
     for (const c of more(after)) count(part, c);
   }
 
   /** Read Docker's list of the project's engine containers and its step-2 writes while a j2c-run walk runs. */
   function midStepSampler(label: string): { during: () => Promise<void>; report: () => void } {
+    const known = projects.length;
     const engines = new Map<string, number>();
     const writes: Array<{ at: number; n: number }> = [];
     const t0 = Date.now();
@@ -416,7 +420,8 @@ async function main(): Promise<number> {
       during: async () => {
         const names = (await sh("docker", ["ps", "--format", "{{.Names}}"])).split("\n").filter((n) => /^builder_j1-[0-9a-f]{12}-engine-/.test(n));
         for (const n of names) if (!engines.has(n)) engines.set(n, Date.now() - t0);
-        const p = projects.at(-1);
+        // Only the project this walk made, once the camera has named it.
+        const p = projects.length > known ? projects.at(-1) : undefined;
         if (p && p.walk === "j2c-run") {
           const r = await pool.query<{ n: string }>("select count(*)::text as n from events where project_id = $1 and kind = 'engine.event' and step = $2 and payload->>'type' = 'tool_call' and payload->>'tool' = 'scripted.write'", [p.id, STEP2]);
           const n = Number(r.rows[0]?.n ?? 0);
@@ -551,6 +556,7 @@ async function main(): Promise<number> {
     say(`K2: what is left of P2 right after the kill (N), recorded as found: ${shown(k2)}`);
     const dir2 = await sandboxDir(p2.id);
     count("K2", { name: "right after the kill, P2's sandbox folder is still there (the crash path is real)", ok: dir2 !== null && existsSync(dir2), detail: dir2 ? dir2.replaceAll(work, "<run folder>") : "no folder recorded" });
+    await listsBetween("After the kill, before start 4");
 
     /* ---------------------------------------------------------------- start 4: K3 to K6 */
     say("");
@@ -585,6 +591,7 @@ async function main(): Promise<number> {
     count("K4", { name: `once no process names builder_${p2.id} (waited at most 60 s): nothing of P2 is left (N)`, ok: left4b.length === 0, detail: shown(left4b) });
     await camera("K5 and K6", "j2c-after", { BUILDER_CAMERA_PATH: "k", BUILDER_CAMERA_PROJECT: p2.id, BUILDER_CAMERA_HOLD_REASON: "job_interrupted" });
     await stopClean("Start 4's stop", s4.iface, 0);
+    await listsBetween("After start 4's stop");
 
     /* ---------------------------------------------------------------- the whole run */
     say("");
