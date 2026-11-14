@@ -195,7 +195,7 @@ async function run() {
   if (!check("step 1 built", one, await text('[data-step="01-data"]'))) return stopped(12, "build-step-1", id);
   const r1 = await text('[data-step="01-data"] [data-reserved]');
   check("step 1: $2.7216 reserved while it ran, released, $0.00 spent", r1.includes("Reserved while it ran: $2.7216") && r1.includes("released") && r1.includes("Spent: $0.00."), r1);
-  check("step 1's live lines: one line per file written (4)", (await page.locator('[data-step="01-data"] ol[data-lines] li', { hasText: "Wrote " }).count()) === 4);
+  check("step 1's live lines: one line per file written (7)", (await page.locator('[data-step="01-data"] ol[data-lines] li', { hasText: "Wrote " }).count()) === 7);
   await photo(12, "build-step-1", ["en"]);
   await clickAndLoad('button[data-approve="01-data"]');
   const two = await waitFor('[data-step="02-submitter-screen"][data-step-state="finished"]', 600_000, '[data-step="02-submitter-screen"][data-step-state="failed"]');
