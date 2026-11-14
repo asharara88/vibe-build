@@ -1,0 +1,29 @@
+Docker's lists in package 3.2's automated run (run 20261114_51b07c), at the start and at the end, after the clean-up.
+
+At the start: 0 containers, 8 images, 4 volumes, 3 networks, 332 build cache records.
+At the end: 0 containers, 8 images, 4 volumes, 3 networks, 341 build cache records.
+
+New since the start, in the four lists: nothing.
+Of those, another builder's (named builder_j1-<id> of another project; not touched): none.
+Gone since the start (images): none.
+Build cache: 9 new records (layers of the run's image builds; npm's cache mount is the builder's and stays). Build cache records can be removed only by pruning, which this run does not do.
+
+Containers at the end:
+Images at the end:
+  builder-acceptance-runner:local sha256:8c2ea29d9a4769ee859363ce15dd099352e34ad6dee34ad4d02ed056be34c7c6
+  node:22-bookworm-slim sha256:e9f565d32859f0cbfb52125eafe8be39390f24dac302dc3cdf566e8ba3ab21ee
+  ubuntu:24.04 sha256:2198e4c65076e9cb0b3d695219df667c0e3b0072da64ca3c2648aca17dcecaf5
+  node:22-alpine sha256:0e1754758c2df4cfa3e68d59e2e1b7374bb7fd9ea6328eaaacf15cc934af8202
+  postgres:16-alpine sha256:aa6cb33cf4c19c765cefcf48d96176258800870a9a1e930ad126200f9d825139
+  python:3.13-slim sha256:e48f59cdba69a3cbd9ed2cf0f348d90d45a8d350d98134cf1070bc106ee9ed90
+  alpine:3.20 sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc
+  curlimages/curl:8.10.1 sha256:d9b4541e214bcd85196d6e92e2753ac6d0ea699f0af5741f8c6cccbfcf00ef4b
+Volumes at the end:
+  40f47574967d269e4ea8727b73a4d9ddd745544d91304ce778775dd062af0baf
+  78d56c5811a844b4ea7f5cc09064e2ac1f68b82e40760951c7c7c219fd3fd217
+  6706b172a455c99953ac01bf2e52d1973ca44bf6d1decd52e56a1c78c1577afa
+  1067820107a378f921c5efd119a336dcf0135c7de3b22a47b6299b2301e292b3
+Networks at the end:
+  bridge
+  host
+  none

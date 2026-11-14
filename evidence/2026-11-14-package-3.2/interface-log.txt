@@ -1,0 +1,8 @@
+The interface's own output during package 3.2's automated run (run 20261114_51b07c; stdout and stderr), with the run's folder written <run folder> and the session proxy's address <session proxy>:
+
+Projects with a job or a sandbox left by an interface that stopped, marked interrupted and removed at start: 0.
+Live preview: off (BUILDER_LIVE_PREVIEW is not 1). Nothing listens on 127.0.0.1:4030; "Open the live app" is refused.
+Interface listening on http://127.0.0.1:4025 (password from: env).
+[interface stopping] The interface was stopped on purpose (SIGTERM). No job was running. Every request is now answered "The interface is stopping."
+Projects with a sandbox, marked interrupted and removed at the stop: 0.
+[interface stopped] Lock released. Exit code 0.

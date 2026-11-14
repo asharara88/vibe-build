@@ -1,0 +1,149 @@
+{
+  "runId": "run-20261114t150456-99ebf41a",
+  "projectId": "j1-aae2b5e81e25",
+  "version": "v001",
+  "manifestSha256": "5255cb24aad9245dced110bc800dd2048f40550c95c75aaaccb9e2ca422a2d42",
+  "label": "stand-in test, not independent acceptance",
+  "refused": null,
+  "appAnswered": true,
+  "app": {
+    "project": "j1-aae2b5e81e25",
+    "service": "app",
+    "container": "j1-aae2b5e81e25-app-1",
+    "containerId": "6cb157f7774a7d36046def7b89469dc363d5655e313832165ae7fd497cccb796",
+    "workingDir": "<run folder>/delivered/j1-aae2b5e81e25",
+    "configFiles": "<run folder>/delivered/j1-aae2b5e81e25/compose.yaml",
+    "imageName": "j1-aae2b5e81e25-app",
+    "imageId": "sha256:d51a5e98aef42c5f8e17f38f739b7a7d0f964e7884819a8f61f69a17fddcd246",
+    "appUrl": "http://localhost:3000",
+    "appPort": 3000,
+    "listenPort": 3000,
+    "front": "j1-aae2b5e81e25_front",
+    "keysVolume": "j1-aae2b5e81e25_keys",
+    "door": [
+      "j1-aae2b5e81e25-door-1"
+    ]
+  },
+  "forwarder": {
+    "name": "j1-aae2b5e81e25-copycheck-forwarder-c1006d54",
+    "args": [
+      "docker",
+      "run",
+      "--detach",
+      "--name",
+      "j1-aae2b5e81e25-copycheck-forwarder-c1006d54",
+      "--pull",
+      "never",
+      "--network",
+      "j1-aae2b5e81e25_front",
+      "--cap-drop",
+      "ALL",
+      "--security-opt",
+      "no-new-privileges:true",
+      "--pids-limit",
+      "256",
+      "--memory",
+      "1g",
+      "--read-only",
+      "--tmpfs",
+      "/tmp:rw,noexec,nosuid,size=16m",
+      "--user",
+      "node",
+      "--entrypoint",
+      "node",
+      "node:22-alpine@sha256:0e1754758c2df4cfa3e68d59e2e1b7374bb7fd9ea6328eaaacf15cc934af8202",
+      "-e",
+      "const n=require('net'),p=Number(process.argv[1]),t=Number(process.argv[2]);n.createServer((c)=>{const s=n.connect(t,'app');c.pipe(s);s.pipe(c);s.on('error',()=>c.destroy());c.on('error',()=>s.destroy())}).listen(p,'127.0.0.1')",
+      "3000",
+      "3000"
+    ]
+  },
+  "runner": {
+    "name": "j1-aae2b5e81e25-copycheck-runner-c1006d54",
+    "args": [
+      "docker",
+      "run",
+      "--rm",
+      "--name",
+      "j1-aae2b5e81e25-copycheck-runner-c1006d54",
+      "--pull",
+      "never",
+      "--cap-drop",
+      "ALL",
+      "--security-opt",
+      "no-new-privileges:true",
+      "--pids-limit",
+      "256",
+      "--memory",
+      "1g",
+      "--read-only",
+      "--tmpfs",
+      "/tmp:rw,noexec,nosuid,size=512m",
+      "--user",
+      "runner",
+      "--entrypoint",
+      "",
+      "--workdir",
+      "/runner",
+      "--env",
+      "BASE_URL=http://localhost:3000",
+      "--env",
+      "RUN_ID=run-20261114t150456-99ebf41a",
+      "--network",
+      "container:j1-aae2b5e81e25-copycheck-forwarder-c1006d54",
+      "--mount",
+      "type=bind,source=<run folder>/delivered/j1-aae2b5e81e25/acceptance/v001,target=/acceptance,readonly",
+      "--mount",
+      "type=bind,source=<run folder>/check-run/results,target=/results",
+      "--mount",
+      "type=volume,source=j1-aae2b5e81e25_keys,target=/run/secrets/sample-password,readonly,volume-subpath=sample_password",
+      "builder-acceptance-runner:local",
+      "node",
+      "/runner/node_modules/@playwright/test/cli.js",
+      "test",
+      "--config",
+      "/runner/playwright.config.mjs"
+    ]
+  },
+  "exit": {
+    "code": 0,
+    "timedOut": false
+  },
+  "reading": {
+    "outcome": "passed",
+    "items": [
+      {
+        "number": 1,
+        "file": "item-01.spec.ts",
+        "status": "passed",
+        "why": "ran once and passed, with its screenshot",
+        "title": "item 1 (stand-in test): an employee signs in, submits a five-day request, and sees it in their list with status waiting",
+        "trace": {
+          "path": "<run folder>/check-run/results/test-results/item-01-item-1-stand-in-te-1c2bf-ir-list-with-status-waiting/trace.zip",
+          "sha256": "6fcf49a9eaca6ccc354f2f0866c4dc845bddb455e17f096359ee336124d532dc"
+        },
+        "screenshot": {
+          "path": "<run folder>/check-run/results/test-results/item-01-item-1-stand-in-te-1c2bf-ir-list-with-status-waiting/attachments/item-screenshot-0e8f8c2486ac91f4cdc3a6b50823c1ddc7d42a81.png",
+          "sha256": "c6c755f2b5bda9e31f904f2b25c229822fb45ea45098591f27d42cb28687c9bd"
+        }
+      }
+    ],
+    "runProblems": [],
+    "summary": "version passed; checklist incomplete (5 of the app spec's 6 checklist items have no test)"
+  },
+  "output": [
+    "",
+    "Running 1 test using 1 worker",
+    "",
+    "[1/1] ../acceptance/item-01.spec.ts:17:1 › item 1 (stand-in test): an employee signs in, submits a five-day request, and sees it in their list with status waiting",
+    "  1 passed (1.9s)"
+  ],
+  "copy": {
+    "files": 142,
+    "unchanged": true,
+    "changes": []
+  },
+  "forwarderRemoved": true,
+  "afterProblems": [],
+  "passed": true
+}
