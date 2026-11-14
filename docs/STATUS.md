@@ -1,6 +1,6 @@
 # Status
 
-**As of:** 14 November 2026, J2 built, not reviewed. Rules: build plan section 8, rule 6. Questions: [`docs/QUESTIONS.md`](QUESTIONS.md). Earlier versions: `docs/log/` (the one before this: `2026-11-13-status-before-j2.md`).
+**As of:** 14 November 2026, J2 built and reviewed once. Rules: build plan section 8, rule 6. Questions: [`docs/QUESTIONS.md`](QUESTIONS.md). Earlier versions: `docs/log/` (the one before this: `2026-11-14-status-before-j2-review.md`).
 
 ## What you can now do (J2, built, not tested)
 
@@ -12,14 +12,14 @@
 ## State
 
 1. **Tested:** 0.1 to 0.5, 0.6a (development profile), 1.1, 1.2, 1.2b, 1.3, 1.4, 1.5 (stand-in only), 2.1, W4.
-2. **Built, not tested:** 3.1, 1.4c, 3.1b, 1.4b, 0.6c, J1 and J3 (both merged), **J2** (branch `claude/j2-broken-and-restart`, not pushed; its known gaps are 175 to 180, renumbered from 162-167 on 14 Nov 2026, because 162 was taken by pull request #40).
-3. **Checked for J2:** new tests failed without J2's code and pass with it; the whole suite, 728 of 728 (live tests included); typecheck and licence check passed; 42 of 42 controls failed with their safeguard removed. **Assumed:** the stop's 30 s, 5 s and 90 s limits (never reached in the run).
+2. **Built, not tested:** 3.1, 1.4c, 3.1b, 1.4b, 0.6c, J1 and J3 (both merged), **J2** (branch `claude/j2-broken-and-restart`, pushed up to `5a2254d`, later commits not pushed; known gaps 175 to 181).
+3. **Checked for J2:** its review found three wrong statements in the records (corrected); one check tightened, two tests added, not re-read. Then: 45 of 45 controls failed with their safeguard removed; the whole suite, 730 of 730 (live tests included); typecheck and licence check passed. **Assumed:** the stop's 30 s, 5 s and 90 s limits (never reached).
 4. **Your phone test:** still pending; the live preview stays off until then.
-5. **Your 4020 interface:** running, on code without J2: a stop still leaves your open projects' containers until its next start.
+5. **Your 4020 interface:** not checked in this work; last recorded running, on code without J2.
 
 ## Next
 
-1. J2's review by fresh reviewers (design section 8), then its pull request.
+1. J2's pull request, listing every review finding.
 2. 3.2: the exported app starting on its own, with the builder stopped.
 
 ## What blocks it

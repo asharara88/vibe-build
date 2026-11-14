@@ -149,6 +149,16 @@ CONTROLS = [
  ("J2-C42", "the clean stop not installed on SIGTERM in the real process (the old handler's place left empty)", MAIN,
   [('  process.on("SIGTERM", () => void onStop("SIGTERM"));\n', "")],
   [(W, "C5: the real interface")]),
+ # ---------------------------------------------------------------- after the review of 14 Nov 2026 (journey-j2.md, "After the review")
+ ("J2-C43", "the trace rule for a journey.plan_confirmed that lists step 03 (isBrokenTrace)", JOURNEY,
+  [('  if (e.kind === EV.planConfirmed) return Array.isArray(e.payload.steps) && e.payload.steps.some((st: unknown) => st === BROKEN_STEP || (typeof st === "object" && st !== null && (st as { step?: unknown }).step === BROKEN_STEP));\n', "")],
+  [(J, "A6b")]),
+ ("J2-C44", "the target check's real-path half (only the path as written compared with builder/)", JOURNEY,
+  [("  if (insideOrEqual(own, resolve(BUILDER_DIR)) || insideOrEqual(realpathAsFar(own), builder))", "  if (insideOrEqual(own, resolve(BUILDER_DIR)))")],
+  [(J, "A4b")]),
+ ("J2-C45", "the real path read as far as the path exists (back to: the path itself when it does not exist yet)", JOURNEY,
+  [("      if (up === head) return whole;\n", "      if (up === head || true) return whole;\n")],
+  [(J, "A4b")]),
 ]
 
 def run(cmd):
