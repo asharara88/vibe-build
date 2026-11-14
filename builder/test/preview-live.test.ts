@@ -25,7 +25,7 @@ import { promisify } from "node:util";
 import type pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { liveAcceptanceProblems } from "../src/acceptance/prerequisites.js";
-import { RUNNER_UID } from "../src/acceptance/runner-image.js";
+import { buildRunnerImage, RUNNER_IMAGE, RUNNER_UID, runnerImageProblem } from "../src/acceptance/runner-image.js";
 import { openStore } from "../src/acceptance/store.js";
 import { example1Sandboxes, J1_BUILD_PROXY_PORT, liveCamera, streamNetworkProblem } from "../src/orchestrator/example-1-adapter.js";
 import { EV, Journey } from "../src/orchestrator/journey.js";
@@ -127,6 +127,15 @@ async function cameraRun(walk: "owner" | "storage" | "request", o: { onNeed?: (s
 beforeAll(async () => {
   missing = await liveAcceptanceProblems();
   if (missing.length) return;
+  // Known gap 162 (14 Nov 2026): on a machine where the runner image is not built yet, this file ran before
+  // acceptance-live.test.ts, which builds it, and five tests here failed for that reason alone. The image is now built
+  // here when, and only when, it is not on the machine at all, the same way that file builds it. An image that is there
+  // with the wrong label is left as it is, so that the tests below still fail on it.
+  if (/is not on this machine/.test((await runnerImageProblem(RUNNER_IMAGE, process.env)) ?? "")) {
+    const img = await buildRunnerImage({ hostProxy: { url: process.env.HTTPS_PROXY ?? "", caBundlePath: "/root/.ccr/ca-bundle.crt" } });
+    if (img.problems.length) throw new Error(`The runner image was not on this machine and could not be built here: ${img.problems.join(" ")}`);
+    note(`the runner image ${RUNNER_IMAGE} was not on this machine; it was built here before the tests (known gap 162)`);
+  }
   await waitFree(J1_BUILD_PROXY_PORT, "the image build's port of journey sandboxes");
   await waitFree(FRONT_PORT, "the automated run's preview front");
   pool = await testPool();

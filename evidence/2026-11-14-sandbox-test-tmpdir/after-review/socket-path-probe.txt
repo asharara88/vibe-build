@@ -1,0 +1,7 @@
+Node v22.23.4 on this machine, 2026-11-14T04:02:19Z: node scripts/socket-path-probe.js <scratchpad>/sp (a new, empty folder of 86 bytes).
+asked for a 107-byte path: listening; the entry made has a 107-byte path
+asked for a 108-byte path: listening; the entry made has a 108-byte path
+asked for a 109-byte path: listening; the entry made has a 108-byte path
+asked for a 115-byte path: listening; the entry made has a 108-byte path
+exit code: 0
+TMPDIR of the stopped run, <scratchpad>/tmpdir-full-before: 102 bytes; with /tsx-0 after it: 108 bytes. TMPDIR <scratchpad>/fb: 86 bytes.

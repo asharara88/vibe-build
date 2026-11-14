@@ -30,7 +30,7 @@
 ## What blocks it
 
 - Your phone test: needs this session's preview open on a computer.
-- An engineer's reading of 0.6c, J3 and J2's stop (gaps 35, 148, 149, 159, 178).
+- An engineer's reading of 0.6c, J3 and J2's stop (gaps 35, 148, 149, 159, 179).
 - The real-model gate (2.3): 2.2, the key, and 0.6c tested.
 
 ## Money

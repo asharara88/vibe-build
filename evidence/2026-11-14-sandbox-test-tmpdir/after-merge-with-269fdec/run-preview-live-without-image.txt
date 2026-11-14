@@ -1,0 +1,17 @@
+Known gap 162, after the fix: test/preview-live.test.ts run alone on a machine where the runner image has been removed. Commit 6299f89 with test/preview-live.test.ts changed in the working tree (1 changed file). 2026-11-14T10:15:37Z.
+docker rmi builder-acceptance-runner:local:
+Untagged: builder-acceptance-runner:local
+Deleted: sha256:7f4f9e0e85f333b11930d4a682db4f42abddf13b4ebc5ee611d693382eb7981f
+Runner image on the machine before the run (docker images -q builder-acceptance-runner:local; empty means none): ''
+
+ RUN  v5.1.0 /home/user/vibe-build/builder
+
+
+ Test Files  1 passed (1)
+      Tests  6 passed (6)
+   Start at  10:15:39
+   Duration  241.87s (tests 100%)
+
+vitest exit code: 0
+Runner image on the machine after the run: '396d3d96a4c4'
+Containers after (docker ps -a, count): 0

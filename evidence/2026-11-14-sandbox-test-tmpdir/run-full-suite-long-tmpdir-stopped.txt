@@ -1,0 +1,132 @@
+Run 'before': the whole suite, live tests included (npx vitest run), in builder/, on commit 14787d8, builder/ tree 1035be8, working tree: 1 changed files (evidence/2026-11-14-sandbox-test-tmpdir/ ).
+Test database builder_test_tmpdir_before, made new. TMPDIR=<scratchpad>/tmpdir-full-before, made new and empty; entries in it before the run: 0. BUILDER_BROWSER_CACHE=<scratchpad>/browser-cache.
+Free disk before (df -h /): 28G free of 252G
+Containers on this machine before (docker ps -aq, count): 0
+Waiting for the shared lock (flock <scratchpad>/live-tests.lock) from 02:57:39 UTC.
+Lock held from 02:57:39 UTC.
+
+ RUN  v5.1.0 /home/user/vibe-build/builder
+
+ ❯ test/overrun.test.ts (18 tests | 1 failed) 2785ms
+   ❯ package 1.4c: a bill above its hold freezes the project until the owner records it (against a stand-in provider) (18)
+     × 1.4c (c4) the script: --list shows each project frozen after a bill above its hold with the bill, the hold and the difference; --overrun records it (exit 0) and is refused a second time (exit 2); misuse is refused before the database (exit 1); no address is printed 484ms
+ ❯ test/journal-recovery.test.ts (14 tests | 5 failed) 5732ms
+   ❯ the third outside review, item 1: an unreadable journal line keeps the gateway closed until it is recovered (package 1.4b, against a stand-in provider) (14)
+     × (d) the recovery: --list shows the line and the candidate hold; --set-aside naming that hold freezes its project; after a restart another project's call is forwarded and settled and the named one is refused; 1.5's reconciliation clears the freeze and its next call is forwarded 883ms
+     × (e) the script's refusals, each changing nothing: a missing reason, a line number out of range, a fingerprint that differs, a readable line, a hold not open, a hold still in flight, a running gateway, and a second set-aside of the same line; --no-hold records the set-aside and freezes nothing 315ms
+     × (e3) after 1.4b's review: a set-aside cut short, then run again naming another hold, finishes the earlier record (its hold's project frozen), writes nothing for the hold asked now, and the script says so 344ms
+     × (i) after 1.4b's review: --list takes no lock, even for a moment, yet says when the folder is in use; and it decodes only the start of a very long line 398ms
+     × (m) brought up to date with 1.4c: a set-aside's freeze is of kind 'journal_line_set_aside' (two lines may name one hold); the database refuses one with no hold, no fingerprint or a bill; it is refused with its own message, listed as freezing its project, refused by the record of a bill above its hold, and cleared by its hold's reconciliation 373ms
+node:net:1919
+      const error = new UVExceptionWithHostPort(rval, 'listen', address, port);
+                    ^
+
+Error: listen EADDRINUSE: address already in use <scratchpad>/tmpdir-full-before/tsx-0/21305.pipe
+    at Server.setupListenHandle [as _listen2] (node:net:1919:21)
+    at listenInCluster (node:net:1998:12)
+    at Server.listen (node:net:2120:5)
+    at file:///home/user/vibe-build/builder/node_modules/tsx/dist/cli.mjs:53:32174
+    at new Promise (<anonymous>)
+    at createIpcServer (file:///home/user/vibe-build/builder/node_modules/tsx/dist/cli.mjs:53:32152)
+    at async file:///home/user/vibe-build/builder/node_modules/tsx/dist/cli.mjs:55:542 {
+  code: 'EADDRINUSE',
+  errno: -98,
+  syscall: 'listen',
+  address: '<scratchpad>/tmpdir-full-before/tsx-0/21305.pipe',
+  port: -1
+}
+
+Node.js v22.23.4
+ ❯ test/licence-rule.test.ts (51 tests | 27 failed) 1939ms
+   ❯ the real check, run against a folder with a test package added (27)
+     × passes on a folder whose packages are all permitted 71ms
+     × fails when a shipped test package outside the rule is added, and names it 64ms
+     × fails when a development-only test package outside the rule is added 59ms
+     × fails when a test package declares no licence at all 63ms
+     × fails when a shipped test package outside the rule is marked private 64ms
+     × fails when it reads nothing: an empty folder, or a folder that does not exist 69ms
+     × fails when a declared dependency is not installed, since its licence cannot be read 64ms
+     × passes with a lock file whose entries all come from the registry under permitted licences 61ms
+     × fails on a package that only another machine would install, read from the lock file 88ms
+     × fails on a lock-file package that records no licence, or one that names a permitted licence beside another 82ms
+     × fails on a package that does not come from the registry: an archive file, a git address, another server 78ms
+     × fails when there is no lock file, or when a shrinkwrap file that npm would prefer is there 62ms
+     × fails on an installed folder the lock file does not list, and on a link to a folder outside 58ms
+     × fails when two folders call themselves the same package and version but declare different licences 83ms
+     × fails on a folder holding a package under another name that the lock file does not record 84ms
+     × fails on a package folder with no name, an unreadable package.json, or the component's own name 65ms
+     × fails on a package put in a hidden folder, and on a scope folder that is a link 68ms
+     × fails on an optional or peer dependency that is neither installed nor in the lock file 70ms
+     × fails on a lock file that lists no packages, or cannot be read 61ms
+     × fails on a local package the rule does not name, whether a folder or a link 81ms
+     ❯ a component's own package (5)
+       × passes when the folder is exactly what the rule names 87ms
+       × fails without the rule naming it: an unlicensed private package is refused like any other 62ms
+       × fails when a file in it has changed, or a file has been added 77ms
+       × fails when another folder calls itself by the own package's name and version, nested or under another folder name 67ms
+       × fails when a real package is installed under its name 82ms
+     × fails when the notices file is out of date 75ms
+     × passes on the builder itself, with the notices file up to date 60ms
+ ❯ test/reconcile.test.ts (9 tests | 2 failed) 1201ms
+   ❯ package 1.5: the unreconciled list and the owner's reconciliation, proof row B14 (against a stand-in provider) (9)
+     × B14 (7): the script lists and records: --list prints the list; a reconciliation is recorded (exit 0) and printed; a refusal exits 2 and a misuse 1; neither the database's address nor a key is printed 353ms
+     × 1.5, after its review: the script prints an owner's words with their control characters, C1 ones included, as spaces; the event log keeps them as given 316ms
+(node:23676) Warning: Closing file descriptor 25 on garbage collection
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:23676) [DEP0137] DeprecationWarning: Closing a FileHandle object on garbage collection is deprecated. Please close FileHandle objects explicitly using FileHandle.prototype.close(). In the future, an error will be thrown if a file descriptor is closed during garbage collection.
+(node:23676) Warning: Closing file descriptor 24 on garbage collection
+(node:23676) Warning: Closing file descriptor 26 on garbage collection
+(node:23676) Warning: Closing file descriptor 27 on garbage collection
+(node:23676) Warning: Closing file descriptor 28 on garbage collection
+(node:23676) Warning: Closing file descriptor 29 on garbage collection
+(node:23676) Warning: Closing file descriptor 24 on garbage collection
+(node:23676) Warning: Closing file descriptor 25 on garbage collection
+(node:23676) Warning: Closing file descriptor 26 on garbage collection
+(node:23676) Warning: Closing file descriptor 28 on garbage collection
+(node:23676) Warning: Closing file descriptor 25 on garbage collection
+(node:23676) Warning: Closing file descriptor 26 on garbage collection
+(node:23676) Warning: Closing file descriptor 27 on garbage collection
+(node:23676) Warning: Closing file descriptor 28 on garbage collection
+(node:23676) Warning: Closing file descriptor 25 on garbage collection
+(node:23676) Warning: Closing file descriptor 26 on garbage collection
+(node:23676) Warning: Closing file descriptor 27 on garbage collection
+ ❯ test/journal-crash.test.ts (5 tests | 1 failed) 1941ms
+   ❯ the review bot on 88e984b, finding 1: no call's ending appended to the journal is lost by a rewrite stopped part-way (package 1.4b) (5)
+     × (k4) --list numbers what a leftover alone holds as the line it will be in the journal file, leaving out a line set aside already; the recovery script moves the leftover in first, so a line listed so is set aside at that number; a record only the leftover held is kept for the gateway 463ms
+{"at":"2026-11-14T03:07:50.710Z","method":"CONNECT","host":"registry.example.test","port":443,"decision":"allowed"}
+ ❯ test/preview-live.test.ts (6 tests | 5 failed) 1935ms
+   ❯ J3, live: the scripted app through the whole chain (example 1, development profile) (6)
+     × example 1 is built and started; the check service reads as on front alone; the live app opens for it 1161ms
+     × the owner's walk through the preview, with Chromium's checks: every check passes, nothing names app:3161, every cookie carries the prefix 3ms
+     × after a new entry, the page's storage is gone (Clear-Site-Data, in Chromium) 1ms
+     × each mapping turned off in turn shows which the app needs, and that its own check then refuses; the policy's sandbox value is tried 1ms
+     × the refusals: no pass gives only the gate; a crafted cross-site POST opens no stream; after the project closes (the app stopped), the live app is gone 39ms
+ ❯ test/journal-recovery-lock.test.ts (3 tests | 1 failed) 60573ms
+   ❯ the review bot on 88e984b, finding 2: a recovery that has lost the journal folder's lock writes nothing more and says it stopped (package 1.4b) (3)
+     × (l2) the script, as a process of its own: its lock connection ends while its set-aside's transaction waits for the project's lock; the transaction then reaches its commit and is rolled back; the script exits with code 4 and a plain message, having written nothing 60049ms
+Terminated
+Containers on this machine after (docker ps -aq, count): 0
+Free disk after (df -h /): 26G free of 252G
+
+What is left in TMPDIR after the run (entries directly in it: 11; everything below it: 622):
+du -sh of each entry, largest first:
+115M	builder-runner-build-E07ubl
+2.6M	node-compile-cache
+220K	tsx-0
+36K	builder-sb-vZ0eRj
+36K	builder-sb-qyhAD6
+36K	builder-sb-bGR303
+36K	builder-sb-PtGztS
+12K	builder-home-PorkoQ
+8.0K	builder-user-docker-QPlENp
+4.0K	builder-user-docker-GgaokE
+4.0K	builder-acceptance-data-nBFsZ1
+du -sh of TMPDIR as a whole: 118M
+Entries by name, with the part after the last '-' dropped (count):
+      1 builder-acceptance-data-*
+      1 builder-home-*
+      1 builder-runner-build-*
+      4 builder-sb-*
+      2 builder-user-docker-*
+      1 node-compile-*
+      1 tsx-*

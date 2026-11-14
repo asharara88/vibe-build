@@ -24,7 +24,7 @@
   - **A deliberate stop:** a stop request (SIGTERM) sent to the interface, as a service manager sends one. From J2 on, the interface tidies up before it exits. The step stops, the project is marked interrupted, and its *containers* are removed at once. (A container is a sealed box on the machine in which a build step or the app runs.)
   - **A crash:** the interface is killed outright. Its containers stay on the machine until the interface is started again, and that start removes them.
 - After either, the project's screens say it was interrupted. They offer only "Close project" or "New project". Nothing is resumed. The cost screen shows the step's reservation released, marked as stopped part-way, and $0.00 spent.
-- **Not shown:** pressing Ctrl-C in the terminal. That also signals the docker programs the interface started, and the step may then be recorded as failed rather than interrupted (I; gap 178).
+- **Not shown:** pressing Ctrl-C in the terminal. That also signals the docker programs the interface started, and the step may then be recorded as failed rather than interrupted (I; gap 179).
 - **On his own instance, from J2 on:** stopping the interface on purpose removes the containers of his open projects at the stop, instead of at the next start (KG:154, gap 139). Either way the projects end the same: interrupted, not resumed.
 
 **Labelled, and why** (I):
@@ -91,7 +91,7 @@ One automated browser run (section 7), from a fresh database and data folder, un
 
 The same run, after (a)'s project is closed. Two projects of the normal kind, never the broken one. Each item is a check that the run counts.
 
-**Path T, the clean stop (SIGTERM, a polite request to stop).** The interface is started through `node_modules/.bin/tsx`, as `npm run web` starts it (R builder/package.json:16). The run sends SIGTERM to that wrapper's process id only, as a service manager would; tsx passes it on to the interface (R TSX, `relaySignalToChild`). This is not Ctrl-C, which signals the whole process group (I; gap 178).
+**Path T, the clean stop (SIGTERM, a polite request to stop).** The interface is started through `node_modules/.bin/tsx`, as `npm run web` starts it (R builder/package.json:16). The run sends SIGTERM to that wrapper's process id only, as a service manager would; tsx passes it on to the interface (R TSX, `relaySignalToChild`). This is not Ctrl-C, which signals the whole process group (I; gap 179).
 - T1. Project P1 ("Restart: clean stop (made-up)") has step 1 approved and step 2 running. This is checked three ways, and the signal is sent only after all three:
   - the camera walk shows the build screen with the running note (`data-job-running="build_step"`) and the pause line, photographs it, and exits with code 0;
   - the record holds at least 1 and fewer than 8 `scripted.write` events of step 2;
@@ -131,7 +131,7 @@ The same run, after (a)'s project is closed. Two projects of the normal kind, ne
 | --- | --- |
 | 1. A box to tick on the New project form, unticked by default | Not chosen. A demonstration option would sit on the product's real creation form, and a mistaken tick would turn a real-looking project into a broken one |
 | 2. A second "Confirm plan" button | Not chosen. Two buttons side by side for a choice that cannot be undone (the tests version is written then, R journey.ts:738-753), and no badge on the earlier screens |
-| **3. A separate demonstration button with a name the system fixes, always shown** | **Recommended to the owner (section 12).** The normal form and J1's walk stay as they are. The label is in a badge on every page. A mistaken press costs only a demonstration project, which can be closed. It stays in the product (gap 175) |
+| **3. A separate demonstration button with a name the system fixes, always shown** | **Recommended to the owner (section 12).** The normal form and J1's walk stay as they are. The label is in a badge on every page. A mistaken press costs only a demonstration project, which can be closed. It stays in the product (gap 176) |
 | 4. A project kind of its own (id prefix "j2-") | Not chosen. Every guard and clean-up is keyed on "j1-" (R journey.ts:33; example-1-adapter.ts:110-114; app.ts:259, :264). Widening them loosens what limits removal |
 | 5. Script only, or reuse 3.1's run D (R E31:24) | Not chosen. The owner would never see it on his screens. Writing journey events from a script makes a record the orchestrator did not produce (R journey.ts:4-6) |
 | 6. Option 3, shown only when a setting is on (as `BUILDER_LIVE_PREVIEW`, R main.ts:83-86) | **Put to the owner as the other choice (section 12).** The same code, plus one setting checked at start. The product shows nothing new by default; the owner sees the demonstration in the run's pictures, or on his instance if it is started with the setting |
@@ -226,10 +226,10 @@ No new table. The checklist can be run again while the app runs and nothing is s
      - It records `journey.sandbox.removed` with `interrupted: true`, `removed`, and the reason "The interface was stopped on purpose; this project's containers, images and folder were removed at the stop. It is not resumed."
      - `closeProject` cannot be used: a halted journey refuses every action (R journey.ts:589-591).
   6. **Then the end:** release the lock, end the pool, exit. The exit code is 0 only if every open project was removed; otherwise 1, with a line naming each project left. The lock is released only after the removal, so a second interface on the same database cannot run its own recovery at the same time (I).
-- **A last bound.** If the stop has not finished 90 s after the signal (`STOP_DEADLINE_MS`, chosen), the process exits 1 at once, and the rest is left to the next start (gap 178).
+- **A last bound.** If the stop has not finished 90 s after the signal (`STOP_DEADLINE_MS`, chosen), the process exits 1 at once, and the rest is left to the next start (gap 179).
 - **A second SIGINT or SIGTERM** exits at once with code 1. It leaves the rest to the next start and says so (I).
 - **Under `npm run web`**, the signal passes through tsx 4.23.15. Sent to tsx alone, tsx waits about 30 ms for the interface to report the signal, then sends it to the interface. If the interface does not report it within about 30 ms more, tsx kills it with SIGKILL (R TSX, `relaySignalToChild`). The interface's preflight handler reports it (R node_modules/tsx/dist/preflight.cjs). tsx exits with the interface's own code (R TSX, the child's `close` handler). Path T goes through this wrapper on purpose, to show it (M).
-- **Ctrl-C is not shown** (I). In a terminal it sends SIGINT to the whole process group: npm, tsx, the interface, the docker programs it started, and the live preview's front. A docker program that ends first can end the step as failed, with a workspace reset, before the halt marks it interrupted. J2 does not kill or shield those programs (gap 178).
+- **Ctrl-C is not shown** (I). In a terminal it sends SIGINT to the whole process group: npm, tsx, the interface, the docker programs it started, and the live preview's front. A docker program that ends first can end the step as failed, with a workspace reset, before the halt marks it interrupted. J2 does not kill or shield those programs (gap 179).
 - **Idle projects are removed too** (I). An idle project has a sandbox but no job, for example its app running at the checklist stage. The next start would remove it and mark it interrupted in any case (R journey.ts:914-930). Removing it at the stop changes only when, and that is what gap 139 asks for.
 
 **4.2 Mid-step: a labelled pause** (I):
@@ -298,7 +298,7 @@ The evidence must not claim `job_interrupted` for path T.
 - **Records:**
   - DEC: Claude Code's choices, each the owner's to overrule (section 12), and the owner's answer to the question once he gives it.
   - BP: a progress row for J2, as J3 has one (R BP:303) and no row of its own in 7.7. J2 is planned in J1's design (R J1D:35) and, like J1, counts toward no milestone (R J1D:29). The stale progress rows also need fixing: J1 still reads "#37, draft" and J3 "Not opened (not pushed)" (R BP:302-303), but both are merged (R `git log`: `14787d8` merges #38).
-  - KG: 175 to 180, and gap 139 updated (section 9).
+  - KG: 176 to 181, and gap 139 updated (section 9).
   - SOURCES: tsx 4.23.15's signal relay and exit code, read in its own files, with the date.
   - ST, and docs/arabic-wording-list.md.
 
@@ -431,31 +431,31 @@ Review is by risk, under the plan (R BP:47):
 **Risks** (I unless cited):
 - **A broken build signed off or exported.** Guarded by two refusals on any trace of the broken copy, with tests A3 and A6 and their controls.
 - **The broken copy reaching a project whose owner did not choose it.** Guarded by the plan check (A1b), the first-event rule (A3), staging's state and target checks (A4) and the transaction (A2). The existing tests stay unchanged (R test/web.test.ts:963-972; test/acceptance.test.ts:683-686). Weakening any of them breaks hard rule 8.
-- **Reading the rejection as proof that the checklist catches defects in general.** The labels and gap 176 say otherwise.
+- **Reading the rejection as proof that the checklist catches defects in general.** The labels and gap 177 say otherwise.
 - **The record says `removed: true` while something is left.** `destroyRecorded` ignores Docker's errors and returns normally (R example-1-adapter.ts:327-345). A docker program cut off by SIGKILL may still run after the restart. So the evidence checks Docker's list (N), not the record (K4).
 - **Restart timing.** After SIGKILL, PostgreSQL must notice that the session has ended before the lock is free. Otherwise the start prints "Another interface is running…" and exits 1 (R main.ts:137). The run retries for at most 30 s (M).
 - **Shared resources.** One project's app runs at a time, and port 13161 must be free (R journey-jobs.ts:348-349; example-1-adapter.ts:276-280). The disk floor is 4 GB, assumed, not measured (R journey.ts:509-525).
 - **The owner's instance.** His 4020 interface is stopped (R ST:20). Restarting it removes the sandboxes of his running projects (R J3D:236). From J2 on, so does stopping it on purpose. He is told before either.
 - **J1's and J3's runs** wait 15 s after SIGTERM (R demo-journey.ts:346-352). They close their projects first, so their stop removes nothing and still fits that time. Unchanged.
 
-**Gaps to add** (175 to 180; renumbered from 162-167 on 14 Nov 2026, because 162 was taken by pull request #40):
-- **175. The broken-copy demonstration is in the product.**
+**Gaps to add** (176 to 181; renumbered from 162-167 on 14 Nov 2026, because 162 was taken by pull request #40, and renumbered again the same day, from 175 to 181 to 176 to 182, because 175 was taken by pull request #47):
+- **176. The broken-copy demonstration is in the product.**
   - It consists of a panel, a route, and the journey reading builder/scripted-broken. Under option 6 it is there only while its setting is on.
   - It is made only by that route, in one transaction. Its sign-off and export are refused by a rule of their own, on any trace of it, and live use is refused. builder/scripted keeps its two steps.
   - Whether to keep it once per-step checks exist is the owner's call.
-- **176. One planted defect, one stand-in test, same author.**
+- **177. One planted defect, one stand-in test, same author.**
   - The rejection shows that the runner rejected this defect through a test written knowing it, and that reads the list item because the confirmation "says 'Waiting' whatever was stored" (R SPEC1:48-58).
   - It says nothing about defects in general, and it is not independent acceptance (3.2b, R BP:196).
-- **177. No quality check after a step, and no retry.** HO:145 asks for both (milestones 1 and 3, R DN:588, :590). The scripted engine checks only that a step wrote its fixed files (R scripted.ts:334-363). A broken step builds, is shown and is approved with nothing stopping it. Only the checklist at the end catches it, and the screen says so.
-- **178. The clean stop's limits.**
+- **178. No quality check after a step, and no retry.** HO:145 asks for both (milestones 1 and 3, R DN:588, :590). The scripted engine checks only that a step wrote its fixed files (R scripted.ts:334-363). A broken step builds, is shown and is approved with nothing stopping it. Only the checklist at the end catches it, and the screen says so.
+- **179. The clean stop's limits.**
   - It waits at most 30 s (chosen, not measured) for a job it cannot stop, or an action in progress. That project is left for the next start, and the exit code is 1.
   - Docker programs the interface started may run on after it exits; it kills no process group. A `docker build` left running (R manager.ts:978) can finish after the next start has removed the project's images, and recreate `builder_<id>-app:latest` with no record left to remove it. The run's check (N) would show it; on the owner's machine nothing would remove it.
   - Ctrl-C signals the whole process group, docker programs included. Not shown; the step may be recorded as failed, with a workspace reset, instead of interrupted.
   - Each lock check is bounded at 5 s, and the whole stop at 90 s, both chosen. A lock lost while a project is being removed ends the process at once through the existing path (exit 1), part-way through that removal; the next start removes the rest.
   - A second signal exits at once.
   - A stop that is not a signal is a crash, and nothing is removed until the next start. Examples: the session's machine paused or reclaimed (R HO:303), or tsx's SIGKILL if the report back fails.
-- **179. `removed: true` in the record is not proof** (as above). The evidence reads Docker's list.
-- **180. The demonstration pause is product code.** It is off unless `BUILDER_DEMO_STEP_PAUSE_MS` is set. When set, every step is slower, and the screen and the record say so.
+- **180. `removed: true` in the record is not proof** (as above). The evidence reads Docker's list.
+- **181. The demonstration pause is product code.** It is off unless `BUILDER_DEMO_STEP_PAUSE_MS` is set. When set, every step is slower, and the screen and the record say so.
 - **Gap 139, updated:** "A stop that also removes them" is done for SIGTERM and SIGINT, while the lock is held. Sign-off is no longer offered on an interrupted project. Its parts (1) and (2) remain. Part (3) is partly answered by J2's run, which shows real containers but not a PostgreSQL restart.
 
 ## 10. What is not done
@@ -500,7 +500,7 @@ Review is by risk, under the plan (R BP:47):
 ## 12. For the owner
 
 - **One question** (it changes what he sees, beyond what the plan names): *Where should the broken-copy demonstration live?*
-  - **(a) A button always on your Projects screen, clearly labelled (recommended).** You can press it yourself, whenever you like, and watch the checklist fail. A mistaken press makes only a demonstration project, which "Close project" removes. It stays in the product until you decide otherwise (gap 175).
+  - **(a) A button always on your Projects screen, clearly labelled (recommended).** You can press it yourself, whenever you like, and watch the checklist fail. A mistaken press makes only a demonstration project, which "Close project" removes. It stays in the product until you decide otherwise (gap 176).
   - (b) The same button, shown only when a setting is on, as the live preview is. Your product shows nothing new; you see the demonstration in the run's pictures, or on your instance if Claude Code starts it with the setting.
   - *Why (a):* you judge by what you can see working, and nothing here costs money or touches your data. Either way the code is the same, apart from one setting; the build can start on everything else while you decide.
   - *Answered 14 Nov 2026: (a).* Asked as "Where should the button that starts the broken-copy demonstration live?", the owner answered "Always on Projects (Recommended)": a clearly labelled button always on his Projects screen. Recorded word for word in `docs/DECISIONS.md`; built so (section 13, part (a)).
@@ -532,7 +532,7 @@ From the critics' other points, each taken:
 - exit code 1 when a project is left;
 - sign-off refused once interrupted;
 - the camera walks ending before each signal, with the pause raised to 4,000 ms to leave room;
-- the `docker build` that can outlive the stop, added to gap 178;
+- the `docker build` that can outlive the stop, added to gap 179;
 - staging once per build job, its SHA-256 read from the staged copy;
 - a BP progress row only, as for J3;
 - J1's language rule named as adapted;
@@ -590,7 +590,7 @@ Built on branch `claude/j2-broken-and-restart` after parts (a) and (c): `scripts
 The controls of section 6 and the whole suite ran on branch `claude/j2-broken-and-restart` with `builder/` as the automated run left it (tree `8449a9a`); no product code was changed (R evidence/2026-11-13-journey-j2/controls-output.txt, run-tests-full.txt, journey-j2.md). Where this step departs from sections 5, 6 and 9, the departure is the smallest found:
 - **42 controls, not 30.** Section 6's 30 rows are 31 controls: "The second wording; the cost note" is two (J2-C27, J2-C28), so that each removal is seen alone. Eleven more remove safeguards added during the build (section 13 above), each with the test that guards it (J2-C32 to J2-C42). Each named test was first run alone on the code as committed, and passed; all 42 controls failed their tests.
 - **The adapter's own target check has no control.** Section 3.3 has the adapter check the target again (R builder/src/orchestrator/example-1-adapter.ts, `stageBrokenStep`); no test reaches the real adapter's method, which needs a real sandbox. The job's check, which runs first, has two controls (J2-C07, J2-C35). Not changed: a test of it would be a new test, outside this step.
-- **Gap numbers.** Section 9's gaps are 175 to 180, renumbered from 162-167 on 14 Nov 2026, because 162 was taken by pull request #40 (R `git show origin/claude/stage-1:docs/KNOWN-GAPS.md`).
+- **Gap numbers.** Section 9's gaps are 176 to 181, renumbered from 162-167 on 14 Nov 2026, because 162 was taken by pull request #40 (R `git show origin/claude/stage-1:docs/KNOWN-GAPS.md`), and renumbered again the same day, from 175 to 181 to 176 to 182, because 175 was taken by pull request #47.
 - **The question of section 12 was not in docs/QUESTIONS.md,** so there is nothing to mark answered there; the answer is in docs/DECISIONS.md and section 12. One line for J2's choices was added to QUESTIONS.md's "Yours to confirm", as J1's were.
 
 ### After the review, 14 Nov 2026
@@ -598,4 +598,4 @@ The controls of section 6 and the whole suite ran on branch `claude/j2-broken-an
 The review of section 8 (one round) read `5ed7f04`. Its three blocking findings were in the records and are corrected there (R evidence/2026-11-13-journey-j2/journey-j2.md, "After the review"). Changes to this design's content, each the smallest found:
 - **The target check reads the real path as far as the path exists** (section 3.3, "not under builder/"). The build compared the real path only when `engine-change-sets` already existed, and otherwise the path as written, so a sandbox folder that is itself a link into builder/, or under one, was accepted before its change-set folder was made. Now the nearest folder that exists is resolved and the rest of the path added to it (R builder/src/orchestrator/journey.ts, `realpathAsFar`). Not reachable before (makeExample1 makes the folder with mkdtemp and `engine-change-sets` before any staging); it only widens a refusal, and the adapter uses the same check. Test A4b; controls J2-C44, J2-C45.
 - **Section 6's table gains two rows:** the trace rule for a `journey.plan_confirmed` that lists step 03 (test A6b; control J2-C43), and the target check's real-path half (test A4b; control J2-C44). Before, neither had a test that failed without it.
-- **Section 3.1's sentence "a normal project cannot carry the demonstration's name without its badge and refusals" holds for the name as written only.** A name that only looks the same (a zero-width space, a Cyrillic letter) is accepted, and the project it makes is a normal one with no badge. Recorded as gap 181; not changed.
+- **Section 3.1's sentence "a normal project cannot carry the demonstration's name without its badge and refusals" holds for the name as written only.** A name that only looks the same (a zero-width space, a Cyrillic letter) is accepted, and the project it makes is a normal one with no badge. Recorded as gap 182; not changed.

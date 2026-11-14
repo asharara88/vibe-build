@@ -340,6 +340,18 @@ Read in tsx's own files as installed in `builder/node_modules/tsx` (version 4.23
 | `tsx` exits with its child's own exit code; if the child ended by a signal, with 128 plus that signal's number | `builder/node_modules/tsx/dist/cli.mjs`, the child's `close` handler (`process.exit(l)`, with `l` set from `signalCode` when null), read 14 Nov 2026 |
 | Seen in J2's automated run: SIGTERM sent to tsx's process alone (the interface started as `npm run web` starts it) ended with tsx's exit code 0, 0.6 s after the signal, the interface having stopped cleanly | `evidence/2026-11-13-journey-j2/run-demo.txt` ("T2"), 14 Nov 2026 |
 
+## Read and measured on 14 November 2026 for the sandbox tests' temporary folders (Node v22.23.4, vitest 5.1.0, tsx 4.23.15, npm 10.9.9)
+
+Read in the installed packages' own code in `builder/node_modules` (both MIT), because this session's network refused `vitest.dev` and `man7.org` (proxy answered 403 to the tunnel); measured on this session's machine. Used by `evidence/2026-11-14-sandbox-test-tmpdir/README.md` and gap 175.
+
+| Fact | Source |
+| --- | --- |
+| With no record of an earlier run for some file, vitest sorts the files by size, larger first ("run larger files first"; "the size is only a fallback for files without results"); with results for both, failed files first, then longer ones | vitest 5.1.0, `BaseSequencer.sort`, in `node_modules/vitest/dist/chunks/index.Di8au7q4.js` (read 14 Nov 2026) |
+| tsx keeps a folder `tsx-<effective uid>` in `os.tmpdir()`, and its socket for a process is `<that folder>/<number>.pipe` | tsx 4.23.15, `node_modules/tsx/dist/temporary-directory-Du7LpLp9.mjs` (``join(tmpdir(), `tsx-${geteuid()}`)``) and `index-Bqjv9TxC.mjs` (`getPipePath`) (read 14 Nov 2026) |
+| Node listens on a Unix socket path of up to 108 bytes; a longer one is cut to 108 bytes with no error | **Measured**, `evidence/2026-11-14-sandbox-test-tmpdir/after-review/socket-path-probe.txt` (Node v22.23.4, 14 Nov 2026). Linux's own limit was not read (its manual page was refused) |
+| npm (so `npx`) leaves Node's compile cache, `node-compile-cache`, in `TMPDIR`; Node, vitest and tsc started without npm do not | **Measured**, `evidence/2026-11-14-sandbox-test-tmpdir/compile-cache-probe.txt` (npm 10.9.9, 14 Nov 2026). Where in npm this is done was not read |
+| vitest's `onTestFinished` callbacks run when the test ends, also when it fails | **Shown** for this file by `evidence/2026-11-14-sandbox-test-tmpdir/failure-control.txt`; vitest's documentation was not read (refused) |
+
 ## Product documentation read on 12 November 2026 for the owner's own set-up; nothing in the repository relies on it
 
 | Fact | Source |

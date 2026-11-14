@@ -1,5 +1,5 @@
 import { execFile, spawnSync } from "node:child_process";
-import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, readlinkSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { promisify } from "node:util";
@@ -50,6 +50,32 @@ async function askUntil(ask: () => Promise<string>, wanted: (answer: string) => 
     if (wanted(answer) || Date.now() >= until) return answer;
     await new Promise((r) => setTimeout(r, everyMs));
   }
+}
+
+/**
+ * Removes a folder a test made, with everything in it; a folder already gone is not an error. Each folder in it that
+ * belongs to the user running the tests is opened first (mode 700), as acceptance-live.test.ts does in its afterAll,
+ * so that a folder made read-only does not stop the removal. Another user's folder (the socket folder is 1000:1000
+ * when the tests run as root) is left as it is: root needs no opening, and anyone else could not open it; rmSync then
+ * says whether it could be removed. Links are neither followed nor changed. Added 14 Nov 2026: before, several tests
+ * in this file left their folders in the temporary folder after every run (`evidence/2026-11-14-sandbox-test-tmpdir/`).
+ */
+function removeFolder(dir: string): void {
+  if (!dir || !existsSync(dir)) return;
+  const me = process.getuid?.();
+  const open = (d: string) => {
+    if (statSync(d).uid === me) chmodSync(d, 0o700);
+    for (const e of readdirSync(d, { withFileTypes: true })) if (e.isDirectory()) open(join(d, e.name));
+  };
+  open(dir);
+  rmSync(dir, { recursive: true, force: true });
+}
+
+/** A new, empty folder in the temporary folder, removed when the test that made it finishes, whether it passed or failed. */
+function testFolder(prefix: string): string {
+  const dir = mkdtempSync(join(tmpdir(), prefix));
+  onTestFinished(() => removeFolder(dir));
+  return dir;
 }
 
 const base: Omit<SandboxSpec, "profile" | "dir"> = {
@@ -191,8 +217,7 @@ describe("sandbox manager: compose documents", () => {
   });
 
   it("development profile (package 0.6c): createSandbox makes the socket folder (mode 750, owned by the door's user), copies no certificate, and points the build's npm at the machine side's loopback port", () => {
-    const dir = mkdtempSync(join(tmpdir(), "builder-sb-dev-"));
-    onTestFinished(() => rmSync(dir, { recursive: true, force: true }));
+    const dir = testFolder("builder-sb-dev-");
     mkdirSync(join(dir, "workspace", "certs"), { recursive: true });
     const spec: SandboxSpec = { ...base, profile: "development-cloud-session", dir, app: { buildContext: join(dir, "workspace"), port: 3100 } };
     expect(() => createSandbox(spec, "sample-only-password")).toThrow(/buildProxyPort/);
@@ -233,8 +258,7 @@ describe("sandbox manager: compose documents", () => {
   });
 
   it("askApp (package 0.6c) takes only http://<service>:<port>/<path>; up refuses the check service", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "builder-sb-dev-"));
-    onTestFinished(() => rmSync(dir, { recursive: true, force: true }));
+    const dir = testFolder("builder-sb-dev-");
     const sb = createSandbox({ ...base, profile: "server", dir, app: { buildContext: join(dir, "workspace"), port: 3100 } }, "sample-only-password");
     for (const bad of ["http://127.0.0.1:3100/en/sign-in", "https://app:3100/", "http://app/en/sign-in", "http://app:3100/x?y=1", "http://APP:3100/", "http://app:3100/a b"])
       await expect(sandbox.askApp(sb, bad), bad).rejects.toThrow(/askApp takes/);
@@ -258,8 +282,7 @@ describe("sandbox manager: compose documents", () => {
   });
 
   it("development profile (package 0.6c): Docker Compose accepts the whole file", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "builder-sb-dev-"));
-    onTestFinished(() => rmSync(dir, { recursive: true, force: true }));
+    const dir = testFolder("builder-sb-dev-");
     mkdirSync(join(dir, "workspace"), { recursive: true });
     const sb = createSandbox(
       { ...base, profile: "development-cloud-session", dir, buildProxyPort: 13150, app: { buildContext: join(dir, "workspace"), port: 3100 }, engine: { workspace: join(dir, "workspace"), changeSets: join(builderDir, "scripted"), network: "egress" }, acceptance: { image: RUNNER_IMAGE, baseUrl: "http://app:3100" } },
@@ -302,7 +325,7 @@ describe("sandbox manager: compose documents", () => {
   it("package 0.5: the sandbox records the names given to the tools container, and Docker runs with a narrow environment and its own client folder", () => {
     // Independent of the machine's own Docker settings: an empty user configuration, no context, no DOCKER_HOST.
     const saved = { DOCKER_CONFIG: process.env.DOCKER_CONFIG, DOCKER_HOST: process.env.DOCKER_HOST, DOCKER_CONTEXT: process.env.DOCKER_CONTEXT };
-    process.env.DOCKER_CONFIG = mkdtempSync(join(tmpdir(), "builder-user-docker-"));
+    process.env.DOCKER_CONFIG = testFolder("builder-user-docker-");
     delete process.env.DOCKER_HOST;
     delete process.env.DOCKER_CONTEXT;
     onTestFinished(() => {
@@ -311,7 +334,7 @@ describe("sandbox manager: compose documents", () => {
         else process.env[k] = v;
       }
     });
-    const dir = mkdtempSync(join(tmpdir(), "builder-sb-"));
+    const dir = testFolder("builder-sb-");
     const sb = createSandbox(
       { ...base, profile: "server", dir, app: { buildContext: join(dir, "workspace"), port: 3100, toolsEnv: { APP_URL: "http://x" } } },
       "sample-only-password",
@@ -327,7 +350,7 @@ describe("sandbox manager: compose documents", () => {
 
   it("package 0.5: only the user's extra plugin folders are carried into the project's Docker client folder; a chosen context is refused; up refuses the tools service", async () => {
     const saved = { DOCKER_CONFIG: process.env.DOCKER_CONFIG, DOCKER_HOST: process.env.DOCKER_HOST, DOCKER_CONTEXT: process.env.DOCKER_CONTEXT };
-    const userDir = mkdtempSync(join(tmpdir(), "builder-user-docker-"));
+    const userDir = testFolder("builder-user-docker-");
     try {
       process.env.DOCKER_CONFIG = userDir;
       // The refusal of a chosen context depends on DOCKER_HOST, so neither may come from the machine running the test.
@@ -344,7 +367,7 @@ describe("sandbox manager: compose documents", () => {
           currentContext: "default",
         }),
       );
-      const dir = mkdtempSync(join(tmpdir(), "builder-sb-"));
+      const dir = testFolder("builder-sb-");
       const sb = createSandbox({ ...base, profile: "server", dir, app: { buildContext: join(dir, "workspace"), port: 3100 } }, "sample-only-password");
       expect(JSON.parse(readFileSync(join(dir, "docker-client", "config.json"), "utf8"))).toEqual({ cliPluginsExtraDirs: ["/made-up/plugins"] });
       expect(() => dockerEnv(sb)).not.toThrow();
@@ -362,8 +385,8 @@ describe("sandbox manager: compose documents", () => {
 
   it("package 0.5: an empty DOCKER_CONFIG counts as not set, so the user's own folder under HOME is read", () => {
     const saved = { DOCKER_CONFIG: process.env.DOCKER_CONFIG, HOME: process.env.HOME };
-    const home = mkdtempSync(join(tmpdir(), "builder-home-"));
-    const dir = mkdtempSync(join(tmpdir(), "builder-sb-"));
+    const home = testFolder("builder-home-");
+    const dir = testFolder("builder-sb-");
     try {
       mkdirSync(join(home, ".docker"));
       writeFileSync(join(home, ".docker", "config.json"), JSON.stringify({ cliPluginsExtraDirs: ["/made-up/home-plugins"] }));
@@ -381,8 +404,8 @@ describe("sandbox manager: compose documents", () => {
 
   it("package 0.5: a context chosen in the configuration is accepted when DOCKER_HOST is set; DOCKER_CONTEXT=default is accepted, any other DOCKER_CONTEXT refused", () => {
     const saved = { DOCKER_CONFIG: process.env.DOCKER_CONFIG, DOCKER_HOST: process.env.DOCKER_HOST, DOCKER_CONTEXT: process.env.DOCKER_CONTEXT };
-    const userDir = mkdtempSync(join(tmpdir(), "builder-user-docker-"));
-    const dir = mkdtempSync(join(tmpdir(), "builder-sb-"));
+    const userDir = testFolder("builder-user-docker-");
+    const dir = testFolder("builder-sb-");
     try {
       process.env.DOCKER_CONFIG = userDir;
       delete process.env.DOCKER_HOST;
@@ -405,16 +428,14 @@ describe("sandbox manager: compose documents", () => {
         if (v === undefined) delete process.env[k];
         else process.env[k] = v;
       }
-      rmSync(userDir, { recursive: true, force: true });
-      rmSync(dir, { recursive: true, force: true });
     }
   });
 
   it("package 0.5: a plugin link to a folder that has since gone is replaced, or removed, without error", () => {
     const saved = process.env.DOCKER_CONFIG;
-    const first = mkdtempSync(join(tmpdir(), "builder-user-docker-"));
-    const second = mkdtempSync(join(tmpdir(), "builder-user-docker-"));
-    const dir = mkdtempSync(join(tmpdir(), "builder-sb-"));
+    const first = testFolder("builder-user-docker-");
+    const second = testFolder("builder-user-docker-");
+    const dir = testFolder("builder-sb-");
     const spec: SandboxSpec = { ...base, profile: "server", dir };
     const link = join(dir, "docker-client", "cli-plugins");
     try {
@@ -437,14 +458,11 @@ describe("sandbox manager: compose documents", () => {
     } finally {
       if (saved === undefined) delete process.env.DOCKER_CONFIG;
       else process.env.DOCKER_CONFIG = saved;
-      rmSync(first, { recursive: true, force: true });
-      rmSync(second, { recursive: true, force: true });
-      rmSync(dir, { recursive: true, force: true });
     }
   });
 
   it("writes YAML that Docker Compose accepts", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "builder-sb-"));
+    const dir = testFolder("builder-sb-");
     const sb = createSandbox({ ...base, profile: "server", dir }, "sample-only-password");
     expect(existsSync(sb.composeFile)).toBe(true);
     expect(readFileSync(join(dir, "secrets", "db_password"), "utf8")).toBe("sample-only-password");
@@ -470,8 +488,11 @@ describe("sandbox manager: live, development profile", () => {
     sb = createSandbox({ ...base, projectId: "p_live", profile: "development-cloud-session", dir }, "sample-only-password");
   });
   afterAll(async () => {
-    if (sb) await sandbox.destroy(sb).catch(() => undefined);
-    if (dir) rmSync(dir, { recursive: true, force: true });
+    try {
+      if (sb) await sandbox.destroy(sb).catch(() => undefined);
+    } finally {
+      removeFolder(dir);
+    }
   });
 
   it("starts the project's database and its door; from a container on `out`, the egress proxy behind the door lets the registry through and refuses a host not on the list (package 0.6c)", async () => {
@@ -516,15 +537,19 @@ describe("sandbox manager: live, the tools container (package 0.5)", () => {
   const names = 'console.log(JSON.stringify(Object.keys(process.env).sort()))';
 
   afterAll(async () => {
-    if (sb) {
-      await sandbox.destroy(sb).catch(() => undefined);
-      // If a test failed part-way, a container of this project may be left: it goes before its image.
-      const left = await run("docker", ["ps", "-aq", "--filter", `label=com.docker.compose.project=${sb.projectName}`], { env: dockerEnv(sb) }).catch(() => ({ stdout: "" }));
-      for (const id of left.stdout.split("\n").filter(Boolean)) await run("docker", ["rm", "-f", id], { env: dockerEnv(sb) }).catch(() => undefined);
-      await sandbox.removeImage(sb);
+    try {
+      if (sb) {
+        await sandbox.destroy(sb).catch(() => undefined);
+        // If a test failed part-way, a container of this project may be left: it goes before its image.
+        const left = await run("docker", ["ps", "-aq", "--filter", `label=com.docker.compose.project=${sb.projectName}`], { env: dockerEnv(sb) }).catch(() => ({ stdout: "" }));
+        for (const id of left.stdout.split("\n").filter(Boolean)) await run("docker", ["rm", "-f", id], { env: dockerEnv(sb) }).catch(() => undefined);
+        await sandbox.removeImage(sb);
+      }
+    } finally {
+      // Also when removing the image fails (14 Nov 2026): before, that error left both folders behind.
+      process.env.HOME = savedHome;
+      for (const d of [dir, userHome]) removeFolder(d);
     }
-    process.env.HOME = savedHome;
-    for (const d of [dir, userHome]) if (d) rmSync(d, { recursive: true, force: true });
   });
 
   it("a Docker client configuration that adds proxy settings to containers does not reach the tools container", async () => {
