@@ -117,7 +117,7 @@ async function waitHealthy(dir: string, s: Started): Promise<void> {
 /** One query in the copy's database, through Compose, as its user `app`. */
 const sql = (dir: string, q: string) => docker(["compose", "exec", "-T", "db", "psql", "-U", "app", "-d", "app", "-tAc", q], { cwd: dir, env: copyEnv() }).then((s) => s.trim());
 
-/** A made-up image: `from` changed by one shell command run as root with no network, committed under `name`. */
+/** Make a made-up image from `from`, changed by one shell command run as root with no network, committed under `name`. */
 async function madeUpImage(from: string, name: string, script: string): Promise<void> {
   const c = `${name}-making`;
   try {
