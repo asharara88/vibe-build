@@ -1,0 +1,24 @@
+Measured on 14 Nov 2026, about 15:50 to 15:52 UTC, by the session coordinating package 3.2's build (not by the build's own scripts), for finding D8: can the exported app's door keep its port published on 127.0.0.1 while not reaching the machine? Script: the session's scratch folder d32-edge/measure.sh (not in the repository): a listener on the machine on every address, port 42733; for each kind of network, a door-like container (the approved node:22-alpine image, every capability dropped, read-only, user node) publishing 127.0.0.1:3901, and a probe in its namespace connecting to the machine's listener at the network's gateway, Docker's default bridge address, 127.0.0.1 and the machine's own address. Every Docker object named x32m-*, removed by exact name at the end (its last line). Copied here unchanged below this paragraph; 192.0.2.2 is the machine's own address in this cloud session.
+
+host listener on 0.0.0.0:42733, pid 21633; host addresses: 192.0.2.2 172.17.0.1 
+=== variant plain: docker network create -o com.docker.network.bridge.enable_ipv6=false
+gateway=172.18.0.1 subnet=172.18.0.0/16 options={"com.docker.network.bridge.enable_ipv6":"false"}
+published 127.0.0.1:3901 from the machine: door-ok
+from the door's namespace, connections to the machine's listener at: 172.18.0.1 172.17.0.1 127.0.0.1 192.0.2.2
+REACHED 172.18.0.1
+REACHED 172.17.0.1
+refused/err 127.0.0.1 ECONNREFUSED
+REACHED 192.0.2.2
+=== variant isolated: docker network create -o com.docker.network.bridge.gateway_mode_ipv4=isolated
+network create refused: Error response from daemon: gateway mode 'isolated' can only be used for an internal network
+=== variant isolated-nomasq: docker network create -o com.docker.network.bridge.gateway_mode_ipv4=isolated -o com.docker.network.bridge.enable_ip_masquerade=false
+network create refused: Error response from daemon: gateway mode 'isolated' can only be used for an internal network
+=== variant routed: docker network create -o com.docker.network.bridge.gateway_mode_ipv4=routed
+gateway=172.18.0.1 subnet=172.18.0.0/16 options={"com.docker.network.bridge.gateway_mode_ipv4":"routed"}
+published 127.0.0.1:3901 from the machine: NO-ANSWER
+from the door's namespace, connections to the machine's listener at: 172.18.0.1 172.17.0.1 127.0.0.1 192.0.2.2
+REACHED 172.18.0.1
+REACHED 172.17.0.1
+refused/err 127.0.0.1 ECONNREFUSED
+REACHED 192.0.2.2
+left: 0 containers, 0 networks

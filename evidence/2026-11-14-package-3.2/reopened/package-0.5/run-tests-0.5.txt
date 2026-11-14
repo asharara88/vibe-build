@@ -1,0 +1,11 @@
+Package 0.5's tests in test/sandbox.test.ts, run again for package 3.2 on 7c0c9c9 (builder/ tree f412c73), 2026-11-14T16:22:49Z. Command, from builder/: flock <scratchpad>/live-tests.lock npx vitest run test/sandbox.test.ts -t 'package 0.5|does not reach the tools container|a tools container whose run was cut off'
+
+ RUN  v5.1.0 <checkout>/builder
+
+
+ Test Files  1 passed (1)
+      Tests  8 passed | 15 skipped (23)
+   Start at  16:22:50
+   Duration  12.93s (tests 100%)
+
+vitest exit code: 0

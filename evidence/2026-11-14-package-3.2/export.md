@@ -5,7 +5,7 @@
 | Package | 3.2, the exporter (build plan section 7; "Done means": "The app starts from the export with the builder stopped, and the check passes from the exported copy") |
 | Design | `docs/design/package-3.2.md` (read by two critics and corrected; not approved by the owner; questions 23 to 27 open; section 13 lists the changes made during the build, part D for this run) |
 | Branch | `claude/pkg-3.2-exporter`, from the integration branch at `839be17`; not pushed |
-| This file | First version, 14 Nov 2026, written by Claude Code: the automated run of design section 7. Not yet reviewed. The records (status, questions, decisions, known gaps) are not updated here |
+| This file | First version, 14 Nov 2026, written by Claude Code: the automated run of design section 7. Completed the same day with the controls, the full checks and the reopened packages (sections "The controls", "The full checks" and "The reopened packages"), and the records named in "Records". Not yet reviewed |
 | Machine | The development machine (a cloud session); the run under the shared lock, with its own database (`builder_x32_<run>`), data folder and interface port (127.0.0.1:4025); the live preview off; real Docker; the scripted engine only; no model called |
 
 ## The result, first
@@ -95,6 +95,64 @@ All in `screens/`, from the run of record. Each was looked at before it was kept
 | `02-item-1-from-export-en.png` | The checklist's item-1 picture, taken by the runner in the app started from the export, with the builder that made it stopped: "My requests", "Your request was saved. Its status is Waiting.", a five-day request marked "Waiting" whose reason names the run's id, under the app's banner "Sample data… Built by the scripted engine: fixed changes, no AI model." It does not show the reading, the label or that the builder was stopped |
 | `03-run-record-en.png` | The run's record: a page the run wrote from its own files and photographed with no network, labelled as such, not a screen of the builder or the app. It shows the outcome "passed", the summary, the stand-in label, the run's id (the same as in the item's picture), and the times the builder stopped (15:04:26.978 UTC), its database was dropped and its folders deleted, the app was started from the export (15:04:27.990) and healthy (15:04:47.083), and the check ran (15:04:56 to 15:05:00) |
 
+## The controls
+
+A *control* removes one safeguard and shows that its test then fails; it proves the test can see that safeguard.
+
+**Result: 75 controls, and every one failed its test, as it should** (`controls-output.txt`; the script: `controls-scripts/controls.py`, in the style of J2's).
+- Run on the branch's head `8e8e198`, 15:16 to 16:13 UTC on 14 Nov 2026, with a fresh test database (`builder_test_x32ctl`, made and dropped).
+- Before the controls, on the tree as committed: each of the 44 test names the controls use, run alone, passed (69 tests in all: some names select a group, as "T2 (S22)" selects T2's tests), and the live file passed in full (10 of 10, 139 s).
+- Each control: one safeguard removed by exact text replacement (each text occurring exactly once), the test that guards it run, the files put back with `git checkout`, and the tree checked unchanged. Fast tests ran alone (`-t <name>`); live tests ran as the whole of `test/export-live.test.ts` under the shared lock, since each needs the ones before it.
+- After the last control, `builder/` and `templates/` were as committed (`git status` empty), and Docker's lists of containers, images, volumes and networks were the same as at the start.
+
+| Safeguards (design section 5) | Controls | Tests that failed |
+| --- | --- | --- |
+| S1 to S6, S8 to S10, S12 to S15 (the exporter) | 16 | E1 to E10, E12, E13, E16, S9's two tests (`test/export.test.ts`) |
+| S7 (secret-like paths), S11 (only reachable objects, no remote), S16 (sign-off first, never a broken copy) | 5 | J1's and J2's own tests in `test/journey.test.ts` and `test/web.test.ts`, as section 5 names them (here controlled again on this branch's code) |
+| S17 to S19 (the image checks) | 7 | The verdict tests (fast) and live test L1's refusals |
+| S20, S21 (the archive; the tests kept out of the images) | 5 | E20; T1 three times; live: with both lines removed, the export's own check refused the export ("the archive's images could not be built"), so L1 failed before L2 could build |
+| S22 (the compose rules) | 12 | T2, each rule in turn, `compose.yaml` written again from its source |
+| S23, S24 (protected paths; the tables and the drift check) | 9 | T3, the scripted engine's S23 tests, T7, live test L4 |
+| S25 to S27 (the check from the copy) | 7 | Live tests L3, L3b, L3c; T8 |
+| S28 to S31 (label, S29's names, what Compose reads, the checklist count) | 6 | E15, E21, S30's verdict test and live test L2b, E17 |
+| Added by the builders, with a test of their own (design section 13) | 8 | A Docker check not passed, or not reported, does not refuse (E10); the check containers' read-only root; the check's images on the removal list; T5 twice; T6; T8 |
+
+**Checks the builders added that no test names** (design section 13, C3 and C4; reported apart, not counted above). Each was removed in the same way and the live file run in full, to find out whether any test sees the removal:
+- P1: the app container started from the copy's `compose.yaml` alone (Compose's `config_files` label);
+- P2: the copy's `keys` volume carrying Compose's labels for this project;
+- P3: the project's front network internal, in the isolated gateway mode;
+- P4: the app's `APP_URL` exactly `http://localhost:<port>`;
+- P5: a one-off container of the service `app` not taken for the app.
+
+**No test saw any of the five:** the live file passed in full, 10 of 10, each time. Each check is in the code and ran in the passing runs, but that each refuses what it should is not shown: known gap 204. (P2 took 817 s, not about 140: it waited about 11 minutes for the shared lock, which a listener left by another measurement held until its owner stopped it.)
+
+## The full checks
+
+**Result: the typecheck passed, the licence check passed, and the whole suite passed, 863 of 863 tests in 33 files, live tests included, none skipped** (`run-typecheck.txt`, `run-licences.txt`, `run-tests-full.txt`; the script: `full-checks.sh`, as J2's checks were run).
+- Run on `7c0c9c9` (`builder/` tree `f412c73`, the code the controls and the automated run's fixes ran on), 14 Nov 2026: the typecheck and the licence check at 16:23 UTC; the suite under the shared lock, 16:23:08 to 16:43:56 UTC (1,247 s), on a fresh database (`builder_test_x32full`, made and dropped), the browser zip read only and unchanged.
+- No container before or after; no preview folder or test database left; Docker's lists the same as before.
+- **An earlier run was cut off, and a duplicate was started; neither is counted.** A first run of the same script began at 16:13:41 UTC. Its typecheck and licence check passed; its suite was stopped part-way at about 16:16 UTC, when the coordinating session stopped the build workflow, one of whose agents had started a second copy of the script at 16:13:52. That copy dropped and recreated the test database before it waited for the lock; it was stopped while waiting and ran no test. The cut-off suite left one container and two images of a test project (`builder_p_acc_live_d96ba287`), each removed by its exact name (the container and the app image by this part's agent, the tools image by the coordinating session), and two folders of its own in the run's temporary folder, which were deleted. Its log held only its first lines and was replaced by this run's. This run, on a fresh database, with no other run started, is the run of record.
+
+## The reopened packages
+
+Package 3.2 changes two packages already marked tested, 2.1 (the scripted engine: step 01 now writes 7 files; more protected paths; a refusal after each step) and 0.5 (set-up in a tools container: the tables by `drizzle-kit migrate`). Under the plan's rule for reopening, each is set back to "built" on this branch, and its evidence was run again here on 14 Nov 2026, under the shared lock (`reopened/README.md`):
+- **2.1:** its demonstration, `scripts/demo-scripted.ts`: exit code 0. Step 01 wrote and committed exactly its 7 files, step 02 its 8; the tables made by `migrate`, the drift check passed; the screens' 20 checks all passed.
+- **0.5:** its "Done means" demonstration, `scripts/demo-template.ts --guard`: exit code 0. The stand-in seed step saw none of the builder's settings, twice; the tables made by `migrate`; the role guard's 26 checks passed. Its tests in `test/sandbox.test.ts`: 8 of 8 passed.
+- **Checked by reading:** 0.6a, which depends on 0.5, does not use the table set-up. 3.1, which depends on 2.1, passed its tests in the whole suite. 2.2 is not built.
+
+Neither is marked tested again here: that comes with 3.2's merge and review.
+
+## Records
+
+Updated on this branch with the package (build plan section 3, step 10), in plain words for the owner. **Not** updated here: `docs/STATUS.md` and `docs/QUESTIONS.md`, which the session that writes the status keeps.
+- `docs/design/stage-1.md`: the amendment for package 3.2, rows 1 and 2 only (the tables by fixed migration files; the one command and the door). Rows 3 to 6 are the owner's and are written only as he answers questions 23, 24, 25 and 27.
+- `docs/DECISIONS.md`: "Package 3.2 … built as follows" (the design's 20 decisions, each the owner's to overrule) and "3.2 before 3.1 is tested", a departure from the plan's order, recorded as such.
+- `docs/KNOWN-GAPS.md`: gaps **190 to 204** added (the design's N1 to N15; N16 is a note in gap 137, and the five checks with no test are a note in gap 204); gap **53 closed** (the run showed the tables made by `migrate` from the copy); gap **39 rewritten**, the licence condition never called met; gaps 34, 40, 51, 61, 72, 75, 118, 137, 139 and 179 updated; gap 190 also records the coordinating session's measurement of other networks for the door (`part-e-door-networks-measured.txt`).
+- `docs/SOURCES.md`: the outside facts of the design's section 9, each with its page and the date read, or "measured only".
+- `docs/arabic-wording-list.md`: the 12 new messages of the export screen and the changed label.
+- `docs/BUILD-PLAN.md`: 3.2's own progress row (built, not tested, and why), and the reopening noted on 2.1's and 0.5's rows.
+- `docs/design/package-3.2.md`, section 13: part E, this part's notes.
+
 ## Files
 
 - `run-demo.txt`: the run's own log, every check with its detail; `first-run/run-demo.txt`, the first run's.
@@ -107,15 +165,20 @@ All in `screens/`, from the run of record. Each was looked at before it was kept
 - `docker-after.txt`: Docker's lists at the start and the end.
 - `run-secret-search.txt`: the search for the four secrets.
 - `part-d-way-back-measured.txt`: the measurement, before the run, of what a container on an ordinary network can reach of the machine.
+- `part-e-door-networks-measured.txt`: the coordinating session's measurement, after the run, of the door on other kinds of network (gap 190).
+- `controls-output.txt` and `controls-scripts/controls.py`: the controls.
+- `run-typecheck.txt`, `run-licences.txt`, `run-tests-full.txt` and `full-checks.sh`: the full checks (the run of record; the log of the run that was cut off held only its first lines and was replaced, section "The full checks").
+- `reopened/`: packages 2.1 and 0.5 run again, with their pictures and a README.
 
 Paths of this machine are written `<run folder>`, `<tmp>` and `<repo>`.
 
-Written after the run's secret search, and so not covered by it: this file, `part-d-way-back-measured.txt` and `first-run/run-demo.txt` (the first run searched its own log for its own four secrets, with no hit; only paths were replaced in it since). None was written from anything that held a secret.
+Written after the run's secret search, and so not covered by it: this file, `part-d-way-back-measured.txt` and `first-run/run-demo.txt` (the first run searched its own log for its own four secrets, with no hit; only paths were replaced in it since), and everything added with the controls, the full checks and the reopened packages. None was written from anything that held one of the run's secrets: those were made by the run and are gone with it. The reruns of 2.1 and 0.5 made passwords of their own, in memory, never printed; their logs were searched for the forms such a password takes, with no hit.
 
 ## Checked and assumed
 
 - **Checked by the run:** everything in the table above, on real containers, with the builder that made the export stopped and its data deleted; and the two failures of the door's side.
-- **Not checked:** a clean machine (the copy's build here took every step from layers made earlier on this machine; with an empty build cache and an empty npm store it would download its packages: inferred, milestone 6); another machine; that the exported app cannot reach the owner's 4020 (inferred from the 127.0.0.1 listener, not probed); the Arabic, by a reader of Arabic; the run by a reviewer.
+- **Checked after the run:** the controls (75, each failed its test), the full checks and the reopened packages, above.
+- **Not checked:** a clean machine (the copy's build here took every step from layers made earlier on this machine; with an empty build cache and an empty npm store it would download its packages: inferred, milestone 6); another machine; that the exported app cannot reach the owner's 4020 (inferred from the 127.0.0.1 listener, not probed); the Arabic, by a reader of Arabic; the run by a reviewer; five checks of the check from the copy, which no test sees (gap 204).
 - **Assumed:** that a CACHED install step built on Docker's default network from npm's store counts as "the builder stopped" is question 23, the owner's.
 
 ## Not done
@@ -125,4 +188,5 @@ Written after the run's secret search, and so not covered by it: this file, `par
   - questions 23 to 25 are open;
   - package 3.1 is not tested;
   - the review by risk (design section 8) has not been done.
-- The records (status, questions, decisions, known gaps) are not updated here: section 13 lists what they need.
+- `docs/STATUS.md` and `docs/QUESTIONS.md` are not updated here (section "Records"). Points (3) and (19) of the decisions also belong on the questions file's "Yours to confirm".
+- No test was written for the five checks gap 204 names.

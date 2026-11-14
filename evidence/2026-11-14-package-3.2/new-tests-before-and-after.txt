@@ -505,3 +505,10 @@ containers, images, volumes and networks were the same after the run as before i
  Test Files  1 passed (1)
       Tests  10 passed (10)
    Duration  143.25s (tests 100%)
+
+## Part E: the controls, the full checks, the reopened packages and the records, 14 Nov 2026
+
+No new test, and no test changed, in this part: it adds only the controls' script (`controls-scripts/controls.py`),
+the full checks' script (`full-checks.sh`), the reruns of packages 2.1 and 0.5 (`reopened/`) and the records. So the
+tests-first step does not apply. The five checks of the check from the copy that the controls found with no test of
+their own (`controls-output.txt`, P1 to P5) are recorded in known gap 204; their tests, when written, come first.
