@@ -1,0 +1,27 @@
+Real run of docs/environment/vibe-build-setup.sh at 12034c3, as root, under the shared test lock, 2026-11-14T06:36:03Z
+Before: dockerd running: yes; containers: 0
+bash: line 6: /var/log/vibe-build-setup.log: No such file or directory
+The script exited with code 0 after 2 s.
+Its log lines from this run:
+  2026-11-14T06:36:03Z setup start
+  2026-11-14T06:36:03Z service docker start exit=0
+  2026-11-14T06:36:04Z node:22-alpine tag exit=0
+  2026-11-14T06:36:04Z node:22-alpine@sha256:0e1754758c2df4cfa3e68d59e2e1b7374bb7fd9ea6328eaaacf15cc934af8202 exit=0
+  2026-11-14T06:36:04Z postgres:16-alpine tag exit=0
+  2026-11-14T06:36:04Z postgres:16-alpine@sha256:aa6cb33cf4c19c765cefcf48d96176258800870a9a1e930ad126200f9d825139 exit=0
+  2026-11-14T06:36:05Z service docker stop exit=0
+  2026-11-14T06:36:05Z setup end
+After the script: dockerd running: yes
+Approved images present, by digest:
+  node:22-alpine sha256:0e1754758c2df4cfa3e68d59e2e1b7374bb7fd9ea6328eaaacf15cc934af8202
+  postgres:16-alpine sha256:aa6cb33cf4c19c765cefcf48d96176258800870a9a1e930ad126200f9d825139
+Docker started again for this session (nohup dockerd): answering at 2026-11-14T06:36:05Z
+Approved images present, by digest, after the restart:
+  node:22-alpine sha256:0e1754758c2df4cfa3e68d59e2e1b7374bb7fd9ea6328eaaacf15cc934af8202
+  postgres:16-alpine sha256:aa6cb33cf4c19c765cefcf48d96176258800870a9a1e930ad126200f9d825139
+
+--- Read by Claude Code after the run (14 Nov 2026) ---
+* The "No such file or directory" line comes from the wrapper counting the log's lines before the run: the log did not exist yet, so the setup script had never run on this machine before (consistent with docs/ENVIRONMENT-CHECK.md: it does not run when a session's machine is restored).
+* Every step ran and logged exit code 0 within 2 s: the images were already present, so nothing was downloaded.
+* `service docker stop` returned 0 but did NOT stop Docker here: after the script, the daemon started by hand at this machine's restart (process 266, `nohup dockerd`) was still running; Docker's init script stops only a daemon it started itself. The wrapper's own `nohup dockerd` then failed harmlessly ("process with PID 266 is still running"), and Docker went on answering. On a fresh machine the script starts Docker with `service docker start`, so its stop is expected to work there: not shown.
+* Shown by this run: the fixed script runs to its end on the real machine, with each step's exit code logged, and the two approved images present at their digests. Not shown: a hang on the real machine (shown only with stand-ins, hang-test.txt), and the cloud service running the script by itself for a fresh session.

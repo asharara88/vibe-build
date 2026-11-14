@@ -1,0 +1,14 @@
+Hang test, 2026-11-14T05:14:29Z. Stand-ins: service hangs; docker tag hangs; docker info and docker pull succeed at once.
+BEFORE (the integration branch at bdfd911): did NOT finish within 240 s (stopped by the test's own limit)
+  its log:
+    2026-11-14T05:14:29Z setup start
+AFTER (docs/environment/vibe-build-setup.sh): finished by itself in 105 s, exit code 0
+  its log:
+    2026-11-14T05:18:29Z setup start
+    2026-11-14T05:19:29Z service docker start exit=124
+    2026-11-14T05:19:44Z node:22-alpine tag exit=124
+    2026-11-14T05:19:44Z postgres:16-alpine tag exit=124
+    2026-11-14T05:19:44Z node:22-alpine@sha256:0e1754758c2df4cfa3e68d59e2e1b7374bb7fd9ea6328eaaacf15cc934af8202 exit=0
+    2026-11-14T05:19:44Z postgres:16-alpine@sha256:aa6cb33cf4c19c765cefcf48d96176258800870a9a1e930ad126200f9d825139 exit=0
+    2026-11-14T05:20:14Z service docker stop exit=124
+    2026-11-14T05:20:14Z setup end
