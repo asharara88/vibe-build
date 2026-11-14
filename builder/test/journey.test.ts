@@ -36,6 +36,7 @@ import { migrate } from "../src/store/migrate.js";
 import { appendEvent, listEvents } from "../src/store/events.js";
 import { getBudget, listStepHolds, openStepHold } from "../src/store/holds.js";
 import { createProject } from "../src/store/projects.js";
+import { dropTestDatabase } from "./drop-test-db.js";
 import { testPool, TEST_DB_URL, uniqueId } from "./helpers.js";
 
 const builderDir = resolve(import.meta.dirname, "..");
@@ -2183,7 +2184,7 @@ describe("J2 (c): the clean stop and restart, the journey's part (stand-in sandb
       drop: async () => {
         sandboxes.removeAll();
         await db.end();
-        await pool.query(`drop database if exists "${name}" with (force)`);
+        await dropTestDatabase(pool, name);
       },
     };
   }

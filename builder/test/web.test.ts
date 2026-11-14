@@ -28,6 +28,7 @@ import { journeyFolder } from "../src/web/files.js";
 import { holdInstanceLock, LOCK_LOST, readSettings, SCRUBBED, startRecoveryLines, stopAfterLockLost, StopFlag, stopOnSignal, stopSignalHandler, unavailableReason } from "../src/web/main.js";
 import { frontTexts, messageKeys, t } from "../src/web/pages.js";
 import { LivePreview } from "../src/web/preview.js";
+import { dropTestDatabase } from "./drop-test-db.js";
 import { testPool, TEST_DB_URL, uniqueId } from "./helpers.js";
 import { BROKEN_STEP_ID, changeSetFolders, FAILED_STEP, FAILED_SUMMARY, PASSED_SUMMARY, StandInSandboxes } from "./journey-stand-ins.js";
 
@@ -1286,7 +1287,7 @@ describe("J1 interface: the instance lock lost while the interface serves (revie
       expect(await answers(on.previewPort)).toBe(false);
     } finally {
       for (const p of procs) if (p.exitCode === null && p.signalCode === null) p.kill("SIGKILL");
-      await pool.query(`drop database if exists "${dbName}" with (force)`);
+      await dropTestDatabase(pool, dbName);
       rmSync(dir, { recursive: true, force: true });
     }
   });
@@ -1382,7 +1383,7 @@ describe("J1 interface: the instance lock lost while the interface serves (revie
     } finally {
       for (const p of procs) if (p.exitCode === null && p.signalCode === null) p.kill("SIGKILL");
       await db.end();
-      await pool.query(`drop database if exists "${dbName}" with (force)`);
+      await dropTestDatabase(pool, dbName);
       rmSync(dir, { recursive: true, force: true });
     }
   });
@@ -2192,7 +2193,7 @@ describe("J2 (c) interface: the clean stop and restart (stand-in sandboxes, no c
       drop: async () => {
         sandboxes.removeAll();
         await db.end();
-        await pool.query(`drop database if exists "${name}" with (force)`);
+        await dropTestDatabase(pool, name);
       },
     };
   }
