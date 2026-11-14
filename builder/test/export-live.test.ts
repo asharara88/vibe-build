@@ -104,15 +104,20 @@ function startCopy(dir: string, command: string): Started {
   return { child, output, ended };
 }
 
-/** Wait for the copy's app to be healthy by Compose (up to 10 min), failing at once if the command ends. */
+/**
+ * Wait for the copy's start to be complete by Compose (up to 10 min): the app healthy and the door, which starts only
+ * once the app is healthy, running. Fails at once if the command ends.
+ */
 async function waitHealthy(dir: string, s: Started): Promise<void> {
   let ended = false;
   void s.ended.then(() => (ended = true));
   const until = Date.now() + 600_000;
   while (Date.now() < until) {
     if (ended) throw new Error(`The README's command ended before the app was healthy. Its last lines:\n${s.output.slice(-40).join("\n")}`);
-    const app = (await composePs(dir).catch(() => [])).find((c) => c.Service === "app");
-    if (app?.State === "running" && app.Health === "healthy") return;
+    const ps = await composePs(dir).catch(() => []);
+    const app = ps.find((c) => c.Service === "app");
+    const door = ps.find((c) => c.Service === "door");
+    if (app?.State === "running" && app.Health === "healthy" && door?.State === "running") return;
     await new Promise((r) => setTimeout(r, 2000));
   }
   throw new Error(`The app was not healthy after 10 minutes. The command's last lines:\n${s.output.slice(-40).join("\n")}`);
