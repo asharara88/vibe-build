@@ -40,6 +40,9 @@
  *   sign-out of the builder sign-in session that asked for it cancels it; the preview looks at that, and at whether the
  *   sign-in session still reads as valid, with nothing awaited between that look and the session being opened; and
  *   if the session has ended by the time its opening is recorded, its pass is not returned.
+ * - After the review of 14787d8 (known gap 161, the owner's choice): "Open the live app" is refused once the project is
+ *   signed off (journey.ts, `JOB_RULES.live`); attaching the preview gives the journey the way to end a project's live
+ *   session, and wait for its close to be recorded, before its sign-off is recorded (journey.ts, `signOff`).
  */
 import { chmodSync, chownSync, closeSync, constants, fstatSync, mkdirSync, openSync, readSync, rmSync, writeFileSync } from "node:fs";
 import { randomBytes } from "node:crypto";
@@ -124,9 +127,13 @@ export class JourneyJobs {
     this.j = o.journey;
   }
 
-  /** Package J3: the live preview this interface runs (main.ts). Without it, "Open the live app" is refused. */
+  /**
+   * Package J3: the live preview this interface runs (main.ts). Without it, "Open the live app" is refused. After the
+   * review of 14787d8: the journey ends a project's live session with it before recording the project's sign-off.
+   */
   attachPreview(p: LivePreview): void {
     this.live = p;
+    this.j.attachLiveEnd((projectId, reason) => p.closeFor(projectId, reason));
   }
 
   /**
