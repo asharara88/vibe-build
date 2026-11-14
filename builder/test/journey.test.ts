@@ -1939,6 +1939,39 @@ describe("J2 (a): the broken copy rejected (stand-in sandboxes, each with its ow
     expect(existsSync(join(builderDir, "made-up-sandbox"))).toBe(false);
   });
 
+  it("A4c (after J2's second review): the target check refuses a link at any folder the copy goes through (engine-change-sets, its example-1, the step's own folder), so the broken step is never copied through a link to somewhere else; plain folders pass; the real adapter's own check refuses too, before anything is copied", async () => {
+    const elsewhere = mkdtempSync(join(tmpdir(), "builder-link-target-"));
+    outside.push(elsewhere);
+    const sandbox = (make: (own: string) => void) => {
+      const dir = mkdtempSync(join(tmpdir(), "builder-link-sandbox-"));
+      outside.push(dir);
+      make(join(dir, "engine-change-sets"));
+      return { dir, changeSets: join(dir, "engine-change-sets") };
+    };
+    // Plain folders, as makeExample1 makes them, with and without the step's own folder: accepted.
+    expect(brokenStageTargetProblem(sandbox((own) => mkdirSync(join(own, "example-1"), { recursive: true })))).toBeNull();
+    expect(brokenStageTargetProblem(sandbox((own) => mkdirSync(join(own, "example-1", BROKEN), { recursive: true })))).toBeNull();
+    // example-1 is a link to another folder: refused, and named.
+    const linkedExample = sandbox((own) => {
+      mkdirSync(own);
+      symlinkSync(elsewhere, join(own, "example-1"));
+    });
+    expect(brokenStageTargetProblem(linkedExample)).toBe(`a folder the broken step would be copied through is a link, not a folder (${join(linkedExample.changeSets, "example-1")})`);
+    // The step's own folder is a link: refused.
+    const linkedStep = sandbox((own) => {
+      mkdirSync(join(own, "example-1"), { recursive: true });
+      symlinkSync(elsewhere, join(own, "example-1", BROKEN));
+    });
+    expect(brokenStageTargetProblem(linkedStep)).toMatch(/is a link, not a folder/);
+    // engine-change-sets itself is a link to a folder outside builder/: refused (before, only a link into builder/ was).
+    expect(brokenStageTargetProblem(sandbox((own) => symlinkSync(elsewhere, own)))).toMatch(/is a link, not a folder/);
+    // The real adapter's own check, in front of the copy (no container is started by it): the same refusals.
+    const adapter = example1Sandboxes();
+    await expect(adapter.stageBrokenStep({ ...linkedExample, projectId: "j1-0123456789ab" } as unknown as ProjectSandbox)).rejects.toThrow(/^The broken step was not staged: a folder the broken step would be copied through is a link, not a folder/);
+    await expect(adapter.stageBrokenStep({ dir: linkedStep.dir, changeSets: elsewhere, projectId: "j1-0123456789ab" } as unknown as ProjectSandbox)).rejects.toThrow(/^The broken step was not staged: the sandbox's change-set folder is not its own folder's engine-change-sets/);
+    expect(readdirSync(elsewhere)).toEqual([]);
+  });
+
   it("A4: the job checks the state again before staging: given a state without the honoured choice, or without step 2's approval, it refuses and stages nothing", async () => {
     const { j, jobs, setDoctor } = make();
     const id = await broken(j);
@@ -2261,6 +2294,10 @@ describe("J2 (c): the clean stop and restart, the journey's part (stand-in sandb
     expect(projectLeftovers(P, { ...none, images: [{ repository: `builder_${P}-other`, tag: "made-up" }] }, [], gone)).toEqual([`image builder_${P}-other:made-up`]);
     expect(projectLeftovers(P, none, [{ pid: 4242, args: `docker compose -p builder_${P} up --detach app` }], gone)).toEqual([`process 4242 docker compose -p builder_${P} up --detach app`]);
     expect(projectLeftovers(P, none, [], { ...gone, exists: true })).toEqual(["folder /made-up/builder-acceptance-p"]);
+    // After J2's second review: a Compose command of the builder's own names the sandbox's folder, not the project's Compose name.
+    expect(projectLeftovers(P, none, [{ pid: 4243, args: "docker compose -f /made-up/builder-acceptance-p/compose.yaml down --volumes" }], gone)).toEqual(["process 4243 docker compose -f /made-up/builder-acceptance-p/compose.yaml down --volumes"]);
+    expect(projectLeftovers(P, none, [{ pid: 4244, args: "docker compose -f /made-up/builder-acceptance-q/compose.yaml down --volumes" }], gone)).toEqual([]);
+    expect(projectLeftovers(P, none, [{ pid: 4245, args: "docker compose -f /made-up/builder-acceptance-p/compose.yaml down" }], { path: null, exists: false })).toEqual([]);
     // Nothing of another project, nor a name that only starts the same way without the separator.
     const others = {
       containers: [{ name: `builder_${Q}-app-1`, composeProject: `builder_${Q}` }, { name: `builder_${P}x-app-1`, composeProject: `builder_${P}x` }],

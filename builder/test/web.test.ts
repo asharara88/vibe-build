@@ -13,7 +13,7 @@ import { join, resolve } from "node:path";
 import type pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { openStore, sha256, STAND_IN_NOTE } from "../src/acceptance/store.js";
-import { EV, EXPORT_LABEL, Journey } from "../src/orchestrator/journey.js";
+import { APPROVE_INTERRUPTED, EV, EXPORT_LABEL, Journey } from "../src/orchestrator/journey.js";
 import { JourneyJobs, PRICED_MODEL, REFUSAL_EXTRA } from "../src/orchestrator/journey-jobs.js";
 import { createPool } from "../src/store/db.js";
 import { appendEvent, listEvents } from "../src/store/events.js";
@@ -1869,6 +1869,8 @@ describe("J2 (a) interface: the broken-copy demonstration's screens (stand-in sa
       expect(demoPanel[0], lang).toMatch(/^class="panel sim" data-panel="simulated">/);
       expect(demoPanel[0], lang).toContain(`<h2>${esc(t(lang, "demo.title"))}<span class="badge">`);
       expect(demoPanel[0], lang).toContain(esc(t(lang, "demo.intro")));
+      // After J2's second review: the limit of the demonstration is on the screen, not only in the documents.
+      expect(demoPanel[0], lang).toContain(`<p class="note" data-demo-limit>${esc(t(lang, "demo.limit"))}</p>`);
       expect(demoPanel[0], lang).toContain(`<button type="submit" class="">${esc(t(lang, "demo.button"))}</button>`);
       expect(demoPanel[0], lang).not.toContain('href="/projects/new"');
       expect(demoPanel[0]!.match(/<form /g), lang).toHaveLength(1);
@@ -1876,6 +1878,7 @@ describe("J2 (a) interface: the broken-copy demonstration's screens (stand-in sa
     }
     expect(t("en", "demo.title")).toBe("Simulated build");
     expect(t("en", "demo.button")).toBe("Start the broken-copy demonstration");
+    expect(t("en", "demo.limit")).toBe("What this shows, and what it does not: Claude Code wrote both the planted defect and the test, each knowing the other. A failed run here shows the checklist's runner rejecting this one defect. It does not show that the checklist catches defects in general.");
     expect(t("en", "demo.intro")).toBe("Builds example 1 with one more step that Claude Code broke on purpose: a new request is saved as Approved instead of Waiting. The steps are fixed changes written in advance; no AI model is called. The checklist run on it is real. It is never signed off or exported.");
     // The New project form: the same three fields as before.
     const form = await page(app, "/projects/new", cookie);
@@ -1966,6 +1969,7 @@ describe("J2 (a) interface: the broken-copy demonstration's screens (stand-in sa
       for (const n of [2, 3, 4, 5, 6]) expect(new RegExp(`<tr data-item="${n}" data-status="did not run" data-shown="did_not_run">`).test(html), `${lang} item ${n}`).toBe(true);
       expect(html, lang).toContain(esc(t(lang, "acceptance.sign_off_not_yet")));
       expect(html, lang).toContain(`data-broken-never>${esc(t(lang, "broken.never_signed_off"))}<`);
+      expect(html, lang).toContain(`<p class="note" data-demo-limit>${esc(t(lang, "demo.limit"))}</p>`);
       expect(html, lang).not.toContain(`action="/projects/${id}/sign-off"`);
       expect(html, lang).not.toContain(`href="/projects/${id}/export"`);
     }
@@ -2166,7 +2170,7 @@ describe("J2 (c) interface: the clean stop and restart (stand-in sandboxes, no c
   /** The reason the record gives for a sandbox removed at a clean stop (final design, section 4.1, item 5). */
   const AT_STOP = "The interface was stopped on purpose; this project's containers, images and folder were removed at the stop. It is not resumed.";
   const STOPPED_PART_WAY = "stopped part-way when the interface stopped; not resumed";
-  const NO_JOB = "The interface stopped while this project's app was set up or running. Its containers were removed; nothing is resumed. Close the project, or start a new one.";
+  const NO_JOB = "The interface stopped while this project's app was set up or running. Its containers are removed at the stop or at the next start; nothing is resumed. Close the project, or start a new one.";
   const WITH_JOB = "A job of this project was interrupted when the interface stopped. It is not resumed. Close the project, or start a new one.";
   const interruptedFor = (sig: string) => `The interface stopped while this job ran: The interface was stopped on purpose (${sig}). The job was stopped part-way and is not resumed.`;
 
@@ -2338,6 +2342,37 @@ describe("J2 (c) interface: the clean stop and restart (stand-in sandboxes, no c
       expect(f.sandboxes.destroyedRecorded).toEqual([]);
       expect(log.join("\n")).toContain("No job was running.");
       expect(log).toContain("Projects with a sandbox, marked interrupted and removed at the stop: 1.");
+    } finally {
+      await f.drop();
+    }
+  });
+
+  it("C12 (after J2's second review): at a stop the journey is halted before the live preview's stop is awaited; and a step of the project the stop marked interrupted is not approved afterwards, by a new interface on the same record: refused with the reason, nothing written", async () => {
+    const f = await freshDb();
+    try {
+      const calls: string[] = [];
+      const log: string[] = [];
+      const { j, jobs } = make(f, calls);
+      const idleId = await idle(j, jobs, "Idle, step 1 built and not approved (made-up)");
+      let haltedWhenThePreviewStopped: string | null = "the preview's stop was not called";
+      const preview = {
+        stop: async () => {
+          haltedWhenThePreviewStopped = j.halted();
+          calls.push("preview stopped");
+        },
+      };
+      await stopOnSignal("SIGTERM", { ...stopOpts(j, calls, log), preview });
+      expect(haltedWhenThePreviewStopped).toBe("The interface was stopped on purpose (SIGTERM).");
+      expect(calls).toEqual(["server closed", "preview stopped", `removed ${idleId}`, "lock released", "pool ended", "exit 0"]);
+      // As after a restart: a new journey on the same record. Step 1 ran to its end and was never approved.
+      const again = make(f, []);
+      const s = await again.j.state(idleId);
+      expect(s.interrupted).toBe(true);
+      expect(s.stepJobs.get("01-data")?.state).toBe("finished");
+      const before = (await listEvents(f.db, idleId)).length;
+      await expect(again.j.approveStep(idleId, "01-data")).rejects.toThrow(APPROVE_INTERRUPTED);
+      expect((await listEvents(f.db, idleId)).length).toBe(before);
+      expect(await listEvents(f.db, idleId, EV.stepApproved)).toEqual([]);
     } finally {
       await f.drop();
     }
