@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Package 0.6c, the run in real containers (14 Nov 2026): controls RC1 to RC10.
+"""Package 0.6c, the run in real containers (14 Nov 2026): controls RC1 to RC10, and RC11 to RC21, added after the review.
 
 Each control removes ONE safeguard by exact text replacement on a scratch copy of the commit, runs the test that
 covers it (expected: FAIL), restores the file, and checks that the copy's tree is byte for byte what it was. For the
@@ -13,15 +13,32 @@ The copy is made by checks/make-run-copy.sh (git archive of the commit, with nod
 door's containers mount builder/ and cannot follow the worktree's link to node_modules (measurements/M0).
 
 Usage: controls-real.py <worktree> <commit> <work-dir> <out-file> <test-database-name> [only-ids...]
-Run with TMPDIR, BUILDER_BROWSER_CACHE and NO_COLOR set as for every other run of this change."""
-import datetime, hashlib, os, subprocess, sys
+Run with TMPDIR, BUILDER_BROWSER_CACHE and NO_COLOR set as for every other run of this change.
+
+Changed after the review of 14 Nov 2026 (the output kept beside this script, controls-real-RC1-RC10.txt, was made by
+the script as it stood at commit 871fa93; the output in ../after-review/ by this version):
+- it stops when TMPDIR is not set. Before, it fell back to /tmp, where its clean-up after RC9 removes folders by the
+  start of their names, and other sessions' project folders can be there;
+- a copy that is already in the work folder is used only if a marker beside it names the same commit. Before, any
+  folder there was taken for a copy of the commit named in the output's heading;
+- RC10's text follows the code (the image guard now takes exact names);
+- RC11 to RC21, for the safeguards added after the review. RC20 and RC21 do not remove a safeguard: each puts a
+  fault on the machine (something left under a project's name; port 4041 taken) and the test must fail, naming it."""
+import datetime, hashlib, os, socket, subprocess, sys
 
 wt, commit, work, out, dbname = sys.argv[1:6]
 only = set(sys.argv[6:])
+if not os.environ.get("TMPDIR") or not os.path.isdir(os.environ["TMPDIR"]):
+    sys.exit("TMPDIR is not set to a folder of this change's own; the controls do not run (their clean-up removes folders in it by name).")
 HERE = os.path.dirname(os.path.abspath(__file__))
 copy = os.path.join(work, "copy")
+marker = os.path.join(work, "copy-is-of-commit.txt")
+full = subprocess.run(["git", "-C", wt, "rev-parse", commit + "^{commit}"], check=True, capture_output=True, text=True).stdout.strip()
 if not os.path.isdir(copy):
     subprocess.run([os.path.join(HERE, "make-run-copy.sh"), wt, commit, copy], check=True, capture_output=True)
+    open(marker, "w").write(full + "\n")
+elif not os.path.isfile(marker) or open(marker).read().strip() != full:
+    sys.exit(f"{copy} is already there and is not marked as a copy of commit {full}; the controls do not run on it. Remove the work folder, or name another.")
 
 ISO = "builder/src/sandbox/isolation.ts"
 HARNESS = "builder/scripts/isolation-harness.ts"
@@ -35,6 +52,7 @@ PROJECT = "builder_p_iso06c_real"
 IMPORT_OLD = 'import { afterAll, describe, expect, it } from "vitest";\n'
 IMPORT_RC5 = IMPORT_OLD + 'import { spawnSync as controlSpawnSync } from "node:child_process";\nimport { buildStandIns as controlBuildStandIns } from "../scripts/isolation-harness.js";\n'
 IMPORT_RC7 = IMPORT_OLD + 'import { probeService as controlProbeService } from "../scripts/isolation-harness.js";\n'
+IMPORT_RC20 = IMPORT_OLD + 'import { spawnSync as controlSpawnSync } from "node:child_process";\nimport { DEFAULT_IMAGES as controlImages } from "../src/sandbox/manager.js";\n'
 
 CONTROLS = [
     # id, what is removed, [(file, old text, new text), ...], [(test file, test name filter), ...], words the failing output must hold, live?
@@ -78,9 +96,54 @@ CONTROLS = [
      [(LIVE, '  if (missing.length) throw new Error(MISSING_WORDS + missing.join(" "));\n', "  if (missing.length) return;\n")],
      [(GATE, "the live isolation test file for the real containers")], [], False),
     ("RC10", "the harness never removes an image that is not its own project's",
-     [(HARNESS, "  const notOurs = images.filter((image) => !image.startsWith(`${sb.projectName}-`));\n  if (notOurs.length) throw new Error(`The isolation harness removes only images of its own project (${sb.projectName}-...); refused: ${notOurs.join(\", \")}.`);\n", "")],
+     [(HARNESS, "  const notOurs = images.filter((image) => !ownImageNames(sb).includes(image));\n  if (notOurs.length) throw new Error(`The isolation harness removes only images of its own project (${sb.projectName}-...); refused: ${notOurs.join(\", \")}.`);\n", "")],
      [(UNIT, "removeImages refuses a name")], [], False),
+    # Added after the review of 14 Nov 2026.
+    ("RC11", "the running app's list allows ONE port at 127.0.0.11: the name-server entry's `single` mark removed",
+     [(ISO, "target: /^127\\.0\\.0\\.11:\\d+$/, single: true, why:", "target: /^127\\.0\\.0\\.11:\\d+$/, why:")],
+     [(UNIT, "a second listening port at 127.0.0.11 fails")], ["expected true to be false"], False),
+    ("RC12", "an entry marked `single` fails when more than one attempt meets it: the check removed",
+     [(ISO, "    if (met.length <= 1) continue;\n", "    if (met.length >= 0) continue;\n")],
+     [(UNIT, "a second listening port at 127.0.0.11 fails")], ["expected true to be false"], False),
+    ("RC13", "the preview front's stand-in fails at once on a port that is taken: its error handler removed",
+     [(HARNESS, "    server.once(\"error\", (err: NodeJS.ErrnoException) =>\n      no(new Error(`The preview front's stand-in cannot listen on 127.0.0.1:${port} (${err.code ?? err.message}). ${WHO_HOLDS_THE_PORT}`)),\n    );\n", "")],
+     [(UNIT, "on a port that is taken, fails at once")], ["it did not settle within 2 s"], False),
+    ("RC14", "the image guard takes exact names: the match on the project's name and a dash put back",
+     [(HARNESS, "  const notOurs = images.filter((image) => !ownImageNames(sb).includes(image));\n", "  const notOurs = images.filter((image) => !image.startsWith(`${sb.projectName}-`));\n")],
+     [(UNIT, "removeImages takes only the three names")], ["instead of rejecting"], False),
+    ("RC15", "removing a project leaves alone the containers of a project whose id is this id, a dash, and more: the match on the name and a dash put back",
+     [(HARNESS, "(project === projectName || names.split(\",\").some((n) => n.startsWith(`${projectName}-isolation-`)))", "names.split(\",\").some((n) => n.startsWith(`${projectName}-`))")],
+     [(UNIT, "removeImages takes only the three names")], ["id-neighbour-app"], False),
+    ("RC16", "a project's folder is removed whatever Docker said: the removal after a failure taken out",
+     [(HARNESS, "  } finally {\n    rmSync(x.dir, { recursive: true, force: true });\n  }\n  return leftOf(x.sb);\n", "  } finally {\n    /* CONTROL RC16: not removed */\n  }\n  return leftOf(x.sb);\n")],
+     [(UNIT, "destroyRealProject removes the project's folder even when Docker does not answer")], ["expected true to be false"], False),
+    ("RC17", "nothing listens on the machine at the gateway's port: the check made to see nothing",
+     [(HARNESS, "  const there = machineListeners.filter((l) => l.split(\":\").pop() === String(port));\n", "  const there: string[] = machineListeners.filter(() => false);\n")],
+     [(UNIT, "gatewayPortProblem names every listener")], ["Something listens on the machine at 127.0.0.1:4010"], False),
+    ("RC18", "what the images hold: the content check made to find nothing",
+     [(HARNESS, "    if (notThere.length) out.push(", "    if (notThere.length < 0) out.push(")],
+     [(UNIT, "imageContentProblemsFrom: nothing when every path is there")], ["the app image does not hold /app/server.js"], False),
+    ("RC19", "misconfiguration R1's in-place leg ran in the running app itself (live): a one-off container of the misconfigured app service is probed instead",
+     [(LIVE, IMPORT_OLD, IMPORT_RC7),
+      (LIVE, '      const inPlace = await probeInPlace(mis.x.sb, "app", settings);\n',
+       '      const inPlace = { lines: await controlProbeService(mis.x.sb, "app", "app-rc19", settings), sha256: { repository: "not checked in this control", inside: "not checked in this control" }, container: { before: mis.appContainer!.id, after: mis.appContainer!.id }, removed: true, encodedLength: 0 }; // CONTROL RC19\n')],
+     [(LIVE_TEST, "L6:")],
+     ["to include '0.0.0.0:3191'"], True),
+    ("RC20", "FAULT PUT IN, no safeguard removed (live): a container is left on the machine under the first project's name before L3 makes anything; L3 must fail, naming it, and start nothing",
+     [(LIVE, IMPORT_OLD, IMPORT_RC20),
+      (LIVE, "    await needsCleanStart();\n    real = await startRealProject({ projectId: PROJECT, appPort: APP_PORT, onMade });\n",
+       "    // CONTROL RC20: a container that is never started, of the approved Node image, with no network, named as a probe container of this project.\n"
+       "    controlSpawnSync(\"docker\", [\"create\", \"--name\", `builder_${PROJECT}-isolation-left-by-control`, \"--network\", \"none\", controlImages.node, \"true\"]);\n"
+       "    await needsCleanStart();\n    real = await startRealProject({ projectId: PROJECT, appPort: APP_PORT, onMade });\n")],
+     [(LIVE_TEST, "L3:")],
+     ["Something of this test's own projects was already on the machine before it made anything", "p_iso06c_real: containers: none; named containers: builder_p_iso06c_real-isolation-left-by-control; networks: none; volumes: none; images: none"], True),
+    ("RC21", "FAULT PUT IN, no safeguard removed: port 4041 on the machine is held while the live file starts; its first test must fail at once, naming the port",
+     [],
+     [(LIVE_TEST, "L1:")],
+     ["Something already accepts connections on 127.0.0.1:4041, the port the preview front's stand-in needs."], False),
 ]
+# Controls that need something held on the machine while their test runs: the port to listen on (127.0.0.1).
+HOLD_PORT = {"RC21": 4041}
 if only:
     CONTROLS = [c for c in CONTROLS if c[0] in only]
 
@@ -145,10 +208,11 @@ def dangling():
 caught = missed = notrun = 0
 before_all = tree_hash()
 with open(out, "a") as f:
-    f.write(f"# Package 0.6c, the run in real containers: controls RC1 to RC10, {datetime.datetime.now(datetime.timezone.utc).isoformat(timespec='seconds')},\n")
+    f.write(f"# Package 0.6c, the run in real containers: controls {CONTROLS[0][0]} to {CONTROLS[-1][0]} ({len(CONTROLS)} runs), {datetime.datetime.now(datetime.timezone.utc).isoformat(timespec='seconds')},\n")
     f.write(f"# on a copy of commit {commit} made with git archive (node_modules as real folders); test database {dbname}.\n")
     f.write("# Each control removes one safeguard by exact replacement, runs the test that covers it (expected: FAIL), restores the file,\n")
     f.write("# and checks the copy's tree is what it was. Unit controls: the test is then run again (expected: pass). Live controls: under the shared lock.\n")
+    f.write("# RC20 and RC21 remove nothing: each puts a fault on the machine, and the test must fail, naming it.\n")
     f.write(f"# The copy's tree before any control: sha256 {before_all}\n\n")
     for cid, what, changes, tests, must_say, live in CONTROLS:
         originals, problem = {}, None
@@ -167,7 +231,20 @@ with open(out, "a") as f:
             notrun += 1
             continue
         dangling_before = dangling() if live else set()
-        tmp_before = set(os.listdir(os.environ.get("TMPDIR", "/tmp"))) if os.path.isdir(os.environ.get("TMPDIR", "/tmp")) else set()
+        tmp_before = set(os.listdir(os.environ["TMPDIR"]))
+        held = None
+        if cid in HOLD_PORT:
+            # Held by this script for the length of the test only; it accepts no connection and sends nothing.
+            held = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            held.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            try:
+                held.bind(("127.0.0.1", HOLD_PORT[cid]))
+                held.listen(8)
+            except OSError as e:
+                held.close()
+                f.write(f"## {cid} NOT RUN: port {HOLD_PORT[cid]} could not be held by the control itself ({e})\n\n")
+                notrun += 1
+                continue
         for path, text in edited.items():
             open(os.path.join(copy, path), "w").write(text)
         try:
@@ -175,6 +252,8 @@ with open(out, "a") as f:
         finally:
             for path, text in originals.items():
                 open(os.path.join(copy, path), "w").write(text)
+            if held:
+                held.close()
         unchanged = tree_hash() == before_all
         failed = all(r.returncode != 0 for _, _, r in runs)
         output = "\n".join(r.stdout + r.stderr for _, _, r in runs)
@@ -182,13 +261,17 @@ with open(out, "a") as f:
         ok = failed and len(said) == len(must_say)
         caught += ok
         missed += not ok
-        f.write(f"## {cid}: {what}\nChanged in {', '.join(sorted(originals))}\n")
+        fault = cid in ("RC20", "RC21")
+        f.write(f"## {cid}: {what}\n" + (f"Changed in {', '.join(sorted(originals))}\n" if originals else f"No file changed; port {HOLD_PORT.get(cid)} on 127.0.0.1 held by this script while the test ran\n"))
         for test, name, r in runs:
-            verdict = "FAILED with the safeguard removed, as it should" if r.returncode != 0 else "PASSED WITH THE SAFEGUARD REMOVED (control did not catch it)"
+            if fault:
+                verdict = "FAILED with the fault put in, as it should" if r.returncode != 0 else "PASSED WITH THE FAULT PUT IN (not caught)"
+            else:
+                verdict = "FAILED with the safeguard removed, as it should" if r.returncode != 0 else "PASSED WITH THE SAFEGUARD REMOVED (control did not catch it)"
             f.write(f"Test {test} -t \"{name}\": exit {r.returncode}: {verdict}\n")
             f.write("\n".join("    " + l for l in summary(r)) + "\n")
         if must_say:
-            f.write(f"The failing output must name what was removed: {len(said)} of {len(must_say)} expected texts found\n")
+            f.write(f"The failing output must name {'the fault' if fault else 'what was removed'}: {len(said)} of {len(must_say)} expected texts found\n")
             for w in must_say:
                 line = next((l.strip()[:300] for l in output.splitlines() if w in l), None)
                 f.write(f"    {'found' if w in said else 'NOT FOUND'}: {w}\n" + (f"        in: {line}\n" if line else ""))
@@ -198,9 +281,9 @@ with open(out, "a") as f:
                 r2 = vitest(test, name, 900)
                 f.write(f"Restored, test {test} -t \"{name}\": exit {r2.returncode}: {counts(r2)}\n")
             if cid == "RC9":
-                # With the check silenced and no Docker, the live file's tests make project folders they cannot then remove.
-                tmp = os.environ.get("TMPDIR", "/tmp")
-                stray = sorted(set(os.listdir(tmp)) - tmp_before) if os.path.isdir(tmp) else []
+                # With the check silenced and no Docker, the live file's tests could make project folders they cannot then remove.
+                tmp = os.environ["TMPDIR"]
+                stray = sorted(set(os.listdir(tmp)) - tmp_before)
                 for name in stray:
                     if name.startswith(("builder-acceptance-", "bpc-")):
                         subprocess.run(["rm", "-rf", os.path.join(tmp, name)])
@@ -212,6 +295,6 @@ with open(out, "a") as f:
             f.write(f"Images left without a name by the run: {', '.join(sorted(new_dangling)) or 'none'}\n")
         f.write("\n")
         f.flush()
-    f.write(f"# Summary: {len(CONTROLS)} controls; {caught} failed with their safeguard removed, as they should; {missed} passed with it or did not name what was removed; {notrun} not run.\n")
+    f.write(f"# Summary: {len(CONTROLS)} controls; {caught} failed with their safeguard removed (or their fault put in), as they should; {missed} passed with it or did not name what was removed; {notrun} not run.\n")
     f.write(f"# The copy's tree after all controls: sha256 {tree_hash()} ({'unchanged' if tree_hash() == before_all else 'CHANGED'})\n")
 print(f"done: {caught} caught, {missed} missed, {notrun} not run")

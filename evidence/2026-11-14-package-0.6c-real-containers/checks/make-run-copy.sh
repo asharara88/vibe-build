@@ -13,6 +13,10 @@
 set -euo pipefail
 WT=$1; WHAT=$2; DEST=$3
 case "$DEST" in */scratchpad/*) ;; *) echo "the destination must be inside a scratchpad folder" >&2; exit 2;; esac
+# After the review of 14 Nov 2026: the destination is removed first (rm -rf), and every session's folders on this
+# machine are inside a scratchpad folder, so that guard alone would let this remove another session's folder. The
+# destination's last part must be one of the names this change's own scripts use.
+case "$(basename "$DEST")" in run06c|copy|try06c) ;; *) echo "the destination's last part must be run06c, copy or try06c (this change's own names); nothing was removed" >&2; exit 2;; esac
 rm -rf "$DEST"; mkdir -p "$DEST"
 if [ "$WHAT" = worktree ]; then
   (cd "$WT" && git ls-files -co --exclude-standard -z | tar --null -T - -cf -) | tar -x -C "$DEST"

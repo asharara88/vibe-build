@@ -9,11 +9,25 @@
 # shared with other sessions (SCRATCH/live-tests.lock). The whole suite (`npm test` with no file) is NOT a step
 # here: it is run once, later, by someone else.
 #
-# Steps: copy typecheck unit gate licences live isolation-full demo controls-kept controls-real
+# Steps: copy typecheck unit gate licences images live isolation-full demo controls-kept controls-real
+#
+# Changed after the review of 14 Nov 2026 (the outputs kept in this folder were made by this script as it stood at
+# commit 9a1242f; those in ../after-review/ by this version):
+# - a step that is run before the copy exists stops with exit code 2. Before, it went on in whatever folder the
+#   caller was in, which could have been another working copy;
+# - the step "images" (the scan for container images that are not on the approved list). Before, that scan was run
+#   by hand, with the command its output file names in its own heading;
+# - OUT names the folder the outputs go to (default: this folder), DEMO_OUT the demonstration's folder (default:
+#   ../demo), RC_NAME the name of the controls' output (default: controls-real-RC1-RC10), so that a later run does
+#   not write over the outputs of an earlier one.
 set -uo pipefail
 : "${WT:?}" "${COMMIT:?}" "${SCRATCH:?}" "${DB:?}" "${TMPDIR:?}" "${BUILDER_BROWSER_CACHE:?}"
-HERE=$(cd "$(dirname "$0")" && pwd)
-E=$(dirname "$HERE")
+SCRIPTS=$(cd "$(dirname "$0")" && pwd)
+E=$(dirname "$SCRIPTS")
+HERE=${OUT:-$SCRIPTS}
+DEMO_OUT=${DEMO_OUT:-$E/demo}
+RC_NAME=${RC_NAME:-controls-real-RC1-RC10}
+mkdir -p "$HERE"
 COPY=$SCRATCH/run06c
 LOCK=$SCRATCH/live-tests.lock
 SHORT=$(git -C "$WT" rev-parse --short "$COMMIT")
@@ -26,10 +40,12 @@ locked() { flock "$LOCK" bash -c "echo \"Lock held from \$(date -u +%H:%M:%S) UT
 objects() { echo "$1: $(docker ps -aq | wc -l) containers; images: $(docker images --format '{{.Repository}}:{{.Tag}}' | sort | tr '\n' ' ')"; }
 
 for step in "$@"; do
-  cd "$COPY/builder" 2>/dev/null || true
+  if [ "$step" != copy ]; then
+    cd "$COPY/builder" 2>/dev/null || { echo "step $step: the copy $COPY/builder is not there; run the step \"copy\" first. Nothing was run." >&2; exit 2; }
+  fi
   case "$step" in
     copy)
-      "$HERE/make-run-copy.sh" "$WT" "$COMMIT" "$COPY" ;;
+      "$SCRIPTS/make-run-copy.sh" "$WT" "$COMMIT" "$COPY" ;;
     typecheck)
       { head_of "The type check." "npm run typecheck; then scripts/demo-isolation.ts and the two measurement scripts, which the project's own settings do not cover, checked with the same options"
         npm run typecheck; echo "exit code: $?"
@@ -37,7 +53,7 @@ for step in "$@"; do
         npx tsc --ignoreConfig --noEmit --target ES2022 --module NodeNext --moduleResolution NodeNext --strict --noUncheckedIndexedAccess --esModuleInterop --skipLibCheck --types node --typeRoots ./node_modules/@types --allowImportingTsExtensions scripts/demo-isolation.ts ../evidence/2026-11-14-package-0.6c-real-containers/measurements/measure-first.mts ../evidence/2026-11-14-package-0.6c-real-containers/measurements/measure-seen.mts; echo "exit code: $?"
       } > "$HERE/run-typecheck.txt" 2>&1; tidy "$HERE/run-typecheck.txt" ;;
     unit)
-      { head_of "The isolation unit tests (no container): every test of test/isolation.test.ts whose group is marked (unit), the seven new ones among them." "$VITEST test/isolation.test.ts -t unit --reporter=verbose"
+      { head_of "The isolation unit tests (no container): every test of test/isolation.test.ts whose group is marked (unit)." "$VITEST test/isolation.test.ts -t unit --reporter=verbose"
         $VITEST test/isolation.test.ts -t unit --reporter=verbose; echo "exit code: $?"
       } > "$HERE/run-unit-tests.txt" 2>&1; tidy "$HERE/run-unit-tests.txt" ;;
     gate)
@@ -48,6 +64,10 @@ for step in "$@"; do
       { head_of "The licence check. No dependency is added by this change." "npm run check:licences"
         npm run check:licences; echo "exit code: $?"
       } > "$HERE/run-licences.txt" 2>&1; tidy "$HERE/run-licences.txt" ;;
+    images)
+      { head_of "The scan for container images that are not on the approved list (test/approved-images.test.ts), which reads builder/src, builder/scripts and builder/test, the new files among them. No container." "$VITEST test/approved-images.test.ts --reporter=verbose"
+        $VITEST test/approved-images.test.ts --reporter=verbose; echo "exit code: $?"
+      } > "$HERE/run-approved-images.txt" 2>&1; tidy "$HERE/run-approved-images.txt" ;;
     live)
       { head_of "The new live file: the probe inside the real containers (L1 to L10). Under the shared lock." "flock <scratchpad>/live-tests.lock $VITEST test/isolation-real-live.test.ts --reporter=verbose"
         echo "Free disk before: $(df -h / | tail -1)"; objects "Before"
@@ -61,10 +81,10 @@ for step in "$@"; do
         objects "After"
       } > "$HERE/run-isolation-test-full.txt" 2>&1; tidy "$HERE/run-isolation-test-full.txt" ;;
     demo)
-      mkdir -p "$E/demo"
-      { head_of "The demonstration: part A in real containers, part B in stand-in images. Under the shared lock." "flock <scratchpad>/live-tests.lock npx tsx scripts/demo-isolation.ts <this evidence folder>/demo"
-        locked "npx tsx scripts/demo-isolation.ts '$E/demo'"
-      } > "$E/demo/demo-isolation.txt" 2>&1; tidy "$E/demo/"* ;;
+      mkdir -p "$DEMO_OUT"
+      { head_of "The demonstration: part A in real containers, part B in stand-in images. Under the shared lock." "flock <scratchpad>/live-tests.lock npx tsx scripts/demo-isolation.ts <the demonstration's output folder>"
+        locked "npx tsx scripts/demo-isolation.ts '$DEMO_OUT'"
+      } > "$DEMO_OUT/demo-isolation.txt" 2>&1; tidy "$DEMO_OUT/"* ;;
     controls-kept)
       # The kept script, unchanged, run from the worktree (it finds its repository from its own place): it makes its own
       # copy of COMMIT with git archive. Its tests start no door, so the worktree's link to node_modules is enough.
@@ -76,13 +96,13 @@ for step in "$@"; do
       } > "$HERE/controls-kept-C1-C41-console.txt" 2>&1
       tidy "$HERE/controls-kept-C1-C41.txt" "$HERE/controls-kept-C1-C41-console.txt"; rm -rf "$SCRATCH/c06c-kept" ;;
     controls-real)
-      rm -rf "$SCRATCH/c06c-real"; rm -f "$HERE/controls-real-RC1-RC10.txt"
-      { echo "The new controls RC1 to RC10: flock <scratchpad>/live-tests.lock python3 <this folder>/controls-real.py <worktree> $SHORT <scratchpad>/c06c-real <this folder>/controls-real-RC1-RC10.txt $DB"
+      rm -rf "$SCRATCH/c06c-real"; rm -f "$HERE/$RC_NAME.txt"
+      { echo "The controls of the run in real containers: flock <scratchpad>/live-tests.lock python3 <the checks folder>/controls-real.py <worktree> $SHORT <scratchpad>/c06c-real <the output folder>/$RC_NAME.txt $DB"
         echo "Started $(date -u +%FT%TZ)."; objects "Before"
-        locked "python3 '$HERE/controls-real.py' '$WT' $COMMIT '$SCRATCH/c06c-real' '$HERE/controls-real-RC1-RC10.txt' $DB"
+        locked "python3 '$SCRIPTS/controls-real.py' '$WT' $COMMIT '$SCRATCH/c06c-real' '$HERE/$RC_NAME.txt' $DB"
         objects "After"
-      } > "$HERE/controls-real-RC1-RC10-console.txt" 2>&1
-      tidy "$HERE/controls-real-RC1-RC10.txt" "$HERE/controls-real-RC1-RC10-console.txt"; rm -rf "$SCRATCH/c06c-real" ;;
+      } > "$HERE/$RC_NAME-console.txt" 2>&1
+      tidy "$HERE/$RC_NAME.txt" "$HERE/$RC_NAME-console.txt"; rm -rf "$SCRATCH/c06c-real" ;;
     *) echo "unknown step: $step" >&2; exit 2 ;;
   esac
   echo "step $step done at $(date -u +%H:%M:%S) UTC"
