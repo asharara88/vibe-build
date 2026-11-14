@@ -4,7 +4,7 @@
 
 **What this project is.** This is a builder that turns a plain-language business need into a working internal web application. A business analyst, run by an AI model, interviews the user with closed-choice questions and writes a brief, a build plan and an acceptance test, and nothing is built until the user confirms them. The app is then built one step at a time, each step is checked against fixed quality rules, and the finished app must pass the acceptance test that was agreed before building started. The user is a non-technical employee, and the result is an ordinary codebase that the customer owns and can run on any cloud. `builder` is a working name until the owner chooses one.
 
-**State: nothing is built yet.** The repository holds the handover (`HANDOVER.md`), the project rules (`CLAUDE.md`), the specification (`docs/spec/`), the Stage 1 design note (`docs/design/stage-1.md`) and the working documents in `docs/`. No product code exists.
+**State: this branch, `main`, is out of date.** The work since 11 November 2026 is on the branch `claude/stage-1`; read `docs/STATUS.md` there. What follows describes `main` only. The repository holds the handover (`HANDOVER.md`), the project rules (`CLAUDE.md`), the specification (`docs/spec/`), the Stage 1 design note (`docs/design/stage-1.md`) and the working documents in `docs/`. No product code exists.
 
 ## Where to look
 

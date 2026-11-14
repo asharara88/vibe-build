@@ -1,16 +1,51 @@
 # Status
 
+> ## Stop: this file is out of date. Read this box first (added 14 November 2026)
+>
+> **Everything below this box says "nothing is built". That is true of the `main` branch only.** A branch is a named line of history in the repository; `main` is the one a new session starts from.
+>
+> The work done since 11 November is on a different branch, **`claude/stage-1`**. When this session read it (14 November 2026, 05:30 UTC) it was 445 commits ahead of `main`, at commit `bdfd911`, and it has never been merged into `main`. It is still moving: by 06:10 UTC the same day it was at `b87cd00`, 451 commits ahead, because another session is working on it. The table below describes it as read at `bdfd911`. It has its own `docs/STATUS.md`, `docs/BUILD-PLAN.md` and `docs/QUESTIONS.md`, and those are the current ones.
+>
+> **What went wrong.** A session that starts from `main` reads this file and is told nothing is built. Two sessions on 14 November 2026 worked from that out-of-date record: the one behind pull request #44, which recorded "nothing is built" again, and this one, which was asked to "start the walking skeleton", work that already exists.
+>
+> **What this session did.** It wrote no product code. It compared the task it was given with `claude/stage-1`, wrote this box, and asked the owner which line of work to continue.
+>
+> **The four parts this session was asked to start, and where they already are on `claude/stage-1`:**
+>
+> | Part asked for | On `claude/stage-1` | Its own record says |
+> | --- | --- | --- |
+> | Starter app, Next.js, English and Arabic | Exists: `templates/next/` (57 files, `messages/en.json` and `messages/ar.json`) | Role guard, licence rule and Arabic wording list marked tested. Not accepted by the owner yet |
+> | Starter app, Django | **Not built.** Its database driver `psycopg` is under the LGPL-3.0 licence, which is not permissive, so it needs the owner's answer (that branch's question 3) | Not started. Question 3 is open and listed as "not blocking yet" |
+> | Sandbox manager, two profiles | Exists: `builder/src/sandbox/`, both profiles named in `manager.ts` | Development profile: set-up and isolation checks tested; its network boundary built, not tested. Server profile: the code exists; its checks are not started, because they wait for a server |
+> | Model gateway with meter and cap | Exists: `builder/src/gateway/`, the cap built as "holds" (money set aside before each call) | The cap tested against a stand-in provider only; its two newest parts built, not tested. No real model call. Spend $0.00 |
+> | Project store and append-only event log, PostgreSQL | Exists: `builder/src/store/`, twelve migrations; the database refuses updates and deletes of events | Tested in part; the newest parts built, not tested. The refusal is not tamper-proof: the database's owner could switch it off (that branch's gap 22) |
+>
+> That branch also holds work beyond today's task: a scripted stand-in for the build engine, an acceptance runner, the builder's own screens and a live preview. Its record lists the last three as built, not tested. It also says 692 of 692 tests passed on 13 November, at commit `34ff56c`, which is earlier than the commit read here.
+>
+> **Checked by this session, and how:** the branch's file list, its migrations, its `manager.ts` and its documents were read at `bdfd911`. Its type check was run and passed. The open pull requests were listed at 05:30 UTC: #39, #42, #43 and #45 pointed at `claude/stage-1`, and #44 at `main`. #42 was merged at 05:38 UTC. A fresh reviewer agent that did not write this box then checked its statements against the repository; what it found wrong or overstated has been corrected here.
+>
+> **Not checked by this session:** its tests. They were started and cut off after seven minutes without a result, and the containers and folders they left were removed. Its licence check was run and reported "FAILED", giving as its reason that packages in a sub-folder were not installed; this session had not done that set-up and did not look further, so this is not evidence for or against the check. Everything in the right-hand column of the table is that branch's own claim, not this session's finding.
+>
+> **Also not on `claude/stage-1` yet:** the decision of 14 November 2026 on connectors (no other vendor's app builder; the Supabase, Vercel, Render, HubSpot and Gmail connectors not used). It is only in pull request #44, against `main`.
+>
+> **Decided by the owner, 14 November 2026:** the work continues on `claude/stage-1`. Nothing is built again from `main`. This session's only output is this correction to the record (`docs/DECISIONS.md`, last row).
+>
+> **Next, for any session that starts here:** do not build from `main`. Switch to `claude/stage-1`, read its `docs/STATUS.md`, and follow its `docs/BUILD-PLAN.md`. Two decisions are recorded only in pull requests #44 and #46, which point at `main`, and still have to be copied into that branch's `docs/DECISIONS.md`: the connector decision of 14 November, and the decision above. `main` itself stays as it is until that branch's plan says it is merged; that is the owner's call (`docs/KNOWN-GAPS.md`, gap 18).
+
 Read this first in every session. Update it before every session ends. Nothing else carries over between sessions.
 
-**Last updated:** 11 November 2026, after the owner's decisions on the design note.
+**Last updated:** 14 November 2026, after the decision on connectors and the screens mock-up.
 
 ## Current state
 
 - **Nothing is built.** No product code exists. The repository holds the handover, the project rules, the specification, the Stage 1 design note and the working documents.
-- **Task 0 (set up the repository): done.** Environment checked and recorded in `docs/ENVIRONMENT-CHECK.md`. `README.md`, `LICENSE`, `.gitignore`, `docs/STATUS.md`, `docs/DECISIONS.md`, `docs/OPEN-DECISIONS.md`, `docs/KNOWN-GAPS.md`, `docs/SOURCES.md` and `docs/spec/` created. `HANDOVER.md` left as supplied. Work is on branch `claude/new-session-ftnls6`; draft pull request: https://github.com/asharara88/vibe-build/pull/1
+- **Task 0 (set up the repository): done.** Environment checked and recorded in `docs/ENVIRONMENT-CHECK.md`. `README.md`, `LICENSE`, `.gitignore`, `docs/STATUS.md`, `docs/DECISIONS.md`, `docs/OPEN-DECISIONS.md`, `docs/KNOWN-GAPS.md`, `docs/SOURCES.md` and `docs/spec/` created. `HANDOVER.md` left as supplied. Merged into `main` as pull request #1 (checked 14 November 2026: the merge is the latest entry on `main`).
 - **Task 1 (design note): done and approved.** The owner approved `docs/design/stage-1.md` as written on 11 November 2026 and answered the questions in section 9; the answers are in `docs/DECISIONS.md`. Still open: the demo candidate, the monthly spending limit figure, the model key.
 - **Network change: done.** The owner asked for the research sites to be allowed. Nineteen hosts were added to the personal Default cloud environment's allowed list with the owner's approval (list in `docs/OPEN-DECISIONS.md`). Verified reachable afterwards: Hetzner, DigitalOcean, AWS, PostgreSQL, Django docs, OpenAI developer docs, Core42. Oracle's site answers 403 to this session's requests, which is Oracle refusing automated requests, not the network policy.
 - **Prices and blocked documentation: read.** Hetzner and DigitalOcean prices read from their pages; Oracle, AWS and Azure UAE regions confirmed from their pages, but their price tables are drawn by a script and were not readable here. Django, PostgreSQL, Bedrock, Core42 Compass and the Codex SDK documentation read and recorded in `docs/SOURCES.md`. Still unread: the law-firm note on the UAE data law (site blocks automated requests) and OpenAI's API terms.
+
+- **Connectors and plugins: decided, 14 November 2026.** The owner asked which connectors (links that let Claude Code act inside another service) would help. Answer: none need adding. GitHub, the built-in browser and the review skills cover the walking skeleton. The owner then asked to use Lovable, chose "mock-up only", and afterwards told Claude Code to lead. Decision: no other vendor's app builder is used for this project in any form, and the list of connectors not to use here is in `docs/DECISIONS.md`. Nothing was built in Lovable and no build message was sent; Claude Code read the list of the owner's Lovable workspaces once, which is a read and spends no credits.
+- **Screens mock-up: made, 14 November 2026. Not product code.** The owner agreed to the connector decision and asked for a preview. A mock-up of the builder's own screens was made on a design canvas in the owner's Claude account: https://claude.ai/artifact/5aamHqk33hMYv8PJNcMsgn (private to the owner). Nine screens: the journey in English (ask, questions, brief, plan with the acceptance checklist, build, acceptance run, record with cost and export) and two of them in Arabic, right to left (questions, acceptance run). The content is test example 1, the leave-request app, with made-up names. Every screen carries a banner saying it is a mock-up and that nothing on it has been built or run. Money figures are left as `[COST]` and `[CAP]` because nothing is measured. It was made by Claude Code with Anthropic's design canvas, not with another vendor's app builder. The mock-up's files are not in this repository; the canvas holds them. Limits are in `docs/KNOWN-GAPS.md`, gap 17.
 
 ## What was verified, and how
 
@@ -26,9 +61,8 @@ At the end of the session a one-page test server was started inside the session 
 
 ## Next step
 
-1. Merge pull request #1 (the owner, or Claude Code on the owner's word).
-2. The owner creates the model key and sets it as `BUILDER_MODEL_API_KEY` on the personal cloud environment (never in the conversation), and confirms the monthly limit and project cap.
-3. Then: the walking skeleton (design note, section 7), on both candidate stacks, on its own branch and pull request, with the evidence in the pull request. The non-model parts (template, sandbox manager, gateway, event log) can start before the key exists; the first model call cannot.
+1. The owner creates the model key and sets it as `BUILDER_MODEL_API_KEY` on the personal cloud environment (never in the conversation), and confirms the monthly limit and project cap.
+2. The walking skeleton (design note, section 7), on both candidate stacks, on its own branch and pull request, with the evidence in the pull request. The non-model parts (template, sandbox manager, gateway, event log) can start before the key exists; the first model call cannot.
 
 ## Blocked, and on whom
 
@@ -37,11 +71,15 @@ At the end of the session a one-page test server was started inside the session 
 | First model call | Owner | Model key not yet set; monthly limit and cap figures to confirm |
 | Demo-server decision | Owner | Options with verified prices are in `docs/OPEN-DECISIONS.md` item 5; recommended Hetzner CPX32 at €30.49 per month excl. VAT |
 | Demo candidate | Owner | Undecided between D1, D2 and D3; not needed until the intake milestone |
+| Mock-up feedback | Owner | Open the link, say whether every screen shows and what to change. Claude Code could not look at the rendered page |
+| Connectors switched off | Owner | Written rule only until he switches them off; `docs/OPEN-DECISIONS.md` item 11, gap 16 |
 | Second-engine milestone (Codex SDK) | Owner, later | OpenAI account and spend need a separate yes under hard rule 4 when that milestone comes |
 
 ## Session log
 
 | Date | What was done |
 | --- | --- |
+| 14 Nov 2026 (second session) | Asked to start the walking skeleton from `main`. Found it already built on `claude/stage-1`. Wrote no product code. Added the notice at the top of this file, a line in `README.md`, a row in `docs/DECISIONS.md` (the owner's choice to continue on `claude/stage-1`) and gap 18. Pull request #46 |
+| 14 Nov 2026 | Listed the connectors on the owner's account (36 installed, about 22 connected) and recommended adding none. Recorded the decision not to use other vendors' app builders or the connectors holding real contact data. Confirmed pull request #1 is merged. Made the screens mock-up on a design canvas at the owner's request. No product code written |
 | 11 Nov 2026 (later) | The owner issued an edited handover (Decision F) and then approved the design note and answered its questions. Decisions recorded. Network hosts allowed with the owner's approval. Prices and blocked documentation re-fetched (see the design note, section 4.3 and `docs/SOURCES.md`) |
 | 11 Nov 2026 | Repository set up from the empty state. Environment measured. Task 0 documents written. Specification cut from the handover. Stage 1 design note written as a proposal. Draft pull request opened. Preview test started |
