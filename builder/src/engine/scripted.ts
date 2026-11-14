@@ -20,6 +20,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import { existsSync, lstatSync, readdirSync, readFileSync, realpathSync } from "node:fs";
 import { join, posix } from "node:path";
+import { readWithoutBeingTold } from "../export/app-compose.js";
 import { emptyUsage } from "../gateway/cost.js";
 import { sandbox as sandboxManager, type Sandbox, type StreamingRun } from "../sandbox/manager.js";
 import type { BuildEngine, EngineEvent, StepInstruction, StepResult } from "./interface.js";
@@ -45,7 +46,15 @@ export const SCRIPTED_BANNER = {
  * - what decides what is installed and how the image is built: package.json, package-lock.json,
  *   Dockerfile, .dockerignore, and the folder vendor/, whose packages are installed from the workspace
  *   (package 0.6c: a script planted there would run during the install if install scripts were on);
- * - what decides which files Next.js serves and what "@/" means: next.config.ts, tsconfig.json.
+ * - what decides which files Next.js serves and what "@/" means: next.config.ts, tsconfig.json;
+ * - package 3.2, what an exported copy starts and says: compose.yaml (the one command's file, generated from
+ *   builder/src/export/app-compose.ts) and README.md; the template's own first migration, whose tables are the
+ *   protected sign-in tables (drizzle/0000_template.sql, drizzle/meta/0000_snapshot.json; the journal,
+ *   drizzle/meta/_journal.json, cannot be protected, because the data step replaces it); and the licence files:
+ *   THIRD-PARTY-NOTICES.md, licence-rule.json, scripts/licence/check.ts, scripts/licence/rule.ts,
+ *   scripts/check-licences.sh and scripts/check-lock.mjs.
+ * The names Compose and the image build read without being told (`readWithoutBeingTold`) cannot be listed here,
+ * since a protected path that is missing fails every step; a step that adds one fails after it instead (`run`).
  */
 export const TEMPLATE_PROTECTED_PATHS = [
   "src/auth.ts",
@@ -61,6 +70,16 @@ export const TEMPLATE_PROTECTED_PATHS = [
   "vendor",
   "next.config.ts",
   "tsconfig.json",
+  "compose.yaml",
+  "README.md",
+  "drizzle/0000_template.sql",
+  "drizzle/meta/0000_snapshot.json",
+  "THIRD-PARTY-NOTICES.md",
+  "licence-rule.json",
+  "scripts/licence/check.ts",
+  "scripts/licence/rule.ts",
+  "scripts/check-licences.sh",
+  "scripts/check-lock.mjs",
 ] as const;
 
 export interface ManifestEntry {
@@ -347,6 +366,10 @@ export class ScriptedEngine implements BuildEngine {
       return fail(`the step's files could not be read back (${plainError(err)}), so nothing was committed`, changedFiles);
     }
     if (protectedHit.length) return fail(`protected files changed: ${protectedHit.join(", ")}`, changedFiles);
+    // Package 3.2 (safeguard S29): a file Docker Compose or the image build would read beside the fixed files without
+    // being told (an override file, a second compose file, a `.dockerignore` of its own), whatever the change names.
+    const readUntold = changedFiles.filter(readWithoutBeingTold);
+    if (readUntold.length) return fail(`files that Docker Compose or the image build would read without being told: ${readUntold.join(", ")}`, changedFiles);
     if (unexpected.length) return fail(`files changed that are not in the fixed change: ${unexpected.join(", ")}`, changedFiles);
     if (ignored.length) return fail(`files changed that git ignores, so the history would not show them: ${ignored.join(", ")}`, changedFiles);
     if (missing.length) return fail(`files of the fixed change that did not change: ${missing.join(", ")}`, changedFiles);
