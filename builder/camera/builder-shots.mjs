@@ -194,7 +194,7 @@ async function run() {
   const one = await waitFor('[data-step="01-data"][data-step-state="finished"]', 600_000, '[data-step="01-data"][data-step-state="failed"]');
   if (!check("step 1 built", one, await text('[data-step="01-data"]'))) return stopped(12, "build-step-1", id);
   const r1 = await text('[data-step="01-data"] [data-reserved]');
-  check("step 1: $1.5552 reserved while it ran, released, $0.00 spent", r1.includes("Reserved while it ran: $1.5552") && r1.includes("released") && r1.includes("Spent: $0.00."), r1);
+  check("step 1: $2.7216 reserved while it ran, released, $0.00 spent", r1.includes("Reserved while it ran: $2.7216") && r1.includes("released") && r1.includes("Spent: $0.00."), r1);
   check("step 1's live lines: one line per file written (4)", (await page.locator('[data-step="01-data"] ol[data-lines] li', { hasText: "Wrote " }).count()) === 4);
   await photo(12, "build-step-1", ["en"]);
   await clickAndLoad('button[data-approve="01-data"]');
@@ -245,7 +245,7 @@ async function run() {
   check("cost: no freeze", await has("[data-no-freeze]"));
   check("cost: the unreconciled list is empty", await has("[data-unreconciled-empty]"));
   const holds = await text("table[data-step-holds]");
-  check("cost: the two step reservations, $1.5552 and $3.1104, closed", holds.includes("$1.5552") && holds.includes("$3.1104") && (holds.match(/closed/g) ?? []).length === 2, holds);
+  check("cost: the two step reservations, $2.7216 and $3.1104, closed", holds.includes("$2.7216") && holds.includes("$3.1104") && (holds.match(/closed/g) ?? []).length === 2, holds);
   await photo(18, "cost", ["en", "ar", "phone"]);
 
   // 11. Export, offered after sign-off; download it.
@@ -295,7 +295,7 @@ async function run() {
   const why = await text("[data-refused]");
   check(
     "a project capped at $1.00: step 1 refused with package 1.3's message and the sentence under it",
-    refused && /This step needs up to \$1\.56 to finish \(4 turns\); this project has \$1\.00 left of its budget of \$1\.00/.test(why) && why.includes("Scripted steps spend $0; this is a reservation sized from a real model's price."),
+    refused && /This step needs up to \$2\.73 to finish \(7 turns\); this project has \$1\.00 left of its budget of \$1\.00/.test(why) && why.includes("Scripted steps spend $0; this is a reservation sized from a real model's price."),
     why,
   );
   await photo(23, "refused", ["en", "ar"]);
@@ -490,7 +490,7 @@ async function runJ2a() {
   check("the build screen says: no quality check after a step yet, and no retry", (await text("[data-no-quality-check]")) === NO_QUALITY_CHECK, await text("[data-no-quality-check]"));
   await clickAndLoad('button[data-build="01-data"]');
   const steps = [
-    { step: "01-data", usd: "$1.5552", approve: "Approve and build the next step" },
+    { step: "01-data", usd: "$2.7216", approve: "Approve and build the next step" },
     { step: "02-submitter-screen", usd: "$3.1104", approve: "Approve and build step 3 (the deliberately broken copy)" },
     { step: BROKEN_STEP, usd: "$1.1664", approve: "Go on to the preview with this broken step (no quality check after a step yet)" },
   ];
@@ -557,7 +557,7 @@ async function runJ2a() {
   check("cost: $0.00 spent, no freeze, an empty unreconciled list", (await text("td[data-spent]")) === "$0.00" && (await has("[data-no-freeze]")) && (await has("[data-unreconciled-empty]")), await text("table[data-cost]"));
   const holds = await rowsOf("table[data-step-holds]");
   check(
-    "cost: three step reservations, $1.5552, $3.1104 and $1.1664, each closed (step_ended)",
+    "cost: three step reservations, $2.7216, $3.1104 and $1.1664, each closed (step_ended)",
     JSON.stringify(holds) === JSON.stringify(steps.map((s) => [s.step, s.usd, "closed (step_ended)"])),
     JSON.stringify(holds),
   );

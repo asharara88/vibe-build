@@ -499,7 +499,7 @@ async function main(): Promise<number> {
           label: manifest.label,
           manifestSha256: sha256(readFileSync(manifestFile)),
           steps: ["01-data", "02-submitter-screen", "03-wrong-status"],
-          reservations: [1.5552, 3.1104, 1.1664],
+          reservations: [2.7216, 3.1104, 1.1664],
           bannerEn: sentence.en,
           bannerAr: sentence.ar,
         },
