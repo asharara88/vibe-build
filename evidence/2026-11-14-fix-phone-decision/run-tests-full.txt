@@ -1,0 +1,40 @@
+The phone test's decision after the review of 14787d8: the whole suite, live tests included, on 6db89da (builder/ tree dd109df), working tree of builder/: 0 changed files. Database builder_test_fxphone, fresh. TMPDIR <scratchpad>/fxphone-tmp. Command: flock <scratchpad>/live-tests.lock npx vitest run (BUILDER_BROWSER_CACHE=<scratchpad>/p31-cache).
+builder/node_modules and builder/runner/node_modules: node_modules a real folder; runner/node_modules a real folder; (the services that mount builder/ in a container need a real folder: run-tests-full-first-run.txt, linked-node-modules-check.txt).
+Free disk before: /dev/vda        252G   31G  8.2G  79% /
+Containers on this machine before (docker ps -a, count): 0
+Waiting for the shared lock from 03:29:16 UTC.
+Lock held from 03:29:16 UTC.
+
+ RUN  v5.1.0 <scratchpad>/wt-fix-phone/builder
+
+{"at":"2026-11-14T03:46:08.221Z","method":"CONNECT","host":"registry.example.test","port":443,"decision":"allowed"}
+(node:4362) Warning: Closing file descriptor 25 on garbage collection
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:4362) [DEP0137] DeprecationWarning: Closing a FileHandle object on garbage collection is deprecated. Please close FileHandle objects explicitly using FileHandle.prototype.close(). In the future, an error will be thrown if a file descriptor is closed during garbage collection.
+(node:4362) Warning: Closing file descriptor 24 on garbage collection
+(node:4362) Warning: Closing file descriptor 26 on garbage collection
+(node:4362) Warning: Closing file descriptor 27 on garbage collection
+(node:4362) Warning: Closing file descriptor 28 on garbage collection
+(node:4362) Warning: Closing file descriptor 29 on garbage collection
+(node:4362) Warning: Closing file descriptor 24 on garbage collection
+(node:4362) Warning: Closing file descriptor 25 on garbage collection
+(node:4362) Warning: Closing file descriptor 26 on garbage collection
+(node:4362) Warning: Closing file descriptor 28 on garbage collection
+(node:4362) Warning: Closing file descriptor 25 on garbage collection
+(node:4362) Warning: Closing file descriptor 26 on garbage collection
+(node:4362) Warning: Closing file descriptor 27 on garbage collection
+(node:4362) Warning: Closing file descriptor 28 on garbage collection
+(node:4362) Warning: Closing file descriptor 25 on garbage collection
+(node:4362) Warning: Closing file descriptor 26 on garbage collection
+(node:4362) Warning: Closing file descriptor 27 on garbage collection
+
+ Test Files  30 passed (30)
+      Tests  732 passed (732)
+   Start at  03:29:16
+   Duration  1038.23s (tests 100%)
+
+vitest exit code: 0
+Lock released at 03:46:35 UTC.
+Containers on this machine after (docker ps -a, count): 0
+Short folders of previews left in /tmp: 0
+Free disk after: /dev/vda        252G   32G  6.9G  83% /

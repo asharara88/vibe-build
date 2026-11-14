@@ -1,0 +1,264 @@
+The phone test's decision after the review of 14787d8: the whole suite, live tests included, on 6db89da (builder/ tree dd109df), working tree of builder/: 0 changed files. Database builder_test_fxphone, fresh. TMPDIR <scratchpad>/fxphone-tmp. Command: flock <scratchpad>/live-tests.lock npx vitest run (BUILDER_BROWSER_CACHE=<scratchpad>/p31-cache).
+Free disk before: /dev/vda        252G   30G  8.7G  78% /
+Containers on this machine before (docker ps -a, count): 0
+Waiting for the shared lock from 03:20:07 UTC.
+Lock held from 03:20:26 UTC.
+
+ RUN  v5.1.0 <scratchpad>/wt-fix-phone/builder
+
+ ❯ test/acceptance-live.test.ts (7 tests | 3 failed) 11295ms
+   ❯ acceptance runner: live, development profile, stand-in test (7)
+     × the stand-in version is written before step 01; steps 01 and 02 run; run A: item 1 passes, with its screenshot and its events 1815ms
+     × run B, stopped by a half-second time limit: every item 'did not run', never passed 184ms
+     × run D, the deliberately broken copy in a fresh sandbox under the same project id, with the same version: item 1 failed, at step 'sees status waiting' 2558ms
+ ❯ test/isolation.test.ts (37 tests | 2 failed) 97839ms
+   ❯ isolation: live, every project container on the development profile, compared with its expected list (package 0.6c) (6)
+     × each project container (app, tools, db, runner, the door, the engine as package 2.2 would place it, and package J3's stream container and live camera) reaches exactly what its list allows 11006ms
+     × the builder's check that the right app answers (package 3.1) asks from a container on `front`: it gets the app; the machine itself cannot even look the app's name up 135ms
+ ❯ test/preview-live.test.ts (6 tests | 5 failed) 3009ms
+   ❯ J3, live: the scripted app through the whole chain (example 1, development profile) (6)
+     × example 1 is built and started; the check service reads as on front alone; the live app opens for it 2231ms
+     × the owner's walk through the preview, with Chromium's checks: every check passes, nothing names app:3161, every cookie carries the prefix 3ms
+     × after a new entry, the page's storage is gone (Clear-Site-Data, in Chromium) 1ms
+     × each mapping turned off in turn shows which the app needs, and that its own check then refuses; the policy's sandbox value is tried 1ms
+     × the refusals: no pass gives only the gate; a crafted cross-site POST opens no stream; after the project closes (the app stopped), the live app is gone 37ms
+ ❯ test/sandbox.test.ts (23 tests | 1 failed) 23888ms
+   ❯ sandbox manager: live, development profile (1)
+     × starts the project's database and its door; from a container on `out`, the egress proxy behind the door lets the registry through and refuses a host not on the list (package 0.6c) 898ms
+{"at":"2026-11-14T03:26:17.519Z","method":"CONNECT","host":"registry.example.test","port":443,"decision":"allowed"}
+(node:10373) Warning: Closing file descriptor 25 on garbage collection
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:10373) [DEP0137] DeprecationWarning: Closing a FileHandle object on garbage collection is deprecated. Please close FileHandle objects explicitly using FileHandle.prototype.close(). In the future, an error will be thrown if a file descriptor is closed during garbage collection.
+(node:10373) Warning: Closing file descriptor 24 on garbage collection
+(node:10373) Warning: Closing file descriptor 26 on garbage collection
+(node:10373) Warning: Closing file descriptor 27 on garbage collection
+(node:10373) Warning: Closing file descriptor 28 on garbage collection
+(node:10373) Warning: Closing file descriptor 29 on garbage collection
+(node:10373) Warning: Closing file descriptor 24 on garbage collection
+(node:10373) Warning: Closing file descriptor 25 on garbage collection
+(node:10373) Warning: Closing file descriptor 26 on garbage collection
+(node:10373) Warning: Closing file descriptor 28 on garbage collection
+(node:10373) Warning: Closing file descriptor 25 on garbage collection
+(node:10373) Warning: Closing file descriptor 26 on garbage collection
+(node:10373) Warning: Closing file descriptor 27 on garbage collection
+(node:10373) Warning: Closing file descriptor 28 on garbage collection
+(node:10373) Warning: Closing file descriptor 25 on garbage collection
+(node:10373) Warning: Closing file descriptor 26 on garbage collection
+(node:10373) Warning: Closing file descriptor 27 on garbage collection
+
+⎯⎯⎯⎯⎯⎯ Failed Tests 11 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/acceptance-live.test.ts > acceptance runner: live, development profile, stand-in test > the stand-in version is written before step 01; steps 01 and 02 run; run A: item 1 passes, with its screenshot and its events
+Error: Command failed: docker compose -f <scratchpad>/fxphone-tmp/builder-acceptance-UhQutf/compose.yaml up -d --wait egress-host
+ Container builder_p_acc_live_53c1ea7c-egress-host-1 Creating 
+ Container builder_p_acc_live_53c1ea7c-egress-host-1 Created 
+ Container builder_p_acc_live_53c1ea7c-egress-host-1 Starting 
+ Container builder_p_acc_live_53c1ea7c-egress-host-1 Started 
+ Container builder_p_acc_live_53c1ea7c-egress-host-1 Waiting 
+container builder_p_acc_live_53c1ea7c-egress-host-1 exited (1)
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/11]⎯
+
+ FAIL  test/acceptance-live.test.ts > acceptance runner: live, development profile, stand-in test > run B, stopped by a half-second time limit: every item 'did not run', never passed
+AssertionError: expected undefined to be true // Object.is equality
+
+- Expected:
+true
+
++ Received:
+undefined
+
+ ❯ test/acceptance-live.test.ts:126:30
+    124|     needsPrerequisites();
+    125|     const r = await go(500);
+    126|     expect(r.exit?.timedOut).toBe(true);
+       |                              ^
+    127|     expect(r.reading.items.map((i) => i.status)).toEqual(["did not run…
+    128|     expect(r.reading.summary).toMatch(/^did not run: the run went past…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/11]⎯
+
+ FAIL  test/acceptance-live.test.ts > acceptance runner: live, development profile, stand-in test > run D, the deliberately broken copy in a fresh sandbox under the same project id, with the same version: item 1 failed, at step 'sees status waiting'
+Error: Command failed: docker compose -f <scratchpad>/fxphone-tmp/builder-acceptance-8M0zNT/compose.yaml up -d --wait egress-host
+ Container builder_p_acc_live_53c1ea7c-egress-host-1 Creating 
+ Container builder_p_acc_live_53c1ea7c-egress-host-1 Created 
+ Container builder_p_acc_live_53c1ea7c-egress-host-1 Starting 
+ Container builder_p_acc_live_53c1ea7c-egress-host-1 Started 
+ Container builder_p_acc_live_53c1ea7c-egress-host-1 Waiting 
+container builder_p_acc_live_53c1ea7c-egress-host-1 exited (1)
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/11]⎯
+
+ FAIL  test/isolation.test.ts > isolation: live, every project container on the development profile, compared with its expected list (package 0.6c) > each project container (app, tools, db, runner, the door, the engine as package 2.2 would place it, and package J3's stream container and live camera) reaches exactly what its list allows
+Error: Command failed: docker compose -f <scratchpad>/fxphone-tmp/builder-iso06c-QTkRVE/compose.yaml up -d --wait app egress
+ Container builder_p_iso06c_live-egress-host-1 Creating 
+ Volume builder_p_iso06c_live_dbdata Creating 
+ Volume builder_p_iso06c_live_dbdata Creating 
+ Network builder_p_iso06c_live_front Creating 
+ Network builder_p_iso06c_live_front Creating 
+ Network builder_p_iso06c_live_out Creating 
+ Network builder_p_iso06c_live_out Creating 
+ Network builder_p_iso06c_live_data Creating 
+ Network builder_p_iso06c_live_data Creating 
+ Volume builder_p_iso06c_live_dbdata Created 
+ Volume builder_p_iso06c_live_dbdata Created 
+ Network builder_p_iso06c_live_out Created 
+ Network builder_p_iso06c_live_out Created 
+ Network builder_p_iso06c_live_front Created 
+ Network builder_p_iso06c_live_front Created 
+ Container builder_p_iso06c_live-egress-host-1 Created 
+ Container builder_p_iso06c_live-egress-1 Creating 
+ Network builder_p_iso06c_live_data Created 
+ Network builder_p_iso06c_live_data Created 
+ Container builder_p_iso06c_live-db-1 Creating 
+ Container builder_p_iso06c_live-egress-1 Created 
+ Container builder_p_iso06c_live-db-1 Created 
+ Container builder_p_iso06c_live-app-1 Creating 
+ Container builder_p_iso06c_live-app-1 Created 
+ Container builder_p_iso06c_live-egress-host-1 Starting 
+ Container builder_p_iso06c_live-db-1 Starting 
+ Container builder_p_iso06c_live-egress-host-1 Started 
+ Container builder_p_iso06c_live-egress-host-1 Waiting 
+ Container builder_p_iso06c_live-db-1 Started 
+ Container builder_p_iso06c_live-db-1 Waiting 
+ Container builder_p_iso06c_live-egress-host-1 Error dependency egress-host failed to start
+ Container builder_p_iso06c_live-db-1 Healthy 
+ Container builder_p_iso06c_live-app-1 Starting 
+ Container builder_p_iso06c_live-app-1 Started 
+dependency failed to start: container builder_p_iso06c_live-egress-host-1 exited (1)
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/11]⎯
+
+ FAIL  test/isolation.test.ts > isolation: live, every project container on the development profile, compared with its expected list (package 0.6c) > the builder's check that the right app answers (package 3.1) asks from a container on `front`: it gets the app; the machine itself cannot even look the app's name up
+AssertionError: expected 'the project\'s app container is runni…' to be true // Object.is equality
+
+- Expected:
+true
+
++ Received:
+"the project's app container is running (starting)"
+
+ ❯ test/isolation.test.ts:958:63
+    956|
+    957|   it("the builder's check that the right app answers (package 3.1) ask…
+    958|     expect(await appAnswers(main!, `http://app:${APP_PORT}`)).toBe(tru…
+       |                                                               ^
+    959|     expect(await sandbox.askApp(main!, `http://app:${APP_PORT}/en/sign…
+    960|     // From this machine's own process, the app's address leads nowher…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/11]⎯
+
+ FAIL  test/preview-live.test.ts > J3, live: the scripted app through the whole chain (example 1, development profile) > example 1 is built and started; the check service reads as on front alone; the live app opens for it
+AssertionError: the job stopped with an error (Error): expected 'failed' to be 'finished' // Object.is equality
+
+Expected: "finished"
+Received: "failed"
+
+ ❯ test/preview-live.test.ts:177:101
+    175|       await journey.waitForJob();
+    176|       const s = await journey.state(projectId);
+    177|       expect(s.jobs.filter((j) => j.kind === "preview").at(-1)?.state,…
+       |                                                                                                     ^
+    178|       note(`example 1 built, started and photographed by the app camer…
+    179|       expect(await streamNetworkProblem(jobs.handle(projectId)!.sb)).t…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/11]⎯
+
+ FAIL  test/preview-live.test.ts > J3, live: the scripted app through the whole chain (example 1, development profile) > the owner's walk through the preview, with Chromium's checks: every check passes, nothing names app:3161, every cookie carries the prefix
+JourneyRefused: The app is not running in this interface.
+ ❯ JourneyJobs.sampleSignIn src/orchestrator/journey-jobs.ts:259:30
+    257|   sampleSignIn(projectId: string): { email: string; password: string }…
+    258|     const x = this.held(projectId);
+    259|     if (!x.appStarted) throw new JourneyRefused("The app is not runnin…
+       |                              ^
+    260|     return { email: SAMPLE_EMPLOYEE_EMAIL, password: x.samplePassword …
+    261|   }
+ ❯ secrets test/preview-live.test.ts:77:34
+ ❯ cameraRun test/preview-live.test.ts:96:13
+ ❯ test/preview-live.test.ts:189:23
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/11]⎯
+
+ FAIL  test/preview-live.test.ts > J3, live: the scripted app through the whole chain (example 1, development profile) > after a new entry, the page's storage is gone (Clear-Site-Data, in Chromium)
+JourneyRefused: The app is not running in this interface.
+ ❯ JourneyJobs.sampleSignIn src/orchestrator/journey-jobs.ts:259:30
+    257|   sampleSignIn(projectId: string): { email: string; password: string }…
+    258|     const x = this.held(projectId);
+    259|     if (!x.appStarted) throw new JourneyRefused("The app is not runnin…
+       |                              ^
+    260|     return { email: SAMPLE_EMPLOYEE_EMAIL, password: x.samplePassword …
+    261|   }
+ ❯ secrets test/preview-live.test.ts:77:34
+ ❯ cameraRun test/preview-live.test.ts:96:13
+ ❯ test/preview-live.test.ts:211:23
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/11]⎯
+
+ FAIL  test/preview-live.test.ts > J3, live: the scripted app through the whole chain (example 1, development profile) > each mapping turned off in turn shows which the app needs, and that its own check then refuses; the policy's sandbox value is tried
+JourneyRefused: The app is not running in this interface.
+ ❯ JourneyJobs.sampleSignIn src/orchestrator/journey-jobs.ts:259:30
+    257|   sampleSignIn(projectId: string): { email: string; password: string }…
+    258|     const x = this.held(projectId);
+    259|     if (!x.appStarted) throw new JourneyRefused("The app is not runnin…
+       |                              ^
+    260|     return { email: SAMPLE_EMPLOYEE_EMAIL, password: x.samplePassword …
+    261|   }
+ ❯ secrets test/preview-live.test.ts:77:34
+ ❯ cameraRun test/preview-live.test.ts:96:13
+ ❯ test/preview-live.test.ts:243:27
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/11]⎯
+
+ FAIL  test/preview-live.test.ts > J3, live: the scripted app through the whole chain (example 1, development profile) > the refusals: no pass gives only the gate; a crafted cross-site POST opens no stream; after the project closes (the app stopped), the live app is gone
+JourneyRefused: The app is not running: make the preview first. The live app is offered only while it runs.
+ ❯ src/orchestrator/journey.ts:839:22
+    837|       if (s.interrupted) throw new JourneyRefused("A job of this proje…
+    838|       const why = JOB_RULES[kind](s) ?? (kind === "build_step" ? build…
+    839|       if (why) throw new JourneyRefused(why);
+       |                      ^
+    840|       // After the review bot on defb9c4: the instance lock is asked o…
+    841|       // the halt is looked at again, with nothing awaited between it,…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[10/11]⎯
+
+ FAIL  test/sandbox.test.ts > sandbox manager: live, development profile > starts the project's database and its door; from a container on `out`, the egress proxy behind the door lets the registry through and refuses a host not on the list (package 0.6c)
+Error: Command failed: docker compose -f <scratchpad>/fxphone-tmp/builder-live-1FHiUx/compose.yaml up -d --wait db egress
+ Network builder_p_live_data Creating 
+ Network builder_p_live_data Creating 
+ Volume builder_p_live_dbdata Creating 
+ Volume builder_p_live_dbdata Creating 
+ Network builder_p_live_out Creating 
+ Network builder_p_live_out Creating 
+ Container builder_p_live-egress-host-1 Creating 
+ Volume builder_p_live_dbdata Created 
+ Volume builder_p_live_dbdata Created 
+ Network builder_p_live_data Created 
+ Network builder_p_live_data Created 
+ Container builder_p_live-db-1 Creating 
+ Network builder_p_live_out Created 
+ Network builder_p_live_out Created 
+ Container builder_p_live-egress-host-1 Created 
+ Container builder_p_live-egress-1 Creating 
+ Container builder_p_live-db-1 Created 
+ Container builder_p_live-egress-1 Created 
+ Container builder_p_live-egress-host-1 Starting 
+ Container builder_p_live-db-1 Starting 
+ Container builder_p_live-egress-host-1 Started 
+ Container builder_p_live-egress-host-1 Waiting 
+ Container builder_p_live-db-1 Started 
+ Container builder_p_live-egress-host-1 Error dependency egress-host failed to start
+dependency failed to start: container builder_p_live-egress-host-1 exited (1)
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[11/11]⎯
+
+
+ Test Files  4 failed | 26 passed (30)
+      Tests  11 failed | 721 passed (732)
+   Start at  03:20:26
+   Duration  379.26s (tests 99%, import 1%)
+
+vitest exit code: 1
+Lock released at 03:26:46 UTC.
+Containers on this machine after (docker ps -a, count): 0
+Short folders of previews left in /tmp: 0
+Free disk after: /dev/vda        252G   30G  8.6G  78% /
