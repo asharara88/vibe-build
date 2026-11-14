@@ -8,15 +8,15 @@ None open right now. Question 15, the browser and the runner's two base images, 
 
 ## Not blocking yet
 
-**22. Two of your sessions are working at once. Which one builds package 3.2, the export?** You told one "Then build the export, 3.2"; the other had begun 3.2's design at 10:25 UTC on 14 Nov and asked not to be doubled. Neither will start a second exporter.
-(a) **The session that began the design builds it; the other stops after pull request #49** (recommended: its design is under way, and two exporters would repeat the J2 doubling).
-(b) The session you told builds it, and the other stops its design.
-(c) One designs, then the build is split between them.
+**28. A project the interface cannot close: what should it offer?** Since 14 Nov "Close project" closes a project only when Docker lists nothing of it and its folder is gone (known gap 180's fix). If that can never happen, the project stays "removal not finished": every "Close project" and every start tries again and names what is left.
+(a) **Leave it: someone removes what is named by hand, then presses "Close project"** (recommended: it is rare, and every screen says what is left).
+(b) Add "Close anyway", with a record of what was left. An engineer should read it first.
+(c) Let the next start give up after a number of tries and mark the project "left on the machine".
 
-**20. Which rule decides when a package is "tested"?** A rule of 12 Nov (Claude Code's) says: only when the commit a reviewer last read is the commit that is merged. Your rule of 13 Nov says: at most two review rounds. Fixes made after the last round are then merged unread, so the two pull apart. Seven merged packages and J2 are held at "built, not tested" on this (`docs/reviews/2026-11-14-state-of-merged-packages.md`).
-(a) **Your two-round rule decides: a package is tested when its "Done means" ran and passed, it had its reviews, and nothing blocking was open at the merge; fixes after the last round are shown by tests** (recommended: it is your later rule, and it is what the plan's section 3 says).
-(b) The 12 Nov rule decides: every fix is re-read before a package is called tested, whatever the number of rounds.
-(c) (a) for most code; (b) for the gateway and the cap, isolation, acceptance separation and key handling.
+**29. May a signed-off project still be exported after "Close project" was pressed?** Today, no. A closed project is not exported (as before), and since 14 Nov neither is one whose removal did not finish. So pressing "Close project" before "Export" loses the export.
+(a) **Leave it, and say so in one sentence next to "Close project"** (recommended: the smallest change).
+(b) Allow the export while the removal is not finished and the folder is whole. Needs an engineer's reading.
+(c) Refuse "Close project" on a signed-off project until it is exported or you confirm.
 
 **21. Is Vercel now allowed for a phone link?** A decision of 14 Nov, made in a session that started from `main`, says the Vercel connector is not used (outside the approved design; it can create paid resources). The status file of the session that merged J2 lists "a phone link through Vercel" as waiting on you. Both cannot stand.
 (a) **Not allowed until a price and its source are shown to you and you say yes** (recommended: hard rule 4).
@@ -61,6 +61,9 @@ Its cost: while a step runs, its whole reservation stops the cap being lowered, 
 
 Claude Code's readings and work, recorded as such, not as your decisions. Detail: `docs/log/2026-11-13-status-before-rewrite.md`, "Yours to confirm".
 
+- **Your "Fix it" of 14 Nov, as Claude Code read it** (`docs/DECISIONS.md`, 14 Nov). You named no option. Claude Code took the recommended one for two questions and removed them from the list above; their options are quoted in the decision row. Former question 22: package 3.2 is built by the session that began its design. Former question 20: a package is "tested" by the plan's own rule (its "Done means" ran and passed, it had its reviews, nothing blocking was open at its merge), not by Claude Code's stricter rule of 12 Nov. On that reading 3.1, 1.4b and J2 are now marked tested in the plan's progress table, each with its limits. Say so if you meant otherwise, and the marks are taken back.
+- **Package 1.4c is not marked tested**, for two reasons that are yours to say. Something was open when it merged (known gap 145) and was closed the next day by pull request #42: does that count from that day? And you answered that package 1.5 clears the freeze, while what clears a settled bill's freeze is a separate recorded action, `--overrun` (the line on question 17 below). If both are yes, 1.4c is marked tested.
+- **After a "Close project" that could not remove everything, the project is "removal not finished"**: nothing of it is built, checked, signed off or exported any more; its screens offer "Close project" again and "New project". Chosen by Claude Code on 14 Nov from two options a reviewer put (the other: the project stays open); questions 28 and 29 ask what follows from it.
 - **J2's second review (pull request #49):** Claude Code's choices in `docs/DECISIONS.md` (14 Nov, "J2's second review, built as follows"), among them the new screen sentence on what the broken-copy demonstration shows and does not show, in English and Arabic (`docs/arabic-wording-list.md`), and that a step of an interrupted project is no longer approved.
 - The reading of your words of 14 Nov ("Fix it and build properly. Merge what needs to be merged."): pull request #46 merged into `main` (documents only); `claude/stage-1` itself **not** merged into `main` (question 19).
 - **Gap 107, never put to you before:** with `--no-hold`, the journal recovery sets an unreadable line aside with no freeze and no event, so after a restart every project runs again. Package 1.4b's evidence says this "waits for the owner's yes".
