@@ -13,10 +13,12 @@ chattr. C5 starts the real interface process on ports the system gives and signa
 Written in the style of J3's controls.py. (Header corrected 14 Nov 2026, after the review of known gap 180's fix: it
 said that no container is started, and its usage line took no lock.)
 Since the second review round of known gap 180 (14 Nov 2026), seven controls name tests of test/removal-live.test.ts
-(J2-C82 too), and the script keeps, beside each verdict, the first failure vitest printed for each test: its message and
-the first place in a test file it names. Before, it kept only vitest's two summary lines, so a verdict said that the
-test failed, not why. A test that failed in its own clean-up (the drop of the database it made: known gap 185) is no
-longer counted as "failed, as it should": its control's verdict is "NOT AS EXPECTED: ... run this control again".
+(J2-C82 too), and the script keeps, on a line of its own under each control, the first failure vitest printed for each
+of its tests: its message and the first place in a test file it names. Before, it kept only vitest's two summary lines,
+so a verdict said that the test failed, not why. A test that failed in its own clean-up (the drop of the database it
+made: known gap 185) no longer counts: a line under the control says "NOT AS EXPECTED: ... run this control again", and
+the result at the end is then "NOT every one failed as it should". Nothing of the verdict rule that was there before
+is changed: these lines are added after it, and can only take a "failed, as it should" away.
   python3 controls.py --read <file of vitest output>   prints what the script reads from that output, and runs nothing."""
 import re, subprocess, sys, datetime
 
@@ -382,19 +384,23 @@ chosen = [c for c in CONTROLS if not only or c[0] in only]
 # 1. Each named test, on the tree as committed: it must pass, and be the only test its name selects.
 out.append("")
 out.append("1. Baseline: each named test on the tree as committed (it must pass, alone).")
-out.append("Columns: file | name given to -t | verdict | vitest's summary lines (and, when not as expected, the first failure vitest printed)")
+out.append("Columns: file | name given to -t | verdict | vitest's summary lines")
 baseline_ok = True
 for f, name in sorted({t for c in chosen for t in c[4]}):
     code, summary, n = vitest(f, name)
     ok = code == 0 and n.get("passed") == 1 and n.get("failed", 0) == 0
     baseline_ok &= ok
-    out.append(f"{f} | {name} | {'passed, alone' if ok else 'NOT AS EXPECTED (exit ' + str(code) + ')'} | {summary}" + ("" if ok else f" | first failure: {first_failure(LAST['text'])[0]}"))
+    out.append(f"{f} | {name} | {'passed, alone' if ok else 'NOT AS EXPECTED (exit ' + str(code) + ')'} | {summary}")
     print(out[-1], flush=True)
+    if not ok:  # added in the second review round of known gap 180: why
+        out.append(f"    first failure: {first_failure(LAST['text'])[0]}")
+        print(out[-1], flush=True)
 
 # 2. The controls.
 out.append("")
 out.append("2. The controls.")
-out.append("Columns: control | what was removed | verdict | for each test: file, name, vitest's summary lines, and the first failure vitest printed (its message, and the first place in a test file it names)")
+out.append("Columns: control | what was removed | verdict | for each test: file, name, vitest's summary lines")
+out.append("Under each control, since the second review round of known gap 180, one line for each of its tests: control | file, name | the first failure vitest printed (its message, and the first place in a test file it names).")
 all_failed = True
 for cid, label, path, reps, tests in chosen:
     paths = path if isinstance(path, list) else [path] * len(reps)
@@ -414,24 +420,34 @@ for cid, label, path, reps, tests in chosen:
     for p, t in texts.items():
         open(p, "w").write(t)
     results = []
-    clean_ups = []
+    reasons = []    # added in the second review round of known gap 180
+    clean_ups = []  # the same
     try:
         for f, name in tests:
             code, summary, n = vitest(f, name)
             failed = code != 0 and n.get("failed", 0) == 1 and n.get("passed", 0) == 0
-            # Second review round of known gap 180: a failure in the test's own clean-up says nothing of the safeguard.
+            results.append((failed, f"{f} -t \"{name}\": {'failed' if failed else 'DID NOT FAIL (exit ' + str(code) + ')'}: {summary}"))
+            # Added in the second review round of known gap 180: why it failed; a failure in the test's own clean-up
+            # says nothing of the safeguard.
             what, in_clean_up = first_failure(LAST["text"])
+            reasons.append(f"    {cid} | {f} -t \"{name}\" | first failure: {what}")
             clean_ups.append(failed and in_clean_up)
-            said = "failed" if failed and not in_clean_up else "FAILED IN ITS OWN CLEAN-UP, not at an assertion" if failed else "DID NOT FAIL (exit " + str(code) + ")"
-            results.append((failed and not in_clean_up, f"{f} -t \"{name}\": {said}: {summary} | first failure: {what}"))
     finally:
         run(["git", "checkout", "--", *texts.keys()])
     restored = run(["git", "diff", "HEAD", "--stat", "--", *texts.keys()]).stdout == ""
     every = all(r[0] for r in results)
     all_failed &= every and restored
-    verdict = ("FAILED, as it should with the safeguard removed" if every else "NOT AS EXPECTED: a test failed in its own clean-up, not at an assertion (known gap 185); run this control again" if any(clean_ups) else "PASSED: a test does not see this safeguard's removal") + ("" if restored else "; FILE NOT RESTORED")
+    verdict = ("FAILED, as it should with the safeguard removed" if every else "PASSED: a test does not see this safeguard's removal") + ("" if restored else "; FILE NOT RESTORED")
     out.append(f"{cid} | {label} | {verdict} | " + " || ".join(r[1] for r in results))
     print(out[-1], flush=True)
+    # Added in the second review round of known gap 180, after the verdict rule above, which is as it was.
+    for line in reasons:
+        out.append(line)
+        print(line, flush=True)
+    if any(clean_ups):
+        all_failed = False
+        out.append(f"    {cid} | NOT AS EXPECTED: a test of this control failed in its own clean-up, not at an assertion (known gap 185). The verdict above does not count; run this control again.")
+        print(out[-1], flush=True)
 
 after = run(["git", "diff", "HEAD", "--stat", "--", "."]).stdout
 out.append("")
