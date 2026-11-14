@@ -1,0 +1,4 @@
+The run's lock lines (the wrapper's output around the run: flock, then the run, then these), on 6e1b536 (builder/ tree a0bf766):
+Lock held from 10:25:54 UTC.
+run exit code: 0
+Lock released at 10:28:21 UTC.

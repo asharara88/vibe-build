@@ -374,3 +374,12 @@ Read in the installed packages' own code in `builder/node_modules` (both MIT), b
 - Whether a self-hosted E2B runs on the cloud a buyer will require. E2B documents GCP, AWS and Azure.
 - The WebContainer API's commercial terms, from the primary source. Only needed if bolt.diy is considered, and it is not.
 - What the UAE's data law requires of this product. Design to its principles now. A UAE lawyer confirms before any real data is handled.
+
+## Read on 13 and 14 November 2026 for package J2 (the clean stop under `npm run web`)
+
+Read in the installed package's own code, `builder/node_modules/tsx/dist/cli.mjs` (tsx 4.23.15, MIT), by the session that designed J2 (`docs/design/journey-j2.md`, section 11) and again by J2's reviewer of part (c) (`docs/reviews/2026-11-14-journey-j2.md`). The file is minified; the session that finished J2 found the function named below in it and did not re-read the timings. tsx's documentation was not read.
+
+| Fact | Source |
+| --- | --- |
+| Started as `tsx src/web/main.ts`, tsx runs the script in a child process and passes SIGINT and SIGTERM on to it (`relaySignalToChild`); the wrapper exits with the child's own exit code | tsx 4.23.15, `dist/cli.mjs`. **Shown** for SIGTERM by J2's automated run, path T: the wrapper exited with the interface's code 0 |
+| After passing a signal on, tsx waits 30 ms for the child to report it, sends it again, and 30 ms later sends SIGKILL | The reviewer's reading of the same file; **not run**. Known gap 179, point 10, rests on it |
