@@ -1,0 +1,25 @@
+The scan for container images that are not on the approved list (test/approved-images.test.ts), which reads builder/src, builder/scripts and builder/test, the new files among them. No container.
+On a copy of commit 51d6cc0 (git archive; node_modules as real folders), started 2026-11-14T14:06:19Z.
+Command, from builder/: node node_modules/vitest/vitest.mjs run test/approved-images.test.ts --reporter=verbose
+
+
+ RUN  v5.1.0 <scratchpad>/run06c/builder
+
+ ✓ test/approved-images.test.ts > the approved list > holds exactly the two images of question 11 (a) and the runner's two base images of question 15 (a), each well formed, for internal development and testing only 6ms
+ ✓ test/approved-images.test.ts > the approved list > refuses a list entry with no tag, a short digest, no date or no decision 1ms
+ ✓ test/approved-images.test.ts > the approved list > the sandbox manager's image table is exactly the approved references 0ms
+ ✓ test/approved-images.test.ts > the approved list > the acceptance runner's base image table is exactly the approved references of question 15 (a) 0ms
+ ✓ test/approved-images.test.ts > the scan of the code, scripts, tests and templates > finds no image reference that is not tag@digest of an approved entry 0ms
+ ✓ test/approved-images.test.ts > the scan of the code, scripts, tests and templates > is not empty: it reads the image tables, the template's two FROM lines, the runner's three and the test's inline FROM 1ms
+ ✓ test/approved-images.test.ts > the scan, on made-up text: each kind of reference it must refuse, and what it leaves alone > a Dockerfile: an unpinned FROM, a FROM pinned to another digest, a FROM by digest alone, and an image not on the list 1ms
+ ✓ test/approved-images.test.ts > the scan, on made-up text: each kind of reference it must refuse, and what it leaves alone > TypeScript: an image field, a docker run argument, an inline Dockerfile, a computed FROM and a comment 1ms
+ ✓ test/approved-images.test.ts > the scan, on made-up text: each kind of reference it must refuse, and what it leaves alone > YAML: a bare image value, and a registry image 1ms
+ ✓ test/approved-images.test.ts > the scan, on made-up text: each kind of reference it must refuse, and what it leaves alone > a mistyped digest is refused, not skipped; a major version alone is caught for a known image 1ms
+ ✓ test/approved-images.test.ts > the scan, on made-up text: each kind of reference it must refuse, and what it leaves alone > leaves alone what is not an image: URLs, addresses, host and port, counts, times, Node's own modules, Tailwind classes, SQL, mounts 1ms
+
+ Test Files  1 passed (1)
+      Tests  11 passed (11)
+   Start at  14:06:20
+   Duration  592ms (import 73%, transform 22%, tests 4%, worker 1%)
+
+exit code: 0
