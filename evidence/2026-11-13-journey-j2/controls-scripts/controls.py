@@ -2,10 +2,16 @@
 builder's code (each text to replace must occur exactly once in its file when it is replaced), the test or tests that
 guard it run alone, the verdict of each, then the files restored with git checkout and the tree checked unchanged.
 Before the controls, every named test is run once on the tree as committed, where it must pass, alone (so that each
-name matches exactly one test). Run from builder/:
-  BUILDER_TEST_DATABASE_URL=... TMPDIR=... python3 ../evidence/2026-11-13-journey-j2/controls-scripts/controls.py <out file> [control ids]
-No container is started by these tests (stand-in sandboxes); C5 starts the real interface process on ports the system
-gives and signals only the processes it started. Written in the style of J3's controls.py."""
+name matches exactly one test). Run from builder/, holding the machine's shared lock for live tests (the script takes
+no lock itself):
+  BUILDER_TEST_DATABASE_URL=... TMPDIR=... flock <the live tests' lock file> python3 ../evidence/2026-11-13-journey-j2/controls-scripts/controls.py <out file> [control ids]
+Most of these tests start no container (stand-in sandboxes, or a made-up docker program). Not so the tests of
+test/removal-live.test.ts, which six controls of known gap 180 name (J2-C54, J2-C59, J2-C61 to J2-C63 and J2-C78): they
+need real Docker and the approved Node image, and each run of one, in the baseline and again in its control, makes
+Docker networks (one test a volume too) and starts small containers of its own, removed when it ends; one of them needs
+chattr. C5 starts the real interface process on ports the system gives and signals only the processes it started.
+Written in the style of J3's controls.py. (Header corrected 14 Nov 2026, after the review of known gap 180's fix: it
+said that no container is started, and its usage line took no lock.)"""
 import re, subprocess, sys, datetime
 
 J = "test/journey.test.ts"
@@ -14,6 +20,8 @@ JOURNEY = "src/orchestrator/journey.ts"
 JOBS = "src/orchestrator/journey-jobs.ts"
 PAGES = "src/web/pages.ts"
 MAIN = "src/web/main.ts"
+ADAPTER = "src/orchestrator/example-1-adapter.ts"
+LIVE = "test/removal-live.test.ts"
 
 # (id, what was removed, file or list of files (one per replacement), replacements, tests that must then fail).
 CONTROLS = [
@@ -191,11 +199,12 @@ CONTROLS = [
   [("    const halted = await within(halting, waitUntil - Date.now());", "    const halted = await within(halting, waitMs);")],
   [(W, "C13 \\(after the review of pull request #49\\)")]),
  # ---------------------------------------------------------------- known gap 180's fix (14 Nov 2026): a removal is checked
- ("J2-C54", "gap 180: the end of a removal does not read Docker's lists (whatever is left, it reports the removal as done)", "src/orchestrator/example-1-adapter.ts",
-  [("  const left = await dockerLeftovers(projectId, env);\n  if (left.length) throw new SandboxNotRemoved(projectId, left);\n", "")],
-  [("test/removal-live.test.ts", "a network of the project that Docker will not remove")]),
- ("J2-C55", "gap 180: Docker's lists that cannot be read are read as nothing left", "src/orchestrator/example-1-adapter.ts",
-  [("    return [`Docker's lists could not be read (${(err instanceof Error ? err.message : String(err)).split(\"\\n\")[0]!.slice(0, 200)})`];", "    return [];")],
+ # J2-C54 and J2-C55: their texts updated on 14 Nov 2026, after the fix's review moved them (what they remove is the same).
+ ("J2-C54", "gap 180: the end of a removal does not read Docker's lists (whatever is left, it reports the removal as done)", ADAPTER,
+  [("  const left = await dockerLeftovers(projectId, env);\n", "  const left: string[] = [];\n")],
+  [(LIVE, "a network of the project that Docker will not remove")]),
+ ("J2-C55", "gap 180: Docker's lists that cannot be read are read as nothing left", ADAPTER,
+  [("    return [`${DOCKER_NOT_ASKED} (${dockerSaid(err, timeoutMs)})`];", "    return [];")],
   [(J, "C16 \\(known gap 180's fix\\)")]),
  ("J2-C56", "gap 180: Close project closes the project although its removal left something", JOURNEY,
   [("        throw new JourneyRefused(closeNotRemovedRefusal(err.left));\n", "")],
@@ -206,6 +215,73 @@ CONTROLS = [
  ("J2-C58", "gap 180: the screen does not say that a removal left something", PAGES,
   [("  if (!s.removalLeft) return \"\";\n", "  if (s.removalLeft || !s.removalLeft) return \"\";\n")],
   [(W, "C14 \\(known gap 180's fix\\)"), (W, "C15 \\(known gap 180's fix\\)")]),
+ # ---------------------------------------------------------------- after the review of known gap 180's fix (14 Nov 2026): one control for each new safeguard
+ ("J2-C59", "gap 180 review, item 1: Docker's lists asked and read as tab-separated text again, not one JSON object a line (a tab in a name shifts its label out of sight)", ADAPTER,
+  [('`{"name":{{json .${name}}},"project":{{json (.Label "com.docker.compose.project")}}}`;', '`{{.${name}}}\\t{{.Label "com.docker.compose.project"}}`;'),
+   ('    const named = (out: string, what: string) => jsonLines(out, "name", "project", what).map((x) => ({ name: x.name, composeProject: x.project }));',
+    '    const named = (out: string, _what: string) => out.split("\\n").filter((l) => l.trim() !== "").map((l) => ({ name: (l.split("\\t")[0] ?? "").trim(), composeProject: (l.split("\\t")[1] ?? "").trim() }));')],
+  [(LIVE, "with a tab in its name")]),
+ ("J2-C60", "gap 180 review, item 1: a line of Docker's list that cannot be read is passed over, not reported", ADAPTER,
+  [("      if (typeof r[a] !== \"string\" || typeof r[b] !== \"string\") throw new Error(`a line of Docker's list of ${what} could not be read`);", "      if (typeof r[a] !== \"string\" || typeof r[b] !== \"string\") return [];")],
+  [(J, "C21 \\(known gap 180, after its review\\)")]),
+ ("J2-C61", "gap 180 review, item 2 (a): a folder that cannot be removed gives a plain error again, not SandboxNotRemoved", ADAPTER,
+  [("  throw new SandboxNotRemoved(projectId, [`folder ${dir} (not removed: ${code})`]);", "  throw first;")],
+  [(LIVE, "a folder that cannot be removed in full")]),
+ ("J2-C62", "gap 180 review, item 2 (b): the compose file is not kept for last when the folder is removed", ADAPTER,
+  [("    for (const entry of entries.filter((e) => e !== \"compose.yaml\")) attempt(", "    for (const entry of entries) attempt(")],
+  [(LIVE, "a folder that cannot be removed in full")]),
+ ("J2-C63", "gap 180 review, item 2 (c): a recorded folder that fails its own check stops the removal before Docker is asked, with a plain error, as before", ADAPTER,
+  [("      const why = recordedSandboxRefusal(projectId, rec.dir);\n", "      const why = recordedSandboxRefusal(projectId, rec.dir);\n      if (why) throw new Error(`The sandbox of ${projectId} was not removed: ${why}.`);\n")],
+  [(LIVE, "a recorded folder that fails its own check")]),
+ ("J2-C64", "gap 180 review, item 3: the start's count line counts every project looked at, also one whose removal left something", MAIN,
+  [("${r.touched.filter((id) => !left.has(id)).length}.`,", "${r.touched.length}.`,")],
+  [(W, "C14 \\(known gap 180's fix\\)")]),
+ ("J2-C65", "gap 180 review, item 3: no line at start names a project left", MAIN,
+  [("    ...r.left.map((x) => `[interface starting] ${leftForNextStart(x)}`),\n", "")],
+  [(W, "C14 \\(known gap 180's fix\\)")]),
+ ("J2-C66", "gap 180 review, item 4: the refusal of Close project says again that nothing else was changed", JOURNEY,
+  [('      : "What could be removed of it was removed, and its app is stopped, except for what is named as left."', '      : "Nothing else was changed."')],
+  [(W, "C15 \\(known gap 180's fix\\)")]),
+ ("J2-C67", "gap 180 review, item 5: a job is started for a project whose removal is not finished", JOURNEY,
+  [("      if (removalNotFinished(s)) throw new JourneyRefused(REMOVAL_NOT_FINISHED);\n", "")],
+  [(W, "C17 \\(known gap 180, after its review\\)"), (W, "C19 \\(known gap 180, after its review\\)")]),
+ ("J2-C68", "gap 180 review, item 5: a project whose removal is not finished can be signed off", JOURNEY,
+  [("  // After the review of known gap 180's fix: a project whose removal is not finished is not signed off (its app is gone).\n  if (removalNotFinished(s)) return REMOVAL_NOT_FINISHED;\n", "")],
+  [(W, "C17 \\(known gap 180, after its review\\)")]),
+ ("J2-C69", "gap 180 review, item 5: a step's approval is not refused for a removal not finished (it gets the step's ordinary answer)", JOURNEY,
+  [("  // After the review of known gap 180's fix: nothing of a project whose removal is not finished is approved.\n  if (removalNotFinished(s)) return REMOVAL_NOT_FINISHED;\n", "")],
+  [(W, "C17 \\(known gap 180, after its review\\)")]),
+ ("J2-C70", "gap 180 review, item 5: the pages of a project whose removal is not finished go on offering its next action", PAGES,
+  [("const noMoreWork = (s: JourneyState): boolean => s.interrupted || removalNotFinished(s);", "const noMoreWork = (s: JourneyState): boolean => s.interrupted;")],
+  [(W, "C17 \\(known gap 180, after its review\\)"), (W, "C19 \\(known gap 180, after its review\\)")]),
+ ("J2-C71", "gap 180 review, item 5: no panel says that the removal is not finished, with Close project and New project", PAGES,
+  [('${!s.interrupted && removalNotFinished(s) ? removalNotFinishedPanel(lang, s) : ""}', '${""}')],
+  [(W, "C17 \\(known gap 180, after its review\\)"), (W, "C19 \\(known gap 180, after its review\\)")]),
+ ("J2-C72", "gap 180 review, item 6: the stop's reason for a removal that left something holds \"removed at the stop\" again", JOURNEY,
+  [('export const NOT_REMOVED_AT_STOP = "The interface was stopped on purpose; the removal of this project\'s sandbox did not finish at the stop: something of it is left. The next start tries again. It is not resumed.";',
+    'export const NOT_REMOVED_AT_STOP = "The interface was stopped on purpose; not everything of this project could be removed at the stop. The next start tries again. It is not resumed.";')],
+  [(J, "C20 \\(known gap 180, after its review\\)")]),
+ ("J2-C73", "gap 180 review, item 7: what was left is written into the sentence with no left-to-right span of its own", PAGES,
+  [('html`<span lang="en" dir="ltr">${left}</span>${a}`)}</p>`;', 'html`${left}${a}`)}</p>`;')],
+  [(W, "C14 \\(known gap 180's fix\\)"), (W, "C15 \\(known gap 180's fix\\)")]),
+ ("J2-C74", "gap 180 review, item 7: the four list commands have no time limit", ADAPTER,
+  [("    const ask = { env: env ?? removalDockerEnv(null), timeout: timeoutMs, maxBuffer: 16 * 1024 * 1024 };", "    const ask = { env: env ?? removalDockerEnv(null), maxBuffer: 16 * 1024 * 1024 };")],
+  [(J, "C21 \\(known gap 180, after its review\\)")]),
+ ("J2-C75", "gap 180 review, item 7: Docker's own words are not read from its error output (the error's message is used)", ADAPTER,
+  [("  if (last !== undefined) return last.slice(0, 300);\n", "")],
+  [(J, "C21 \\(known gap 180, after its review\\)")]),
+ ("J2-C76", "gap 180 review, item 7: on an interrupted project the note names Close project in other words than the button beside it (they differ in Arabic)", PAGES,
+  [('${removalLeftNote(lang, s, t(lang, "interrupted.close"))}', '${removalLeftNote(lang, s, t(lang, "close.button"))}')],
+  [(W, "C14 \\(known gap 180's fix\\)")]),
+ ("J2-C77", "gap 180 review, item 8: a removal asks Docker with settings of its own, not the sandbox's (a Docker context the sandbox refuses is not refused)", ADAPTER,
+  [("    return removalDockerEnv(clientDir);\n", "    return { PATH: process.env.PATH ?? \"\", HOME: process.env.HOME ?? \"/root\", DOCKER_CONFIG: join(clientDir ?? NO_DOCKER_CLIENT, \"docker-client\") };\n")],
+  [(J, "C22 \\(known gap 180, after its review\\)")]),
+ ("J2-C78", "gap 180 review, item 9: the removal with a handle removes the folder with no sweep and no check, as before the fix", ADAPTER,
+  [("      return sweepAndCheck(x.projectId, x.dir, env);\n", "      rmSync(x.dir, { recursive: true, force: true });\n      return \"removed with no check, as before the fix\";\n")],
+  [(LIVE, "the removal with a handle")]),
+ ("J2-C79", "gap 180 review, item 10: the stop's loop ends at the first project whose removal leaves something (the projects after it are not removed)", JOURNEY,
+  [("        removed = false;\n", "        removed = false;\n        o.goOn = () => false;\n")],
+  [(W, "C18 \\(known gap 180, after its review\\)")]),
 ]
 
 def run(cmd):
