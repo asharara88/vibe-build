@@ -250,7 +250,10 @@ async function run() {
 
   // 11. Export, offered after sign-off; download it.
   await page.goto(`${BASE}/projects/${id}/export`);
-  check("the export is labelled internal only and not yet shown to start without the builder", (await text("[data-export-label]")).startsWith("Internal only, not for customers. Not yet shown to start without the builder (package 3.2)"));
+  check(
+    "the export is labelled internal only, its images and development packages approved for internal development use only (package 3.2)",
+    (await text("[data-export-label]")).startsWith("Internal only, not for customers. The two container images it names are approved for the builder's internal development and testing only;"),
+  );
   await photo(19, "export-before", ["en"]);
   await clickAndLoad(`form[action="/projects/${id}/export"] button`);
   const exported = await waitFor("a[data-download]", 600_000);
