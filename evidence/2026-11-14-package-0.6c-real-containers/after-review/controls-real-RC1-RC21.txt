@@ -1,0 +1,361 @@
+# Package 0.6c, the run in real containers: controls RC1 to RC21 (22 runs), 2026-11-14T15:49:07+00:00,
+# on a copy of commit 00c9a2f made with git archive (node_modules as real folders); test database builder_test_06c.
+# Each control removes one safeguard by exact replacement, runs the test that covers it (expected: FAIL), restores the file,
+# and checks the copy's tree is what it was. Unit controls: the test is then run again (expected: pass). Live controls: under the shared lock.
+# RC20 and RC21 remove nothing: each puts a fault on the machine, and the test must fail, naming it.
+# The copy's tree before any control: sha256 7cf4330e61732bc1dd0c7d8a9b9bbad7bda9b31d87977f4671a46123b8107348
+
+## RC1: the target check: an entry's target must match the address the attempt was aimed at
+Changed in builder/src/sandbox/isolation.ts
+Test test/isolation.test.ts -t "an entry's target, when given": exit 1: FAILED with the safeguard removed, as it should
+    × an entry's target, when given, must match the address the attempt was aimed at; an entry without one behaves as before 14ms
+    Test Files  1 failed (1)
+    Tests  1 failed | 49 skipped (50)
+    FAIL  test/isolation.test.ts > isolation harness: lists and helpers for the real-container run (unit) > an entry's target, when given, must match the address the attempt was aimed at; an entry without one behaves as before
+    AssertionError: expected true to be false // Object.is equality
+    - Expected
+    + Received
+Test test/isolation.test.ts -t "the running app's list": exit 1: FAILED with the safeguard removed, as it should
+    × the running app's list: its own listener at 127.0.0.1 and Docker's name server at 127.0.0.11 pass; a third listening port fails; without its own listener's row the list reads not tried 25ms
+    Test Files  1 failed (1)
+    Tests  1 failed | 1 passed | 48 skipped (50)
+    FAIL  test/isolation.test.ts > isolation harness: lists and helpers for the real-container run (unit) > the running app's list: its own listener at 127.0.0.1 and Docker's name server at 127.0.0.11 pass; a third listening port fails; without its own listener's row the list reads not tried
+    AssertionError: expected [ 'X9229', 'X41000' ] to deeply equal [ 'X9229' ]
+    - Expected
+    + Received
+Restored; the copy's tree is unchanged: yes
+Restored, test test/isolation.test.ts -t "an entry's target, when given": exit 0: Test Files  1 passed (1) / Tests  1 passed | 49 skipped (50)
+Restored, test test/isolation.test.ts -t "the running app's list": exit 0: Test Files  1 passed (1) / Tests  2 passed | 48 skipped (50)
+
+## RC2: the running app's own-listener entry in the list app-running
+Changed in builder/src/sandbox/isolation.ts
+Test test/isolation.test.ts -t "the running app's list": exit 1: FAILED with the safeguard removed, as it should
+    × the running app's list: its own listener at 127.0.0.1 and Docker's name server at 127.0.0.11 pass; a third listening port fails; without its own listener's row the list reads not tried 34ms
+    × the running app's list: a second listening port at 127.0.0.11 fails, both rows, since only one can be Docker's name server; an entry not marked single takes any number, as before 2ms
+    Test Files  1 failed (1)
+    Tests  2 failed | 48 skipped (50)
+    FAIL  test/isolation.test.ts > isolation harness: lists and helpers for the real-container run (unit) > the running app's list: its own listener at 127.0.0.1 and Docker's name server at 127.0.0.11 pass; a third listening port fails; without its own listener's row the list reads not tried
+    AssertionError: expected [ 'A2 PASS', 'X3191 FAIL', …(4) ] to deeply equal [ 'A2 PASS', 'X3191 PASS', …(4) ]
+    - Expected
+    + Received
+    FAIL  test/isolation.test.ts > isolation harness: after the review of the real-container run (unit) > the running app's list: a second listening port at 127.0.0.11 fails, both rows, since only one can be Docker's name server; an entry not marked single takes any number, as before
+    AssertionError: expected false to be true // Object.is equality
+    - Expected
+    + Received
+Restored; the copy's tree is unchanged: yes
+Restored, test test/isolation.test.ts -t "the running app's list": exit 0: Test Files  1 passed (1) / Tests  2 passed | 48 skipped (50)
+
+## RC3: the scripted engine's list is empty (made to allow a name server instead)
+Changed in builder/src/sandbox/isolation.ts
+Test test/isolation.test.ts -t "the scripted engine's list is empty": exit 1: FAILED with the safeguard removed, as it should
+    × the scripted engine's list is empty: all silent passes; one connected row, one listening port inside, or one unnamed error each fails 15ms
+    Test Files  1 failed (1)
+    Tests  1 failed | 49 skipped (50)
+    FAIL  test/isolation.test.ts > isolation harness: lists and helpers for the real-container run (unit) > the scripted engine's list is empty: all silent passes; one connected row, one listening port inside, or one unnamed error each fails
+    AssertionError: expected [ { ids: /^X/, …(2) } ] to deeply equal []
+    - Expected
+    + Received
+Restored; the copy's tree is unchanged: yes
+Restored, test test/isolation.test.ts -t "the scripted engine's list is empty": exit 0: Test Files  1 passed (1) / Tests  1 passed | 49 skipped (50)
+
+## RC4: a Compose edit must be found exactly once
+Changed in builder/scripts/isolation-harness.ts
+Test test/isolation.test.ts -t "each real misconfiguration's edits": exit 1: FAILED with the safeguard removed, as it should
+    × each real misconfiguration's edits match the Compose file makeExample1 itself writes exactly once; an edit whose text is found no times, or twice, is refused 170ms
+    Test Files  1 failed (1)
+    Tests  1 failed | 49 skipped (50)
+    FAIL  test/isolation.test.ts > isolation harness: lists and helpers for the real-container run (unit) > each real misconfiguration's edits match the Compose file makeExample1 itself writes exactly once; an edit whose text is found no times, or twice, is refused
+    AssertionError: expected [Function] to throw an error
+    - Expected:
+    + Received:
+Restored; the copy's tree is unchanged: yes
+Restored, test test/isolation.test.ts -t "each real misconfiguration's edits": exit 0: Test Files  1 passed (1) / Tests  1 passed | 49 skipped (50)
+
+## RC5: each one-off container's image is the one the build made (live): after the image ids are read and before the probes, stand-in images are tagged back under the app and tools names
+Changed in builder/test/isolation-real-live.test.ts
+Test test/isolation-real-live.test.ts -t "L[1234]:": exit 1: FAILED with the safeguard removed, as it should
+    × L4: the probe inside each real container reaches exactly what its list allows: the running app in place, and the app, tools, runner, live camera, check and the scripted engine's container each from its real image, and the database's network 221257ms
+    Test Files  1 failed (1)
+    Tests  1 failed | 3 passed | 6 skipped (10)
+    FAIL  test/isolation-real-live.test.ts > isolation: live, the probe inside the real containers of a real example-1 project, each compared with its expected list (package 0.6c, 14 Nov 2026) > L4: the probe inside each real container reaches exactly what its list allows: the running app in place, and the app, tools, runner, live camera, check and the scripted engine's container each from its real im
+    AssertionError: expected { 'app-running': [], …(7) } to deeply equal { 'app-running': [], …(7) }
+    - Expected
+    + Received
+The failing output must name what was removed: 3 of 3 expected texts found
+    found: which is not builder_p_iso06c_real-app:latest as read after the build
+        in: +     "the container ran image sha256:23ceffd0022d9a108187f6d0cfe7ce4e57ef3fe8f5b7b4f2b2cebd068c739a03, which is not builder_p_iso06c_real-app:latest as read after the build (sha256:2c5aad58ca17df050c3bda1f84ab3c3f54dc2a8167c2a974255137b0b8a27fb3)",
+    found: which is not builder_p_iso06c_real-tools:latest as read after the build
+        in: +     "the container ran image sha256:61eb9c5c322fcb3fdc7952325d092bf395e91418e1a011f87e04b6b9d7df9d2c, which is not builder_p_iso06c_real-tools:latest as read after the build (sha256:05144a718b3a91552102d900144d391e690f87260fba0145680f08def0030b48)",
+    found: the tools container ran as user id 0, not the image's unprivileged user
+        in: +     "the tools container ran as user id 0, not the image's unprivileged user",
+Restored; the copy's tree is unchanged: yes
+Restored, the same tests: not run again here; the whole live file on the unchanged code is kept as run-isolation-real-live.txt
+Left by the run of this change's own projects and removed here (images by name): image builder_p_iso06c_real-rc5kept-app:latest, image builder_p_iso06c_real-rc5kept-tools:latest, image builder_p_iso06c_real-runner-standin:latest
+Images left without a name by the run: none
+
+## RC6: the realness check: realImageProblemsFrom made to find nothing
+Changed in builder/scripts/isolation-harness.ts
+Test test/isolation.test.ts -t "realImageProblemsFrom": exit 1: FAILED with the safeguard removed, as it should
+    × realImageProblemsFrom: nothing for the images as the template's Dockerfile and the runner's build state them; each of the three stand-in images of 13 Nov is named 15ms
+    Test Files  1 failed (1)
+    Tests  1 failed | 49 skipped (50)
+    FAIL  test/isolation.test.ts > isolation harness: lists and helpers for the real-container run (unit) > realImageProblemsFrom: nothing for the images as the template's Dockerfile and the runner's build state them; each of the three stand-in images of 13 Nov is named
+    AssertionError: expected [] to deeply equal [ …(2) ]
+    - Expected
+    + Received
+Restored; the copy's tree is unchanged: yes
+Restored, test test/isolation.test.ts -t "realImageProblemsFrom": exit 0: Test Files  1 passed (1) / Tests  1 passed | 49 skipped (50)
+
+## RC6-live: the real runner image in the real project (live): makeExample1 given the stand-in runner's image name
+Changed in builder/scripts/isolation-harness.ts
+Test test/isolation-real-live.test.ts -t "L[123]:": exit 1: FAILED with the safeguard removed, as it should
+    × L3: a real example-1 project is made by the product's own functions; its images are not the stand-ins of 13 Nov, the app's holds the pages step 02 adds and the tools' the product's two tools; and its app runs 30713ms
+    Test Files  1 failed (1)
+    Tests  1 failed | 2 passed | 7 skipped (10)
+    FAIL  test/isolation-real-live.test.ts > isolation: live, the probe inside the real containers of a real example-1 project, each compared with its expected list (package 0.6c, 14 Nov 2026) > L3: a real example-1 project is made by the product's own functions; its images are not the stand-ins of 13 Nov, the app's holds the pages step 02 adds and the tools' the product's two tools; and its app runs
+    AssertionError: expected [ …(3) ] to deeply equal []
+    - Expected
+    + Received
+The failing output must name what was removed: 1 of 1 expected texts found
+    found: the acceptance service's image is builder_p_iso06c_real-runner-standin:latest, not builder-acceptance-runner:local: it is not the acceptance runner's real image
+        in: +   "the acceptance service's image is builder_p_iso06c_real-runner-standin:latest, not builder-acceptance-runner:local: it is not the acceptance runner's real image",
+Restored; the copy's tree is unchanged: yes
+Restored, the same tests: not run again here; the whole live file on the unchanged code is kept as run-isolation-real-live.txt
+Left by the run of this change's own projects and removed here (images by name): nothing
+Images left without a name by the run: none
+
+## RC7: the app is probed in place (live): a one-off container of the app service is probed instead of the running one
+Changed in builder/test/isolation-real-live.test.ts
+Test test/isolation-real-live.test.ts -t "L[1234]:": exit 1: FAILED with the safeguard removed, as it should
+    × L4: the probe inside each real container reaches exactly what its list allows: the running app in place, and the app, tools, runner, live camera, check and the scripted engine's container each from its real image, and the database's network 221349ms
+    Test Files  1 failed (1)
+    Tests  1 failed | 3 passed | 6 skipped (10)
+    FAIL  test/isolation-real-live.test.ts > isolation: live, the probe inside the real containers of a real example-1 project, each compared with its expected list (package 0.6c, 14 Nov 2026) > L4: the probe inside each real container reaches exactly what its list allows: the running app in place, and the app, tools, runner, live camera, check and the scripted engine's container each from its real im
+    AssertionError: expected { 'app-running': [ …(2) ], …(7) } to deeply equal { 'app-running': [], …(7) }
+    - Expected
+    + Received
+The failing output must name what was removed: 1 of 1 expected texts found
+    found: not tried: ^X3191$: the app itself, listening inside its own container
+        in: +     "not tried: ^X3191$: the app itself, listening inside its own container",
+Restored; the copy's tree is unchanged: yes
+Restored, the same tests: not run again here; the whole live file on the unchanged code is kept as run-isolation-real-live.txt
+Left by the run of this change's own projects and removed here (images by name): nothing
+Images left without a name by the run: none
+
+## RC8: the file run in place is the repository's probe: the fingerprint comparison
+Changed in builder/scripts/isolation-harness.ts
+Test test/isolation.test.ts -t "probeInPlace does not run a file": exit 1: FAILED with the safeguard removed, as it should
+    × probeInPlace does not run a file whose fingerprint inside differs from the repository's, refuses an encoded file over the size guard, and still asks for the file's removal after a failure 34ms
+    Test Files  1 failed (1)
+    Tests  1 failed | 49 skipped (50)
+    FAIL  test/isolation.test.ts > isolation harness: lists and helpers for the real-container run (unit) > probeInPlace does not run a file whose fingerprint inside differs from the repository's, refuses an encoded file over the size guard, and still asks for the file's removal after a failure
+    AssertionError: promise resolved "{ …(5) }" instead of rejecting
+    - Expected
+    + Received
+Restored; the copy's tree is unchanged: yes
+Restored, test test/isolation.test.ts -t "probeInPlace does not run a file": exit 0: Test Files  1 passed (1) / Tests  1 passed | 49 skipped (50)
+
+## RC9: never skipped: the live file's prerequisite check made to return silently
+Changed in builder/test/isolation-real-live.test.ts
+Test test/acceptance-gate.test.ts -t "the live isolation test file for the real containers": exit 1: FAILED with the safeguard removed, as it should
+    × the live isolation test file for the real containers (package 0.6c, 14 Nov 2026), run with the zip absent and Docker not answering, fails: all 10 of its tests, none skipped, each naming both and how to put them right 934ms
+    Test Files  1 failed (1)
+    Tests  1 failed | 11 skipped (12)
+    FAIL  test/acceptance-gate.test.ts > the gate: npm test cannot pass while the browser was not exercised > the live isolation test file for the real containers (package 0.6c, 14 Nov 2026), run with the zip absent and Docker not answering, fails: all 10 of its tests, none skipped, each naming both and how to put them right
+    AssertionError: expected +0 to be 10 // Object.is equality
+    - Expected
+    + Received
+Restored; the copy's tree is unchanged: yes
+Restored, test test/acceptance-gate.test.ts -t "the live isolation test file for the real containers": exit 0: Test Files  1 passed (1) / Tests  1 passed | 11 skipped (12)
+Left in the temporary folder by the run with the check silenced, and removed: nothing
+
+## RC10: the harness never removes an image that is not its own project's
+Changed in builder/scripts/isolation-harness.ts
+Test test/isolation.test.ts -t "removeImages refuses a name": exit 1: FAILED with the safeguard removed, as it should
+    × removeImages refuses a name that is not the sandbox's own project's, before Docker is asked anything 50ms
+    Test Files  1 failed (1)
+    Tests  1 failed | 49 skipped (50)
+    FAIL  test/isolation.test.ts > isolation harness: lists and helpers for the real-container run (unit) > removeImages refuses a name that is not the sandbox's own project's, before Docker is asked anything
+    AssertionError: promise resolved "undefined" instead of rejecting
+    - Expected:
+    + Received:
+Restored; the copy's tree is unchanged: yes
+Restored, test test/isolation.test.ts -t "removeImages refuses a name": exit 0: Test Files  1 passed (1) / Tests  1 passed | 49 skipped (50)
+
+## RC11: the running app's list allows ONE port at 127.0.0.11: the name-server entry's `single` mark removed
+Changed in builder/src/sandbox/isolation.ts
+Test test/isolation.test.ts -t "a second listening port at 127.0.0.11 fails": exit 1: FAILED with the safeguard removed, as it should
+    × the running app's list: a second listening port at 127.0.0.11 fails, both rows, since only one can be Docker's name server; an entry not marked single takes any number, as before 26ms
+    Test Files  1 failed (1)
+    Tests  1 failed | 49 skipped (50)
+    FAIL  test/isolation.test.ts > isolation harness: after the review of the real-container run (unit) > the running app's list: a second listening port at 127.0.0.11 fails, both rows, since only one can be Docker's name server; an entry not marked single takes any number, as before
+    AssertionError: expected true to be false // Object.is equality
+    - Expected
+    + Received
+The failing output must name what was removed: 1 of 1 expected texts found
+    found: expected true to be false
+        in: AssertionError: expected true to be false // Object.is equality
+Restored; the copy's tree is unchanged: yes
+Restored, test test/isolation.test.ts -t "a second listening port at 127.0.0.11 fails": exit 0: Test Files  1 passed (1) / Tests  1 passed | 49 skipped (50)
+
+## RC12: an entry marked `single` fails when more than one attempt meets it: the check removed
+Changed in builder/src/sandbox/isolation.ts
+Test test/isolation.test.ts -t "a second listening port at 127.0.0.11 fails": exit 1: FAILED with the safeguard removed, as it should
+    × the running app's list: a second listening port at 127.0.0.11 fails, both rows, since only one can be Docker's name server; an entry not marked single takes any number, as before 25ms
+    Test Files  1 failed (1)
+    Tests  1 failed | 49 skipped (50)
+    FAIL  test/isolation.test.ts > isolation harness: after the review of the real-container run (unit) > the running app's list: a second listening port at 127.0.0.11 fails, both rows, since only one can be Docker's name server; an entry not marked single takes any number, as before
+    AssertionError: expected true to be false // Object.is equality
+    - Expected
+    + Received
+The failing output must name what was removed: 1 of 1 expected texts found
+    found: expected true to be false
+        in: AssertionError: expected true to be false // Object.is equality
+Restored; the copy's tree is unchanged: yes
+Restored, test test/isolation.test.ts -t "a second listening port at 127.0.0.11 fails": exit 0: Test Files  1 passed (1) / Tests  1 passed | 49 skipped (50)
+
+## RC13: the preview front's stand-in fails at once on a port that is taken: its error handler removed
+Changed in builder/scripts/isolation-harness.ts
+Test test/isolation.test.ts -t "on a port that is taken, fails at once": exit 1: FAILED with the safeguard removed, as it should
+    × the preview front's stand-in, on a port that is taken, fails at once in plain words; portTakenProblem names a taken port and says nothing of a free one 2022ms
+    Test Files  1 failed (1)
+    Tests  1 failed | 49 skipped (50)
+    FAIL  test/isolation.test.ts > isolation harness: after the review of the real-container run (unit) > the preview front's stand-in, on a port that is taken, fails at once in plain words; portTakenProblem names a taken port and says nothing of a free one
+    AssertionError: expected 'it did not settle within 2 s' to be 'The preview front\'s stand-in cannot …' // Object.is equality
+    Error: listen EADDRINUSE: address already in use 127.0.0.1:37553
+The failing output must name what was removed: 1 of 1 expected texts found
+    found: it did not settle within 2 s
+        in: AssertionError: expected 'it did not settle within 2 s' to be 'The preview front\'s stand-in cannot …' // Object.is equality
+Restored; the copy's tree is unchanged: yes
+Restored, test test/isolation.test.ts -t "on a port that is taken, fails at once": exit 0: Test Files  1 passed (1) / Tests  1 passed | 49 skipped (50)
+
+## RC14: the image guard takes exact names: the match on the project's name and a dash put back
+Changed in builder/scripts/isolation-harness.ts
+Test test/isolation.test.ts -t "removeImages takes only the three names": exit 1: FAILED with the safeguard removed, as it should
+    × removeImages takes only the three names a project's own images can have, and refuses those of a project whose id is this id, a dash, and more; ownContainerIds leaves that project's containers alone 37ms
+    Test Files  1 failed (1)
+    Tests  1 failed | 49 skipped (50)
+    FAIL  test/isolation.test.ts > isolation harness: after the review of the real-container run (unit) > removeImages takes only the three names a project's own images can have, and refuses those of a project whose id is this id, a dash, and more; ownContainerIds leaves that project's containers alone
+    AssertionError: promise resolved "undefined" instead of rejecting
+    - Expected:
+    + Received:
+The failing output must name what was removed: 1 of 1 expected texts found
+    found: instead of rejecting
+        in: AssertionError: promise resolved "undefined" instead of rejecting
+Restored; the copy's tree is unchanged: yes
+Restored, test test/isolation.test.ts -t "removeImages takes only the three names": exit 0: Test Files  1 passed (1) / Tests  1 passed | 49 skipped (50)
+
+## RC15: removing a project leaves alone the containers of a project whose id is this id, a dash, and more: the match on the name and a dash put back
+Changed in builder/scripts/isolation-harness.ts
+Test test/isolation.test.ts -t "removeImages takes only the three names": exit 1: FAILED with the safeguard removed, as it should
+    × removeImages takes only the three names a project's own images can have, and refuses those of a project whose id is this id, a dash, and more; ownContainerIds leaves that project's containers alone 20ms
+    Test Files  1 failed (1)
+    Tests  1 failed | 49 skipped (50)
+    FAIL  test/isolation.test.ts > isolation harness: after the review of the real-container run (unit) > removeImages takes only the three names a project's own images can have, and refuses those of a project whose id is this id, a dash, and more; ownContainerIds leaves that project's containers alone
+    AssertionError: expected [ Array(7) ] to deeply equal [ Array(3) ]
+    - Expected
+    + Received
+The failing output must name what was removed: 1 of 1 expected texts found
+    found: id-neighbour-app
+        in: +   "id-neighbour-app",
+Restored; the copy's tree is unchanged: yes
+Restored, test test/isolation.test.ts -t "removeImages takes only the three names": exit 0: Test Files  1 passed (1) / Tests  1 passed | 49 skipped (50)
+
+## RC16: a project's folder is removed whatever Docker said: the removal after a failure taken out
+Changed in builder/scripts/isolation-harness.ts
+Test test/isolation.test.ts -t "destroyRealProject removes the project's folder even when Docker does not answer": exit 1: FAILED with the safeguard removed, as it should
+    × destroyRealProject removes the project's folder even when Docker does not answer, and passes Docker's failure on 131ms
+    Test Files  1 failed (1)
+    Tests  1 failed | 49 skipped (50)
+    FAIL  test/isolation.test.ts > isolation harness: after the review of the real-container run (unit) > destroyRealProject removes the project's folder even when Docker does not answer, and passes Docker's failure on
+    AssertionError: expected true to be false // Object.is equality
+    - Expected
+    + Received
+The failing output must name what was removed: 1 of 1 expected texts found
+    found: expected true to be false
+        in: AssertionError: expected true to be false // Object.is equality
+Restored; the copy's tree is unchanged: yes
+Restored, test test/isolation.test.ts -t "destroyRealProject removes the project's folder even when Docker does not answer": exit 0: Test Files  1 passed (1) / Tests  1 passed | 49 skipped (50)
+
+## RC17: nothing listens on the machine at the gateway's port: the check made to see nothing
+Changed in builder/scripts/isolation-harness.ts
+Test test/isolation.test.ts -t "gatewayPortProblem names every listener": exit 1: FAILED with the safeguard removed, as it should
+    × gatewayPortProblem names every listener on the machine at the gateway's port, and says nothing when there is none 14ms
+    Test Files  1 failed (1)
+    Tests  1 failed | 49 skipped (50)
+    FAIL  test/isolation.test.ts > isolation harness: after the review of the real-container run (unit) > gatewayPortProblem names every listener on the machine at the gateway's port, and says nothing when there is none
+    AssertionError: expected null to be 'Something listens on the machine at 1…' // Object.is equality
+    - Expected:
+    + Received:
+The failing output must name what was removed: 1 of 1 expected texts found
+    found: Something listens on the machine at 127.0.0.1:4010
+        in: "Something listens on the machine at 127.0.0.1:4010: that is the gateway address a real example-1 project is given. This run says nothing is behind it, and would send it a request through the door; it does not go on. Stop what listens there, then run this again."
+Restored; the copy's tree is unchanged: yes
+Restored, test test/isolation.test.ts -t "gatewayPortProblem names every listener": exit 0: Test Files  1 passed (1) / Tests  1 passed | 49 skipped (50)
+
+## RC18: what the images hold: the content check made to find nothing
+Changed in builder/scripts/isolation-harness.ts
+Test test/isolation.test.ts -t "imageContentProblemsFrom: nothing when every path is there": exit 1: FAILED with the safeguard removed, as it should
+    × imageContentProblemsFrom: nothing when every path is there; an image that has only the real one's settings is named; imageContents asks one container of each service and takes anything else for not there 13ms
+    Test Files  1 failed (1)
+    Tests  1 failed | 49 skipped (50)
+    FAIL  test/isolation.test.ts > isolation harness: after the review of the real-container run (unit) > imageContentProblemsFrom: nothing when every path is there; an image that has only the real one's settings is named; imageContents asks one container of each service and takes anything else for not there
+    AssertionError: expected [] to deeply equal [ …(2) ]
+    - Expected
+    + Received
+The failing output must name what was removed: 1 of 1 expected texts found
+    found: the app image does not hold /app/server.js
+        in: -   "the app image does not hold /app/server.js, /app/.next/server/app/[locale]/my-requests/page.js, /app/.next/server/app/[locale]/my-requests/new/page.js: it is not the build of the workspace after the scripted engine's two steps",
+Restored; the copy's tree is unchanged: yes
+Restored, test test/isolation.test.ts -t "imageContentProblemsFrom: nothing when every path is there": exit 0: Test Files  1 passed (1) / Tests  1 passed | 49 skipped (50)
+
+## RC19: misconfiguration R1's in-place leg ran in the running app itself (live): a one-off container of the misconfigured app service is probed instead
+Changed in builder/test/isolation-real-live.test.ts
+Test test/isolation-real-live.test.ts -t "L6:": exit 1: FAILED with the safeguard removed, as it should
+    × L6: deliberate misconfiguration R1 on real containers: the real app also on an ordinary bridge fails the app's comparison, in a one-off container and in the running app itself 37758ms
+    Test Files  1 failed (1)
+    Tests  1 failed | 9 skipped (10)
+    FAIL  test/isolation-real-live.test.ts > isolation: live, the probe inside the real containers of a real example-1 project, each compared with its expected list (package 0.6c, 14 Nov 2026) > L6: deliberate misconfiguration R1 on real containers: the real app also on an ordinary bridge fails the app's comparison, in a one-off container and in the running app itself
+    AssertionError: expected [ '127.0.0.11:35311' ] to include '0.0.0.0:3191'
+The failing output must name what was removed: 1 of 1 expected texts found
+    found: to include '0.0.0.0:3191'
+        in: AssertionError: expected [ '127.0.0.11:35311' ] to include '0.0.0.0:3191'
+Restored; the copy's tree is unchanged: yes
+Restored, the same tests: not run again here; the whole live file on the unchanged code is kept as run-isolation-real-live.txt
+Left by the run of this change's own projects and removed here (images by name): nothing
+Images left without a name by the run: none
+
+## RC20: FAULT PUT IN, no safeguard removed (live): a container is left on the machine under the first project's name before L3 makes anything; L3 must fail, naming it, and start nothing
+Changed in builder/test/isolation-real-live.test.ts
+Test test/isolation-real-live.test.ts -t "L3:": exit 1: FAILED with the fault put in, as it should
+    × L3: a real example-1 project is made by the product's own functions; its images are not the stand-ins of 13 Nov, the app's holds the pages step 02 adds and the tools' the product's two tools; and its app runs 291ms
+    Test Files  1 failed (1)
+    Tests  1 failed | 9 skipped (10)
+    FAIL  test/isolation-real-live.test.ts > isolation: live, the probe inside the real containers of a real example-1 project, each compared with its expected list (package 0.6c, 14 Nov 2026) > L3: a real example-1 project is made by the product's own functions; its images are not the stand-ins of 13 Nov, the app's holds the pages step 02 adds and the tools' the product's two tools; and its app runs
+    Error: Something of this test's own projects was already on the machine before it made anything (an interrupted earlier run leaves this). Nothing is started on top of it. Remove what is named here, by name, then run this again. p_iso06c_real: containers: none; named containers: builder_p_iso06c_real-isolation-left-by-control; networks: none; volumes: none; images: none
+The failing output must name the fault: 2 of 2 expected texts found
+    found: Something of this test's own projects was already on the machine before it made anything
+        in: Error: Something of this test's own projects was already on the machine before it made anything (an interrupted earlier run leaves this). Nothing is started on top of it. Remove what is named here, by name, then run this again. p_iso06c_real: containers: none; named containers: builder_p_iso06c_real
+    found: p_iso06c_real: containers: none; named containers: builder_p_iso06c_real-isolation-left-by-control; networks: none; volumes: none; images: none
+        in: Error: Something of this test's own projects was already on the machine before it made anything (an interrupted earlier run leaves this). Nothing is started on top of it. Remove what is named here, by name, then run this again. p_iso06c_real: containers: none; named containers: builder_p_iso06c_real
+Restored; the copy's tree is unchanged: yes
+Restored, the same tests: not run again here; the whole live file on the unchanged code is kept as run-isolation-real-live.txt
+Left by the run of this change's own projects and removed here (images by name): container builder_p_iso06c_real-isolation-left-by-control
+Images left without a name by the run: none
+
+## RC21: FAULT PUT IN, no safeguard removed: port 4041 on the machine is held while the live file starts; its first test must fail at once, naming the port
+No file changed; port 4041 on 127.0.0.1 held by this script while the test ran
+Test test/isolation-real-live.test.ts -t "L1:": exit 1: FAILED with the fault put in, as it should
+    × L1: its prerequisites are here: Docker answers, and the folder BUILDER_BROWSER_CACHE names holds the approved browser zip 6ms
+    Test Files  1 failed (1)
+    Tests  1 failed | 9 skipped (10)
+    FAIL  test/isolation-real-live.test.ts > isolation: live, the probe inside the real containers of a real example-1 project, each compared with its expected list (package 0.6c, 14 Nov 2026) > L1: its prerequisites are here: Docker answers, and the folder BUILDER_BROWSER_CACHE names holds the approved browser zip
+    Error: This live isolation test runs the probe in the real containers, so it needs Docker and the approved browser zip; it fails (it is never skipped). Missing: Something already accepts connections on 127.0.0.1:4041, the port the preview front's stand-in needs. Something else holds that port: another run of a live test, or the builder's own preview front. Stop it, then run this again.
+The failing output must name the fault: 1 of 1 expected texts found
+    found: Something already accepts connections on 127.0.0.1:4041, the port the preview front's stand-in needs.
+        in: Error: This live isolation test runs the probe in the real containers, so it needs Docker and the approved browser zip; it fails (it is never skipped). Missing: Something already accepts connections on 127.0.0.1:4041, the port the preview front's stand-in needs. Something else holds that port: anoth
+Restored; the copy's tree is unchanged: yes
+Restored, test test/isolation-real-live.test.ts -t "L1:": exit 0: Test Files  1 passed (1) / Tests  1 passed | 9 skipped (10)
+
+# Summary: 22 controls; 22 failed with their safeguard removed (or their fault put in), as they should; 0 passed with it or did not name what was removed; 0 not run.
+# The copy's tree after all controls: sha256 7cf4330e61732bc1dd0c7d8a9b9bbad7bda9b31d87977f4671a46123b8107348 (unchanged)

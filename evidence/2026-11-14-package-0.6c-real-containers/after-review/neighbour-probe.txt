@@ -1,0 +1,25 @@
+Finding F18, put to the code after the fix, against the machine's Docker. Run once, by hand, under the shared lock.
+On a copy of commit c82a8d3 (git archive; node_modules as real folders), started 2026-11-14T16:02:40Z.
+Command, from builder/: flock <scratchpad>/live-tests.lock npx tsx ../evidence/2026-11-14-package-0.6c-real-containers/after-review/neighbour-probe.mts
+
+waiting for the lock from 16:02:40 UTC
+Lock held from 16:21:01 UTC.
+composeProjectName("p_iso06c_real_n") = builder_p_iso06c_real_n; composeProjectName("p_iso06c_real_n-b") = builder_p_iso06c_real_n-b
+1. Created, never started: builder_p_iso06c_real_n-isolation-left (this project's own leftover probe container); builder_p_iso06c_real_n-b-app-1 (the neighbour's app container, labelled as Compose labels it); builder_p_iso06c_real_n-b-isolation-left (the neighbour's leftover probe container).
+   before: ["builder_p_iso06c_real_n-b-app-1","builder_p_iso06c_real_n-b-isolation-left","builder_p_iso06c_real_n-isolation-left"]
+2. destroyRealProject(p_iso06c_real_n) said: containers: none; named containers: builder_p_iso06c_real_n-b-isolation-left, builder_p_iso06c_real_n-b-app-1; networks: none; volumes: none; images: none
+   (that line is leftOf's, which lists by the start of a name and so names the neighbour's containers too; it only reads.)
+   after: ["builder_p_iso06c_real_n-b-app-1","builder_p_iso06c_real_n-b-isolation-left"]
+   as it should be: this project's own leftover container was removed
+   as it should be: the neighbour's app container is still there
+   as it should be: the neighbour's leftover probe container is still there
+   as it should be: this project's folder is gone (gone)
+3. removeImages for p_iso06c_real_n, given the neighbour's image name builder_p_iso06c_real_n-b-app:latest: refused: The isolation harness removes only images of its own project (builder_p_iso06c_real_n-...); refused: builder_p_iso06c_real_n-b-app:latest.
+   as it should be: the neighbour's image name is refused (no such image exists; Docker was not asked)
+4. Cleaned up: containers left under these names: none; this project's folder: gone
+RESULT: as it should be on every line.
+exit code: 0
+Lock released at 16:21:04 UTC.
+
+The type check of the script itself, on the same copy, with the options checks/run-checks.sh uses for the other scripts of this evidence, 2026-11-14T16:23:52Z:
+exit code: 0

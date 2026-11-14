@@ -1,0 +1,30 @@
+The new live file: the probe inside the real containers (L1 to L10). Under the shared lock.
+On a copy of commit 00c9a2f (git archive; node_modules as real folders), started 2026-11-14T15:15:47Z.
+Command, from builder/: flock <scratchpad>/live-tests.lock node node_modules/vitest/vitest.mjs run test/isolation-real-live.test.ts --reporter=verbose
+
+Free disk before: /dev/vda        252G   23G   16G  60% /
+Before: 0 containers; images: builder-acceptance-runner:local node:22-alpine postgres:16-alpine ubuntu:<none> 
+Lock held from 15:15:47 UTC.
+
+ RUN  v5.1.0 <scratchpad>/run06c/builder
+
+ ✓ test/isolation-real-live.test.ts > isolation: live, the probe inside the real containers of a real example-1 project, each compared with its expected list (package 0.6c, 14 Nov 2026) > L1: its prerequisites are here: Docker answers, and the folder BUILDER_BROWSER_CACHE names holds the approved browser zip 2ms
+ ✓ test/isolation-real-live.test.ts > isolation: live, the probe inside the real containers of a real example-1 project, each compared with its expected list (package 0.6c, 14 Nov 2026) > L2: the acceptance runner's real image is built from the approved zip and carries its label 10613ms
+ ✓ test/isolation-real-live.test.ts > isolation: live, the probe inside the real containers of a real example-1 project, each compared with its expected list (package 0.6c, 14 Nov 2026) > L3: a real example-1 project is made by the product's own functions; its images are not the stand-ins of 13 Nov, the app's holds the pages step 02 adds and the tools' the product's two tools; and its app runs 32485ms
+ ✓ test/isolation-real-live.test.ts > isolation: live, the probe inside the real containers of a real example-1 project, each compared with its expected list (package 0.6c, 14 Nov 2026) > L4: the probe inside each real container reaches exactly what its list allows: the running app in place, and the app, tools, runner, live camera, check and the scripted engine's container each from its real image, and the database's network 221205ms
+ ✓ test/isolation-real-live.test.ts > isolation: live, the probe inside the real containers of a real example-1 project, each compared with its expected list (package 0.6c, 14 Nov 2026) > L5: the positive controls, with the real project's settings: from the machine's own network and from Docker's default network, the same settings reach the harness's listener (so the targets and ports are right) 2226ms
+ ✓ test/isolation-real-live.test.ts > isolation: live, the probe inside the real containers of a real example-1 project, each compared with its expected list (package 0.6c, 14 Nov 2026) > L6: deliberate misconfiguration R1 on real containers: the real app also on an ordinary bridge fails the app's comparison, in a one-off container and in the running app itself 25495ms
+ ✓ test/isolation-real-live.test.ts > isolation: live, the probe inside the real containers of a real example-1 project, each compared with its expected list (package 0.6c, 14 Nov 2026) > L7: deliberate misconfiguration R2 on real containers: the data network internal without the isolated gateway mode fails the real tools container's comparison (the machine is reached at that network's address) 58872ms
+ ✓ test/isolation-real-live.test.ts > isolation: live, the probe inside the real containers of a real example-1 project, each compared with its expected list (package 0.6c, 14 Nov 2026) > L8: deliberate misconfiguration R3 on real containers: the real runner also on the data network fails the runner's comparison (it finds and reaches the database), and the builder's own check refuses the file 23712ms
+ ✓ test/isolation-real-live.test.ts > isolation: live, the probe inside the real containers of a real example-1 project, each compared with its expected list (package 0.6c, 14 Nov 2026) > L9: deliberate misconfiguration R4 on real containers: the scripted engine's container given the out network fails its empty list (a name server inside, and the door's two ports answer) 29664ms
+ ✓ test/isolation-real-live.test.ts > isolation: live, the probe inside the real containers of a real example-1 project, each compared with its expected list (package 0.6c, 14 Nov 2026) > L10: everything made is removed, and the shared runner image is still on the machine 4433ms
+
+ Test Files  1 passed (1)
+      Tests  10 passed (10)
+   Start at  15:15:47
+   Duration  409.35s (tests 100%)
+
+exit code: 0
+Lock released at 15:22:36 UTC.
+After: 0 containers; images: builder-acceptance-runner:local node:22-alpine postgres:16-alpine ubuntu:<none> 
+Free disk after: /dev/vda        252G   23G   16G  60% /

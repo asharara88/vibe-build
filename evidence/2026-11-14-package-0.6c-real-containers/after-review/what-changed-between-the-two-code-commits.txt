@@ -1,0 +1,63 @@
+What differs between the two code commits the checks after the review ran on: 00c9a2f and c82a8d3.
+The live tests, the full isolation file, the gate, the licence check and both controls runs were on 00c9a2f.
+The type check, the unit tests, the image scan, the demonstration and the neighbour probe were on c82a8d3.
+
+$ git diff --stat 00c9a2f c82a8d3 -- builder templates
+ builder/scripts/demo-isolation.ts    | 12 ++++++++----
+ builder/scripts/isolation-harness.ts |  2 +-
+ 2 files changed, 9 insertions(+), 5 deletions(-)
+
+$ git diff 00c9a2f c82a8d3 -- builder/scripts/isolation-harness.ts   (one comment; no line that runs)
+diff --git a/builder/scripts/isolation-harness.ts b/builder/scripts/isolation-harness.ts
+index b85e26f..a6ccaa7 100644
+--- a/builder/scripts/isolation-harness.ts
++++ b/builder/scripts/isolation-harness.ts
+@@ -378,7 +378,7 @@ export interface ImageFacts {
+   labels: Record<string, string>;
+   /** Set when Docker could not show the image: its own first line. */
+   missing?: string;
+-  /** The time Docker gives the image (`.Created`). A time before the project was made means `docker build` gave the name to an image Docker already held (its build cache). */
++  /** The date Docker gives the image (`.Created`). A date before the project was made means that the build's last step did not run for this project: Docker took it from its build cache. */
+   created?: string;
+ }
+ 
+
+$ git diff 00c9a2f c82a8d3 -- builder/scripts/demo-isolation.ts   (comments, and the words of one sentence the demonstration prints)
+diff --git a/builder/scripts/demo-isolation.ts b/builder/scripts/demo-isolation.ts
+index 43e81ae..f935b9a 100644
+--- a/builder/scripts/demo-isolation.ts
++++ b/builder/scripts/demo-isolation.ts
+@@ -64,8 +64,8 @@
+  * CHANGED AFTER THE REVIEW OF 14 NOV 2026 (part A; part B's checks are as they were):
+  * - before anything is made, it reads what an interrupted earlier run left of part A's fixed-name projects, and
+  *   part A does not start on top of it;
+- * - beside each image's id it prints when the image's content was made, and says in so many words whether that was
+- *   in this run or before it (then the content came from Docker's build cache). The helper's own line, "the
++ * - beside each image's id it prints the date Docker gives the image, and says in so many words whether that is
++ *   after this project was made or before it (then the build's last step came from Docker's build cache). The helper's own line, "the
+  *   template's guard check and next build ran in the build", is its fixed wording and is true only of a build that
+  *   was not taken from the cache: the line after it says which this was;
+  * - it reads what the app and tools images hold (the pages step 02 adds; the product's two tools);
+@@ -241,13 +241,17 @@ async function realContainers(): Promise<void> {
+   const madeAt = new Date();
+   const real = await startRealProject({ projectId: REAL_PROJECT, appPort: REAL_APP_PORT, onMade: (x) => void realMade.push(x), log });
+   const { x, images, appContainer } = real;
+-  /** The time Docker gives an image (`.Created`), against when this project was made: after it, or before it (then the image was held already, in Docker's build cache). */
++  /**
++   * The date Docker gives an image (`.Created`), against when this project was made. A date before the project means
++   * that the build's last step did not run for it: Docker took that step from its build cache, where an earlier build
++   * of identical files had left it. (The image's id is still this build's own: it differs from project to project.)
++   */
+   const whenMade = (i: ImageFacts, since: Date) => {
+     const at = Date.parse(i.created ?? "");
+     if (!Number.isFinite(at)) return "Docker gave no creation time for it, so whether its content was built in this run is not known";
+     return at >= since.getTime()
+       ? `Docker dates it ${i.created}, after this project was made (${since.toISOString()}): its last step, at least, ran in this run (earlier steps may still have come from Docker's build cache)`
+-      : `Docker dates it ${i.created}, ${Math.round((since.getTime() - at) / 1000)} s BEFORE this project was made (${since.toISOString()}): docker build gave the name to an image Docker already held from an earlier build of identical files (its build cache). That the guard check and next build ran in THIS run is not shown`;
++      : `Docker dates it ${i.created}, ${Math.round((since.getTime() - at) / 1000)} s BEFORE this project was made (${since.toISOString()}): so the build's last step did not run in this run. docker build took it from Docker's build cache, where an earlier build of identical files had left it, and gave the result this project's name. That the guard check and next build ran in THIS run is not shown`;
+   };
+   log(`  The helper's line above ("the template's guard check and next build ran in the build") is its fixed wording. What this run shows: the app image: ${whenMade(images.app, madeAt)}. The tools image: ${whenMade(images.tools, madeAt)}.`);
+   log(`  The door (egress, with egress-host) was started too; the product does not start it for a scripted-engine project today.`);
+
+$ git diff --stat 00c9a2f c82a8d3 -- builder/test builder/src   (nothing)
+(end)

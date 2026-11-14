@@ -1,0 +1,8 @@
+The controls of the run in real containers: flock <scratchpad>/live-tests.lock python3 <the checks folder>/controls-real.py <worktree> 00c9a2f <scratchpad>/c06c-real <the output folder>/controls-real-RC1-RC21.txt builder_test_06c
+Started 2026-11-14T15:48:38Z.
+Before: 0 containers; images: builder-acceptance-runner:local node:22-alpine postgres:16-alpine ubuntu:<none> 
+Lock held from 15:49:05 UTC.
+done: 22 caught, 0 missed, 0 not run
+exit code: 0
+Lock released at 15:59:50 UTC.
+After: 0 containers; images: builder-acceptance-runner:local node:22-alpine postgres:16-alpine ubuntu:<none> 
