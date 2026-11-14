@@ -24,6 +24,17 @@
  * are never skipped: when Docker does not answer or the zip is not in the folder BUILDER_BROWSER_CACHE names, the
  * first test fails, naming what is missing and how to put it right, and every other test here fails with the same
  * words before it starts anything.
+ *
+ * ADDED AFTER THE REVIEW OF 14 NOV 2026 (each is an addition; no assertion that was here was changed or removed):
+ * - port 4041 on the machine must be free before anything starts, or every test fails at once, in plain words;
+ * - before the first project is made, nothing of this file's fixed-name projects may already be on the machine
+ *   (an interrupted earlier run leaves everything behind); if something is, nothing is started on top of it;
+ * - the app image must hold the pages the scripted engine's step 02 adds, and the tools image the product's two tools;
+ * - nothing may listen on the machine at the gateway's port (4010) before a probe is run;
+ * - misconfiguration R1's in-place leg must have run in the running app itself (the same conditions as L4);
+ * - each removed project's folder must be gone, and a removal that fails at the end is reported, not dropped.
+ * The realness check of L3, L6, L7 and L8 (`realImageProblemsFrom`) is a check against the three stand-in images of
+ * 13 Nov, not proof that an image is the template's build: see its comment.
  */
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
@@ -40,8 +51,14 @@ import {
   destroyRealProject,
   devProbeSettings,
   ensureRunnerImage,
+  folderLeft,
   FRONT_STAND_IN,
+  gatewayPortProblem,
+  imageContentProblemsFrom,
+  imageContents,
   IN_PLACE_PATH,
+  leftOfProjectId,
+  portTakenProblem,
   probeComparison,
   probeInNetworkOf,
   probeInPlace,
@@ -59,6 +76,10 @@ const run = promisify(execFile);
 
 // Read once, before any test: Docker answers, and the approved zip is in the folder BUILDER_BROWSER_CACHE names.
 const missing = await liveAcceptanceProblems();
+// After the review of 14 Nov 2026: the preview front's stand-in needs 127.0.0.1:4041. If something holds that port,
+// every test here fails at once with that sentence, before anything is built or started.
+const frontPortTaken = await portTakenProblem(4041);
+if (frontPortTaken) missing.push(frontPortTaken);
 const MISSING_WORDS = "This live isolation test runs the probe in the real containers, so it needs Docker and the approved browser zip; it fails (it is never skipped). Missing: ";
 /** Every test here starts with this: with a prerequisite missing it fails, in plain words, before it starts anything. */
 const needsPrerequisites = () => {
@@ -70,12 +91,19 @@ describe("isolation: live, the probe inside the real containers of a real exampl
   /** The app's port inside the project's own networks; nothing on the machine listens on it. */
   const APP_PORT = 3191;
   /** The gateway address makeExample1 gives every project: 127.0.0.1:4010. Nothing listens behind it in this run. */
+  // (After the review of 14 Nov 2026 that sentence is checked before each probe: `needsNoGateway`.)
   const GATEWAY_PORT = 4010;
   const NOTHING_LEFT = "containers: none; named containers: none; networks: none; volumes: none; images: none";
   /** Every project made here, so that whatever fails, afterAll can remove it. */
   const made: Example1[] = [];
   /** What was left of each project once it was removed, by project id. */
   const left: Record<string, string> = {};
+  /** Whether each removed project's folder is gone, by project id (after the review of 14 Nov 2026). */
+  const folders: Record<string, string> = {};
+  /** The five projects this file makes, by their fixed ids. */
+  const ALL_PROJECTS = [PROJECT, `${PROJECT}_mis1`, `${PROJECT}_mis2`, `${PROJECT}_mis3`, `${PROJECT}_mis4`];
+  /** What was on the machine of those five before this file made anything; read once, by the first test that asks. */
+  let before: Promise<Record<string, string>> | undefined;
   let runnerImageId = "";
   let real: RealProject | undefined;
   let canary: Awaited<ReturnType<typeof startCanary>> | undefined;
@@ -107,15 +135,44 @@ describe("isolation: live, the probe inside the real containers of a real exampl
 
   /** Remove a project now, and keep what was left of it for the last test. */
   async function remove(x: Example1) {
-    left[x.projectId] = await destroyRealProject(x);
+    try {
+      left[x.projectId] = await destroyRealProject(x);
+    } finally {
+      folders[x.projectId] = folderLeft(x);
+    }
     if (made.includes(x)) made.splice(made.indexOf(x), 1);
   }
 
+  /**
+   * After the review of 14 Nov 2026: nothing of this file's own projects may be on the machine before it makes its
+   * first one. An interrupted earlier run (its process killed) leaves containers, networks, a volume and images under
+   * these same names; a project started on top of them would fail later, unclearly. Every test that makes a project
+   * starts with this, and fails in plain words, naming what is there, before it starts anything.
+   */
+  async function needsCleanStart() {
+    before ??= (async () => Object.fromEntries(await Promise.all(ALL_PROJECTS.map(async (id) => [id, await leftOfProjectId(id)] as const))))();
+    const there = Object.entries(await before).filter(([, said]) => said !== NOTHING_LEFT);
+    if (there.length)
+      throw new Error(
+        `Something of this test's own projects was already on the machine before it made anything (an interrupted earlier run leaves this). Nothing is started on top of it. Remove what is named here, by name, then run this again. ${there.map(([id, said]) => `${id}: ${said}`).join(" | ")}`,
+      );
+  }
+
+  /** After the review of 14 Nov 2026: "nothing listens behind the gateway address" is checked before a probe is run, not only said. */
+  const needsNoGateway = (machineListeners: string[]) => {
+    const problem = gatewayPortProblem(machineListeners, GATEWAY_PORT);
+    if (problem) throw new Error(problem);
+  };
+
   afterAll(async () => {
-    for (const x of [...made]) await destroyRealProject(x).catch(() => undefined);
+    // After the review of 14 Nov 2026: a removal that fails here is reported, with what it says and whether the
+    // project's folder is gone, where before it was dropped without a word.
+    const notRemoved: string[] = [];
+    for (const x of [...made]) await destroyRealProject(x).catch((err: unknown) => void notRemoved.push(`${x.sb.projectName}: ${(err instanceof Error ? err.message : String(err)).split("\n")[0]}; its folder: ${folderLeft(x)}`));
     await canary?.close();
     await front?.close();
     await camera?.close();
+    if (notRemoved.length) throw new Error(`Not everything this file made could be removed; look for what is left by these names. ${notRemoved.join(" | ")}`);
   });
 
   it("L1: its prerequisites are here: Docker answers, and the folder BUILDER_BROWSER_CACHE names holds the approved browser zip", () => {
@@ -132,8 +189,10 @@ describe("isolation: live, the probe inside the real containers of a real exampl
     runnerImageId = built.imageId;
   }, 1_800_000);
 
-  it("L3: a real example-1 project is made by the product's own functions, its images are the real ones, and its app runs", async () => {
+  // Its title said "its images are the real ones" until the review of 14 Nov 2026; what is checked is narrower, and the title now says that.
+  it("L3: a real example-1 project is made by the product's own functions; its images are not the stand-ins of 13 Nov, the app's holds the pages step 02 adds and the tools' the product's two tools; and its app runs", async () => {
     needsPrerequisites();
+    await needsCleanStart();
     real = await startRealProject({ projectId: PROJECT, appPort: APP_PORT, onMade });
     // The app and tools images are the template's build, and the acceptance service's image is the runner's own.
     expect(realImageProblemsFrom(real.images)).toEqual([]);
@@ -148,6 +207,10 @@ describe("isolation: live, the probe inside the real containers of a real exampl
       egress: "running (healthy)",
       "egress-host": "running (healthy)",
     });
+    // After the review of 14 Nov 2026: the realness check above reads the images' settings only. What the images
+    // hold is read here, in a one-off container of each: the app image holds the pages only step 02 adds, and the
+    // tools image the two tools the product runs in it.
+    expect(imageContentProblemsFrom(await imageContents(real.x.sb))).toEqual([]);
   }, 2_400_000);
 
   it("L4: the probe inside each real container reaches exactly what its list allows: the running app in place, and the app, tools, runner, live camera, check and the scripted engine's container each from its real image, and the database's network", async () => {
@@ -181,6 +244,8 @@ describe("isolation: live, the probe inside the real containers of a real exampl
       else if (seen.imageId !== image.id) found.push(`the container ran image ${seen.imageId}, which is not ${image.name} as read after the build (${image.id})`);
     };
 
+    // After the review of 14 Nov 2026: nothing listens on the machine at the gateway's port (checked, not only said).
+    needsNoGateway(read.machineListeners);
     // The probes start here.
     // 1. The running app container itself, in place.
     const inPlace = await probeInPlace(x.sb, "app", settings);
@@ -249,13 +314,15 @@ describe("isolation: live, the probe inside the real containers of a real exampl
 
   it("L6: deliberate misconfiguration R1 on real containers: the real app also on an ordinary bridge fails the app's comparison, in a one-off container and in the running app itself", async () => {
     needsPrerequisites();
+    await needsCleanStart();
     await listeners();
     const mis = await startRealProject({ projectId: `${PROJECT}_mis1`, appPort: APP_PORT, edits: REAL_MISCONFIGURATIONS.R1.edits, onMade });
     try {
       // The images are the real ones: it is the misconfiguration that must fail the comparison, nothing else.
       expect(realImageProblemsFrom(mis.images)).toEqual([]);
       // Read after the networks exist: the new bridge's address on the machine appears only then.
-      const { settings } = await devProbeSettings(mis.x.sb, { appPort: APP_PORT, gatewayPort: GATEWAY_PORT });
+      const { settings, machineListeners } = await devProbeSettings(mis.x.sb, { appPort: APP_PORT, gatewayPort: GATEWAY_PORT });
+      needsNoGateway(machineListeners);
       const oneOff = await probeServiceSeen(mis.x.sb, "app", "app-misconfigured", settings);
       expect(oneOff.seen.imageId).toBe(mis.images.app.id);
       const c1 = compare(report(oneOff.lines), "app");
@@ -266,6 +333,17 @@ describe("isolation: live, the probe inside the real containers of a real exampl
       expect(failingIds(c1).filter((id) => /^(A|B|D1|D5|M)/.test(id)).length).toBeGreaterThan(0);
       expect(failingIds(c2).filter((id) => /^(A|B|D1|D5|M)/.test(id)).length).toBeGreaterThan(0);
       expect(inPlace.removed).toBe(true);
+      // After the review of 14 Nov 2026: the in-place leg ran in the running app itself, not in a one-off container
+      // of the misconfigured service (which would fail the same list on the same rows). What L4 asks of the main
+      // column: the same container before and after, and it is the running app's; the app's own listener among the
+      // ports listening inside; no entry of the list left untried; the file run was the repository's probe.
+      const r2 = report(inPlace.lines);
+      expect(mis.appContainer?.id).toMatch(/^[0-9a-f]{64}$/);
+      expect(inPlace.container).toEqual({ before: mis.appContainer?.id, after: mis.appContainer?.id });
+      expect((info(r2, "listening TCP ports seen in /proc/net") ?? "").split(", ")).toContain(`0.0.0.0:${APP_PORT}`);
+      expect(c2.missing).toEqual([]);
+      expect(r2.problems).toEqual([]);
+      expect(inPlace.sha256.inside).toBe(inPlace.sha256.repository);
     } finally {
       await remove(mis.x);
     }
@@ -273,12 +351,14 @@ describe("isolation: live, the probe inside the real containers of a real exampl
 
   it("L7: deliberate misconfiguration R2 on real containers: the data network internal without the isolated gateway mode fails the real tools container's comparison (the machine is reached at that network's address)", async () => {
     needsPrerequisites();
+    await needsCleanStart();
     const { canary } = await listeners();
     const mis = await startRealProject({ projectId: `${PROJECT}_mis2`, appPort: APP_PORT, edits: REAL_MISCONFIGURATIONS.R2.edits, onMade });
     try {
       expect(realImageProblemsFrom(mis.images)).toEqual([]);
       // Read after the network exists: its address on the machine appears only then.
-      const { settings, machineAddresses } = await devProbeSettings(mis.x.sb, { appPort: APP_PORT, gatewayPort: GATEWAY_PORT });
+      const { settings, machineAddresses, machineListeners } = await devProbeSettings(mis.x.sb, { appPort: APP_PORT, gatewayPort: GATEWAY_PORT });
+      needsNoGateway(machineListeners);
       const p = await probeServiceSeen(mis.x.sb, "tools", "tools-misconfigured", settings);
       expect(p.seen.imageId).toBe(mis.images.tools.id);
       const c = compare(report(p.lines), "tools");
@@ -292,13 +372,15 @@ describe("isolation: live, the probe inside the real containers of a real exampl
 
   it("L8: deliberate misconfiguration R3 on real containers: the real runner also on the data network fails the runner's comparison (it finds and reaches the database), and the builder's own check refuses the file", async () => {
     needsPrerequisites();
+    await needsCleanStart();
     await listeners();
     const mis = await startRealProject({ projectId: `${PROJECT}_mis3`, appPort: APP_PORT, edits: REAL_MISCONFIGURATIONS.R3.edits, onMade });
     try {
       expect(realImageProblemsFrom(mis.images)).toEqual([]);
       // The builder's own check before the camera runs (cameraNetworkProblem): the service must be on front alone.
       expect(await cameraNetworkProblem(mis.x.sb)).toMatch(/^Compose puts the acceptance service on (data, front|front, data), not on the project's front network alone$/);
-      const { settings } = await devProbeSettings(mis.x.sb, { appPort: APP_PORT, gatewayPort: GATEWAY_PORT });
+      const { settings, machineListeners } = await devProbeSettings(mis.x.sb, { appPort: APP_PORT, gatewayPort: GATEWAY_PORT });
+      needsNoGateway(machineListeners);
       const p = await probeServiceSeen(mis.x.sb, "acceptance", "runner-misconfigured", settings);
       expect(p.seen.imageId).toBe(mis.images.acceptance.id);
       const c = compare(report(p.lines), "runner");
@@ -311,10 +393,14 @@ describe("isolation: live, the probe inside the real containers of a real exampl
 
   it("L9: deliberate misconfiguration R4 on real containers: the scripted engine's container given the out network fails its empty list (a name server inside, and the door's two ports answer)", async () => {
     needsPrerequisites();
+    await needsCleanStart();
     await listeners();
     const mis = await startRealProject({ projectId: `${PROJECT}_mis4`, appPort: APP_PORT, edits: REAL_MISCONFIGURATIONS.R4.edits, build: false, onMade });
     try {
-      const { settings } = await devProbeSettings(mis.x.sb, { appPort: APP_PORT, gatewayPort: GATEWAY_PORT });
+      const { settings, machineListeners } = await devProbeSettings(mis.x.sb, { appPort: APP_PORT, gatewayPort: GATEWAY_PORT });
+      // After the review of 14 Nov 2026: this container is put on `out` on purpose, so its probe sends one request
+      // through the door to the gateway's address on the machine. Nothing may listen there (checked, not only said).
+      needsNoGateway(machineListeners);
       const p = await probeServiceSeen(mis.x.sb, "engine", "engine-misconfigured", settings);
       expect(p.seen.imageId).toBe(mis.images.node.id);
       expect(p.seen.networkMode).not.toBe("none");
@@ -333,6 +419,8 @@ describe("isolation: live, the probe inside the real containers of a real exampl
     await remove(theProject().x);
     expect(left).toEqual({ [PROJECT]: NOTHING_LEFT, [`${PROJECT}_mis1`]: NOTHING_LEFT, [`${PROJECT}_mis2`]: NOTHING_LEFT, [`${PROJECT}_mis3`]: NOTHING_LEFT, [`${PROJECT}_mis4`]: NOTHING_LEFT });
     expect(made).toEqual([]);
+    // After the review of 14 Nov 2026: each project's folder (its Compose file, made-up secrets, copy of the template) is gone too.
+    expect(folders).toEqual(Object.fromEntries(ALL_PROJECTS.map((id) => [id, "gone"])));
     // The runner's image is machine-wide and shared: it is never removed here, and it is the one L2 built.
     expect((await run("docker", ["image", "inspect", RUNNER_IMAGE, "--format", "{{.Id}}"])).stdout.trim()).toBe(runnerImageId);
     expect(runnerImageId).toMatch(/^sha256:[0-9a-f]{64}$/);
