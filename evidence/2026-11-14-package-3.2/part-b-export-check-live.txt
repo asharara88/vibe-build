@@ -1,0 +1,53 @@
+# Package 3.2, part B: the real export check, live, once (14 Nov 2026, 13:21:55 to 13:22:47 UTC)
+
+What ran: a scratch script (not in the repository) under the shared lock, with TMPDIR in the session's scratch folder.
+- A fresh sandbox for example 1 (`makeExample1`, project id j1-f6aa530b06de, its build proxy on 127.0.0.1:13192), and the two
+  fixed steps run in the engine's container (`runStep`), committed as the scripted engine commits them.
+- A stand-in version of the tests written to a made-up acceptance store in a fresh folder (`writeVersion`).
+- `writeExport` (builder/src/orchestrator/export.ts) on that history, with `check` set to the real implementation,
+  `checkExportImages` (builder/src/export/export-check.ts) on that sandbox: what `Sandboxes.checkExport` calls in the
+  adapter. Not the export job itself, and not the live test L1, which is a later part's.
+- Then `destroyExample1`, and Docker's lists of everything named builder_j1-f6aa530b06de compared before and after.
+Docker objects removed, by exact name, all made by this run: the two check images (by checkExportImages itself, before
+it returned) and the sandbox's containers, networks and images (by destroyExample1). Nothing of the project was left
+(last lines). Paths under the run's data folder are written <data>. Made-up data only; no password is printed.
+
+What it measured that the design left inferred (section 4, item 7): the template's licence check runs under the full
+hardening (read-only root, every capability dropped, no network, user node, /tmp of 64 MB with no programs run from it),
+and passes. Also measured: the run image read as `nobody` cannot list /root (recorded as `unreadable`).
+
+The output, as the script printed it:
+
+[13:21:55] project j1-f6aa530b06de; Docker objects of builder_j1-f6aa530b06de before: {"containers":[],"images":[],"volumes":[],"networks":[]}
+[13:21:55] step 01-data: ok true, files 7
+[13:21:56] step 02-submitter-screen: ok true, files 8
+[13:21:56] checkExport given <data>/journey/j1-f6aa530b06de/exports/.staging-HsmoAz/archive.tar.gz (SHA-256 3f238fbdc4d525c81cbe9bb37686240122632c25ac6d45dadf1f972a0d1c13e0), unpacking into <data>/journey/j1-f6aa530b06de/exports/.staging-HsmoAz/check
+[13:22:36] checkExport returned after 40 s; Docker objects of builder_j1-f6aa530b06de now (the two check images must be gone): []
+[13:22:36] export written: <data>/journey/j1-f6aa530b06de/exports/j1-f6aa530b06de-export.tar.gz, 381931 bytes, SHA-256 3f238fbdc4d525c81cbe9bb37686240122632c25ac6d45dadf1f972a0d1c13e0, 4 commits, 72 files; README's command: docker compose up --build
+[13:22:36] check archive_contents: PASSED: The archive holds no node_modules folder and no file or folder named like any of the 14 development-only packages (142 paths read).
+[13:22:36] check fixed_files: PASSED: The 15 fixed files (the start, build, licence and first migration files) are byte-equal to the builder's own template copies, and no commit holds a file Docker Compose or the image build would read without being told.
+[13:22:36] check images_built: PASSED: The archive's run and tools stages were built through the sandbox's build path, as builder_j1-f6aa530b06de-exportcheck-run:latest and builder_j1-f6aa530b06de-exportcheck-tools:latest; both are removed after the check.
+[13:22:36]     images: {"run":{"name":"builder_j1-f6aa530b06de-exportcheck-run:latest","id":"sha256:59ece516720de7bf3e769d0c6a9ca4b888354850165a0f776074eaa65db9585e"},"tools":{"name":"builder_j1-f6aa530b06de-exportcheck-tools:latest","id":"sha256:3d69a3aa017950150eeee924d16ded7f286a67f2ce2c6d4876b18e7c83c165f6"}}
+[13:22:36]     install_step: ["#9 [build 5/7] RUN --mount=type=cache,id=house-template-npm,target=/root/.npm npm ci --prefer-offline --ignore-scripts --no-fund --no-audit","#9 [build 5/7] RUN --mount=type=cache,id=house-template-npm,target=/root/.npm npm ci --prefer-offline --ignore-scripts --no-fund --no-audit"]
+[13:22:36] check compose_config: PASSED: What Docker Compose reads from the unpacked copy, with only PATH and HOME set, equals what it reads from the template's compose.yaml alone.
+[13:22:36]     differences: []
+[13:22:36] check run_image_packages: PASSED: The image the app runs from: none of the 14 development-only packages under /app; copies elsewhere in it: spdx-exceptions 2.5.0 at /usr/local/lib/node_modules/npm/node_modules/spdx-exceptions. Checked under this reading (question 26 (a)): none of the 14 development-only packages under /app of the image the app runs from, and every other copy listed; the licence condition is not called met.
+[13:22:36]     listed: [{"path":"/usr/local/lib/node_modules/npm/node_modules/spdx-exceptions","name":"spdx-exceptions","version":"2.5.0"}]
+[13:22:36]     named_packages: 275
+[13:22:36]     unreadable: ["/root"]
+[13:22:36]     user: "nobody"
+[13:22:36]     reading: "checked under this reading (question 26 (a)): none of the 14 development-only packages under /app of the image the app runs from, and every other copy listed; the licence condition is not called met"
+[13:22:36] check run_image_notices: PASSED: The image the app runs from holds /app/THIRD-PARTY-NOTICES.md, 39276 bytes, byte-equal to the copy's (SHA-256 8b3e1d21ac918df22358c4e86eefa99836b3b340b852a448bc5b58c2299391c7).
+[13:22:36] check tools_image_packages: PASSED: The tools image, which an exported copy builds and runs at each start as its setup service, holds 6 of the 14 development-only packages: lightningcss 1.33.0 at /app/node_modules/lightningcss; lightningcss-linux-x64-gnu 1.33.0 at /app/node_modules/lightningcss-linux-x64-gnu; lightningcss-linux-x64-musl 1.33.0 at /app/node_modules/lightningcss-linux-x64-musl; spdx-exceptions 2.5.0 at /app/node_modules/spdx-exceptions; spdx-ranges 2.1.1 at /app/node_modules/spdx-ranges; spdx-exceptions 2.5.0 at /usr/local/lib/node_modules/npm/node_modules/spdx-exceptions.
+[13:22:36]     listed: [{"path":"/app/node_modules/lightningcss","name":"lightningcss","version":"1.33.0"},{"path":"/app/node_modules/lightningcss-linux-x64-gnu","name":"lightningcss-linux-x64-gnu","version":"1.33.0"},{"path":"/app/node_modules/lightningcss-linux-x64-musl","name":"lightningcss-linux-x64-musl","version":"1.33.0"},{"path":"/app/node_modules/spdx-exceptions","name":"spdx-exceptions","version":"2.5.0"},{"path":"/app/node_modules/spdx-ranges","name":"spdx-ranges","version":"2.1.1"},{"path":"/usr/local/lib/node_modules/npm/node_modules/spdx-exceptions","name":"spdx-exceptions","version":"2.5.0"}]
+[13:22:36]     named_packages: 692
+[13:22:36]     unreadable: ["/root"]
+[13:22:36]     user: "node"
+[13:22:36]     reading: "checked under this reading (question 26 (a)): none of the 14 development-only packages under /app of the image the app runs from, and every other copy listed; the licence condition is not called met"
+[13:22:36] check licence_check: PASSED: The template's own licence check passed from the copy, in its tools image, with no network: exit code 0, "RESULT: PASSED" twice, and "Notices file THIRD-PARTY-NOTICES.md is up to date."
+[13:22:36]     user: "node"
+[13:22:36]     command: "node scripts/check-lock.mjs && node_modules/.bin/tsx scripts/licence/check.ts"
+[13:22:36]     output_lines: ["Lock file check (/app/package-lock.json): 405 entries read.","RESULT: PASSED","Packages checked: 263 installed on this machine, and 135 more that the lock file lists for other machines (judged by the licence the lock file records). Shipped, that is not development-only: 132.","Notices file THIRD-PARTY-NOTICES.md is up to date.","RESULT: PASSED"]
+[13:22:47] removal: containers of the project left: none; temporary folder removed
+[13:22:47] Docker objects of builder_j1-f6aa530b06de after removal: {"containers":[],"images":[],"volumes":[],"networks":[]}
+[13:22:47] exit 0

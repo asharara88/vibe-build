@@ -106,3 +106,131 @@ image scan reads that as an image's name and tag, so the script writes `{mode: 0
 (section 13, A4). The check is the same; before the change the test failed regardless (its module did not exist).
 
 The controls (each safeguard of part A removed in turn, its test shown failing): part-a-controls.txt.
+
+## Part B: the exporter (design sections 1 "Also changed in the export", 4 and 5), 14 Nov 2026
+
+How, as the task and design section 6 ask:
+- The tests were committed first (8b7961e), with the stand-in sandboxes' two additions (each run's manifest SHA-256, as
+  the runner records it; a stand-in for the export's Docker checks that records each call). One made-up field of the
+  S30 verdict test was respelt before any code (27e4bc7): it was named `image`, which the image scan reads. Then the
+  code (2d9000e, 320236d, c77d419).
+- Before: builder/src, builder/scripts, builder/scripted, builder/camera and templates/ checked out as at 839be17, and
+  the ten files added under them since 839be17 (part A's) removed for the run; the tests as at 8b7961e. Then
+  `git checkout HEAD -- <those paths>`; `git status --porcelain` empty afterwards (checked).
+- After: the tests and code at c77d419. A fresh test database (builder_test_x32b) for each run. No Docker in these tests;
+  no model is called.
+
+### BEFORE (code as at 839be17; tests at 8b7961e), run 2026-11-14 13:10:56 to 13:11:03 UTC
+
+test/export.test.ts, part B's 28 tests: 26 failed, 2 passed (part A's 28 tests in the same file also failed or passed
+as part A's record says; they are not counted here). Each with the first line of its failure:
+  × a made-up project exports, with the checks of section 4 in order (items 1 and 2 on the machine, 3 to 7 from checkExport, given the packed archive before it is placed), and the README's command
+      AssertionError: expected [] to have a length of 1 but got +0
+  × E1 (S1): a history in which any commit holds a symbolic link is refused, the link named; F1's probe (EXPORT-NOTE.txt a link to a file outside) leaves the outside file unchanged; no archive is written
+      AssertionError: promise resolved "{ …(7) }" instead of rejecting
+  × E1b (S2): the exporter's own files are created exclusively, never through a link: a link planted at EXPORT-NOTE.txt after the clone and its checks is refused, and the file outside is unchanged
+      AssertionError: promise resolved "{ …(7) }" instead of rejecting
+  × E2 (S1): a history holding a submodule is refused, the submodule named
+      AssertionError: promise resolved "{ …(7) }" instead of rejecting
+  × E3 (S3): EXPORT-NOTE.txt in any commit (a plain file, removed again later) is refused, not overwritten
+      AssertionError: promise resolved "{ …(7) }" instead of rejecting
+  × E4 (S4): the export commit must add exactly the intended files: one more file in the acceptance folder before the commit is refused
+      AssertionError: promise resolved "{ …(7) }" instead of rejecting
+  × E5 (S5): a checkout whose bytes differ from what the history holds (a .gitattributes turning line ends into CRLF) is refused
+      AssertionError: promise resolved "{ …(7) }" instead of rejecting
+  ✓ E6 (S6, a regression guard): an acceptance folder anywhere in the history is refused
+  ✓ E7 (S8, a regression guard): a version that does not match its manifest is refused
+  × E8 (S10, a regression guard): the workspace history moved while the export was made (a hook commits in it) is refused
+      AssertionError: promise resolved "{ …(7) }" instead of rejecting
+  × S9 in writeExport: the version's manifest must be the one the passing run checked
+      AssertionError: promise resolved "{ …(7) }" instead of rejecting
+  × E10 (S12): one export per project in writeExport: refused when the archive exists, which is left as it was; the archive is moved into place only if none has appeared meanwhile; a failed export leaves no file
+      AssertionError: promise resolved "{ …(7) }" instead of rejecting
+  × E12 (S14): the drizzle/ folder must match its journal: a missing file, an extra file, no folder
+      Error: ENOENT: no such file or directory, lstat '<tmp>/x32b-6VqLrx/workspace/drizzle/0001_leave_request.sql'
+  × E13 (S13): each fixed file changed in turn is refused, the file named: the start files, the build files, the six licence files and the template's first migration
+      Error: ENOENT: no such file or directory, open '<tmp>/x32b-wVpa71/workspace/compose.yaml'
+  × E21 (S29): each name Docker Compose or the image build reads without being told, in an earlier commit, is refused, the file named
+      AssertionError: promise resolved "{ …(7) }" instead of rejecting
+  × E20 (S20, a regression guard): the archive holds no node_modules folder and no path named like any of the 14 development-only packages; made-up archives with one are named
+      Error: Cannot find module '/src/export/export-check.js' imported from <worktree>/builder/test/export.test.ts
+  × S9's reading of the record: the run journey.signed_off names, its one acceptance.run.finished, passed, of the version, with a manifest SHA-256
+      TypeError: signedOffRun is not a function
+  × S17 under question 26 (a): none of the 14 under /app of the run image; outside it only the base image's own npm copy of spdx-exceptions 2.5.0; every copy listed; reported as checked under this reading, never as met
+      Error: Cannot find module '/src/export/export-check.js' imported from <worktree>/builder/test/export.test.ts
+  × S18: the notices file in the run image, byte-equal to the copy's
+      Error: Cannot find module '/src/export/export-check.js' imported from <worktree>/builder/test/export.test.ts
+  × S19: the template's licence check passes only on exit code 0 with "RESULT: PASSED" twice and the notices line
+      Error: Cannot find module '/src/export/export-check.js' imported from <worktree>/builder/test/export.test.ts
+  × S30: what Compose reads from the copy equals what it reads from the template's file alone, once the two folders' paths are set aside; a difference is named
+      Error: Cannot find module '/src/export/export-check.js' imported from <worktree>/builder/test/export.test.ts
+  × the containers of the checks carry the sandbox's hardening (every capability dropped, no new privileges, 256 processes, 1 GB, a read-only root), a /tmp of 64 MB with no programs run from it, no network, and an unprivileged user
+      Error: Cannot find module '/src/export/export-check.js' imported from <worktree>/builder/test/export.test.ts
+  × the export check's two images are named builder_<id>-exportcheck-run and -tools, and are on the project's removal list beside the app's two
+      TypeError: exportCheckImageNames is not a function
+  × E14: journey.export.written records the project's id, the manifest's SHA-256 and its items' fingerprints, the checklist count, the passing run's id, the export checks' results and the README's command; the stand-in's checkExport was given the packed archive before it was placed
+      AssertionError: expected { file: { …(2) }, bytes: 379886, …(8) } to match object { project_id: 'j1-67f5e34d3fa4', …(8) }
+  × E10 (S12): one export per project: a second is refused by the job's rule and the first archive is left as it was; a failed export leaves no file and records nothing, and a later one may then be made
+      AssertionError: expected null to be 'This project is exported already: one…' // Object.is equality
+  × E9 (S9): the export is refused unless the version's manifest is the one checked by the run journey.signed_off names: the manifest rewritten after that run, or a run whose record names no manifest
+      AssertionError: expected { jobId: 'job-7eb9a66c', …(5) } to match object { kind: 'export', …(2) }
+  × E16 (S15): only a project the scripted engine built is exported: a record holding a model call is refused before anything is made
+      AssertionError: expected { jobId: 'job-92fe3e6d', …(5) } to match object { kind: 'export', …(2) }
+  × E15 (S28): the new label, in English (equal to EXPORT_LABEL, and the note's first line) and in Arabic; the words "no notices file" are gone
+      AssertionError: expected 'Internal only, not for customers. Not…' to be 'Internal only, not for customers. The…' // Object.is equality
+
+Why each failed, and the tests that could not fail first:
+- E1 to E5, E10, E21, the S9 test and the first test (the checks, the README's command): today's writeExport exported each
+  history it should refuse ("promise resolved ... instead of rejecting"), or has no checks to report.
+- E12 and E13 failed because the template at 839be17 has no drizzle/ folder and no compose.yaml (part A's files), so the
+  test could not even make its change (ENOENT); the design says E12 fails today because the history has no drizzle/
+  folder at all. Their controls (part-b-controls.txt) show each fails with its own safeguard removed.
+- E8 is a regression guard of a refusal that exists at 839be17 (S10); it failed there only because writeExport had no
+  hook to move the history with. Its control shows it fails with the refusal removed.
+- E6 and E7 passed before: regression guards of refusals that exist (S6, S8), as the design says they cannot fail first.
+- E20 cannot fail first on a real archive (today's archives pass it); it failed at 839be17 only because the functions
+  it calls did not exist. Its control shows it fails with the check emptied.
+- The verdict tests (S17, S18, S19, S30, the hardening, the removal list) failed because their module or function did
+  not exist; their live proof is L1 and L2b, a later part's.
+- E9, E10 (the job), E14, E15 and E16 failed on the journey's own behaviour: no field, no refusal, the old label.
+- E11 is not in the design; E17 is part C's.
+
+### AFTER (code and tests at c77d419), run 2026-11-14 13:25:14 to 13:27:24 UTC
+
+test/export.test.ts, part B's 28 tests: 28 passed, 0 failed.
+  ✓ a made-up project exports, with the checks of section 4 in order (items 1 and 2 on the machine, 3 to 7 from checkExport, given the packed archive before it is placed), and the README's command
+  ✓ E1 (S1): a history in which any commit holds a symbolic link is refused, the link named; F1's probe (EXPORT-NOTE.txt a link to a file outside) leaves the outside file unchanged; no archive is written
+  ✓ E1b (S2): the exporter's own files are created exclusively, never through a link: a link planted at EXPORT-NOTE.txt after the clone and its checks is refused, and the file outside is unchanged
+  ✓ E2 (S1): a history holding a submodule is refused, the submodule named
+  ✓ E3 (S3): EXPORT-NOTE.txt in any commit (a plain file, removed again later) is refused, not overwritten
+  ✓ E4 (S4): the export commit must add exactly the intended files: one more file in the acceptance folder before the commit is refused
+  ✓ E5 (S5): a checkout whose bytes differ from what the history holds (a .gitattributes turning line ends into CRLF) is refused
+  ✓ E6 (S6, a regression guard): an acceptance folder anywhere in the history is refused
+  ✓ E7 (S8, a regression guard): a version that does not match its manifest is refused
+  ✓ E8 (S10, a regression guard): the workspace history moved while the export was made (a hook commits in it) is refused
+  ✓ S9 in writeExport: the version's manifest must be the one the passing run checked
+  ✓ E10 (S12): one export per project in writeExport: refused when the archive exists, which is left as it was; the archive is moved into place only if none has appeared meanwhile; a failed export leaves no file
+  ✓ E12 (S14): the drizzle/ folder must match its journal: a missing file, an extra file, no folder
+  ✓ E13 (S13): each fixed file changed in turn is refused, the file named: the start files, the build files, the six licence files and the template's first migration
+  ✓ E21 (S29): each name Docker Compose or the image build reads without being told, in an earlier commit, is refused, the file named
+  ✓ E20 (S20, a regression guard): the archive holds no node_modules folder and no path named like any of the 14 development-only packages; made-up archives with one are named
+  ✓ S9's reading of the record: the run journey.signed_off names, its one acceptance.run.finished, passed, of the version, with a manifest SHA-256
+  ✓ S17 under question 26 (a): none of the 14 under /app of the run image; outside it only the base image's own npm copy of spdx-exceptions 2.5.0; every copy listed; reported as checked under this reading, never as met
+  ✓ S18: the notices file in the run image, byte-equal to the copy's
+  ✓ S19: the template's licence check passes only on exit code 0 with "RESULT: PASSED" twice and the notices line
+  ✓ S30: what Compose reads from the copy equals what it reads from the template's file alone, once the two folders' paths are set aside; a difference is named
+  ✓ the containers of the checks carry the sandbox's hardening (every capability dropped, no new privileges, 256 processes, 1 GB, a read-only root), a /tmp of 64 MB with no programs run from it, no network, and an unprivileged user
+  ✓ the export check's two images are named builder_<id>-exportcheck-run and -tools, and are on the project's removal list beside the app's two
+  ✓ E14: journey.export.written records the project's id, the manifest's SHA-256 and its items' fingerprints, the checklist count, the passing run's id, the export checks' results and the README's command; the stand-in's checkExport was given the packed archive before it was placed
+  ✓ E10 (S12): one export per project: a second is refused by the job's rule and the first archive is left as it was; a failed export leaves no file and records nothing, and a later one may then be made
+  ✓ E9 (S9): the export is refused unless the version's manifest is the one checked by the run journey.signed_off names: the manifest rewritten after that run, or a run whose record names no manifest
+  ✓ E16 (S15): only a project the scripted engine built is exported: a record holding a model call is refused before anything is made
+  ✓ E15 (S28): the new label, in English (equal to EXPORT_LABEL, and the note's first line) and in Arabic; the words "no notices file" are gone
+
+The same run, the whole files: test/export.test.ts 56 passed (part A's 28 and part B's 28); test/journey.test.ts 71 passed;
+test/web.test.ts 73 passed; test/acceptance.test.ts 88 passed; test/approved-images.test.ts 11 passed (it scans the new
+code and tests); test/licence-rule.test.ts 51 passed. Test Files 6 passed (6); Tests 350 passed (350).
+`npm run typecheck`: no error. `npm run check:licences`: RESULT: PASSED twice, the notices file up to date.
+
+Expectations in existing files that changed with part B, none loosened: none in the test files. The camera's check of the
+export label (builder/camera/builder-shots.mjs) follows the new label's first sentences, still a match from its start.

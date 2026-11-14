@@ -1,0 +1,150 @@
+# Package 3.2, part B: the controls, 2026-11-14 13:23 UTC
+Each safeguard removed by exact text replacement (the old text occurring exactly once), its test run alone
+(`npx vitest run test/export.test.ts -t <its name>`, fresh test database builder_test_x32b), the file put back with
+`git checkout -- <file>`. Every control must fail its test.
+
+## S1
+In builder/src/orchestrator/export.ts: 'if (special.size) refuse(' -> 'if (special.size && false) refuse('
+  test 'E1 (S1)': exit 1; Tests  1 failed | 55 skipped (56); FAILED, as it must
+    first error line: AssertionError: promise resolved "{ …(11) }" instead of rejecting
+  test 'E2 (S1)': exit 1; Tests  1 failed | 55 skipped (56); FAILED, as it must
+    first error line: AssertionError: expected [Function] to throw error including 'The project\'s history holds a symbol…' but got 'The exported copy\'s checkout is not …'
+
+## S2
+In builder/src/orchestrator/export.ts: 'constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW' -> 'constants.O_WRONLY | constants.O_CREAT | constants.O_TRUNC'
+  test 'E1b (S2)': exit 1; Tests  1 failed | 55 skipped (56); FAILED, as it must
+    first error line: AssertionError: expected [Function] to throw error matching /The exporter could not create EXPORT-…/ but got 'The export commit does not add exactl…'
+
+## S3
+In builder/src/orchestrator/export.ts: 'if (tracked.some((f) => f.toLowerCase() === EXPORT_NOTE.toLowerCase())) refuse(' -> 'if (false) refuse('
+  test 'E3 (S3)': exit 1; Tests  1 failed | 55 skipped (56); FAILED, as it must
+    first error line: AssertionError: promise resolved "{ …(11) }" instead of rejecting
+
+## S4
+In builder/src/orchestrator/export.ts: 'if (commitProblems.length) refuse(' -> 'if (commitProblems.length && false) refuse('
+  test 'E4 (S4)': exit 1; Tests  1 failed | 55 skipped (56); FAILED, as it must
+    first error line: AssertionError: promise resolved "{ …(11) }" instead of rejecting
+
+## S5
+In builder/src/orchestrator/export.ts: 'if (differ.length) refuse(' -> 'if (differ.length && false) refuse('
+  test 'E5 (S5)': exit 1; Tests  1 failed | 55 skipped (56); FAILED, as it must
+    first error line: AssertionError: expected [Function] to throw error matching /The exported copy's checkout is not b…/ but got 'The exported copy\'s fixed files diff…'
+
+## S6
+In builder/src/orchestrator/export.ts: 'if (tracked.some((f) => f === "acceptance" || f.startsWith("acceptance/"))) refuse(' -> 'if (false) refuse('
+  test 'E6 (S6': exit 1; Tests  1 failed | 55 skipped (56); FAILED, as it must
+    first error line: AssertionError: promise resolved "{ …(11) }" instead of rejecting
+
+## S8
+In builder/src/orchestrator/export.ts: 'if (!v.ok || !v.manifest || !v.manifestSha256) return refuse(' -> 'if (!v.manifest || !v.manifestSha256) return refuse('
+  test 'E7 (S8': exit 1; Tests  1 failed | 55 skipped (56); FAILED, as it must
+    first error line: AssertionError: promise resolved "{ …(11) }" instead of rejecting
+
+## S9 (the comparison)
+In builder/src/orchestrator/export.ts: 'if (v.manifestSha256 !== i.runManifestSha256) refuse(' -> 'if (false) refuse('
+  test 'S9 in writeExport': exit 1; Tests  1 failed | 55 skipped (56); FAILED, as it must
+    first error line: AssertionError: promise resolved "{ …(11) }" instead of rejecting
+  test 'E9 (S9)': exit 1; Tests  1 failed | 55 skipped (56); FAILED, as it must
+    first error line: AssertionError: expected { jobId: 'job-73b493d8', …(5) } to match object { kind: 'export', …(2) }
+
+## S9 (the run's record)
+In builder/src/orchestrator/export.ts: 'if (typeof p.manifest_sha256 !== "string" || !/^[0-9a-f]{64}$/.test(p.manifest_sha256)) return' -> 'if (false) return'
+  test "S9's reading of the record": exit 1; Tests  1 failed | 55 skipped (56); FAILED, as it must
+    first error line: AssertionError: expected { runId: 'run-a', …(1) } to be 'run run-a, the run its sign-off names…' // Object.is equality
+  test 'E9 (S9)': exit 1; Tests  1 failed | 55 skipped (56); FAILED, as it must
+    first error line: AssertionError: expected { jobId: 'job-07016059', …(5) } to match object { kind: 'export', …(2) }
+
+## S10
+In builder/src/orchestrator/export.ts: 'if ((await git(i.repo, ["rev-parse", "HEAD"])).trim() !== workspaceHead) refuse(' -> 'if (false) refuse('
+  test 'E8 (S10': exit 1; Tests  1 failed | 55 skipped (56); FAILED, as it must
+    first error line: AssertionError: promise resolved "{ …(11) }" instead of rejecting
+
+## S12 (the job's rule)
+In builder/src/orchestrator/journey.ts: ': s.exportEventId ? EXPORT_ONCE : null),' -> ': null),'
+  test 'E10 (S12): one export per project: a second': exit 1; Tests  1 failed | 55 skipped (56); FAILED, as it must
+    first error line: AssertionError: expected null to be 'This project is exported already: one…' // Object.is equality
+
+## S12 (placed only if none exists)
+In builder/src/orchestrator/export.ts: 'if (lstatSync(path, { throwIfNoEntry: false })) exists();\n' -> ''; and '      linkSync(packed, path);' -> '      rmSync(path, { force: true });\n      linkSync(packed, path);'
+  test 'E10 (S12): one export per project in writeExport': exit 1; Tests  1 failed | 55 skipped (56); FAILED, as it must
+    first error line: AssertionError: promise resolved "{ …(11) }" instead of rejecting
+
+## S12 (a failed export leaves no file)
+In builder/src/orchestrator/export.ts: '  } finally {\n    rmSync(staging, { recursive: true, force: true });\n  }' -> '  } finally {\n  }'
+  test 'E10 (S12): one export per project in writeExport': exit 1; Tests  1 failed | 55 skipped (56); FAILED, as it must
+    first error line: AssertionError: expected [ '.staging-8oyq2U', …(1) ] to deeply equal [ 'j1-73d3c5cfb491-export.tar.gz' ]
+
+## S13
+In builder/src/orchestrator/export.ts: 'if (fixed.length) refuse(' -> 'if (fixed.length && false) refuse('
+  test 'E13 (S13)': exit 1; Tests  1 failed | 55 skipped (56); FAILED, as it must
+    first error line: AssertionError: promise resolved "{ …(11) }" instead of rejecting
+
+## S14
+In builder/src/orchestrator/export.ts: 'if (migrations.length) refuse(' -> 'if (migrations.length && false) refuse('
+  test 'E12 (S14)': exit 1; Tests  1 failed | 55 skipped (56); FAILED, as it must
+    first error line: TypeError: .toMatch() expects to receive a string, but got object
+
+## S15
+In builder/src/orchestrator/journey-jobs.ts: 'if (notScripted) throw new JourneyRefused(' -> 'if (notScripted && false) throw new JourneyRefused('
+  test 'E16 (S15)': exit 1; Tests  1 failed | 55 skipped (56); FAILED, as it must
+    first error line: AssertionError: expected { jobId: 'job-4df01d68', …(5) } to match object { kind: 'export', …(2) }
+
+## S20
+In builder/src/orchestrator/export.ts: 'const bad = new Set(["node_modules", ...devNames.map((n) => n.toLowerCase())]);' -> 'const bad = new Set<string>();'
+  test 'E20 (S20': exit 1; Tests  1 failed | 55 skipped (56); FAILED, as it must
+    first error line: AssertionError: expected [] to deeply equal [ 'j1-made-up/node_modules/' ]
+
+## S28
+In builder/src/web/messages/en.json: '"export.label": "Internal only, not for customers. The two container images' -> '"export.label": "Internal only, not for customers. Not yet shown to start without the builder (package 3.2): its tables are made by the builder\'s tools container, and it has no notices file. The two container images'
+  test 'E15 (S28)': exit 1; Tests  1 failed | 55 skipped (56); FAILED, as it must
+    first error line: AssertionError: expected 'Internal only, not for customers. Not…' to be 'Internal only, not for customers. The…' // Object.is equality
+
+## S29
+In builder/src/orchestrator/export.ts: 'if (composeRead.length) refuse(' -> 'if (composeRead.length && false) refuse('
+  test 'E21 (S29)': exit 1; Tests  1 failed | 55 skipped (56); FAILED, as it must
+    first error line: AssertionError: promise resolved "{ …(11) }" instead of rejecting
+
+## checks: a check not passed refuses
+In builder/src/orchestrator/export.ts: 'const failed = docker.find((c) => c.passed !== true);' -> 'const failed = undefined as ExportCheck | undefined;'
+  test 'E10 (S12): one export per project in writeExport': exit 1; Tests  1 failed | 55 skipped (56); FAILED, as it must
+    first error line: AssertionError: promise resolved "{ …(11) }" instead of rejecting
+  test 'E10 (S12): one export per project: a second': exit 1; Tests  1 failed | 55 skipped (56); FAILED, as it must
+    first error line: AssertionError: expected { jobId: 'job-ab028c73', …(5) } to match object { kind: 'export', …(2) }
+
+## checks: every check must be reported
+In builder/src/orchestrator/export.ts: 'const missing = DOCKER_CHECK_IDS.filter((id) => docker.filter((c) => c.id === id).length !== 1);' -> 'const missing: string[] = [];'
+  test 'E10 (S12): one export per project in writeExport': exit 1; Tests  1 failed | 55 skipped (56); FAILED, as it must
+    first error line: AssertionError: promise resolved "{ …(11) }" instead of rejecting
+
+## S17 verdict (none under /app)
+In builder/src/export/export-check.ts: 'if (c.path === "/app" || c.path.startsWith("/app/")) problems.push(' -> 'if (false) problems.push('
+  test 'S17 under question 26': exit 1; Tests  1 failed | 55 skipped (56); FAILED, as it must
+    first error line: AssertionError: expected [ Array(1) ] to deeply equal [ Array(1) ]
+
+## S18 verdict (byte-equal)
+In builder/src/export/export-check.ts: 'if (inImage.sha256 !== copySha256) return' -> 'if (false) return'
+  test 'S18: the notices file': exit 1; Tests  1 failed | 55 skipped (56); FAILED, as it must
+    first error line: AssertionError: expected true to be false // Object.is equality
+
+## S19 verdict (output read)
+In builder/src/export/export-check.ts: 'const passed = code === 0 && results === 2 && notices;' -> 'const passed = code === 0;'
+  test "S19: the template's licence check": exit 1; Tests  1 failed | 55 skipped (56); FAILED, as it must
+    first error line: AssertionError: expected true to be false // Object.is equality
+
+## S30 verdict (the comparison)
+In builder/src/export/export-check.ts: '  differences(a, b, "", diffs, 20);\n' -> ''
+  test 'S30: what Compose reads': exit 1; Tests  1 failed | 55 skipped (56); FAILED, as it must
+    first error line: AssertionError: expected true to be false // Object.is equality
+
+## the checks' hardening (read-only root)
+In builder/src/export/export-check.ts: '...(HARDENING.read_only ? ["--read-only"] : []),' -> ''
+  test 'the containers of the checks carry': exit 1; Tests  1 failed | 55 skipped (56); FAILED, as it must
+    first error line: AssertionError: expected [ 'run', '--rm', '--name', …(20) ] to include '--read-only'
+
+## the removal list
+In builder/src/sandbox/manager.ts: 'return [appBuild.image, appBuild.toolsImage, `${projectName}-exportcheck-run:latest`, `${projectName}-exportcheck-tools:latest`];' -> 'return [appBuild.image, appBuild.toolsImage];'
+  test "are on the project's removal list": exit 1; Tests  1 failed | 55 skipped (56); FAILED, as it must
+    first error line: AssertionError: expected [ …(2) ] to deeply equal [ …(4) ]
+
+Afterwards `git status --porcelain`: empty
+Every control failed its test: yes
