@@ -2,7 +2,10 @@
  * Package J3, measurement M1 (final design, section 6): the owner's phone test, two script-free pages.
  *
  *   npx tsx scripts/probe-phone.ts <log file>          serve the pages (until stopped, or 2 hours)
- *   npx tsx scripts/probe-phone.ts --report <log file> read what was recorded, and say what the design's table decides
+ *   npx tsx scripts/probe-phone.ts --report <log file> [--port-4034=answered|did-not-open]
+ *       [--cached-number=same|changed] [--signed-out=opened|did-not-open|could-not-try]
+ *                                                      read what was recorded, with the owner's answers for what the
+ *                                                      log cannot show, and say what the design's table decides
  *
  * The pages listen on 127.0.0.1:4032 ("probe-a") and 127.0.0.1:4033 ("probe-b"), which the session reports to the
  * owner's Claude app; 127.0.0.1:4034 also answers but is not reported (item vi). Port 4020 is not touched. The pages
@@ -15,14 +18,22 @@
  * page's own Host; (vii) an answer marked `public, max-age=60` with a counter (a cache on the way would repeat it);
  * (viii) the User-Agent. (ix), whether the address opens when signed out, the owner tells.
  *
+ * What the log cannot show is the owner's answer, given to `--report` and printed with it: (vi) when no request reached
+ * 4034, whether step 5 opened the page "Port 4034 answered"; (vii) when the cached page reached the probe fewer than two
+ * times, whether its number stayed the same; (ix) always.
+ *
  * The decision (section 6, M1): same origin for the two pages: stop. Framed and cross-site (the Lax cookie does not
  * come back, or Sec-Fetch-Dest is iframe with Sec-Fetch-Site cross-site): stop, and use (B). Same host on another port,
  * or same-site: go on, with the cookie prefix, every-value cookie reads on 4020 too, and gap 157. Cross-site: go on.
+ * After the independent review of 14787d8 (14 Nov 2026): "go on" only when every item (i) to (ix) has its evidence
+ * (`decide`); with any missing, "not decided", naming each. A stop is returned on the evidence that decides it. The
+ * report changes no setting: the live preview stays off (`BUILDER_LIVE_PREVIEW`, read only by src/web/main.ts).
  */
 import { appendFileSync, readFileSync } from "node:fs";
 import http from "node:http";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { parseArgs } from "node:util";
 
 const PORTS = { a: 4032, b: 4033, c: 4034 } as const;
 type Probe = keyof typeof PORTS;
@@ -101,55 +112,204 @@ function serve(logFile: string): void {
   setTimeout(() => process.exit(0), 2 * 60 * 60 * 1000).unref();
 }
 
-/** What the design's table decides from the log (section 6, M1). */
-export function decide(lines: LogLine[]): { decision: string; facts: string[] } {
+/**
+ * The owner's answers for what the log cannot show, given on the command line and printed with the report (after the
+ * independent review of 14787d8). Each is needed only where the log does not already show the item.
+ */
+export interface OwnerAnswers {
+  /** (vi) Probe-a's step 5: "answered" if the page "Port 4034 answered" opened, "did-not-open" if not. Needed when no request reached 4034. */
+  port4034?: "answered" | "did-not-open";
+  /** (vii) Probe-a's step 6: whether the number stayed the "same" or "changed" when opened again. Needed when the cached page reached the probe fewer than two times. */
+  cachedNumber?: "same" | "changed";
+  /** (ix) Whether probe-a opened in a private window when signed out of Claude. Always needed; "could-not-try" is an answer (the design: "if he can"). */
+  signedOut?: "opened" | "did-not-open" | "could-not-try";
+}
+
+/** One mandatory item of section 6, M1, and whether the log (or the owner's answer) shows it done. */
+export interface Item {
+  id: string;
+  done: boolean;
+  detail: string;
+}
+
+const ANSWER_WORDS = {
+  "port-4034": ["answered", "did-not-open"],
+  "cached-number": ["same", "changed"],
+  "signed-out": ["opened", "did-not-open", "could-not-try"],
+} as const;
+
+/** The owner's answers from `--port-4034=…`, `--cached-number=…` and `--signed-out=…`; an unknown option or word throws. */
+export function readAnswers(args: string[]): OwnerAnswers {
+  const { values } = parseArgs({ args, strict: true, allowPositionals: false, options: { "port-4034": { type: "string" }, "cached-number": { type: "string" }, "signed-out": { type: "string" } } });
+  for (const [name, words] of Object.entries(ANSWER_WORDS)) {
+    const v = values[name as keyof typeof ANSWER_WORDS];
+    if (v !== undefined && !(words as readonly string[]).includes(v)) throw new Error(`--${name} must be one of: ${words.join(", ")} (given: ${v})`);
+  }
+  return {
+    port4034: values["port-4034"] as OwnerAnswers["port4034"],
+    cachedNumber: values["cached-number"] as OwnerAnswers["cachedNumber"],
+    signedOut: values["signed-out"] as OwnerAnswers["signedOut"],
+  };
+}
+
+/** The Sec-Fetch-Site values that place one page against the other. */
+const SITES = ["same-origin", "same-site", "cross-site"];
+const MITIGATIONS = "(with the cookie prefix, every-value cookie reads on 4020 too, and gap 157)";
+
+/**
+ * What the design's table decides (section 6, M1). After the independent review of 14787d8: GO ON only when every
+ * mandatory item (i) to (ix) has its evidence, in the log or, for (vi), (vii) and (ix), in the owner's answers; with
+ * any missing, "not decided", naming each. A STOP is returned on the evidence that decides it, whatever else is missing.
+ */
+export function decide(lines: LogLine[], answers: OwnerAnswers = {}): { decision: string; facts: string[]; items: Item[] } {
   const facts: string[] = [];
-  const hostOf = (p: Probe) => lines.find((l) => l.probe === p)?.kept.host ?? null;
-  const ha = hostOf("a");
-  const hb = hostOf("b");
-  facts.push(`Host seen by probe-a: ${ha ?? "never opened"}; by probe-b: ${hb ?? "never opened"}`);
-  const selfPost = lines.find((l) => l.probe === "a" && l.method === "POST" && l.path === "/self");
-  facts.push(`(i) Origin of a POST to itself: ${selfPost?.kept.origin ?? "(no Origin, or not done)"}`);
-  const cross = lines.filter((l) => l.path.startsWith("/from-"));
-  for (const l of cross) facts.push(`(ii) ${l.method} ${l.path} seen by probe-${l.probe}: Sec-Fetch-Site ${l.kept["sec-fetch-site"] ?? "(none)"}`);
-  const again = lines.filter((l) => l.path === "/again");
-  for (const l of again) facts.push(`(iii) probe-${l.probe} again: cookies back: ${l.cookie_names.join(", ") || "(none)"}`);
+  const items: Item[] = [];
+  const item = (id: string, done: boolean, detail: string) => items.push({ id, done, detail });
+  const pathOf = (l: LogLine) => l.path.split("?")[0]!;
+  const at = (p: Probe, method: string, path: string) => lines.filter((l) => l.probe === p && l.method === method && pathOf(l) === path);
+  const hostsOf = (p: Probe) => [...new Set(lines.filter((l) => l.probe === p).map((l) => l.kept.host ?? "(none)"))];
+  const ha = hostsOf("a");
+  const hb = hostsOf("b");
+  facts.push(`Host seen by probe-a: ${ha.join(", ") || "never opened"}; by probe-b: ${hb.join(", ") || "never opened"}`);
+  // (i) Each page's one Host, and the Origin of its form to itself (step 1).
+  const selfOrigin: { a?: string; b?: string } = {};
+  for (const p of ["a", "b"] as const) {
+    const hosts = hostsOf(p);
+    const posts = at(p, "POST", "/self");
+    const origin = posts.map((l) => l.kept.origin ?? "").find((o) => o !== "" && o !== "null");
+    if (origin !== undefined) selfOrigin[p] = origin;
+    facts.push(`(i) probe-${p}: Origin of a POST to itself: ${posts.length ? posts.map((l) => l.kept.origin ?? "(no Origin)").join(", ") : "(not done)"}`);
+    item(
+      `(i) probe-${p}`,
+      hosts.length === 1 && origin !== undefined,
+      hosts.length === 0 ? `probe-${p} was never opened`
+      : hosts.length > 1 ? `probe-${p} was reached at more than one address (${hosts.join(", ")}): start a fresh log`
+      : posts.length === 0 ? `step 1 on probe-${p} (a form sent to this page) not done`
+      : origin === undefined ? `the form probe-${p} sent to itself came with no Origin, or Origin null: the table needs it to rule out one shared origin`
+      : `Host ${hosts[0]}; Origin of its form to itself ${origin}`,
+    );
+  }
+  // (ii) Each page's link and form to the other (steps 3 and 4), with the Sec-Fetch-Site the other page saw.
+  const crossLines: LogLine[] = [];
+  for (const p of ["a", "b"] as const) {
+    const q = p === "a" ? "b" : "a";
+    for (const [kind, method, path, step] of [["link", "GET", `/from-${p}`, 3], ["form", "POST", `/from-${p}-form`, 4]] as const) {
+      const seen = at(q, method, path);
+      crossLines.push(...seen);
+      const site = seen.map((l) => l.kept["sec-fetch-site"] ?? "").find((s) => SITES.includes(s));
+      facts.push(`(ii) ${method} ${path} seen by probe-${q}: ${seen.length ? `Sec-Fetch-Site ${seen.map((l) => l.kept["sec-fetch-site"] ?? "(none)").join(", ")}` : "not done"}`);
+      item(
+        `(ii) probe-${p} to probe-${q}, ${kind}`,
+        site !== undefined,
+        seen.length === 0 ? `step ${step} on probe-${p} (a ${kind} to probe ${q.toUpperCase()}) not done`
+        : site === undefined ? `it reached probe-${q} with no Sec-Fetch-Site the table can read (${seen.map((l) => l.kept["sec-fetch-site"] ?? "none").join(", ")})`
+        : `Sec-Fetch-Site ${site}`,
+      );
+    }
+  }
+  // (iii) Each page's own Lax and Strict cookies on its step 2; (iv) the Sec-Fetch-Dest of that step.
+  const laxMissing: string[] = [];
+  for (const p of ["a", "b"] as const) {
+    const again = at(p, "GET", "/again");
+    const own = (kind: string) => again.some((l) => l.cookie_names.includes(`probe_${p}_${kind}`));
+    if (again.length && !own("lax")) laxMissing.push(`probe-${p}`);
+    const back = `its own Lax cookie ${own("lax") ? "came back" : "did NOT come back"}, its own Strict cookie ${own("strict") ? "came back" : "did NOT come back"}`;
+    facts.push(`(iii) probe-${p} opened again: ${again.length ? `cookies back: ${[...new Set(again.flatMap((l) => l.cookie_names))].join(", ") || "(none)"}; ${back}` : "not done"}`);
+    item(`(iii) probe-${p}`, again.length > 0, again.length ? back : `step 2 on probe-${p} (open this page again) not done`);
+    const dest = again.map((l) => l.kept["sec-fetch-dest"] ?? "").find((d) => d !== "");
+    item(`(iv) probe-${p}`, dest !== undefined, again.length === 0 ? `step 2 on probe-${p} not done (its Sec-Fetch-Dest is read there)` : dest === undefined ? `step 2 on probe-${p} came with no Sec-Fetch-Dest` : `Sec-Fetch-Dest ${dest}`);
+  }
   const dests = [...new Set(lines.map((l) => `${l.kept["sec-fetch-dest"] ?? "(none)"} / ${l.kept["sec-fetch-site"] ?? "(none)"}`))];
   facts.push(`(iv) Sec-Fetch-Dest / Sec-Fetch-Site seen: ${dests.join("; ")}`);
+  // (v) Recorded on every request.
   facts.push(`(v) header names seen: ${[...new Set(lines.flatMap((l) => l.header_names))].join(", ")}; cookie names: ${[...new Set(lines.flatMap((l) => l.cookie_names))].join(", ") || "(none)"}`);
-  facts.push(`(vi) the unreported port 4034 answered: ${lines.some((l) => l.probe === "c") ? "YES" : "no"}`);
-  const counters = lines.filter((l) => l.path === "/cached").map((l) => l.counter);
-  facts.push(`(vii) the cached page reached the probe ${counters.length} time(s)${counters.length ? ` (numbers ${counters.join(", ")})` : ""}`);
+  item("(v)", ha.length > 0 && hb.length > 0, ha.length && hb.length ? "recorded on every request" : "both pages must be opened");
+  // (vi) Probe-a's step 5: a request that reached 4034, or the owner's answer that it did not open.
+  const cAnswered = lines.some((l) => l.probe === "c");
+  const cOffered = ha.some((h) => otherAddress(h, PORTS.a, PORTS.c, false) !== null);
+  facts.push(`(vi) the unreported port 4034 answered: ${cAnswered ? "YES" : "no request reached it"}; the owner's answer: ${answers.port4034 ?? "not given"}`);
+  item(
+    "(vi)",
+    cAnswered || (cOffered && answers.port4034 === "did-not-open"),
+    cAnswered ? "a request reached 4034's page"
+    : !cOffered ? "step 5 could not be offered: probe-a's address does not show 4032 (or probe-a was not opened)"
+    : answers.port4034 === "did-not-open" ? "did not open (the owner's answer); no request reached 4034"
+    : answers.port4034 === "answered" ? "the owner says it answered, but no request reached 4034's page: the log and the answer disagree"
+    : "no request reached 4034: the owner's answer is needed (--port-4034=answered or did-not-open)",
+  );
+  // (vii) Probe-a's step 6, twice: two requests that reached the probe, or one and the owner's word that the number stayed.
+  const counters = lines.filter((l) => l.probe === "a" && l.counter !== undefined).map((l) => l.counter);
+  const cacheSeen = answers.cachedNumber === "same" && counters.length >= 1;
+  facts.push(`(vii) the cached page reached the probe ${counters.length} time(s)${counters.length ? ` (numbers ${counters.join(", ")})` : ""}; the owner's answer: ${answers.cachedNumber ?? "not given"}`);
+  item(
+    "(vii)",
+    counters.length >= 2 || cacheSeen,
+    cacheSeen ? "the number stayed the same (the owner's answer): a cache on the way"
+    : counters.length >= 2 ? "reached the probe twice or more: no cache on the way seen"
+    : counters.length === 0 ? "step 6 on probe-a (the cached page) not done"
+    : answers.cachedNumber === "changed" ? "the owner says the number changed, but the page reached the probe once: the log and the answer disagree"
+    : "the page reached the probe once: the owner's answer is needed (--cached-number=same or changed)",
+  );
+  // (viii) The User-Agent of each page's requests.
+  const uaOn = (p: Probe) => lines.some((l) => l.probe === p && (l.kept["user-agent"] ?? "") !== "");
   facts.push(`(viii) User-Agent: ${[...new Set(lines.map((l) => l.kept["user-agent"] ?? ""))].join(" | ")}`);
-  facts.push("(ix) opened when signed out: as the owner tells");
+  item("(viii)", uaOn("a") && uaOn("b"), uaOn("a") && uaOn("b") ? "recorded" : `no User-Agent recorded on ${["a", "b"].filter((p) => !uaOn(p as Probe)).map((p) => `probe-${p}`).join(" and ")}`);
+  // (ix) The owner's word.
+  facts.push(`(ix) probe-a opened when signed out: the owner's answer: ${answers.signedOut ?? "not given"}`);
+  item("(ix)", answers.signedOut !== undefined, answers.signedOut ? `the owner's answer: ${answers.signedOut}` : "the owner's answer is needed (--signed-out=opened, did-not-open or could-not-try)");
+
   let decision: string;
-  const laxBack = again.filter((l) => l.cookie_names.some((n) => n.endsWith("_lax")));
+  const missing = items.filter((i) => !i.done).map((i) => i.id);
+  const sameOriginCross = crossLines.find((l) => l.kept["sec-fetch-site"] === "same-origin");
   const framedCross = lines.some((l) => l.kept["sec-fetch-dest"] === "iframe" && l.kept["sec-fetch-site"] === "cross-site");
-  if (!ha || !hb) decision = "not decided: both pages must be opened";
-  else if (ha === hb) decision = "STOP: both pages had the same origin";
-  else if (again.length && laxBack.length === 0) decision = "STOP and use (B): the Lax cookie did not come back (a framed cross-site pane)";
+  if (ha.some((h) => hb.includes(h))) decision = "STOP: both pages had the same origin";
+  else if (selfOrigin.a !== undefined && selfOrigin.a === selfOrigin.b) decision = `STOP: both pages had the same origin (the Origin of each page's form to itself: ${selfOrigin.a})`;
+  else if (sameOriginCross) decision = `STOP: both pages had the same origin (probe-${sameOriginCross.probe} saw Sec-Fetch-Site same-origin for ${sameOriginCross.method} ${sameOriginCross.path})`;
+  else if (laxMissing.length) decision = `STOP and use (B): the Lax cookie did not come back (a framed cross-site pane) on ${laxMissing.join(" and ")}`;
   else if (framedCross) decision = "STOP and use (B): framed, cross-site (Sec-Fetch-Dest iframe with Sec-Fetch-Site cross-site)";
+  else if (!ha.length || !hb.length) decision = `not decided: both pages must be opened; missing ${missing.join("; ")}`;
+  else if (missing.length) decision = `not decided: missing ${missing.join("; ")}`;
   else {
     const strip = (h: string) => h.replace(/:\d+$/, "");
     const siteOf = (h: string) => strip(h).split(".").slice(-2).join(".");
-    if (strip(ha) === strip(hb)) decision = "GO ON: the same host on another port (with the cookie prefix, every-value cookie reads on 4020 too, and gap 157)";
-    else if (siteOf(ha) === siteOf(hb) || cross.some((l) => l.kept["sec-fetch-site"] === "same-site")) decision = "GO ON: same-site (with the cookie prefix, every-value cookie reads on 4020 too, and gap 157)";
+    const [a, b] = [ha[0]!, hb[0]!];
+    if (strip(a) === strip(b)) decision = `GO ON: the same host on another port ${MITIGATIONS}`;
+    else if (siteOf(a) === siteOf(b) || crossLines.some((l) => l.kept["sec-fetch-site"] === "same-site")) decision = `GO ON: same-site ${MITIGATIONS}`;
     else decision = "GO ON: cross-site";
   }
-  if (lines.some((l) => l.probe === "c")) decision += "; and an unreported port answered: gap 157";
-  if (counters.length >= 2 && new Set(counters).size < counters.length) decision += "; a cache on the way: gap 157";
-  return { decision, facts };
+  if (cAnswered) decision += "; and an unreported port answered: gap 157";
+  if (cacheSeen) decision += "; a cache on the way (the cached page's number stayed the same): gap 157";
+  if (answers.signedOut === "opened") decision += "; and probe-a opened when signed out (its address is public): gaps 153 and 157";
+  return { decision, facts, items };
 }
+
+const USAGE = [
+  "Usage: npx tsx scripts/probe-phone.ts <log file>",
+  "       npx tsx scripts/probe-phone.ts --report <log file> [--port-4034=answered|did-not-open] [--cached-number=same|changed] [--signed-out=opened|did-not-open|could-not-try]",
+].join("\n");
 
 function main(args: string[]): void {
   if (args[0] === "--report") {
+    let answers: OwnerAnswers;
+    try {
+      answers = readAnswers(args.slice(2));
+    } catch (e) {
+      console.error(`${(e as Error).message}\n${USAGE}`);
+      process.exitCode = 2;
+      return;
+    }
     const lines = readFileSync(resolve(args[1] ?? ""), "utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l) as LogLine);
-    const r = decide(lines);
+    const r = decide(lines, answers);
     for (const f of r.facts) console.log(f);
+    console.log("Each mandatory item (design section 6, M1):");
+    for (const i of r.items) console.log(`  ${i.done ? "done   " : "MISSING"} ${i.id}: ${i.detail}`);
+    const given = (name: string, v: string | undefined) => (v === undefined ? `--${name} not given` : `--${name}=${v}`);
+    console.log(`The owner's answers: ${given("port-4034", answers.port4034)}; ${given("cached-number", answers.cachedNumber)}; ${given("signed-out", answers.signedOut)}`);
     console.log(`DECISION: ${r.decision}`);
+    console.log("This report changes no setting: the live preview stays off until BUILDER_LIVE_PREVIEW=1 is set by hand for the owner's interface, which is done only after a GO ON is recorded.");
   } else if (args[0]) serve(resolve(args[0]));
   else {
-    console.error("Usage: npx tsx scripts/probe-phone.ts <log file> | --report <log file>");
+    console.error(USAGE);
     process.exitCode = 2;
   }
 }
