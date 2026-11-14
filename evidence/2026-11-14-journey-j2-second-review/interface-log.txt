@@ -1,0 +1,27 @@
+The interface's own output during the run (stdout and stderr), each line marked with its start (1 to 4), with this run's folder written <run folder> and the session proxy's address <session proxy>:
+
+[start 1] Projects with a job or a sandbox left by an interface that stopped, marked interrupted and removed at start: 0.
+[start 1] Live preview: off (BUILDER_LIVE_PREVIEW is not 1). Nothing listens on 127.0.0.1:4030; "Open the live app" is refused.
+[start 1] Interface listening on http://127.0.0.1:4022 (password from: env).
+[start 1] [interface stopping] The interface was stopped on purpose (SIGTERM). No job was running. Every request is now answered "The interface is stopping."
+[start 1] Projects with a sandbox, marked interrupted and removed at the stop: 0.
+[start 1] [interface stopped] Lock released. Exit code 0.
+[start 2] Demonstration setting: the scripted engine pauses 4000 ms before each write (BUILDER_DEMO_STEP_PAUSE_MS), so that a stop part-way can be shown. Every step is slower; each build step records the pause.
+[start 2] Projects with a job or a sandbox left by an interface that stopped, marked interrupted and removed at start: 0.
+[start 2] Live preview: off (BUILDER_LIVE_PREVIEW is not 1). Nothing listens on 127.0.0.1:4030; "Open the live app" is refused.
+[start 2] Interface listening on http://127.0.0.1:4022 (password from: env).
+[start 2] [interface stopping] The interface was stopped on purpose (SIGTERM). Its running job (job-882c744a, project j1-e976d0817ac1) is being stopped first. Every request is now answered "The interface is stopping."
+[start 2] [interface stopping] The job job-882c744a has ended; its record says how. It is not resumed.
+[start 2] [interface stopping] Project j1-e976d0817ac1: its sandbox (<run folder>/tmp/builder-acceptance-zVG14B) was removed at the stop: its containers, images and folder. It is marked interrupted, not resumed.
+[start 2] Projects with a sandbox, marked interrupted and removed at the stop: 1.
+[start 2] [interface stopped] Lock released. Exit code 0.
+[start 3] Demonstration setting: the scripted engine pauses 4000 ms before each write (BUILDER_DEMO_STEP_PAUSE_MS), so that a stop part-way can be shown. Every step is slower; each build step records the pause.
+[start 3] Projects with a job or a sandbox left by an interface that stopped, marked interrupted and removed at start: 0.
+[start 3] Live preview: off (BUILDER_LIVE_PREVIEW is not 1). Nothing listens on 127.0.0.1:4030; "Open the live app" is refused.
+[start 3] Interface listening on http://127.0.0.1:4022 (password from: env).
+[start 4] Projects with a job or a sandbox left by an interface that stopped, marked interrupted and removed at start: 1.
+[start 4] Live preview: off (BUILDER_LIVE_PREVIEW is not 1). Nothing listens on 127.0.0.1:4030; "Open the live app" is refused.
+[start 4] Interface listening on http://127.0.0.1:4022 (password from: env).
+[start 4] [interface stopping] The interface was stopped on purpose (SIGTERM). No job was running. Every request is now answered "The interface is stopping."
+[start 4] Projects with a sandbox, marked interrupted and removed at the stop: 0.
+[start 4] [interface stopped] Lock released. Exit code 0.

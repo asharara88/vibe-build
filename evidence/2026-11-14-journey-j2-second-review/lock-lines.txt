@@ -1,0 +1,5 @@
+The run's lock lines (the wrapper's output around the run: flock, then the run, then these), on f8cfc57 (builder/ tree 37ae8c2):
+Lock held from 11:08:24 UTC.
+run exit code: 0
+Lock released at 11:10:50 UTC.
+Screenshots the run made: 41; copied here: 6 (the Projects screen and the checklist screen, which these fixes change).
