@@ -5,7 +5,7 @@
 | Package | J2, parts (a) and (c) (planned in `docs/design/journey-j1.md`; part (b), package 3.2, comes after) |
 | Design | `docs/design/journey-j2.md` (final design after two independent critiques; the owner answered its one question on 14 Nov 2026, option (a); section 13 lists the changes made during the build) |
 | Branch | `claude/j2-broken-and-restart`, from `claude/stage-1` at `14787d8`; not pushed |
-| This file | First version, 14 Nov 2026: the automated run of section 7. Written by Claude Code. Not reviewed yet |
+| This file | 14 Nov 2026. First version: the automated run of section 7. Completed the same day with the controls of section 6 and the full checks (the whole suite, typecheck, licence check). Written by Claude Code. Not reviewed yet |
 | Machine | The development machine (a cloud session); the run under the shared lock, with its own database (`builder_j2_<run>`), data folder and port (127.0.0.1:4022); the live preview off; real Docker; the scripted engine only, no model called |
 
 ## What the owner can now do
@@ -133,18 +133,40 @@ Each picture was looked at for a password, a pass or a secret: none is shown. No
 - `interface-log.txt`: the interface's own output, each line marked with its start (1 to 4).
 - `lock-lines.txt`: the lock lines around the run. `first-run/`: the first run's log.
 - `new-tests-a-…`, `new-tests-c-…`, `touched-test-files-c.txt`: the tests of parts (a) and (c), before and after (written by those parts).
+- `controls-scripts/controls.py`, `controls-output.txt`: the controls (below).
+- `full-checks.sh`: the script that ran the controls, the whole suite, the typecheck and the licence check; `run-tests-full.txt`, `run-typecheck.txt`, `run-licences.txt`: their output.
+
+## The controls (design section 6)
+
+A control removes one safeguard from the code, runs the test that guards it alone, and checks that the test now fails; then the code is put back. It shows that the test would notice if the safeguard were lost. `controls-scripts/controls.py`, run from `builder/` under the shared lock by `full-checks.sh`, on `5a2254d` (`builder/` tree `8449a9a`, the tree of the automated run), 14 Nov 2026; output in `controls-output.txt`.
+
+- **How:** each safeguard is removed by replacing an exact piece of text that occurs once in its file (the script refuses a text that occurs any other number of times); the named tests are run alone (`npx vitest run <file> -t <name>`); then the file is put back with `git checkout` and checked unchanged. Before the controls, each of the 31 named tests was run once on the code as committed: each passed, and each name selected exactly one test.
+- **Result: 42 of 42 controls failed their tests, as they should.** After every control the code was the same as committed (`git diff HEAD` empty).
+- **Section 6's table:** its 30 rows are J2-C01 to J2-C31 (the row "the second wording; the cost note" is two controls, J2-C27 and J2-C28). Each names the test the design names; where the design names two tests (J2-C02: A1b and A3; J2-C05: A1 and A4) or a test written in both files (A6, A7, A9), each was run and each failed.
+- **Safeguards the builders added (design section 13), J2-C32 to J2-C42:** the name refusal's folding of capitals and spaces (A2b); the job refusing the broken step when staging is refused (A4); the comparison of the staged manifest's SHA-256 (A4); the target check's "not under builder/" (A4); the stop setting the 503 flag (C9); the bound on the wait for the running job (C4); the removal ending once the process has exited (C11); the pause setting's upper bound (C6); the pause recorded (C6); the build screen's pause line (C6); the clean stop installed on SIGTERM in the real process (C5).
+- **Two controls failed by running into the test's time limit (20 s)**, as a stop that waits for ever would: J2-C23 (the lock check unbounded) and J2-C37 (the wait for the running job unbounded). Each left its test's own database, which the script then dropped (`controls-output.txt`, last line).
+- **No control here:** `POST /projects` with extra fields (A2b's guard part), as section 6 says: the safeguard is that the form takes no choice at all. And the adapter's own target check before staging (`example1Sandboxes().stageBrokenStep`, `builder/src/orchestrator/example-1-adapter.ts`): no test reaches the real adapter's method, which needs a real sandbox; the job's own check, which runs first, has its controls (J2-C07, J2-C35). The automated run went through the adapter once, on its own folder.
+
+## The whole suite, the typecheck and the licence check
+
+Run by `full-checks.sh` from `builder/`, as J3's were (`evidence/2026-11-13-journey-j3/after-bot/full-suite.sh`): under the shared lock, with `BUILDER_BROWSER_CACHE` set, on a fresh database `builder_test_j2_full` (dropped after), `TMPDIR` in the session's scratch folder.
+
+- **The whole suite: 728 of 728 tests passed, in 29 of 29 test files, none skipped**, live tests included (package 3.1's run D among them), on `74736fd` (`builder/` tree `8449a9a`, as in the automated run), 14 Nov 2026; the lock held from 05:45:24 to 06:02:42 UTC (`run-tests-full.txt`). No container on the machine before or after; after, no short preview folder left in /tmp and no database of the J2 (c) tests left. Free disk 6.1 GB before, 5.9 GB after.
+- **Run D, which part (a)'s report recorded failing here:** at 03:20 UTC on 14 Nov it failed on this worktree, and on `14787d8`'s own code too (the project's `egress-host` container exited with code 1). This worktree's `node_modules` was then a link into another worktree's, and has since been made a folder of its own; that this was the cause is assumed, not shown. In the run above, run D passed.
+- **`npm run typecheck`:** passed, exit code 0 (`run-typecheck.txt`).
+- **`npm run check:licences`:** passed for `builder/` and `builder/runner/`, exit code 0; no dependency file and no image list changed since `14787d8` (`run-licences.txt`). No dependency was added by J2.
 
 ## Checked and assumed
 
 - **Checked (by the run, with the output named):** every item above; that the run used real Docker and the real interface process, started as named; the disk: 6.31 GB free at the start, 5.27 GB at the lowest, so about 1.0 GB used at once (sampled every 2 s); after the run, no container on the machine, nothing named `builder_j1-`, ports 4022 and 13161 free.
 - **Checked by reading the pictures:** the screens listed above show what their lines say, in both languages where taken.
-- **Assumed, not shown:** that the clean stop behaves the same on a slower machine or with a job that cannot be stopped (the 30 s wait, the 5 s lock check and the 90 s bound were not reached here: every stop took under 1 s); that a `docker build` cut off by a crash cannot outlive the next start's removal (here the crash came mid-step, with no image build running; gap 165 in the design).
+- **Assumed, not shown:** that the clean stop behaves the same on a slower machine or with a job that cannot be stopped (the 30 s wait, the 5 s lock check and the 90 s bound were not reached here: every stop took under 1 s); and what a `docker build` left running by a stop or a crash does: it can outlive the next start's removal (here each stop came mid-step, with no image build running; gap 165).
 - **Not shown here because the run's live preview was off:** the broken copy's live refusal ("A deliberately broken copy is not offered as a live app…"). Test A7 shows it with the front on.
 
 ## Not done
 
 - **Ctrl-C to the process group, a real PostgreSQL restart, WebKit:** not tried.
-- **The controls of section 6 for (c)**, the whole suite on this branch, `check:licences` after this run, and the review the design asks for (section 8): not done in this step.
-- **The records** (DECISIONS, BUILD-PLAN progress row, KNOWN-GAPS 162 to 167 and gap 139, SOURCES, STATUS, the Arabic wording list): not updated in this step.
+- **The review the design asks for (section 8):** not done yet; it is next.
+- **The records** were updated on 14 Nov 2026, after the controls and the full checks: DECISIONS (the owner's answer word for word, and Claude Code's choices), the BUILD-PLAN progress row (and the stale J1 and J3 rows corrected), KNOWN-GAPS 162 to 167 and gap 139, SOURCES (tsx's signal relay and exit code), STATUS, QUESTIONS, the Arabic wording list, and the design's section 12 (answered (a)). Gap 162's number is also used on `claude/stage-1` since `14787d8`; whichever merges second renumbers its own.
 - **J2 (b), package 3.2**, the real engine, the quality check after each step and its one retry, resuming after a restart: not in J2 (design section 10).
 - **The owner** has not used any of it himself; nobody has started an interface with this branch for him.
