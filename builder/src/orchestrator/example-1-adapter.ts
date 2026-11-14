@@ -32,6 +32,10 @@
  * - Package J2 (a): `stageBrokenStep` copies the deliberately broken step 03 into the sandbox's own change-set folder,
  *   through scripts/example-1-sandbox.ts's `stageBrokenStep` unchanged, after `checkJourneyId` and the same target check
  *   as the job's (`brokenStageTargetProblem`): never into builder/scripted or any folder but the sandbox's own.
+ * - Package 3.2 (design section 4): `checkExport` runs the export's checks with Docker (src/export/export-check.ts,
+ *   `checkExportImages`), building the archive's two stages through this sandbox's own build path as
+ *   `builder_<id>-exportcheck-run` and `-tools`, removed by exact name when the check ends and on the project's removal
+ *   list (manager.ts, `projectImageNames`, which `sandbox.removeImage` uses).
  *
  * Development profile only (the server profile is 0.6b's).
  */
@@ -43,6 +47,7 @@ import { promisify } from "node:util";
 import { runAcceptance, type AcceptanceReport, type AcceptanceRunInput } from "../acceptance/runner.js";
 import { RUNNER_IMAGE, runnerImageProblem } from "../acceptance/runner-image.js";
 import type { EngineRunner } from "../engine/scripted.js";
+import { checkExportImages, type ExportCheck, type PackedExport } from "../export/export-check.js";
 import { appImageName, composeProjectName, dockerEnv, PROJECT_NETWORK, sandbox, toolsImageName, type Sandbox, type StreamingEnd } from "../sandbox/manager.js";
 import { buildAndStart, destroyExample1, makeExample1, portFree, stageBrokenStep as stageBrokenStepInto, type Example1 } from "../../scripts/example-1-sandbox.js";
 import { brokenStageTargetProblem, JourneyRefused, type SandboxRecord } from "./journey.js";
@@ -99,6 +104,14 @@ export interface Sandboxes {
   appCamera(x: ProjectSandbox, a: { outDir: string; secretFile: string; onLine: (line: string) => void; signal?: AbortSignal }): Promise<StreamingEnd>;
   /** One acceptance run (package 3.1's `runAcceptance`). */
   runAcceptance(input: AcceptanceRunInput): Promise<AcceptanceReport>;
+  /**
+   * Package 3.2 (design section 4, items 3 to 7): the export's checks with Docker, on the packed archive before it is
+   * placed or recorded: unpacked into `p.unpackDir`; its run and tools stages built through this sandbox's own build
+   * path; what Compose reads from the copy compared with the template's file alone; every named package listed in both
+   * images; the notices file in the run image; the template's licence check in the tools image. Each container has the
+   * sandbox's hardening; both images are removed by exact name before it returns. The fast tests stand in for it.
+   */
+  checkExport(x: ProjectSandbox, p: PackedExport): Promise<ExportCheck[]>;
   /**
    * Package J3: why the live preview's streams may not run in the project's `check` service, or null: Compose's own
    * reading of that service must put it on the project's `front` network alone, a private one (`frontOnlyProblem`).
@@ -318,6 +331,10 @@ export function example1Sandboxes(o: { runnerImage?: string; buildProxyPort?: nu
       }
     },
     runAcceptance: (input) => runAcceptance(input),
+    async checkExport(x, p) {
+      checkJourneyId(x.projectId);
+      return checkExportImages(x.sb, x.projectId, p);
+    },
     streamNetworkProblem: (x) => streamNetworkProblem(x.sb),
     appStream: (x) => sandbox.appStream(x.sb, `app:${x.appPort}`, { container: `${x.sb.projectName}-live-${randomBytes(4).toString("hex")}` }),
     async stopApp(x) {

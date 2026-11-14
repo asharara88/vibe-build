@@ -256,9 +256,20 @@ export const LIVE_AFTER_SIGN_OFF = "This project is signed off. The live app is 
 export const LIVE_CLOSED_BY_SIGN_OFF = "signed_off";
 /** The label a sign-off carries (final design, section 1, item 8). */
 export const SIGN_OFF_LABEL = "Sign-off on a simulated build, checked by a stand-in test of item 1 only: not acceptance";
-/** The label the export carries (final design, section 1, item 9). */
+/**
+ * The label the export carries (final design, section 1, item 9). Package 3.2 (design section 1, "The label"): as the
+ * approvals are recorded, the two images for the builder's internal development and testing only (DEC:97, :110), the
+ * development-only packages for development use only (DEC:45).
+ */
 export const EXPORT_LABEL =
-  "Internal only, not for customers. Not yet shown to start without the builder (package 3.2): its tables are made by the builder's tools container, and it has no notices file.";
+  "Internal only, not for customers. The two container images it names are approved for the builder's internal development and testing only; its development-only packages are approved for development use only, never in what a customer receives. Made-up data only.";
+/** Package 3.2 (safeguard S12): one export per project; a second is refused, and the first is left as it was. */
+export const EXPORT_ONCE = "This project is exported already: one export per project. The archive recorded is the one offered.";
+/**
+ * Package 3.2 (safeguard S15): the export's note says no AI model was called by the builder, true only for the scripted
+ * engine, so a project whose record shows anything else is not exported (`scriptedOnlyProblem`'s reason follows).
+ */
+export const EXPORT_SCRIPTED_ONLY = "Only a project the scripted engine built is exported, since its note says no AI model was called:";
 
 export type Stage = "brief" | "questions" | "brief_review" | "plan_review" | "build" | "preview" | "acceptance" | "signed_off" | "stopped" | "closed";
 export type JobKind = "build_step" | "preview" | "acceptance" | "export" | "live";
@@ -547,8 +558,9 @@ export const JOB_RULES: Record<JobKind, (s: JourneyState) => string | null> = {
         : s.signedOff
           ? "The project is signed off; the checklist is not run again."
           : null,
-  // Package J2: a broken copy is never exported, whatever its record says of sign-off (section 3.5).
-  export: (s) => (!s.signedOff ? "The project is not signed off yet. Export is offered only after sign-off." : s.brokenTrace ? BROKEN_COPY_REFUSAL : null),
+  // Package J2: a broken copy is never exported, whatever its record says of sign-off (section 3.5). Package 3.2
+  // (safeguard S12): one export per project.
+  export: (s) => (!s.signedOff ? "The project is not signed off yet. Export is offered only after sign-off." : s.brokenTrace ? BROKEN_COPY_REFUSAL : s.exportEventId ? EXPORT_ONCE : null),
   // After the review of 14787d8 (known gap 161, the owner's choice): never after sign-off. Package J2: a broken copy is
   // refused before the scripted-only check, which its record would pass (section 3.6).
   live: (s) =>
