@@ -16,7 +16,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { BROWSER_ZIP_LABEL, BROWSER_ZIP_SHA256, RUNNER_IMAGE } from "../src/acceptance/runner-image.js";
 import { openStore, sha256 } from "../src/acceptance/store.js";
 import { git, workspaceChanges } from "../src/engine/project-repo.js";
-import { buildPortRefusal, cameraImageProblem, cameraNetworkProblem, checkJourneyId, example1Sandboxes, frontOnlyProblem, J1_APP_PORT, recordedSandboxRefusal, type ProjectSandbox } from "../src/orchestrator/example-1-adapter.js";
+import { buildPortRefusal, cameraImageProblem, cameraNetworkProblem, checkJourneyId, dockerLeftovers, example1Sandboxes, frontOnlyProblem, J1_APP_PORT, recordedSandboxRefusal, type ProjectSandbox } from "../src/orchestrator/example-1-adapter.js";
 import { secretLikePath } from "../src/orchestrator/export.js";
 import { APP_SHOTS, JourneyJobs, REFUSAL_EXTRA } from "../src/orchestrator/journey-jobs.js";
 import { journeyFolder, recordedFile } from "../src/web/files.js";
@@ -2301,6 +2301,14 @@ describe("J2 (c): the clean stop and restart, the journey's part (stand-in sandb
       release();
       await f.drop();
     }
+  });
+
+  it("C16 (known gap 180's fix): Docker's lists that cannot be read are not read as nothing left: one line says so; a project that is not a journey project is refused before anything is asked", async () => {
+    // No docker program on this PATH: the lists cannot be read.
+    const left = await dockerLeftovers("j1-0123456789ab", { PATH: "/nonexistent-for-this-test" });
+    expect(left).toHaveLength(1);
+    expect(left[0]).toMatch(/^Docker's lists could not be read \(/);
+    await expect(dockerLeftovers("p_not_a_journey_project", { PATH: "/nonexistent-for-this-test" })).rejects.toThrow();
   });
 
   it("C8 (regression guard): the automated run's pure checks on made-up lists: N reports a container, a volume, a network, an image, a process or the folder of the project, each alone, and nothing of another project; the record checks for a clean stop, a crash and a step running", () => {

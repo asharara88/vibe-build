@@ -190,6 +190,22 @@ CONTROLS = [
  ("J2-C53", "review of #49: the wait for the job starts again after the live preview's stop, instead of counting from the halt", MAIN,
   [("    const halted = await within(halting, waitUntil - Date.now());", "    const halted = await within(halting, waitMs);")],
   [(W, "C13 \\(after the review of pull request #49\\)")]),
+ # ---------------------------------------------------------------- known gap 180's fix (14 Nov 2026): a removal is checked
+ ("J2-C54", "gap 180: the end of a removal does not read Docker's lists (whatever is left, it reports the removal as done)", "src/orchestrator/example-1-adapter.ts",
+  [("  const left = await dockerLeftovers(projectId, env);\n  if (left.length) throw new SandboxNotRemoved(projectId, left);\n", "")],
+  [("test/removal-live.test.ts", "a network of the project that Docker will not remove")]),
+ ("J2-C55", "gap 180: Docker's lists that cannot be read are read as nothing left", "src/orchestrator/example-1-adapter.ts",
+  [("    return [`Docker's lists could not be read (${(err instanceof Error ? err.message : String(err)).split(\"\\n\")[0]!.slice(0, 200)})`];", "    return [];")],
+  [(J, "C16 \\(known gap 180's fix\\)")]),
+ ("J2-C56", "gap 180: Close project closes the project although its removal left something", JOURNEY,
+  [("        throw new JourneyRefused(closeNotRemovedRefusal(err.left));\n", "")],
+  [(W, "C15 \\(known gap 180's fix\\)")]),
+ ("J2-C57", "gap 180: at a stop or a start, what a removal left is not written in its record", JOURNEY,
+  [("        if (err instanceof SandboxNotRemoved) leftBehind = err.left;\n", "")],
+  [(W, "C14 \\(known gap 180's fix\\)")]),
+ ("J2-C58", "gap 180: the screen does not say that a removal left something", PAGES,
+  [("  if (!s.removalLeft) return \"\";\n", "  if (s.removalLeft || !s.removalLeft) return \"\";\n")],
+  [(W, "C14 \\(known gap 180's fix\\)"), (W, "C15 \\(known gap 180's fix\\)")]),
 ]
 
 def run(cmd):
