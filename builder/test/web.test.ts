@@ -680,7 +680,7 @@ describe("J1 interface, part 2: the build, preview, checklist and export screens
     expect(await go(app, j, `/projects/${id}/build`, cookie, { step: "01-data" })).toBe(`/projects/${id}/build`);
     html = await page(app, `/projects/${id}/build`, cookie);
     expect(html).toContain('data-step="01-data" data-step-state="finished" data-approved="no"');
-    expect(html).toContain("Scripted: fixed change, no model call. Reserved while it ran: $1.5552, sized at claude-opus-5-5&#39;s prices, released. Spent: $0.00.");
+    expect(html).toContain("Scripted: fixed change, no model call. Reserved while it ran: $2.7216, sized at claude-opus-5-5&#39;s prices, released. Spent: $0.00.");
     expect(html).toContain('data-approve="01-data"');
     expect(html).toContain(t("en", "build.approve_next"));
     await noGetWrites(app, id, cookie);
@@ -759,7 +759,7 @@ describe("J1 interface, part 2: the build, preview, checklist and export screens
     await go(app, j, `/projects/${id}/build`, cookie, { step: "01-data" });
     const html = await page(app, `/projects/${id}/build`, cookie);
     expect(html).toContain("data-refused");
-    expect(html).toMatch(/This step needs up to \$1\.56 to finish \(4 turns\); this project has \$1\.00 left of its budget of \$1\.00/);
+    expect(html).toMatch(/This step needs up to \$2\.73 to finish \(7 turns\); this project has \$1\.00 left of its budget of \$1\.00/);
     expect(html).toContain(REFUSAL_EXTRA.replace(/'/g, "&#39;"));
     expect(html).toContain('data-build="01-data"');
     expect(html).toContain(t("en", "build.retry", { n: 1 }));
@@ -1986,7 +1986,7 @@ describe("J2 (a) interface: the broken-copy demonstration's screens (stand-in sa
     const cost = await page(app, `/projects/${id}/cost`, cookie);
     expect(cost).toContain('<td data-spent>$0.00</td>');
     expect([...cost.matchAll(/<tr><td><bdi dir="ltr">([^<]+)<\/bdi><\/td><td>(\$[0-9.]+)<\/td><td>([^<]+)<\/td><\/tr>/g)].map((m) => [m[1], m[2], m[3]])).toEqual([
-      ["01-data", "$1.5552", "closed (step_ended)"],
+      ["01-data", "$2.7216", "closed (step_ended)"],
       ["02-submitter-screen", "$3.1104", "closed (step_ended)"],
       [BROKEN, "$1.1664", "closed (step_ended)"],
     ]);
@@ -2611,13 +2611,13 @@ describe("J2 (c) interface: the clean stop and restart (stand-in sandboxes, no c
         // The cost screen: the note only on the reservation of the step stopped part-way.
         const midCost = await page(`/projects/${mid}/cost?lang=${lang}`);
         expect(rows(midCost), lang).toEqual([
-          ["01-data", "$1.5552", "closed (step_ended)"],
+          ["01-data", "$2.7216", "closed (step_ended)"],
           ["02-submitter-screen", "$3.1104", `closed (step_ended)${note}`],
         ]);
         expect(midCost).toContain("<td data-step-room>$0.0000</td>");
         expect(midCost).toContain("<td data-spent>$0.00</td>");
         expect(rows(await page(`/projects/${crashed}/cost?lang=${lang}`)), lang).toEqual([["01-data", "$1.5552", `closed (job_interrupted)${note}`]]);
-        expect(rows(await page(`/projects/${quiet}/cost?lang=${lang}`)), lang).toEqual([["01-data", "$1.5552", "closed (step_ended)"]]);
+        expect(rows(await page(`/projects/${quiet}/cost?lang=${lang}`)), lang).toEqual([["01-data", "$2.7216", "closed (step_ended)"]]);
       }
       expect(t("en", "interrupted.no_job")).toBe(NO_JOB);
       expect(t("en", "interrupted.message")).toBe(WITH_JOB);

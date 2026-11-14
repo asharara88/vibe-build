@@ -1,0 +1,114 @@
+# Package 3.2, part C: measurement M1, Compose's labels and a volume's subpath with docker run (14 Nov 2026, 13:35 UTC)
+
+Why: design section 3, item 4 asks that the check from the copy find the app by Compose's labels, and that
+com.docker.compose.project.working_dir be read from docker inspect first and recorded. Item 6 mounts the runner's
+password as one file of the copy's keys volume, through the volume's subpath, with docker run (not Compose).
+
+What ran: the script below, under the shared lock, with a made-up two-service project (the approved Node image only;
+no network for either service; a made-up value, not a secret, in the volume). Docker 29.9.2, Compose v5.6.1.
+Everything it made was removed by exact name (its last lines). Paths under the session's scratch folder are written <scratch>.
+
+Found:
+- Compose labels each container with com.docker.compose.project.working_dir (the folder's absolute path),
+  com.docker.compose.project.config_files (the compose file it read), com.docker.compose.project,
+  com.docker.compose.service and com.docker.compose.oneoff; and the image it builds, named <project>-<service>
+  (tag latest), with com.docker.compose.project and com.docker.compose.service. The container's .Image is the
+  image's id as docker image inspect gives it (the label com.docker.compose.image holds another digest).
+- docker run --mount type=volume,...,readonly,volume-subpath=<file> mounts that one file, read-only; /keys is not there.
+- docker run given a volume name that does not exist MAKES that volume, then fails on the subpath (exit 127 here):
+  hence the check's test that <project>_keys exists and is the project's before the runner starts.
+
+## The script (m1.sh)
+
+#!/bin/bash
+# Part C measurement M1 (package 3.2): Compose's labels on a container and a built image; docker run's volume subpath.
+set -u
+D=<scratch>/x32c/m1/j1-c32measure0001
+cd $D
+echo "== $(date -u +%T) docker compose up -d --build (plain environment)"
+env -i PATH=$PATH HOME=$HOME docker compose up -d --build 2>&1 | tail -3
+echo "== container labels of service app"
+docker ps -a --filter label=com.docker.compose.project=j1-c32measure0001 --filter label=com.docker.compose.service=app --format '{{.Names}} {{.Image}}'
+C=$(docker ps -aq --filter label=com.docker.compose.project=j1-c32measure0001 --filter label=com.docker.compose.service=app)
+docker inspect $C --format '{{json .Config.Labels}}' | tr ',' '\n'
+echo "== container .Image: $(docker inspect $C --format '{{.Image}}')"
+echo "== images named after the project"
+docker images --format '{{.Repository}} {{.Tag}} {{.ID}}' | grep c32measure
+echo "== image labels"
+docker image inspect j1-c32measure0001-app --format '{{.Id}} {{json .Config.Labels}}'
+echo "== docker run with a volume subpath mount of one file"
+docker run --rm --network none --read-only --user node --mount type=volume,source=j1-c32measure0001_keys,target=/run/secrets/sample-password,readonly,volume-subpath=sample_password --entrypoint sh "node:22-alpine@sha256:0e1754758c2df4cfa3e68d59e2e1b7374bb7fd9ea6328eaaacf15cc934af8202" -c 'ls -la /run/secrets; wc -c < /run/secrets/sample-password; ls /keys 2>&1 | head -1'
+echo "== docker run --pull never with a volume that does not exist, subpath: (expected to fail or create?)"
+docker run --rm --pull never --network none --mount type=volume,source=j1-c32measure0001_nosuch,target=/x,readonly,volume-subpath=sample_password --entrypoint true "node:22-alpine@sha256:0e1754758c2df4cfa3e68d59e2e1b7374bb7fd9ea6328eaaacf15cc934af8202" ; echo "exit $?"
+docker volume ls -q --filter name=j1-c32measure0001
+echo "== clean-up by exact names"
+env -i PATH=$PATH HOME=$HOME docker compose down --volumes 2>&1 | tail -3
+docker volume rm j1-c32measure0001_nosuch 2>&1
+docker image rm j1-c32measure0001-app 2>&1 | tail -1
+docker ps -a --filter label=com.docker.compose.project=j1-c32measure0001 -q; docker volume ls -q --filter name=j1-c32measure0001; docker images -q j1-c32measure0001-app; echo "(nothing left above)"
+
+## Its compose file
+
+volumes:
+  keys: {}
+services:
+  keys:
+    image: "node:22-alpine@sha256:0e1754758c2df4cfa3e68d59e2e1b7374bb7fd9ea6328eaaacf15cc934af8202"
+    network_mode: none
+    volumes:
+      - type: volume
+        source: keys
+        target: /keys
+    command: ["node", "-e", "require('fs').writeFileSync('/keys/sample_password','made-up-not-secret',{mode: 0o444});require('fs').writeFileSync('/keys/other','x',{mode: 0o444})"]
+  app:
+    build:
+      context: .
+    network_mode: none
+    depends_on:
+      keys:
+        condition: service_completed_successfully
+
+## Its output
+
+== 13:35:29 docker compose up -d --build (plain environment)
+ Container j1-c32measure0001-keys-1 Exited 
+ Container j1-c32measure0001-app-1 Starting 
+ Container j1-c32measure0001-app-1 Started 
+== container labels of service app
+j1-c32measure0001-app-1 j1-c32measure0001-app
+{"com.docker.compose.config-hash":"181fb1b678b259fc328ba0e802cd173502f34312d1413abb7f7a5b4b31dcb0d5"
+"com.docker.compose.container-number":"1"
+"com.docker.compose.depends_on":"keys:service_completed_successfully:false"
+"com.docker.compose.image":"sha256:5a878aa8bfd2f3de04de0ea0a79a1e5e2404d42bf951b6405f67032a97105e3e"
+"com.docker.compose.oneoff":"False"
+"com.docker.compose.project":"j1-c32measure0001"
+"com.docker.compose.project.config_files":"<scratch>/x32c/m1/j1-c32measure0001/compose.yaml"
+"com.docker.compose.project.working_dir":"<scratch>/x32c/m1/j1-c32measure0001"
+"com.docker.compose.service":"app"
+"com.docker.compose.version":"5.6.1"}
+== container .Image: sha256:23d6555b87569c748145df71961c49310e28e38e07c22454e616849be6001eb6
+== images named after the project
+j1-c32measure0001-app latest 23d6555b8756
+== image labels
+sha256:23d6555b87569c748145df71961c49310e28e38e07c22454e616849be6001eb6 {"com.docker.compose.project":"j1-c32measure0001","com.docker.compose.service":"app","com.docker.compose.version":"5.6.1"}
+== docker run with a volume subpath mount of one file
+total 12
+drwxr-xr-x    2 root     root          4096 Nov 14 13:35 .
+drwxr-xr-x    1 root     root          4096 Nov 14 13:35 ..
+-r--r--r--    1 root     root            18 Nov 14 13:35 sample-password
+18
+ls: /keys: No such file or directory
+== docker run --pull never with a volume that does not exist, subpath: (expected to fail or create?)
+docker: Error response from daemon: cannot access path /var/lib/docker/volumes/j1-c32measure0001_nosuch/_data/sample_password: lstat /var/lib/docker/volumes/j1-c32measure0001_nosuch/_data/sample_password: no such file or directory
+
+Run 'docker run --help' for more information
+exit 127
+j1-c32measure0001_keys
+j1-c32measure0001_nosuch
+== clean-up by exact names
+ Container j1-c32measure0001-keys-1 Removed 
+ Volume j1-c32measure0001_keys Removing 
+ Volume j1-c32measure0001_keys Removed 
+j1-c32measure0001_nosuch
+Deleted: sha256:23d6555b87569c748145df71961c49310e28e38e07c22454e616849be6001eb6
+(nothing left above)

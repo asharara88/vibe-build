@@ -236,7 +236,8 @@ describe("sandbox manager: compose documents", () => {
     // a step continued over several lines, so that `run npm run build` cannot pass unseen.
     const runs = dockerfileInstructions(df).filter((l) => /^RUN\s/.test(l));
     // npm ci is the one step with the network (through the project's egress proxy, registry only), with install scripts off.
-    expect(runs.filter((l) => /npm ci/.test(l))).toEqual(["RUN npm ci --ignore-scripts --no-fund --no-audit"]);
+    // Since package 3.2 it keeps npm's downloads in a cache mount and uses them first (the exported copy's own start).
+    expect(runs.filter((l) => /npm ci/.test(l))).toEqual(["RUN --mount=type=cache,id=house-template-npm,target=/root/.npm npm ci --prefer-offline --ignore-scripts --no-fund --no-audit"]);
     // Every other step of the build stage that runs code has no network at all: the guard check and next build.
     expect(runs.filter((l) => /npm run build/.test(l)).every((l) => l.startsWith("RUN --network=none "))).toBe(true);
     expect(runs.filter((l) => /npm run build/.test(l)).length).toBe(1);

@@ -19,6 +19,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { buildRunnerImage, RUNNER_IMAGE } from "../src/acceptance/runner-image.js";
 import { createSandbox, sandbox } from "../src/sandbox/manager.js";
+import { makeTables } from "../src/sandbox/tables.js";
 import { runBrowserScript } from "./browser-in-project.js";
 import { checkToolsEnv } from "./tools-env-check.js";
 
@@ -89,9 +90,9 @@ try {
   log(envCheck.lines.map((l) => "  " + l).join("\n"));
   if (!envCheck.passed) throw new Error("the tools container was given a setting it should not have");
   log("");
-  log("Creating the tables (drizzle-kit push) and the three sample users (seed), in the tools container...");
-  const push = await sandbox.runOnce(sb, "tools", ["node_modules/.bin/drizzle-kit", "push", "--force"]);
-  log(`  drizzle-kit push: done (${push.trim().split("\n").length} lines of output, not shown)`);
+  log("Creating the tables (drizzle-kit migrate, from the template's fixed migration files, then the drift check) and the three sample users (seed), in the tools container...");
+  const tables = await makeTables(sb, { workspace, scratchDir: dir });
+  log(`  drizzle-kit migrate: done (${tables.migrate.trim().split("\n").length} lines of output, not shown); drift check passed`);
   const seed = await sandbox.runOnce(sb, "tools", ["node", "--import", "tsx", "scripts/seed.ts"]);
   log(seed.trim().split("\n").map((l) => "  " + l).join("\n"));
   log("Starting the app container and waiting for it to answer...");

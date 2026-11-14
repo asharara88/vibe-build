@@ -981,6 +981,32 @@ function failedAt(lang: Lang, step: string): Html {
   return html`<div class="note" data-failed-step>${before}${after.map((a) => html`<span lang="en" dir="ltr">${step}</span>${a}`)}</div>`;
 }
 
+/** Package 3.2 (design section 4, item 8): the checks journey.export.written records, each with its own name. */
+const EXPORT_CHECK_NAMES = ["archive_contents", "fixed_files", "images_built", "compose_config", "run_image_packages", "run_image_notices", "tools_image_packages", "licence_check"];
+/** The two package listings, reported under question 26 (a)'s reading, never as the licence condition met. */
+const READ_UNDER_26A = ["run_image_packages", "tools_image_packages"];
+
+/**
+ * Package 3.2: the export's checks as its event records them: each passed one with its name in the page's language,
+ * the reading under which a package listing is reported, the copies it listed, and the check's own sentence in English.
+ */
+function exportChecks(lang: Lang, recorded: unknown): Html | string {
+  const checks = Array.isArray(recorded) ? (recorded as Array<{ id?: unknown; passed?: unknown; summary?: unknown; listed?: unknown }>) : [];
+  if (!checks.length) return "";
+  const copies = (listed: unknown) =>
+    Array.isArray(listed) && listed.length
+      ? html`<ul data-copies lang="en" dir="ltr">${(listed as Array<{ name?: unknown; version?: unknown; path?: unknown }>).map((c) => html`<li><code>${String(c.name ?? "")} ${String(c.version ?? "")}</code> at <code>${String(c.path ?? "")}</code></li>`)}</ul>`
+      : "";
+  return html`<h3>${t(lang, "export.checks_title")}</h3>
+<ul data-export-checks>${checks.map((c) => {
+    const id = String(c.id ?? "");
+    const passed = c.passed === true;
+    return html`<li data-check="${id}"${passed ? html` data-passed` : ""}><strong class="${passed ? "ok" : "warn"}">${t(lang, passed ? "export.check_passed" : "export.check_not_passed")}</strong> ${EXPORT_CHECK_NAMES.includes(id) ? t(lang, `export.check.${id}`) : ""}${
+      READ_UNDER_26A.includes(id) ? html`<br><span class="note">${t(lang, "export.check_reading")}</span>` : ""
+    }${copies(c.listed)}<br><span class="note" lang="en" dir="ltr">${String(c.summary ?? "")}</span></li>`;
+  })}</ul>`;
+}
+
 export function exportPage(lang: Lang, s: JourneyState): Html {
   const id = s.project.id;
   if (!s.signedOff) return projectPage(lang, s, "export", t(lang, "export.title"), panel(lang, "real", t(lang, "export.title"), html`<p data-export-not-offered>${t(lang, "export.not_yet")}</p>`));
@@ -1001,7 +1027,8 @@ ${
 <tr><th>SHA-256</th><td lang="en" dir="ltr"><code>${file?.sha256 ?? ""}</code></td></tr>
 <tr><th>${t(lang, "export.commits")}</th><td>${String(written.payload.commits ?? "")}</td></tr>
 <tr><th>${t(lang, "export.acceptance")}</th><td>${t(lang, "export.acceptance_copy_only", { version: String(written.payload.acceptance_version ?? "") })}</td></tr>
-</table>`
+</table>
+${exportChecks(lang, written.payload.export_checks)}`
     : ""
 }
 ${closeAction(lang, s)}`;

@@ -14,7 +14,12 @@ COPY package.json package-lock.json ./
 COPY vendor/ ./vendor/
 # Install scripts off: no package's script, and nothing a project's workspace adds, runs while the network
 # is open (package 0.6c; a script planted in vendor/ ran with plain `npm ci`, not with this flag).
-RUN npm ci --ignore-scripts --no-fund --no-audit
+# npm's store of downloaded packages is kept by Docker between builds (a cache mount), and --prefer-offline
+# uses what is there before asking the registry (package 3.2): on the development machine an exported copy's
+# own `docker compose up --build` cannot reach the registry, and installs the packages the builder's builds
+# downloaded there (measured, docs/design/package-3.2.md section 1). That npm checks each stored package
+# against the fingerprint in package-lock.json is inferred, not measured.
+RUN --mount=type=cache,id=house-template-npm,target=/root/.npm npm ci --prefer-offline --ignore-scripts --no-fund --no-audit
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
 # The guard check and the build run the workspace's own code, so they get no network at all.
@@ -23,14 +28,16 @@ RUN --network=none DATABASE_URL=postgres://build:build@localhost/build AUTH_SECR
 
 # The tools image: creates the tables and the sample users, in a container, never on the machine
 # that hosts the builder (package 0.5). It is the build stage, with its development tools, run as
-# an unprivileged user. It is never started as the app and is not shipped to anyone.
+# an unprivileged user. It is never started as the app. In the builder it runs one command at a time;
+# in an exported copy it runs at each start as the `setup` service of compose.yaml (package 3.2),
+# which makes the tables from the fixed migration files and then the made-up sample users.
 FROM build AS tools
 USER node
 # The base image starts every command through a shell script, which adds settings of its own
 # (PWD, SHLVL). The tools container runs its command directly, so that its environment is exactly
 # the named list plus what the image declares.
 ENTRYPOINT []
-CMD ["node", "-e", "console.error('The tools image runs one named command at a time, e.g. drizzle-kit push or the seed.'); process.exit(1)"]
+CMD ["node", "-e", "console.error('The tools image runs one named command at a time, e.g. drizzle-kit migrate or the seed.'); process.exit(1)"]
 
 FROM node:22-alpine@sha256:0e1754758c2df4cfa3e68d59e2e1b7374bb7fd9ea6328eaaacf15cc934af8202 AS run
 WORKDIR /app
@@ -39,6 +46,8 @@ RUN addgroup -S app && adduser -S app -G app
 COPY --from=build --chown=app:app /app/.next/standalone ./
 COPY --from=build --chown=app:app /app/.next/static ./.next/static
 COPY --from=build --chown=app:app /app/public ./public
+# The notices file travels in the image the app runs from (package 3.2; the licence approval of 12 Nov 2026).
+COPY --from=build /app/THIRD-PARTY-NOTICES.md ./THIRD-PARTY-NOTICES.md
 USER app
 EXPOSE 3000
 CMD ["node", "server.js"]

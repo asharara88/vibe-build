@@ -1,0 +1,6 @@
+Package 3.2: npm run typecheck on 7c0c9c9 (builder/ tree f412c73, templates/ tree 5d66cd8), changed files in builder/ and templates/: 0, 2026-11-14T16:23:03Z.
+
+> builder@0.0.1 typecheck
+> tsc --noEmit
+
+exit code: 0

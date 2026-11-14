@@ -1,0 +1,16 @@
+The build's lines for the copy's install step (the steps that run npm ci), in package 3.2's automated run (run 20261114_51b07c), from the output of its README's command, with npm's cache mount as Docker's build cache listed it:
+
+== The first start (2026-11-14T15:04:27.990Z): every line of the build steps that run npm ci ==
+#9 [app build 5/7] RUN --mount=type=cache,id=house-template-npm,target=/root/.npm npm ci --prefer-offline --ignore-scripts --no-fund --no-audit
+#9 CACHED
+Build cache records the first start used (their use count went up, or they are new): 5. Each with when it was made:
+  a48l7t7z7appgff2d8vdzi60t: new in this start; source.local; local source for dockerfile
+  l1hvz7a1g85cctdfduld41cv4: new in this start; source.local; local source for context
+  3oz5rdrlf675joqxlinvr2fzj: made 2026-11-14 13:54:24.881695186 +0000 UTC; regular; [run 7/7] COPY --from=build /app/THIRD-PARTY-NOTICES.md ./THIRD-PARTY-NOTICES.md
+  kcd90ickk8qgeqow1loevs55p: new in this start; source.local; local source for context
+  t1xr6yyw12ktrzyi7r6yyuper: made 2026-11-14 13:54:24.195268434 +0000 UTC; regular; mount / from exec /bin/sh -c DATABASE_URL=postgres://build:build@localhost/build AUTH_SECRET=build-time-placeholder-not-a-secret-0000 npm run build
+npm's cache mount before the start (B.7): id v7kq6v1b8xjxpfdznbxg922yy, size 191.2MB, last used About an hour ago, usage count 4, created 2026-11-14 12:30:18.672767877 +0000 UTC
+npm's cache mount after the first start: id v7kq6v1b8xjxpfdznbxg922yy, size 191.2MB, last used About an hour ago, usage count 4
+== The second start (2026-11-14T15:05:11.970Z): every line of the build steps that run npm ci ==
+#11 [setup build 5/7] RUN --mount=type=cache,id=house-template-npm,target=/root/.npm npm ci --prefer-offline --ignore-scripts --no-fund --no-audit
+#11 CACHED

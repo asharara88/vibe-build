@@ -211,6 +211,23 @@ export function toolsImageName(projectId: string): string {
 }
 
 /**
+ * Package 3.2 (design section 4, item 3): the two images the export check builds from an export's archive, its run and
+ * tools stages, through this sandbox's own build path. Removed by exact name once the check ends, and on the project's
+ * removal list (`projectImageNames`), so that a check cut off part-way is removed with the project.
+ */
+export function exportCheckImageNames(projectId: string): [string, string] {
+  return [`${composeProjectName(projectId)}-exportcheck-run:latest`, `${composeProjectName(projectId)}-exportcheck-tools:latest`];
+}
+
+/**
+ * Every image a project's removal deletes by exact name (`sandbox.removeImage`): the app's two (`appBuild`), then the
+ * export check's two, named from the Compose project's name as `exportCheckImageNames` names them.
+ */
+export function projectImageNames(projectName: string, appBuild: { image: string; toolsImage: string }): string[] {
+  return [appBuild.image, appBuild.toolsImage, `${projectName}-exportcheck-run:latest`, `${projectName}-exportcheck-tools:latest`];
+}
+
+/**
  * The tools service: the template image's `tools` stage, which has the development tools the app's
  * run-time image does not. It creates the tables and the sample users from inside the project's
  * sandbox, never from the machine that hosts the builder (package 0.5, known gap 29).
@@ -311,9 +328,10 @@ function checkService(spec: SandboxSpec, common: Record<string, unknown>, image:
 /**
  * The acceptance runner's service (package 3.1). The same in both profiles: on the `front` network only
  * (package 0.6c). Under the "acceptance" profile, so it starts only when a run is started on purpose; `up`
- * refuses it.
+ * refuses it. Package 3.2's check from an exported copy builds its runner's `docker run` arguments from this same
+ * object (src/export/check-from-copy.ts, `runnerRunArgs`), so that the runner's definition is not written twice.
  */
-function acceptanceService(spec: SandboxSpec, common: Record<string, unknown>) {
+export function acceptanceService(spec: Pick<SandboxSpec, "acceptance">, common: Record<string, unknown>) {
   if (!spec.acceptance) return null;
   return {
     image: spec.acceptance.image,
@@ -984,10 +1002,13 @@ export const sandbox = {
     }
     return out;
   },
-  /** Remove the app and tools images after the project's containers are gone. */
+  /**
+   * Remove the app and tools images after the project's containers are gone, and (package 3.2) the export check's two,
+   * should a check have been cut off before it removed them (`projectImageNames`).
+   */
   removeImage: async (sb: Sandbox) => {
     if (!sb.appBuild) return;
-    for (const image of [sb.appBuild.image, sb.appBuild.toolsImage]) await run("docker", ["image", "rm", "-f", image], { env: dockerEnv(sb) }).catch(() => undefined);
+    for (const image of projectImageNames(sb.projectName, sb.appBuild)) await run("docker", ["image", "rm", "-f", image], { env: dockerEnv(sb) }).catch(() => undefined);
   },
   /** Start services and wait for their health checks. The tools, engine and acceptance services are never started this way: they are refused by name. */
   up: async (sb: Sandbox, services: string[] = []): Promise<string> => {

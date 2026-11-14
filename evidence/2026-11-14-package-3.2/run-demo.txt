@@ -1,0 +1,274 @@
+Package 3.2's automated run, 2026-11-14T15:03:18.919Z (run 20261114_51b07c).
+Commit 8805037; builder tree f412c73783db0a14d3f6b495c1a7a9fdec00e66f (git write-tree --prefix=builder/ of the index at the start); templates/next tree 0594694256b025a8f559326835529528761e869a.
+
+== Before ==
+The approved runner image builder-acceptance-runner:local is on the machine, labelled builder.browser-zip-sha256 with the approved browser zip's fingerprint (runnerImageProblem); this run neither builds nor removes it.
+Free disk before: /dev/vda        252G   29G   11G  74% /
+Docker's lists before: 0 containers, 8 images, 4 volumes, 3 networks; 332 build cache records.
+Containers before (every one, running or not; others belong to other sessions): (none)
+Images before: builder-acceptance-runner:local, node:22-bookworm-slim, ubuntu:24.04, node:22-alpine, postgres:16-alpine, python:3.13-slim, alpine:3.20, curlimages/curl:8.10.1
+Volumes before: 40f47574967d269e4ea8727b73a4d9ddd745544d91304ce778775dd062af0baf, 78d56c5811a844b4ea7f5cc09064e2ac1f68b82e40760951c7c7c219fd3fd217, 6706b172a455c99953ac01bf2e52d1973ca44bf6d1decd52e56a1c78c1577afa, 1067820107a378f921c5efd119a336dcf0135c7de3b22a47b6299b2301e292b3
+Networks before: bridge, host, none
+  PASSED: Before: none of the run's own exact names (its cameras' and probes', which carry the run's id) exists at the start
+Ports 4025, 3000 and 13161 on 127.0.0.1 are free. The owner's interface on 4020 and the phone-test pages on 4032 and 4033 are not touched: listening now, 4020 127.0.0.1:4020, 4032 no, 4033 no.
+Fresh database builder_x32_20261114_51b07c; fresh data folder <run folder>/data; the interface's temporary folder (its sandbox folders) <run folder>/tmp; the camera's folder. A random interface password, given to the interface in its environment and to the builder camera as a read-only file (mode 0400); not printed or kept.
+
+== A. With the builder running ==
+  PASSED: A: the interface's environment holds no model key and no gateway setting (a scripted run calls no model) (BUILDER_DATABASE_URL, BUILDER_DATA_DIR, BUILDER_LIVE_PREVIEW, BUILDER_UI_PASSWORD, BUILDER_UI_PORT, HOME, HTTPS_PROXY, NO_COLOR, NO_PROXY, PATH, TMPDIR, https_proxy, no_proxy)
+The interface (node --import tsx src/web/main.ts): process 19662, listening. Its lines: Projects with a job or a sandbox left by an interface that stopped, marked interrupted and removed at start: 0. | Live preview: off (BUILDER_LIVE_PREVIEW is not 1). Nothing listens on 127.0.0.1:4030; "Open the live app" is refused. | Interface listening on http://127.0.0.1:4025 (password from: env).
+  PASSED: A: the interface listens on 127.0.0.1:4025, the live preview off (Projects with a job or a sandbox left by an interface that stopped, marked interrupted and removed at start: 0. | Live preview: off (BUILDER_LIVE_PREVIEW is not 1). Nothing listens on 127.0.0.1:4030; "Open the live app" is refused. | Interface listening on http://127.0.0.1:4025 (password from: env).)
+A: the camera builder-shots.mjs: docker run --rm --name x32-camera-20261114_51b07c-1 --pull never --network host --read-only --tmpfs /tmp:rw,noexec,nosuid,size=512m --cap-drop ALL --security-opt no-new-privileges:true --pids-limit 256 --memory 1g --user runner --workdir /runner --entrypoint node --env BUILDER_CAMERA_BASE=http://127.0.0.1:4025 --env BUILDER_CAMERA_WALK=x32 --volume <repo>/builder/camera/builder-shots.mjs:/camera/builder-shots.mjs:ro --volume <run folder>/camera-out:/shots --volume <run folder>/secret/ui-password:/run/secrets/ui-password:ro builder-acceptance-runner:local /camera/builder-shots.mjs
+  PASSED: A, camera: signed in, at the projects page
+  PASSED: A, camera: the project is made, at its brief
+  project j1-aae2b5e81e25: Leave requests (made-up), cap $5.00
+  PASSED: A, camera: the brief is shown as typed
+  PASSED: A, camera: every question answered from example 1's answer sheet
+  PASSED: A, camera: brief confirmed, at the build steps
+  PASSED: A, camera: the plan has the two steps
+  PASSED: A, camera: plan confirmed; tests fixed as v001, stand-in test, not independent acceptance
+  PASSED: A, camera: step 1 built
+  PASSED: A, camera: step 1: $2.7216 reserved while it ran, released, $0.00 spent
+  PASSED: A, camera: step 1's live lines: one line per file written (7)
+  PASSED: A, camera: step 1 approved; step 2 built
+  PASSED: A, camera: step 2: $3.1104 reserved while it ran, released, $0.00 spent
+  PASSED: A, camera: step 2 approved; the app is being built for the preview
+  PASSED: A, camera: the preview's screenshots are there
+  PASSED: A, camera: four screenshots of the running app, each loaded
+  PASSED: A, camera: the checklist ran
+  PASSED: A, camera: item 1 passed
+  PASSED: A, camera: items 2 to 6: did not run (no test written yet)
+  PASSED: A, camera: labelled 'stand-in test, not independent acceptance'
+  PASSED: A, camera: the summary as the runner's reading wrote it
+  PASSED: A, camera: the outcome word, as the run's record gives it: Passed
+  PASSED: A, camera: signed off, labelled as a sign-off on a simulated build
+  PASSED: A, camera: before the export: the new label, word for word
+  PASSED: A, camera: the export is written
+  PASSED: A, camera: the export screen (en): the new label, word for word
+  PASSED: A, camera: the export screen (en): the eight checks its event records, in order, each "Passed"
+  PASSED: A, camera: the export screen (en): the old words "no notices file" are gone
+  PASSED: A, camera: the export screen (ar): the new label, word for word
+  PASSED: A, camera: the export screen (ar): the label in English under it
+  PASSED: A, camera: the export screen (ar): the eight checks its event records, in order, each "نجح"
+  PASSED: A, camera: the export screen (ar): the old words "no notices file" are gone
+  PASSED: A, camera: the export screen (phone): the new label, word for word
+  PASSED: A, camera: the export screen (phone): the eight checks its event records, in order, each "Passed"
+  PASSED: A, camera: the export screen (phone): the old words "no notices file" are gone
+  PASSED: A, camera: the downloaded export has the SHA-256 the page shows
+  PASSED: A, camera: the record lists every event in id order
+  PASSED: A, camera: the record holds journey.export.written
+  PASSED: A, camera: the project is closed: its containers, images and folder removed
+  PASSED: A, camera: signed out
+  PASSED: A, camera: nothing but 127.0.0.1:4025 was loaded
+A: the camera ended with exit code 0 after 67 s.
+  PASSED: A: the camera (builder-shots.mjs) exited with code 0 (exit code 0)
+  PASSED: Before: nothing named builder_j1-aae2b5e81e25 or j1-aae2b5e81e25 (the project's sandbox, the export check's images, the exported copy's Compose project) existed at the start
+A: the project's containers Docker listed while the camera walked (every second; name [networks], ports if any): 10
+  builder_j1-aae2b5e81e25-egress-host-1 [host]
+  builder_j1-aae2b5e81e25-db-1 [builder_j1-aae2b5e81e25_data] ports: 5432/tcp
+  builder_j1-aae2b5e81e25-tools-run-b2b630c4a7e1 [builder_j1-aae2b5e81e25_data]
+  builder_j1-aae2b5e81e25-drift-check-04f43b [builder_j1-aae2b5e81e25_data]
+  builder_j1-aae2b5e81e25-tools-run-58add627faef [builder_j1-aae2b5e81e25_data]
+  builder_j1-aae2b5e81e25-check-run-a0cddbf9d431 [builder_j1-aae2b5e81e25_front]
+  builder_j1-aae2b5e81e25-app-1 [builder_j1-aae2b5e81e25_data,builder_j1-aae2b5e81e25_front] ports: 3000/tcp
+  builder_j1-aae2b5e81e25-app-camera-9706e2 [builder_j1-aae2b5e81e25_front]
+  builder_j1-aae2b5e81e25-acceptance-run-20261114t150356-68b7a28d [builder_j1-aae2b5e81e25_front]
+  builder_j1-aae2b5e81e25-exportcheck-licences-5b2c79 [none]
+  PASSED: A, J1's network checks on the sandbox's containers (0.6c): no J1 container published a port on the machine (Docker's list, every second) (10 containers seen)
+  PASSED: A, J1's network checks on the sandbox's containers (0.6c): only the door's machine side (egress-host) was on the machine's network (builder_j1-aae2b5e81e25-egress-host-1 [host])
+  PASSED: A, J1's network checks on the sandbox's containers (0.6c): the app camera ran on the project's front network alone (builder_j1-aae2b5e81e25-app-camera-9706e2 [builder_j1-aae2b5e81e25_front])
+  PASSED: A, J1's network checks on the sandbox's containers (0.6c): the acceptance runner ran on the project's front network alone (builder_j1-aae2b5e81e25-acceptance-run-20261114t150356-68b7a28d [builder_j1-aae2b5e81e25_front])
+  PASSED: A, J1's network checks on the sandbox's containers (0.6c): the app was on the project's data and front networks alone (builder_j1-aae2b5e81e25-app-1 [builder_j1-aae2b5e81e25_data,builder_j1-aae2b5e81e25_front] ports 3000/tcp)
+  PASSED: A, J1's network checks on the sandbox's containers (0.6c): every check container seen (it asks the app before a start or a run) was on the front network alone (builder_j1-aae2b5e81e25-check-run-a0cddbf9d431 [builder_j1-aae2b5e81e25_front])
+  PASSED: A, the event: exactly one journey.export.written (1)
+  PASSED: A, the event: it records the project's id (j1-aae2b5e81e25)
+  PASSED: A, the event: it records the version's manifest SHA-256, the one the passing run recorded (5255cb24aad9245dced110bc800dd2048f40550c95c75aaaccb9e2ca422a2d42 / run's 5255cb24aad9245dced110bc800dd2048f40550c95c75aaaccb9e2ca422a2d42)
+  PASSED: A, the event: it records the version's items with their fingerprints (item 1, item-01.spec.ts) ([{"file":"item-01.spec.ts","number":1,"sha256":"a463c394eb7be7c8453f527767a1b5c64946819f143fc940d8c78156967749d6"}])
+  PASSED: A, the event: it records the checklist count, 6 (6)
+  PASSED: A, the event: it records the passing run's id, the one the sign-off names, whose outcome is passed (run-20261114t150356-68b7a28d / signed off run-20261114t150356-68b7a28d / passed)
+  PASSED: A, the event: it records the export's checks, items 1 to 7, in order, each passed ([["archive_contents",true],["fixed_files",true],["images_built",true],["compose_config",true],["run_image_packages",true],["run_image_notices",true],["tools_image_packages",true],["licence_check",true]])
+  export check archive_contents: passed: The archive holds no node_modules folder and no file or folder named like any of the 14 development-only packages (143 paths read).
+  export check fixed_files: passed: The 15 fixed files (the start, build, licence and first migration files) are byte-equal to the builder's own template copies, and no commit holds a file Docker Compose or the image build would read without being told.
+  export check images_built: passed: The archive's run and tools stages were built through the sandbox's build path, as builder_j1-aae2b5e81e25-exportcheck-run:latest and builder_j1-aae2b5e81e25-exportcheck-tools:latest; both are removed after the check.
+  export check compose_config: passed: What Docker Compose reads from the unpacked copy, with only PATH and HOME set, equals what it reads from the template's compose.yaml alone.
+  export check run_image_packages: passed: The image the app runs from: none of the 14 development-only packages under /app; copies elsewhere in it: spdx-exceptions 2.5.0 at /usr/local/lib/node_modules/npm/node_modules/spdx-exceptions. Checked under this reading (question 26 (a)): none of the 14 development-only packages under /app of the image the app runs from, and every other copy listed; the licence condition is not called met.
+  export check run_image_notices: passed: The image the app runs from holds /app/THIRD-PARTY-NOTICES.md, 39276 bytes, byte-equal to the copy's (SHA-256 8b3e1d21ac918df22358c4e86eefa99836b3b340b852a448bc5b58c2299391c7).
+  export check tools_image_packages: passed: The tools image, which an exported copy builds and runs at each start as its setup service, holds 6 of the 14 development-only packages: lightningcss 1.33.0 at /app/node_modules/lightningcss; lightningcss-linux-x64-gnu 1.33.0 at /app/node_modules/lightningcss-linux-x64-gnu; lightningcss-linux-x64-musl 1.33.0 at /app/node_modules/lightningcss-linux-x64-musl; spdx-exceptions 2.5.0 at /app/node_modules/spdx-exceptions; spdx-ranges 2.1.1 at /app/node_modules/spdx-ranges; spdx-exceptions 2.5.0 at /usr/local/lib/node_modules/npm/node_modules/spdx-exceptions.
+  export check licence_check: passed: The template's own licence check passed from the copy, in its tools image, with no network: exit code 0, "RESULT: PASSED" twice, and "Notices file THIRD-PARTY-NOTICES.md is up to date."
+  PASSED: A, the event: it records the README's command, "docker compose up --build" (docker compose up --build)
+A: the archive downloaded by the camera: 380439 bytes, SHA-256 2c6fe087cdad34d0c15e3c1a115cdae05b4c1387d41ff14a310f08959bad113d; the event records 2c6fe087cdad34d0c15e3c1a115cdae05b4c1387d41ff14a310f08959bad113d.
+  PASSED: A: the downloaded archive's SHA-256 equals the event's (2c6fe087cdad34d0c15e3c1a115cdae05b4c1387d41ff14a310f08959bad113d / 2c6fe087cdad34d0c15e3c1a115cdae05b4c1387d41ff14a310f08959bad113d)
+  PASSED: A: the archive the event names, in the data folder, is the same file (<run folder>/data/journey/j1-aae2b5e81e25/exports/j1-aae2b5e81e25-export.tar.gz)
+
+== B. The builder stopped ==
+B: events saved to events.json before the stop: 90.
+B: the downloaded archive copied out of the camera's folder, to <run folder>/kept/export.tar.gz.
+B: SIGTERM to process 19662 (the interface itself): exited after 0.3 s with code 0. Its lines after the signal: [interface stopping] The interface was stopped on purpose (SIGTERM). No job was running. Every request is now answered "The interface is stopping." | Projects with a sandbox, marked interrupted and removed at the stop: 0. | [interface stopped] Lock released. Exit code 0.
+  PASSED: B: the interface exits with code 0 within 120 s of SIGTERM (code 0)
+  PASSED: B: the interface says "Projects with a sandbox, marked interrupted and removed at the stop: 0." (the project is closed) (Projects with a sandbox, marked interrupted and removed at the stop: 0.)
+  PASSED: B: the interface's own last line gives exit code 0 ([interface stopped] Lock released. Exit code 0.)
+B: no event was written during the stop; events.json holds the 90 saved before it.
+  PASSED: B.1: the interface's process 19662, recorded at its start, has exited (exit code 0)
+  PASSED: B.1: nothing listens on 127.0.0.1:4025
+  PASSED: B.2: no process on the machine has the run's data folder, its sandbox folder, its database's name or the interface's process id in its command line, or the interface as its parent (ps) (131 processes read)
+  PASSED: B.3: Docker holds nothing of the project by J2's rule N: no container, volume, network or image of builder_j1-aae2b5e81e25, no process naming it, its sandbox folder gone
+  PASSED: B.3: no builder_j1-aae2b5e81e25-exportcheck-* image
+B.4: the run never started a gateway (no model key or gateway setting was given to its interface; a scripted run calls no model). What listens on 4010, recorded, not touched: nothing.
+  PASSED: B.4: the run started no gateway: no process whose command line names a gateway is a child of the run or of its interface
+  PASSED: B.5: the run's database builder_x32_20261114_51b07c is dropped (0)
+  PASSED: B.5: the archive and the events were copied out before the data folder was deleted
+  PASSED: B.5: the run's data folder (the acceptance store, the exports folder) and its sandbox folders are deleted
+  PASSED: B.5: docker ps -a with docker inspect: no container mounts any path under the data folder or the sandbox folders (0 containers inspected)
+B.6: listening, recorded, not touched: 4020 127.0.0.1:4020; 4032 no; 4033 no.
+B.7: what the builder leaves that the copy's start will use: npm's cache mount (docker buildx du --verbose): id v7kq6v1b8xjxpfdznbxg922yy, size 191.2MB, last used About an hour ago, usage count 4, created 2026-11-14 12:30:18.672767877 +0000 UTC.
+B.7: the base image node:22-alpine@sha256:0e1754758c2df4cfa3e68d59e2e1b7374bb7fd9ea6328eaaacf15cc934af8202: id sha256:0e1754758c2df4cfa3e68d59e2e1b7374bb7fd9ea6328eaaacf15cc934af8202.
+B.7: the base image postgres:16-alpine@sha256:aa6cb33cf4c19c765cefcf48d96176258800870a9a1e930ad126200f9d825139: id sha256:aa6cb33cf4c19c765cefcf48d96176258800870a9a1e930ad126200f9d825139.
+B.7: the builder's own built steps are not reused by the copy's build, which runs on another network (design section 1); its install step may be taken from an earlier layer built on Docker's default network (design section 13, C14).
+  PASSED: B.7: npm's cache mount is recorded (1)
+
+== C. The export, alone ==
+  PASSED: C: the archive copied into a fresh <run folder>/delivered/ has the event's SHA-256
+  PASSED: C: the archive unpacks to one folder, named j1-aae2b5e81e25 (j1-aae2b5e81e25)
+  PASSED: C, the history: its last commit is the event's export commit, and its parent the event's workspace head (a5632b03142222429e3981251b57eb669bbdf2ea / da46417dba9a59b0ec82529acc74818df0829dfb)
+  PASSED: C, the history: acceptance/ first appears in the last commit: no other commit of any branch holds it (4 commits; with acceptance/: a5632b03142222429e3981251b57eb669bbdf2ea)
+  PASSED: C, the history: the copy holds 4 commits, as the event records
+  PASSED: C, the history: git status --porcelain --ignored is empty
+  PASSED: C, before the start: the folder holds exactly the files the event lists (72) (72 files; not listed: none; listed, missing: none; neither file nor folder: none)
+  PASSED: C, before the start: compose.yaml is byte-equal to the builder's own template copy
+  PASSED: C, before the start: README.md is byte-equal to the builder's own template copy
+  PASSED: C, before the start: Dockerfile is byte-equal to the builder's own template copy
+  PASSED: C, before the start: .dockerignore is byte-equal to the builder's own template copy
+  PASSED: C, before the start: none of S29's names is present (override files, other main files, other .dockerignore files)
+  PASSED: C, before the start: S30: what Compose reads from the copy, with only PATH and HOME set, equals what it reads from the template's compose.yaml alone (What Docker Compose reads from the unpacked copy, with only PATH and HOME set, equals what it reads from the template's compose.yaml alone.)
+  PASSED: C, before the start: nothing of the copy's own names (Compose project j1-aae2b5e81e25: its containers, volumes, networks and images) exists when they are made
+C: the code block under the README's "Start it" heading: "docker compose up --build". Run as sh -c <block>, in <run folder>/delivered/j1-aae2b5e81e25, with only PATH (/nix/var/nix/profiles/default/bin:/root/.local/bin:/root/.cargo/bin:/usr/local/go/bin:/opt/node22/bin:/opt/maven/bin:/opt/gradle/bin:/opt/rbenv/bin:/root/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin) and HOME set.
+  PASSED: C: the README's "Start it" section holds one code block, "docker compose up --build" (docker compose up --build)
+C: the first start: the app healthy and the door running after 19 s.
+  PASSED: C: the app is healthy (docker compose ps) within 10 minutes, the door running
+  install step | #9 [app build 5/7] RUN --mount=type=cache,id=house-template-npm,target=/root/.npm npm ci --prefer-offline --ignore-scripts --no-fund --no-audit
+  install step | #9 CACHED
+  PASSED: C: the build's lines for the install step are kept, and say whether npm ran or the step was taken from an earlier layer (taken from an earlier layer (CACHED))
+C: the build cache records the first start used: 5, of which 3 new; the earliest made 2026-11-14 13:54:24.195268434 +0000 UTC.
+C: npm's cache mount after the first start: size 191.2MB, last used About an hour ago, usage count 4.
+C: the images the copy's command built: j1-aae2b5e81e25-app sha256:d51a5e98aef42c5f8e17f38f739b7a7d0f964e7884819a8f61f69a17fddcd246; j1-aae2b5e81e25-setup sha256:6cf0f905ae68d382f1d88c35fc886bd8ba84287e412270aa923f4f3df80317e8.
+  PASSED: C: the copy's command built j1-aae2b5e81e25-app and j1-aae2b5e81e25-setup
+C: container j1-aae2b5e81e25-app-1 (running): networks j1-aae2b5e81e25_data, j1-aae2b5e81e25_front
+C: container j1-aae2b5e81e25-db-1 (running): networks j1-aae2b5e81e25_data
+C: container j1-aae2b5e81e25-door-1 (running): networks j1-aae2b5e81e25_edge, j1-aae2b5e81e25_front
+C: container j1-aae2b5e81e25-keys-1 (exited): networks none
+C: container j1-aae2b5e81e25-setup-1 (exited): networks j1-aae2b5e81e25_data
+C: published ports: [{"service":"door","url":"127.0.0.1","target":3000,"published":3000,"protocol":"tcp"}].
+  PASSED: C: one published port: the door's, on 127.0.0.1:3000 ([{"service":"door","url":"127.0.0.1","target":3000,"published":3000,"protocol":"tcp"}])
+  PASSED: C: the app on the data and front networks alone; the database on data alone; the door on front and edge (app j1-aae2b5e81e25_data,j1-aae2b5e81e25_front; db j1-aae2b5e81e25_data; door j1-aae2b5e81e25_edge,j1-aae2b5e81e25_front)
+  PASSED: C, the person's way in: the README shows how to see the sample password: one code block, docker compose run --rm --no-deps keys cat /keys/sample_password (docker compose run --rm --no-deps keys cat /keys/sample_password)
+  PASSED: C, the person's way in: the sample password is read with the README's own command, into memory only (not printed or written) (23 characters)
+  PASSED: C, the person's way in: db_password and auth_secret read from the keys volume with the README's kind of command, into memory only, for the evidence search (24 and 43 characters)
+  PASSED: C, the person's way in: the sign-in page at http://localhost:3000 answers 200 (200)
+  PASSED: C, the person's way in: sign-in as employee@example.test with the origin http://localhost:3000 answers 200 (200)
+  PASSED: C, the person's way in: the same sign-in with the origin http://127.0.0.1:3000 answers 403 (403)
+C, no way back: the run's own listeners on the machine: 127.0.0.1:42365 and 0.0.0.0:42691 (every address); each answers a connection with the run's token.
+C, no way back, from the app's namespace (a short-lived approved node container joined to it): [{"host":"172.17.0.1","port":42365,"result":"ENETUNREACH","run_token":false},{"host":"172.17.0.1","port":42691,"result":"ENETUNREACH","run_token":false},{"host":"127.0.0.1","port":42365,"result":"ECONNREFUSED","run_token":false},{"host":"127.0.0.1","port":42691,"result":"ECONNREFUSED","run_token":false},{"host":"172.19.0.1","port":42365,"result":"ECONNREFUSED","run_token":false},{"host":"172.19.0.1","port":42691,"result":"ECONNREFUSED","run_token":false},{"host":"172.18.0.1","port":42365,"result":"ECONNREFUSED","run_token":false},{"host":"172.18.0.1","port":42691,"result":"ECONNREFUSED","run_token":false},{"host":"127.0.0.1","port":3000,"result":"connected","run_token":false}]
+  PASSED: C, no way back: control: from the app's namespace, 127.0.0.1:3000 (the app) can be reached, so a failed connection below is not the probe's fault (connected)
+  PASSED: C, no way back: from the app's namespace, 127.0.0.1:42365 (127.0.0.1; the run's listener on 127.0.0.1) cannot be reached (ECONNREFUSED)
+  PASSED: C, no way back: from the app's namespace, 127.0.0.1:42691 (127.0.0.1; the run's listener on every address) cannot be reached (ECONNREFUSED)
+  PASSED: C, no way back: from the app's namespace, 172.19.0.1:42365 (the first address of j1-aae2b5e81e25_data's subnet 172.19.0.0/16 (it lists no gateway address); the run's listener on 127.0.0.1) cannot be reached (ECONNREFUSED)
+  PASSED: C, no way back: from the app's namespace, 172.19.0.1:42691 (the first address of j1-aae2b5e81e25_data's subnet 172.19.0.0/16 (it lists no gateway address); the run's listener on every address) cannot be reached (ECONNREFUSED)
+  PASSED: C, no way back: from the app's namespace, 172.18.0.1:42365 (the first address of j1-aae2b5e81e25_front's subnet 172.18.0.0/16 (it lists no gateway address); the run's listener on 127.0.0.1) cannot be reached (ECONNREFUSED)
+  PASSED: C, no way back: from the app's namespace, 172.18.0.1:42691 (the first address of j1-aae2b5e81e25_front's subnet 172.18.0.0/16 (it lists no gateway address); the run's listener on every address) cannot be reached (ECONNREFUSED)
+  PASSED: C, no way back: from the app's namespace, 172.17.0.1:42365 (Docker's default bridge address; the run's listener on 127.0.0.1) cannot be reached (ENETUNREACH)
+  PASSED: C, no way back: from the app's namespace, 172.17.0.1:42691 (Docker's default bridge address; the run's listener on every address) cannot be reached (ENETUNREACH)
+C, no way back, from the door's namespace (a short-lived approved node container joined to it): [{"host":"127.0.0.1","port":42365,"result":"ECONNREFUSED","run_token":false},{"host":"127.0.0.1","port":42691,"result":"ECONNREFUSED","run_token":false},{"host":"172.20.0.1","port":42365,"result":"ECONNREFUSED","run_token":false},{"host":"172.18.0.1","port":42365,"result":"ECONNREFUSED","run_token":false},{"host":"172.18.0.1","port":42691,"result":"ECONNREFUSED","run_token":false},{"host":"172.17.0.1","port":42365,"result":"ECONNREFUSED","run_token":false},{"host":"172.20.0.1","port":42691,"result":"connected","run_token":true},{"host":"172.17.0.1","port":42691,"result":"connected","run_token":true},{"host":"app","port":3000,"result":"connected","run_token":false}]
+  PASSED: C, no way back: control: from the door's namespace, app:3000 (the app) can be reached, so a failed connection below is not the probe's fault (connected)
+  PASSED: C, no way back: from the door's namespace, 127.0.0.1:42365 (127.0.0.1; the run's listener on 127.0.0.1) cannot be reached (ECONNREFUSED)
+  PASSED: C, no way back: from the door's namespace, 127.0.0.1:42691 (127.0.0.1; the run's listener on every address) cannot be reached (ECONNREFUSED)
+  PASSED: C, no way back: from the door's namespace, 172.20.0.1:42365 (the gateway address of j1-aae2b5e81e25_edge; the run's listener on 127.0.0.1) cannot be reached (ECONNREFUSED)
+  FAILED: C, no way back: from the door's namespace, 172.20.0.1:42691 (the gateway address of j1-aae2b5e81e25_edge; the run's listener on every address) cannot be reached (connected, the run's own listener answered)
+  PASSED: C, no way back: from the door's namespace, 172.18.0.1:42365 (the first address of j1-aae2b5e81e25_front's subnet 172.18.0.0/16 (it lists no gateway address); the run's listener on 127.0.0.1) cannot be reached (ECONNREFUSED)
+  PASSED: C, no way back: from the door's namespace, 172.18.0.1:42691 (the first address of j1-aae2b5e81e25_front's subnet 172.18.0.0/16 (it lists no gateway address); the run's listener on every address) cannot be reached (ECONNREFUSED)
+  PASSED: C, no way back: from the door's namespace, 172.17.0.1:42365 (Docker's default bridge address; the run's listener on 127.0.0.1) cannot be reached (ECONNREFUSED)
+  FAILED: C, no way back: from the door's namespace, 172.17.0.1:42691 (Docker's default bridge address; the run's listener on every address) cannot be reached (connected, the run's own listener answered)
+  PASSED: C, the tables: drizzle.__drizzle_migrations holds 2 rows (docker compose exec db psql) (2)
+  PASSED: C, the tables: the three made-up users exist (employee@example.test, hr.admin@example.test, manager@example.test)
+
+== D. The licence checks on what the copy's command built (section 4, items 4 to 7) ==
+  compose_config: passed: What Docker Compose reads from the unpacked copy, with only PATH and HOME set, equals what it reads from the template's compose.yaml alone.
+  run_image_packages: passed: The image the app runs from: none of the 14 development-only packages under /app; copies elsewhere in it: spdx-exceptions 2.5.0 at /usr/local/lib/node_modules/npm/node_modules/spdx-exceptions. Checked under this reading (question 26 (a)): none of the 14 development-only packages under /app of the image the app runs from, and every other copy listed; the licence condition is not called met.
+  run_image_notices: passed: The image the app runs from holds /app/THIRD-PARTY-NOTICES.md, 39276 bytes, byte-equal to the copy's (SHA-256 8b3e1d21ac918df22358c4e86eefa99836b3b340b852a448bc5b58c2299391c7).
+  tools_image_packages: passed: The tools image, which an exported copy builds and runs at each start as its setup service, holds 6 of the 14 development-only packages: lightningcss 1.33.0 at /app/node_modules/lightningcss; lightningcss-linux-x64-gnu 1.33.0 at /app/node_modules/lightningcss-linux-x64-gnu; lightningcss-linux-x64-musl 1.33.0 at /app/node_modules/lightningcss-linux-x64-musl; spdx-exceptions 2.5.0 at /app/node_modules/spdx-exceptions; spdx-ranges 2.1.1 at /app/node_modules/spdx-ranges; spdx-exceptions 2.5.0 at /usr/local/lib/node_modules/npm/node_modules/spdx-exceptions.
+  licence_check: passed: The template's own licence check passed from the copy, in its tools image, with no network: exit code 0, "RESULT: PASSED" twice, and "Notices file THIRD-PARTY-NOTICES.md is up to date."
+  PASSED: D: items 4 to 7 on j1-aae2b5e81e25-app (the run image, as nobody) and j1-aae2b5e81e25-setup (the tools image, as node): Compose's reading, the run image's packages and notices file, the tools image's packages and the template's licence check, each passed ([["compose_config",true],["run_image_packages",true],["run_image_notices",true],["tools_image_packages",true],["licence_check",true]])
+  PASSED: D: in the person's run image, the only copy of a development-only package is the base image's own npm spdx-exceptions 2.5.0 ([{"path":"/usr/local/lib/node_modules/npm/node_modules/spdx-exceptions","name":"spdx-exceptions","version":"2.5.0"}])
+
+== E. The check from the copy (scripts/check-export.ts) ==
+E: npx tsx scripts/check-export.ts <run folder>/delivered/j1-aae2b5e81e25 --project-id j1-aae2b5e81e25 --version v001 --manifest-sha256 5255cb24aad9245dced110bc800dd2048f40550c95c75aaaccb9e2ca422a2d42 --checklist-items 6 --run-folder <run folder>/check-run (run from builder/; the four values from the event).
+  check-export |   runner | 
+  check-export |   runner | Running 1 test using 1 worker
+  check-export |   runner | 
+  check-export |   runner | [1/1] ../acceptance/item-01.spec.ts:17:1 › item 1 (stand-in test): an employee signs in, submits a five-day request, and sees it in their list with status waiting
+  check-export |   runner |   1 passed (1.9s)
+  check-export | Check from the exported copy: passed. version passed; checklist incomplete (5 of the app spec's 6 checklist items have no test).
+  check-export | Label: stand-in test, not independent acceptance.
+  check-export | Run run-20261114t150456-99ebf41a; project j1-aae2b5e81e25, version v001, manifest SHA-256 5255cb24aad9245dced110bc800dd2048f40550c95c75aaaccb9e2ca422a2d42.
+  check-export | Started: the forwarder j1-aae2b5e81e25-copycheck-forwarder-c1006d54, then the runner j1-aae2b5e81e25-copycheck-runner-c1006d54; the runner's exit code 0.
+  check-export | The app: container j1-aae2b5e81e25-app-1 of the Compose project j1-aae2b5e81e25, started from <run folder>/delivered/j1-aae2b5e81e25, image j1-aae2b5e81e25-app (sha256:d51a5e98aef42c5f8e17f38f739b7a7d0f964e7884819a8f61f69a17fddcd246), at http://localhost:3000.
+  check-export | Item 1 (item-01.spec.ts): passed; ran once and passed, with its screenshot. Screenshot: <run folder>/check-run/results/test-results/item-01-item-1-stand-in-te-1c2bf-ir-list-with-status-waiting/attachments/item-screenshot-0e8f8c2486ac91f4cdc3a6b50823c1ddc7d42a81.png.
+  check-export | The copy: 142 entries unchanged; the forwarder removed.
+  check-export | The reading is in <run folder>/check-run/check-reading.json.
+  check-export | PASSED
+  PASSED: E: scripts/check-export.ts exits with code 0 (exit code 0)
+  PASSED: E: it prints "passed" and "version passed; checklist incomplete (5 of the app spec's 6 checklist items have no test)" (Check from the exported copy: passed. version passed; checklist incomplete (5 of the app spec's 6 checklist items have no test).)
+  PASSED: E: its reading (check-reading.json): passed, the summary, labelled as the stand-in (passed; version passed; checklist incomplete (5 of the app spec's 6 checklist items have no test); stand-in test, not independent acceptance)
+  PASSED: E: item 1 passed; the run's id and the export's manifest SHA-256 as given ([[1,"passed"]]; run run-20261114t150456-99ebf41a)
+  PASSED: E: the app it checked: the copy's own, from its folder, its image the one Compose built, at http://localhost:3000 ({"project":"j1-aae2b5e81e25","service":"app","container":"j1-aae2b5e81e25-app-1","containerId":"6cb157f7774a7d36046def7b89469dc363d5655e313832165ae7fd497cccb796","workingDir":"<run folder>/delivered/j1-aae2b5e81e25","configFiles":"<run folder>/delivered/j1-aae2b5e81e25/compose.yaml","imageName":"j1-aae2b5e81e25-app","imageId":"sha256:d51a5e98aef42c5f8e17f38f739b7a7d0f964e7884819a8f61f69a17fddcd246","appUrl":"http://localhost:3000","appPort":3000,"listenPort":3000,"front":"j1-aae2b5e81e25_front","keysVolume":"j1-aae2b5e81e25_keys","door":["j1-aae2b5e81e25-door-1"]})
+  PASSED: E: the copy unchanged during the check, and the forwarder removed ({"copy":{"files":142,"unchanged":true,"changes":[]},"forwarderRemoved":true})
+  PASSED: E: the item's screenshot, taken by the runner in the app started from the export, is copied into the evidence
+E: the forwarder while the runner ran: networks ["j1-aae2b5e81e25_front"], user node, read-only true, image node:22-alpine@sha256:0e1754758c2df4cfa3e68d59e2e1b7374bb7fd9ea6328eaaacf15cc934af8202
+E: the runner while it ran: network mode container:594d6b2fefce6b72911b3d1c433509fb42b86d30a1cdd615f0a6e5c8827192d0 (the forwarder is 594d6b2fefce6b72911b3d1c433509fb42b86d30a1cdd615f0a6e5c8827192d0), user runner, read-only true, cap drop ["ALL"], cap add null, security ["no-new-privileges:true"], tmpfs {"/tmp":"rw,noexec,nosuid,size=512m"}
+E: the runner's mounts: [{"Type":"bind","Source":"<run folder>/delivered/j1-aae2b5e81e25/acceptance/v001","Destination":"/acceptance","RW":false},{"Type":"bind","Source":"<run folder>/check-run/results","Destination":"/results","RW":true},{"Type":"volume","Name":"j1-aae2b5e81e25_keys","Destination":"/run/secrets/sample-password","RW":false}]
+E: the runner's BASE_URL and RUN_ID: ["BASE_URL=http://localhost:3000","RUN_ID=run-20261114t150456-99ebf41a"]
+  PASSED: E, the runner inspected while it ran: seen running
+  PASSED: E, the runner inspected while it ran: the forwarder: on j1-aae2b5e81e25_front alone, user node, a read-only root, the approved node image
+  PASSED: E, the runner inspected while it ran: the runner: in the forwarder's network namespace (container:<forwarder>) (container:594d6b2fefce6b72911b3d1c433509fb42b86d30a1cdd615f0a6e5c8827192d0)
+  PASSED: E, the runner inspected while it ran: the runner: user runner, a read-only root, every capability dropped, none added, no new privileges
+  PASSED: E, the runner inspected while it ran: the runner: exactly 3.1's three mounts (the copy's tests read-only, a results folder, the keys volume's sample_password read-only) ([{"Type":"bind","Source":"<run folder>/delivered/j1-aae2b5e81e25/acceptance/v001","Destination":"/acceptance","RW":false},{"Type":"bind","Source":"<run folder>/check-run/results","Destination":"/results","RW":true},{"Type":"volume","Name":"j1-aae2b5e81e25_keys","Destination":"/run/secrets/sample-password","RW":false}])
+  PASSED: E, the runner inspected while it ran: the runner's BASE_URL is the app's APP_URL, http://localhost:3000 (["BASE_URL=http://localhost:3000","RUN_ID=run-20261114t150456-99ebf41a"])
+
+== F. A second start ==
+F: docker compose down; the first start's command ended (exit code 0).
+  PASSED: F: the app is healthy again, the door running
+  PASSED: F: the keys service says "kept db_password"
+  PASSED: F: the keys service says "kept auth_secret"
+  PASSED: F: the keys service says "kept sample_password"
+  PASSED: F: the seed says "exists: employee@example.test"
+  PASSED: F: the seed says "exists: hr.admin@example.test"
+  PASSED: F: the seed says "exists: manager@example.test"
+  PASSED: F: no user is created again
+  PASSED: F: no migration is applied again: drizzle.__drizzle_migrations still holds 2 rows; still the three users (2; employee@example.test, hr.admin@example.test, manager@example.test)
+
+== G. The copy unchanged ==
+  PASSED: G: every file's SHA-256 (142 entries, its history included) is what it was when unpacked, after C to F
+  PASSED: G: git status --porcelain --ignored is still empty
+
+== The run's record, photographed ==
+The run's record: the camera record-shot.mjs: docker run --rm --name x32-camera-20261114_51b07c-2 --pull never --network none --read-only --tmpfs /tmp:rw,noexec,nosuid,size=512m --cap-drop ALL --security-opt no-new-privileges:true --pids-limit 256 --memory 1g --user runner --workdir /runner --entrypoint node --env BUILDER_CAMERA_SHOT=03-run-record-en.png --volume <repo>/builder/camera/record-shot.mjs:/camera/record-shot.mjs:ro --volume <run folder>/camera-out:/shots --volume <run folder>/record:/record:ro builder-acceptance-runner:local /camera/record-shot.mjs
+  PASSED: The run's record, camera: the page says it is drawn from the run's own files, not a screen of the builder or the app
+  PASSED: The run's record, camera: the page shows the check's outcome
+  PASSED: The run's record, camera: the page loaded nothing (no request left the page)
+The run's record: the camera ended with exit code 0 after 1 s.
+  PASSED: The run's record: the camera (record-shot.mjs) exited with code 0 (exit code 0)
+
+== H. Clean-up, by exact names ==
+H: the check's containers left (forwarder, runner): none.
+H: docker compose down --volumes in the copy: done.
+H: removed the image j1-aae2b5e81e25-app: 2 lines.
+H: removed the image j1-aae2b5e81e25-setup: 2 lines.
+Free space on the run folder's disk, sampled every 2 s: 10.31 GB at the start, 9.23 GB at the lowest, 10.30 GB at the end (GB of 1024^3 bytes).
+  PASSED: H: Docker's lists (containers, images, volumes, networks) compared with the start: nothing new of the run is left
+H: new since the start: nothing; build cache: 9 new records (not removable without a prune, which this run does not do).
+  PASSED: H: the run folder (the delivered copy, the check's run folder with its trace, the camera's folder, the password file) is removed
+Free disk after: /dev/vda        252G   29G   11G  74% /
+Pictures copied into the evidence folder: 5 of 5.
+  PASSED: The secret search: no evidence file holds any of the four secrets (the interface password, the sample password, the exported app's db_password and auth_secret) (0)
+Checks in all: 152 passed, 2 failed (154 counted: the cameras', the event's, the machine's and Docker's, the copy's, the check's and the search's).
+  FAILED: C, no way back: from the door's namespace, 172.20.0.1:42691 (the gateway address of j1-aae2b5e81e25_edge; the run's listener on every address) cannot be reached (connected, the run's own listener answered)
+  FAILED: C, no way back: from the door's namespace, 172.17.0.1:42691 (Docker's default bridge address; the run's listener on every address) cannot be reached (connected, the run's own listener answered)
+Result: NOT every check passed (exit code 1).

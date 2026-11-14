@@ -1,0 +1,104 @@
+Package 0.5's "Done means" demonstration, run again for package 3.2 on 7c0c9c9 (builder/ tree f412c73), 2026-11-14T16:20:39Z. Command, from builder/: flock <scratchpad>/live-tests.lock npx tsx scripts/demo-template.ts ../templates/next ../evidence/2026-11-14-package-3.2/reopened/package-0.5/screens --guard
+Docker before: containers 0, images 8, volumes 4, networks 3
+Lock held from 16:20:39 UTC.
+Template copied from <checkout>/templates/next to the project workspace.
+Compose project builder_demo_template: db, egress (the door) and egress-host, app, tools for one-off set-up commands, and the runner's container for the browser. Secrets written to the sandbox's secrets folder only.
+The acceptance runner's image, for the browser, built from Docker's cache (scripts/browser-in-project.ts)...
+Building the app image and the tools image inside Docker (development profile: npm through the project's egress proxy, every other step with no network)...
+Image built in 35 s.
+
+The tools container's environment, printed by a stand-in seed step run as the seed is run (scripts/tools-env-check.ts):
+  Named list (4): APP_SAMPLE_PASSWORD, APP_URL, AUTH_SECRET, DATABASE_URL
+  Declared by the tools image itself (4): NEXT_TELEMETRY_DISABLED, NODE_VERSION, PATH, YARN_VERSION
+  Set by Docker in every container, names only: HOSTNAME, HOME
+  The builder's own settings set in this process, names only (1 of 13): HTTPS_PROXY
+  0. On this machine, before the stand-in step runs:
+     values known here in plain text that contain the value of one of the builder's own settings: none (8 values: the image's own 4, given 4)
+     PASSED
+  1. As the seed is run (sandbox.runOnce):
+     settings seen inside (10): APP_SAMPLE_PASSWORD, APP_URL, AUTH_SECRET, DATABASE_URL, HOME, HOSTNAME, NEXT_TELEMETRY_DISABLED, NODE_VERSION, PATH, YARN_VERSION
+     not on the named list, not the image's own, not set by Docker: none
+     named or image settings missing: none
+     named or image settings whose value is not the one given: none (8 compared by fingerprint)
+     builder settings among the names: none
+     settings whose value equals one of the builder's own settings in this process: none (compared by fingerprint with the 1 set here)
+     PASSED
+  2. Compose given this process's whole environment, with Docker's client folder set to the project's own (212 settings, including made-up values for the builder's 11 settings, HTTP_PROXY and BUILDER_TOOLS_CHECK_MARKER):
+     settings seen inside (10): APP_SAMPLE_PASSWORD, APP_URL, AUTH_SECRET, DATABASE_URL, HOME, HOSTNAME, NEXT_TELEMETRY_DISABLED, NODE_VERSION, PATH, YARN_VERSION
+     not on the named list, not the image's own, not set by Docker: none
+     named or image settings missing: none
+     named or image settings whose value is not the one given: none (8 compared by fingerprint)
+     builder settings among the names: none
+     settings whose value equals one of the builder's own settings in this process: none (compared by fingerprint with the 1 set here)
+     made-up values found in any setting: 0 of 13
+     PASSED
+
+Creating the tables (drizzle-kit migrate, from the template's fixed migration files, then the drift check) and the three sample users (seed), in the tools container...
+  drizzle-kit migrate: done (4 lines of output, not shown); drift check passed
+  created: employee@example.test (employee)
+  created: manager@example.test (manager)
+  created: hr.admin@example.test (hr_admin)
+Starting the app container and waiting for it to answer...
+  Container app: running (healthy)
+  Container db: running (healthy)
+  Container egress-host: running (healthy)
+
+Screenshots, taken by a browser in the runner's container on the project's front network, as a person would see the pages:
+  sign-in (English): title "Internal app", dir=ltr
+  sign-in (Arabic): title "تطبيق داخلي", dir=rtl
+  validation messages shown: Enter your work email address. | Enter your password.
+  home (English): Signed in as Sample Employee (Employee)
+  home (Arabic): مسجّل الدخول باسم Sample Employee (موظف), dir=rtl
+  wrong password message: The email or password is not right. Check both and try again.
+  phone width 390: page scroll width 390 (no sideways scrolling when 390)
+
+The role guard, tried by each kind of visitor (scripts/guard-checks.ts), in the same way:
+  (a new account was made through the sign-up route for the "no role" visitor: HTTP 200)
+  
+  1. The example page for HR admins only (/en/example/restricted)
+  PASS  page, employee: expected the "no access" page (role_not_allowed); saw the "no access" page (role_not_allowed)
+  PASS  page, manager: expected the "no access" page (role_not_allowed); saw the "no access" page (role_not_allowed)
+  PASS  page, HR admin: expected the page (example-restricted); saw the page (example-restricted)
+  PASS  page, no recognised role: expected the "no access" page (role_not_recognised); saw the "no access" page (role_not_recognised)
+  PASS  page, not signed in: expected the sign-in page; saw the sign-in page
+  PASS  page in Arabic, employee: direction of the page: expected rtl; saw rtl
+  
+  2. The home page, open to every recognised role (/en/home)
+  PASS  home, employee: expected the page (signed-in-as); saw the page (signed-in-as)
+  PASS  home, manager: expected the page (signed-in-as); saw the page (signed-in-as)
+  PASS  home, HR admin: expected the page (signed-in-as); saw the page (signed-in-as)
+  PASS  home, no recognised role: expected the "no access" page (role_not_recognised); saw the "no access" page (role_not_recognised)
+  PASS  home, not signed in: expected the sign-in page; saw the sign-in page
+  
+  3. The example data route for managers and HR admins (/api/example/roles)
+  PASS  route, employee: expected 403 no_access; saw 403 no_access
+  PASS  route, manager: expected 200 {"role":"manager"}; saw 200 {"role":"manager"}
+  PASS  route, HR admin: expected 200 {"role":"hr_admin"}; saw 200 {"role":"hr_admin"}
+  PASS  route, no recognised role: expected 403 no_access; saw 403 no_access
+  PASS  route, not signed in: expected 401 not_signed_in; saw 401 not_signed_in
+  
+  4. The example form action for managers and HR admins, through the page's button (/en/example/action)
+  PASS  action by button, employee: expected sent to /en/no-access; saw sent to /en/no-access
+  PASS  action by button, manager: expected done, for the role Manager; saw done, for the role Manager
+  PASS  action by button, HR admin: expected done, for the role HR admin; saw done, for the role HR admin
+  
+  4b. The same, from the Arabic page: a refused employee lands on the Arabic "no access" page
+  PASS  action by button from the Arabic page, employee: expected /ar/no-access; saw /ar/no-access
+  
+  5. The same form action, sent directly as the form would send it, by each visitor
+  (hidden fields of the form: 1)
+  PASS  action sent directly, employee: expected 303 to /en/no-access; saw 303 to /en/no-access
+  PASS  action sent directly, manager: expected 303 to /en/example/action?done=manager; saw 303 to /en/example/action?done=manager
+  PASS  action sent directly, HR admin: expected 303 to /en/example/action?done=hr_admin; saw 303 to /en/example/action?done=hr_admin
+  PASS  action sent directly, no recognised role: expected 303 to /en/no-access; saw 303 to /en/no-access
+  PASS  action sent directly, not signed in: expected 303 to /en/sign-in; saw 303 to /en/sign-in
+  PASS  "no access" page at phone width 390, Arabic: no sideways scrolling: expected true; saw true
+  
+  RESULT: PASSED
+
+Whole run: 115 s.
+Containers, network, volume, image and the temporary folder removed.
+exit code: 0
+Lock released at 16:22:49 UTC.
+Whole run: 130 s
+Docker after: containers 0, images 8, volumes 4, networks 3

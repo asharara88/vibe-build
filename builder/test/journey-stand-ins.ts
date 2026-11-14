@@ -9,18 +9,25 @@
  * (scripts/example-1-sandbox.ts); its runner reads manifests and files from that folder only, never from
  * builder/scripted. `stageBrokenStep` copies the deliberately broken step 03 there, and nowhere else. The checklist
  * run has a "failed" mode, written as package 3.1's runner writes a failed item (src/acceptance/runner.ts, results.ts).
+ *
+ * Package 3.2: each run's events carry the manifest's SHA-256, as package 3.1's runner writes it (runner.ts), read from
+ * the store's version as the runner reads it (`verifyVersion`); `runManifest` stands in for a run whose record names
+ * none. The export's Docker checks (`checkExport`, design section 4, items 3 to 7) are stood in for: each call is
+ * recorded with the archive it was given, and the answer is six passing checks, each saying it is the stand-in's, or
+ * `exportCheckResult` when a test sets one. No image is built and no container started.
  */
 import { execFileSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { cpSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import net from "node:net";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import type pg from "pg";
 import type { AcceptanceReport, AcceptanceRunInput } from "../src/acceptance/runner.js";
-import { newRunFolder, sha256 } from "../src/acceptance/store.js";
+import { newRunFolder, sha256, verifyVersion } from "../src/acceptance/store.js";
 import { initProjectRepo } from "../src/engine/project-repo.js";
 import { readManifest, type EngineRunner } from "../src/engine/scripted.js";
+import type { ExportCheck, PackedExport } from "../src/export/export-check.js";
 import type { ProjectSandbox, Sandboxes } from "../src/orchestrator/example-1-adapter.js";
 import { APP_SHOTS } from "../src/orchestrator/journey-jobs.js";
 import { EXAMPLE, type SandboxRecord } from "../src/orchestrator/journey.js";
@@ -98,6 +105,12 @@ export class StandInSandboxes implements Sandboxes {
   stagedBroken: Array<{ projectId: string; into: string }> = [];
   /** Package J2: when set, the staged manifest is changed after the copy, so that its SHA-256 differs from the one chosen (a test of the read-back). */
   stageTamper = false;
+  /** Package 3.2: the manifest SHA-256 a run's events record: null for the store's own (as the runner reads it), "absent" for none. */
+  runManifest: string | "absent" | null = null;
+  /** Package 3.2: every call of `checkExport`, with the archive it was given and whether that file was there. */
+  exportCheckCalls: Array<{ projectId: string; archive: string; sha256: string; bytes: number; unpackDir: string; archiveExisted: boolean; sha256OfFile: string | null }> = [];
+  /** Package 3.2: what `checkExport` answers; null for six passing checks, each saying it is the stand-in's. */
+  exportCheckResult: ExportCheck[] | null = null;
   private dirs: string[] = [];
 
   constructor(private readonly pool: pg.Pool) {}
@@ -261,7 +274,7 @@ export class StandInSandboxes implements Sandboxes {
     const passed = this.acceptanceOutcome === "passed";
     const summary = passed ? PASSED_SUMMARY : "did not run: the stand-in said so";
     const word = this.outcomeWord ?? (passed ? "passed" : "not passed");
-    const common = { run_id: runId, version: input.version, written_by: "stand-in", label: "stand-in test" };
+    const common = { run_id: runId, version: input.version, written_by: "stand-in", label: "stand-in test", ...this.manifestField(input) };
     const events = [
       await appendEvent(this.pool, input.projectId, "acceptance.run.started", { ...common, container_started: passed, refused: null }),
       await appendEvent(this.pool, input.projectId, "acceptance.item", { ...common, item: 1, file: "item-01.spec.ts", status: passed ? "passed" : "did not run", why: passed ? "ran once and passed, with its screenshot" : "not reached", screenshot: null }),
@@ -285,7 +298,7 @@ export class StandInSandboxes implements Sandboxes {
     const failure = join(folder.builder, "item-01-failure.txt");
     writeFileSync(failure, 'Made-up failure text of the stand-in runner: the list was expected to say "Waiting"; it said "Approved".\n', { mode: 0o600 });
     const word = this.outcomeWord ?? "failed";
-    const common = { run_id: runId, version: input.version, written_by: "stand-in", label: "stand-in test" };
+    const common = { run_id: runId, version: input.version, written_by: "stand-in", label: "stand-in test", ...this.manifestField(input) };
     const events = [
       await appendEvent(this.pool, input.projectId, "acceptance.run.started", { ...common, container_started: true, refused: null }),
       await appendEvent(this.pool, input.projectId, "acceptance.item", {
@@ -302,6 +315,27 @@ export class StandInSandboxes implements Sandboxes {
       await appendEvent(this.pool, input.projectId, "acceptance.run.finished", { ...common, exit_code: 1, timed_out: false, ...(word === "absent" ? {} : { outcome: word }), summary: FAILED_SUMMARY, run_problems: [] }),
     ];
     return { runId, version: input.version, manifestSha256: null, writtenBy: "stand-in", runFolder: folder, refused: null, appAnswered: true, exit: { code: 1, stderrTail: "" }, args: null, reading: { outcome: word === "absent" ? "not passed" : word, items: [], runProblems: [], summary: FAILED_SUMMARY }, output: [], events } as unknown as AcceptanceReport;
+  }
+
+  /** Package 3.2: the manifest's SHA-256 as the runner records it on each of a run's events (runner.ts), or none. */
+  private manifestField(input: AcceptanceRunInput): { manifest_sha256?: string | null } {
+    if (this.runManifest === "absent") return {};
+    if (this.runManifest !== null) return { manifest_sha256: this.runManifest };
+    return { manifest_sha256: verifyVersion(input.store, input.projectId, input.version).manifestSha256 ?? null };
+  }
+
+  /** Package 3.2: the export's Docker checks, stood in for (design section 4, items 3 to 7): the call recorded, no image built. */
+  async checkExport(x: ProjectSandbox, p: PackedExport): Promise<ExportCheck[]> {
+    const existed = existsSync(p.path);
+    this.exportCheckCalls.push({ projectId: x.projectId, archive: p.path, sha256: p.sha256, bytes: p.bytes, unpackDir: p.unpackDir, archiveExisted: existed, sha256OfFile: existed ? sha256(readFileSync(p.path)) : null });
+    return (
+      this.exportCheckResult ??
+      ["images_built", "compose_config", "run_image_packages", "run_image_notices", "tools_image_packages", "licence_check"].map((id) => ({
+        id,
+        passed: true,
+        summary: `Stand-in for the fast tests: ${id} not checked (no image built, no container started).`,
+      }))
+    );
   }
 
   async stopApp(x: ProjectSandbox): Promise<void> {

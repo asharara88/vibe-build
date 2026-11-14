@@ -1,0 +1,125 @@
+# Package 3.2, part A: the migration files, made once in the tools container (design section 2)
+
+1. The house template's images built through the sandbox's own build path (sandbox.build: development profile,
+   npm through the project's egress proxy on the machine's loopback address), from templates/next with part A's
+   Dockerfile, before its drizzle/ files existed; images builder_x32_gen-app:latest and builder_x32_gen-tools:latest,
+   removed by name afterwards. Built in 57 s. Lines of the build (BuildKit's plain output):
+
+   #4 [build 1/7] FROM docker.io/library/node:22-alpine@sha256:0e1754758c2df4cfa3e68d59e2e1b7374bb7fd9ea6328eaaacf15cc934af8202
+   #6 [build 2/7] WORKDIR /app
+   #7 [build 3/7] COPY package.json package-lock.json ./
+   #8 [build 4/7] COPY vendor/ ./vendor/
+   #9 [build 5/7] RUN --mount=type=cache,id=house-template-npm,target=/root/.npm npm ci --prefer-offline --ignore-scripts --no-fund --no-audit
+   #9 13.18 added 263 packages in 13s
+   #10 [build 6/7] COPY . .
+   #11 [build 7/7] RUN --network=none DATABASE_URL=postgres://build:build@localhost/build AUTH_SECRET=build-time-placeholder-not-a-secret-0000 npm run build
+   #12 [run 3/7] RUN addgroup -S app && adduser -S app -G app
+   #13 [run 4/7] COPY --from=build --chown=app:app /app/.next/standalone ./
+   #14 [run 5/7] COPY --from=build --chown=app:app /app/.next/static ./.next/static
+   #15 [run 6/7] COPY --from=build --chown=app:app /app/public ./public
+   #16 [run 7/7] COPY --from=build /app/THIRD-PARTY-NOTICES.md ./THIRD-PARTY-NOTICES.md
+   #17 naming to docker.io/library/builder_x32_gen-app:latest done
+   #4 [build 1/7] FROM docker.io/library/node:22-alpine@sha256:0e1754758c2df4cfa3e68d59e2e1b7374bb7fd9ea6328eaaacf15cc934af8202
+   #6 [build 6/7] COPY . .
+   #7 [build 2/7] WORKDIR /app
+   #8 [build 3/7] COPY package.json package-lock.json ./
+   #9 [build 5/7] RUN --mount=type=cache,id=house-template-npm,target=/root/.npm npm ci --prefer-offline --ignore-scripts --no-fund --no-audit
+   #10 [build 4/7] COPY vendor/ ./vendor/
+   #11 [build 7/7] RUN --network=none DATABASE_URL=postgres://build:build@localhost/build AUTH_SECRET=build-time-placeholder-not-a-secret-0000 npm run build
+   #12 naming to docker.io/library/builder_x32_gen-tools:latest done
+
+2. Then, in that tools image, with no network, every capability dropped, no new privileges, 256 processes, 1 GB and a
+   read-only root, each in a container removed at its end (--rm, named x32-gen-*):
+
+== 2026-11-14T12:31:31Z A. the template's own first migration: drizzle-kit generate --name=template, in the tools image builder_x32_gen-tools:latest (built from the template through sandbox.build), no network, read-only root, an empty folder mounted at /app/drizzle
+No config path provided, using default 'drizzle.config.ts'
+Reading config file '/app/drizzle.config.ts'
+4 tables
+account 13 columns 0 indexes 1 fks
+session 8 columns 0 indexes 1 fks
+user 8 columns 0 indexes 0 fks
+verification 6 columns 0 indexes 0 fks
+
+[✓] Your SQL migration file ➜ drizzle/0000_template.sql 🚀
+exit: 0
+62fc4bc2b53ddb82c22d3838c8a12fda003392532159a9f6752e8a87d020fe7f  ./drizzle/0000_template.sql
+25d69a3ea6e687327a5bfb45bb68f91c8eaf30a4110310eff493694705a86cc0  ./drizzle/meta/0000_snapshot.json
+1434441f84ed94cc6602ce3687cad56fd38a1c31a0d128c1a7cee572c80dea45  ./drizzle/meta/_journal.json
+
+== 2026-11-14T12:31:43Z B. the data step's migration: drizzle-kit generate --name=leave_request, in the same tools image, with step 01's two schema files (src/db/app-schema.ts, drizzle.config.ts) mounted read-only over the template's, and a copy of A's drizzle/ folder mounted at /app/drizzle
+No config path provided, using default 'drizzle.config.ts'
+Reading config file '/app/drizzle.config.ts'
+5 tables
+account 13 columns 0 indexes 1 fks
+session 8 columns 0 indexes 1 fks
+user 8 columns 0 indexes 0 fks
+verification 6 columns 0 indexes 0 fks
+leave_request 12 columns 0 indexes 3 fks
+
+[✓] Your SQL migration file ➜ drizzle/0001_leave_request.sql 🚀
+exit: 0
+62fc4bc2b53ddb82c22d3838c8a12fda003392532159a9f6752e8a87d020fe7f  ./drizzle/0000_template.sql
+1c4136635b63896e28dacbd21f5a1197f59306e760646114dcc950672bd82ae0  ./drizzle/0001_leave_request.sql
+25d69a3ea6e687327a5bfb45bb68f91c8eaf30a4110310eff493694705a86cc0  ./drizzle/meta/0000_snapshot.json
+a8cb43b82056e2a74e1586982fccd8290d6c4d83c183d12df011028764d9c9f2  ./drizzle/meta/0001_snapshot.json
+4f6444c5273fa7408a1169b3f5d05093d2802aaab93ff0332cb110c3526381cb  ./drizzle/meta/_journal.json
+--- 0001_leave_request.sql:
+CREATE TABLE "leave_request" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"employee" text NOT NULL,
+	"start_date" date NOT NULL,
+	"end_date" date NOT NULL,
+	"days" integer NOT NULL,
+	"reason" text,
+	"status" text DEFAULT 'waiting' NOT NULL,
+	"decision_note" text,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"created_by" text NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_by" text NOT NULL,
+	CONSTRAINT "leave_request_status_known" CHECK ("leave_request"."status" in ('waiting', 'approved', 'rejected', 'withdrawn')),
+	CONSTRAINT "leave_request_last_day_not_before_first" CHECK ("leave_request"."end_date" >= "leave_request"."start_date"),
+	CONSTRAINT "leave_request_days_within_range" CHECK ("leave_request"."days" >= 1 and "leave_request"."days" <= ("leave_request"."end_date" - "leave_request"."start_date" + 1))
+);
+--> statement-breakpoint
+ALTER TABLE "leave_request" ADD CONSTRAINT "leave_request_employee_user_id_fk" FOREIGN KEY ("employee") REFERENCES "public"."user"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "leave_request" ADD CONSTRAINT "leave_request_created_by_user_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."user"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "leave_request" ADD CONSTRAINT "leave_request_updated_by_user_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."user"("id") ON DELETE no action ON UPDATE no action;
+--- _journal.json:
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1794659492475,
+      "tag": "0000_template",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1794659504312,
+      "tag": "0001_leave_request",
+      "breakpoints": true
+    }
+  ]
+}
+== 2026-11-14T12:31:55Z C1. generate against the template's committed files (read-only), template schema: expect no change
+
+No schema changes, nothing to migrate 😴
+exit: 0
+== 2026-11-14T12:31:56Z C2. generate against the template's files plus step 01's (read-only), with step 01's schema files: expect no change
+
+No schema changes, nothing to migrate 😴
+exit: 0
+
+3. The files copied into place: A's three into templates/next/drizzle/, B's 0001_leave_request.sql, 0001_snapshot.json
+   and _journal.json into builder/scripted/example-1/01-data/files/drizzle/; step 01's manifest given the three
+   entries, and every fingerprint remade with `npx tsx scripts/scripted-manifest.ts example-1`:
+     scripted/example-1/01-data: 7 files
+     scripted/example-1/02-submitter-screen: 8 files      (manifest unchanged: git diff shows only 01-data's)
+     scripted-broken/example-1/03-wrong-status: 3 files   (manifest unchanged)
+   A second generate gives a new snapshot id and journal time (measured, design section 2), so the files are made once and
+   committed, never made again at build time.

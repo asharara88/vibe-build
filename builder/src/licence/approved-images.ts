@@ -17,7 +17,9 @@
  * What passes: exactly `<image>@<digest>` of an approved entry; inside a string, `${DEFAULT_IMAGES.<key>}`
  * for a key of the sandbox manager's image table (whose own values are scanned as text); and the images
  * the builder builds itself from the template's Dockerfile, named by `appImageName` and `toolsImageName`
- * (`builder_<project>-app:latest`, `builder_<project>-tools:latest`), which are never pulled.
+ * (`builder_<project>-app:latest`, `builder_<project>-tools:latest`), and (package 3.2) the two the export check
+ * builds from an export's archive with the same Dockerfile, named by `exportCheckImageNames`
+ * (`builder_<project>-exportcheck-run:latest`, `builder_<project>-exportcheck-tools:latest`); none is ever pulled.
  *
  * What it does not see: a reference put together at run time from parts, or passed in from outside
  * (for example `SandboxSpec.images` given a variable); files outside the folders scanned; binary files.
@@ -110,8 +112,8 @@ const KNOWN_IMAGE_NAMES = new Set([
   "jenkins", "gradle", "maven", "docker", "composer", "wordpress", "ghost", "nextcloud", "adminer", "swift",
   "julia", "erlang", "elixir", "haskell", "clojure", "groovy", "kong", "sonarqube", "postgis", "hello-world",
 ]);
-/** Images the builder builds itself from the template (manager.ts, appImageName and toolsImageName). */
-const BUILT_HERE = /^builder_[a-z0-9_-]+-(?:app|tools):latest$/;
+/** Images the builder builds itself from the template (manager.ts, appImageName, toolsImageName and, package 3.2, exportCheckImageNames). */
+const BUILT_HERE = /^builder_[a-z0-9_-]+-(?:app|tools|exportcheck-run|exportcheck-tools):latest$/;
 
 function looksLikeImage(name: string, tag: string): boolean {
   if (name === "sha256" || name === "localhost") return false;

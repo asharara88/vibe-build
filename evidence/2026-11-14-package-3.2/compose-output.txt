@@ -1,0 +1,335 @@
+The exported copy's own output in package 3.2's automated run (run 20261114_51b07c): its README's command, run twice, and docker compose down, with the run's folder written <run folder>. The passwords are never printed by the copy; the evidence is searched for them (run-secret-search.txt).
+
+== The first start: sh -c "docker compose up --build" in the unpacked copy, with only PATH and HOME set; started 2026-11-14T15:04:27.990Z; the app healthy 2026-11-14T15:04:47.083Z ==
+ Image j1-aae2b5e81e25-setup Building 
+ Image j1-aae2b5e81e25-app Building 
+#1 [internal] load local bake definitions
+#1 reading from stdin 1.39kB done
+#1 DONE 0.0s
+#2 [app internal] load build definition from Dockerfile
+#2 transferring dockerfile: 3.99kB done
+#2 DONE 0.0s
+#3 [setup internal] load metadata for docker.io/library/node:22-alpine@sha256:0e1754758c2df4cfa3e68d59e2e1b7374bb7fd9ea6328eaaacf15cc934af8202
+#3 DONE 0.0s
+#4 [setup internal] load .dockerignore
+#4 transferring context:
+#4 transferring context: 344B done
+#4 DONE 0.0s
+#5 [setup build 1/7] FROM docker.io/library/node:22-alpine@sha256:0e1754758c2df4cfa3e68d59e2e1b7374bb7fd9ea6328eaaacf15cc934af8202
+#5 resolve docker.io/library/node:22-alpine@sha256:0e1754758c2df4cfa3e68d59e2e1b7374bb7fd9ea6328eaaacf15cc934af8202 0.0s done
+#5 DONE 0.0s
+#6 [setup internal] load build context
+#6 transferring context: 938.37kB 0.0s done
+#6 DONE 0.0s
+#7 [app build 6/7] COPY . .
+#7 CACHED
+#8 [app build 4/7] COPY vendor/ ./vendor/
+#8 CACHED
+#9 [app build 5/7] RUN --mount=type=cache,id=house-template-npm,target=/root/.npm npm ci --prefer-offline --ignore-scripts --no-fund --no-audit
+#9 CACHED
+#10 [app build 2/7] WORKDIR /app
+#10 CACHED
+#11 [app build 3/7] COPY package.json package-lock.json ./
+#11 CACHED
+#12 [app run 4/7] COPY --from=build --chown=app:app /app/.next/standalone ./
+#12 CACHED
+#13 [app run 3/7] RUN addgroup -S app && adduser -S app -G app
+#13 CACHED
+#14 [app run 6/7] COPY --from=build --chown=app:app /app/public ./public
+#14 CACHED
+#15 [app run 5/7] COPY --from=build --chown=app:app /app/.next/static ./.next/static
+#15 CACHED
+#16 [setup build 7/7] RUN --network=none DATABASE_URL=postgres://build:build@localhost/build AUTH_SECRET=build-time-placeholder-not-a-secret-0000 npm run build
+#16 CACHED
+#17 [app run 7/7] COPY --from=build /app/THIRD-PARTY-NOTICES.md ./THIRD-PARTY-NOTICES.md
+#17 CACHED
+#18 [setup] exporting to image
+#18 exporting layers done
+#18 exporting manifest sha256:937ed1c4b88a865ff2b8bb2198f8d7adcd1882096aa6ce279f1c7a4609166886 done
+#18 exporting config sha256:2c2e94948c43bb3b22b7e584ccf885a8e0d22d1a6b63701d8503209f06dcd6a7 done
+#18 exporting attestation manifest sha256:025f457a5ed1b19c76187d25a267d972c1cc107a03fd36c267c4807458f331a6 done
+#18 exporting manifest list sha256:6cf0f905ae68d382f1d88c35fc886bd8ba84287e412270aa923f4f3df80317e8
+#18 exporting manifest list sha256:6cf0f905ae68d382f1d88c35fc886bd8ba84287e412270aa923f4f3df80317e8 done
+#18 naming to docker.io/library/j1-aae2b5e81e25-setup:latest done
+#18 unpacking to docker.io/library/j1-aae2b5e81e25-setup:latest
+#18 ...
+#19 [app] exporting to image
+#19 exporting layers done
+#19 exporting manifest sha256:c6daefe85fc69471c8a579a35c3a5c70ea5d68ef7982f9dac0ef49d8274742f2 done
+#19 exporting config sha256:aea44873fd75757656e18ba6c2cd9ebd1c555bab5cd2d7d7701db0121c82e9d7 done
+#19 exporting attestation manifest sha256:69fb3183eb34e70449a9b668b21e69e0437654f4e533b9065fb9f3e33c513988 done
+#19 exporting manifest list sha256:d51a5e98aef42c5f8e17f38f739b7a7d0f964e7884819a8f61f69a17fddcd246 done
+#19 naming to docker.io/library/j1-aae2b5e81e25-app:latest done
+#19 unpacking to docker.io/library/j1-aae2b5e81e25-app:latest 0.4s done
+#19 DONE 0.4s
+#20 [app] resolving provenance for metadata file
+#20 DONE 0.0s
+#18 [setup] exporting to image
+#18 unpacking to docker.io/library/j1-aae2b5e81e25-setup:latest 5.0s done
+#18 DONE 5.1s
+#21 [setup] resolving provenance for metadata file
+#21 DONE 0.0s
+ Image j1-aae2b5e81e25-setup Built 
+ Image j1-aae2b5e81e25-app Built 
+ Network j1-aae2b5e81e25_data Creating 
+ Volume j1-aae2b5e81e25_keys Creating 
+ Volume j1-aae2b5e81e25_keys Creating 
+ Volume j1-aae2b5e81e25_dbdata Creating 
+ Volume j1-aae2b5e81e25_dbdata Creating 
+ Network j1-aae2b5e81e25_front Creating 
+ Network j1-aae2b5e81e25_front Creating 
+ Network j1-aae2b5e81e25_edge Creating 
+ Network j1-aae2b5e81e25_edge Creating 
+ Network j1-aae2b5e81e25_data Creating 
+ Volume j1-aae2b5e81e25_keys Created 
+ Volume j1-aae2b5e81e25_keys Created 
+ Container j1-aae2b5e81e25-keys-1 Creating 
+ Volume j1-aae2b5e81e25_dbdata Created 
+ Volume j1-aae2b5e81e25_dbdata Created 
+ Network j1-aae2b5e81e25_front Created 
+ Network j1-aae2b5e81e25_front Created 
+ Network j1-aae2b5e81e25_data Created 
+ Network j1-aae2b5e81e25_data Created 
+ Network j1-aae2b5e81e25_edge Created 
+ Network j1-aae2b5e81e25_edge Created 
+ Container j1-aae2b5e81e25-keys-1 Created 
+ Container j1-aae2b5e81e25-db-1 Creating 
+ Container j1-aae2b5e81e25-db-1 Created 
+ Container j1-aae2b5e81e25-setup-1 Creating 
+ Container j1-aae2b5e81e25-setup-1 Created 
+ Container j1-aae2b5e81e25-app-1 Creating 
+ Container j1-aae2b5e81e25-app-1 Created 
+ Container j1-aae2b5e81e25-door-1 Creating 
+ Container j1-aae2b5e81e25-door-1 Created 
+Attaching to app-1, db-1, door-1, keys-1, setup-1
+ Container j1-aae2b5e81e25-keys-1 Starting 
+ Container j1-aae2b5e81e25-keys-1 Started 
+ Container j1-aae2b5e81e25-keys-1 Waiting 
+keys-1  | made db_password
+keys-1  | made auth_secret
+keys-1  | made sample_password
+[Kkeys-1 exited with code 0
+ Container j1-aae2b5e81e25-keys-1 Exited 
+ Container j1-aae2b5e81e25-db-1 Starting 
+ Container j1-aae2b5e81e25-db-1 Started 
+ Container j1-aae2b5e81e25-db-1 Waiting 
+db-1    | The files belonging to this database system will be owned by user "postgres".
+db-1    | This user must also own the server process.
+db-1    | 
+db-1    | The database cluster will be initialized with locale "en_US.utf8".
+db-1    | The default database encoding has accordingly been set to "UTF8".
+db-1    | The default text search configuration will be set to "english".
+db-1    | 
+db-1    | Data page checksums are disabled.
+db-1    | 
+db-1    | fixing permissions on existing directory /var/lib/postgresql/data ... ok
+db-1    | creating subdirectories ... ok
+db-1    | selecting dynamic shared memory implementation ... posix
+db-1    | selecting default max_connections ... 100
+db-1    | selecting default shared_buffers ... 128MB
+db-1    | selecting default time zone ... UTC
+db-1    | creating configuration files ... ok
+db-1    | running bootstrap script ... ok
+db-1    | sh: locale: not found
+db-1    | 2026-11-14 15:04:35.997 UTC [35] WARNING:  no usable system locales were found
+db-1    | performing post-bootstrap initialization ... ok
+db-1    | syncing data to disk ... ok
+db-1    | 
+db-1    | 
+db-1    | Success. You can now start the database server using:
+db-1    | 
+db-1    |     pg_ctl -D /var/lib/postgresql/data -l logfile start
+db-1    | 
+db-1    | initdb: warning: enabling "trust" authentication for local connections
+db-1    | initdb: hint: You can change this by editing pg_hba.conf or using the option -A, or --auth-local and --auth-host, the next time you run initdb.
+db-1    | waiting for server to start....2026-11-14 15:04:36.603 UTC [41] LOG:  starting PostgreSQL 16.15 on x86_64-pc-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit
+db-1    | 2026-11-14 15:04:36.605 UTC [41] LOG:  listening on Unix socket "/var/run/postgresql/.s.PGSQL.5432"
+db-1    | 2026-11-14 15:04:36.607 UTC [44] LOG:  database system was shut down at 2026-11-14 15:04:36 UTC
+db-1    | 2026-11-14 15:04:36.610 UTC [41] LOG:  database system is ready to accept connections
+db-1    |  done
+db-1    | server started
+db-1    | CREATE DATABASE
+db-1    | 
+db-1    | 
+db-1    | /usr/local/bin/docker-entrypoint.sh: ignoring /docker-entrypoint-initdb.d/*
+db-1    | 
+db-1    | 2026-11-14 15:04:36.745 UTC [41] LOG:  received fast shutdown request
+db-1    | waiting for server to shut down....2026-11-14 15:04:36.745 UTC [41] LOG:  aborting any active transactions
+db-1    | 2026-11-14 15:04:36.748 UTC [41] LOG:  background worker "logical replication launcher" (PID 47) exited with exit code 1
+db-1    | 2026-11-14 15:04:36.749 UTC [42] LOG:  shutting down
+db-1    | 2026-11-14 15:04:36.750 UTC [42] LOG:  checkpoint starting: shutdown immediate
+db-1    | 2026-11-14 15:04:36.785 UTC [42] LOG:  checkpoint complete: wrote 926 buffers (5.7%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.008 s, sync=0.027 s, total=0.036 s; sync files=301, longest=0.006 s, average=0.001 s; distance=4283 kB, estimate=4283 kB; lsn=0/1925D58, redo lsn=0/1925D58
+db-1    | 2026-11-14 15:04:36.791 UTC [41] LOG:  database system is shut down
+db-1    |  done
+db-1    | server stopped
+db-1    | 
+db-1    | PostgreSQL init process complete; ready for start up.
+db-1    | 
+db-1    | 2026-11-14 15:04:36.864 UTC [1] LOG:  starting PostgreSQL 16.15 on x86_64-pc-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit
+db-1    | 2026-11-14 15:04:36.864 UTC [1] LOG:  listening on IPv4 address "0.0.0.0", port 5432
+db-1    | 2026-11-14 15:04:36.864 UTC [1] LOG:  could not create IPv6 socket for address "::": Address family not supported by protocol
+db-1    | 2026-11-14 15:04:36.865 UTC [1] LOG:  listening on Unix socket "/var/run/postgresql/.s.PGSQL.5432"
+db-1    | 2026-11-14 15:04:36.868 UTC [57] LOG:  database system was shut down at 2026-11-14 15:04:36 UTC
+db-1    | 2026-11-14 15:04:36.871 UTC [1] LOG:  database system is ready to accept connections
+ Container j1-aae2b5e81e25-db-1 Healthy 
+ Container j1-aae2b5e81e25-setup-1 Starting 
+ Container j1-aae2b5e81e25-setup-1 Started 
+ Container j1-aae2b5e81e25-setup-1 Waiting 
+setup-1  | No config path provided, using default 'drizzle.config.ts'
+setup-1  | Reading config file '/app/drizzle.config.ts'
+setup-1  | Using 'pg' driver for database querying
+setup-1  | [⣷] applying migrations...[2K[1G[✓] migrations applied successfully!created: employee@example.test (employee)
+setup-1  | created: manager@example.test (manager)
+setup-1  | created: hr.admin@example.test (hr_admin)
+[Ksetup-1 exited with code 0
+ Container j1-aae2b5e81e25-setup-1 Exited 
+ Container j1-aae2b5e81e25-app-1 Starting 
+ Container j1-aae2b5e81e25-app-1 Started 
+ Container j1-aae2b5e81e25-app-1 Waiting 
+app-1    | ▲ Next.js 16.4.6
+app-1    | - Local:         http://localhost:3000
+app-1    | - Network:       http://0.0.0.0:3000
+app-1    | ✓ Ready in 0ms
+app-1    | ✓ Running next.config took 1.3ms
+ Container j1-aae2b5e81e25-app-1 Healthy 
+ Container j1-aae2b5e81e25-door-1 Starting 
+ Container j1-aae2b5e81e25-door-1 Started 
+== docker compose down (before the second start) ==
+
+== The first start's command ended with exit code 0 ==
+== The second start: sh -c "docker compose up --build", the same way; started 2026-11-14T15:05:11.970Z; the app healthy 2026-11-14T15:05:24.820Z ==
+ Image j1-aae2b5e81e25-setup Building 
+ Image j1-aae2b5e81e25-app Building 
+#1 [internal] load local bake definitions
+#1 reading from stdin 1.39kB done
+#1 DONE 0.0s
+#2 [app internal] load build definition from Dockerfile
+#2 transferring dockerfile: 3.99kB done
+#2 DONE 0.0s
+#3 [app internal] load metadata for docker.io/library/node:22-alpine@sha256:0e1754758c2df4cfa3e68d59e2e1b7374bb7fd9ea6328eaaacf15cc934af8202
+#3 DONE 0.0s
+#4 [app internal] load .dockerignore
+#4 transferring context: 344B done
+#4 DONE 0.0s
+#5 [setup build 1/7] FROM docker.io/library/node:22-alpine@sha256:0e1754758c2df4cfa3e68d59e2e1b7374bb7fd9ea6328eaaacf15cc934af8202
+#5 resolve docker.io/library/node:22-alpine@sha256:0e1754758c2df4cfa3e68d59e2e1b7374bb7fd9ea6328eaaacf15cc934af8202 0.0s done
+#5 DONE 0.0s
+#6 [app internal] load build context
+#6 transferring context: 4.03kB done
+#6 DONE 0.0s
+#7 [setup build 6/7] COPY . .
+#7 CACHED
+#8 [setup build 2/7] WORKDIR /app
+#8 CACHED
+#9 [setup build 4/7] COPY vendor/ ./vendor/
+#9 CACHED
+#10 [setup build 3/7] COPY package.json package-lock.json ./
+#10 CACHED
+#11 [setup build 5/7] RUN --mount=type=cache,id=house-template-npm,target=/root/.npm npm ci --prefer-offline --ignore-scripts --no-fund --no-audit
+#11 CACHED
+#12 [app run 3/7] RUN addgroup -S app && adduser -S app -G app
+#12 CACHED
+#13 [app run 6/7] COPY --from=build --chown=app:app /app/public ./public
+#13 CACHED
+#14 [app run 5/7] COPY --from=build --chown=app:app /app/.next/static ./.next/static
+#14 CACHED
+#15 [app run 4/7] COPY --from=build --chown=app:app /app/.next/standalone ./
+#15 CACHED
+#16 [app run 7/7] COPY --from=build /app/THIRD-PARTY-NOTICES.md ./THIRD-PARTY-NOTICES.md
+#16 CACHED
+#17 [app build 7/7] RUN --network=none DATABASE_URL=postgres://build:build@localhost/build AUTH_SECRET=build-time-placeholder-not-a-secret-0000 npm run build
+#17 CACHED
+#18 [setup] exporting to image
+#18 exporting layers done
+#18 exporting manifest sha256:937ed1c4b88a865ff2b8bb2198f8d7adcd1882096aa6ce279f1c7a4609166886 done
+#18 exporting config sha256:2c2e94948c43bb3b22b7e584ccf885a8e0d22d1a6b63701d8503209f06dcd6a7 done
+#18 exporting attestation manifest sha256:462bdc019250778da5ec9fd19173eaeba3d15be7eec5bdbdc7869bb6d755d3d8 done
+#18 exporting manifest list sha256:21040480928c06cb4a62ffd36c2153fe276d76dd31c40053638441ff919a292f done
+#18 naming to docker.io/library/j1-aae2b5e81e25-setup:latest done
+#18 unpacking to docker.io/library/j1-aae2b5e81e25-setup:latest done
+#18 DONE 0.1s
+#19 [app] exporting to image
+#19 exporting layers done
+#19 exporting manifest sha256:c6daefe85fc69471c8a579a35c3a5c70ea5d68ef7982f9dac0ef49d8274742f2 done
+#19 exporting config sha256:aea44873fd75757656e18ba6c2cd9ebd1c555bab5cd2d7d7701db0121c82e9d7 done
+#19 exporting attestation manifest sha256:5e1b564ad2ce03c7d53c7a9fd7896644ebbc10eb57bc2746a6b35080c6ac0473 done
+#19 exporting manifest list sha256:eb9c8275725fa766b75646a78369187764ef50242c79d9b8a8b211cd3a0a0246 done
+#19 naming to docker.io/library/j1-aae2b5e81e25-app:latest done
+#19 unpacking to docker.io/library/j1-aae2b5e81e25-app:latest done
+#19 DONE 0.1s
+#20 [setup] resolving provenance for metadata file
+#20 DONE 0.0s
+#21 [app] resolving provenance for metadata file
+#21 DONE 0.0s
+ Image j1-aae2b5e81e25-setup Built 
+ Image j1-aae2b5e81e25-app Built 
+ Container j1-aae2b5e81e25-keys-1 Creating 
+ Network j1-aae2b5e81e25_front Creating 
+ Network j1-aae2b5e81e25_data Creating 
+ Network j1-aae2b5e81e25_front Creating 
+ Network j1-aae2b5e81e25_data Creating 
+ Network j1-aae2b5e81e25_edge Creating 
+ Network j1-aae2b5e81e25_edge Creating 
+ Network j1-aae2b5e81e25_front Created 
+ Network j1-aae2b5e81e25_front Created 
+ Network j1-aae2b5e81e25_data Created 
+ Network j1-aae2b5e81e25_data Created 
+ Container j1-aae2b5e81e25-keys-1 Created 
+ Container j1-aae2b5e81e25-db-1 Creating 
+ Network j1-aae2b5e81e25_edge Created 
+ Network j1-aae2b5e81e25_edge Created 
+ Container j1-aae2b5e81e25-db-1 Created 
+ Container j1-aae2b5e81e25-setup-1 Creating 
+ Container j1-aae2b5e81e25-setup-1 Created 
+ Container j1-aae2b5e81e25-app-1 Creating 
+ Container j1-aae2b5e81e25-app-1 Created 
+ Container j1-aae2b5e81e25-door-1 Creating 
+ Container j1-aae2b5e81e25-door-1 Created 
+Attaching to app-1, db-1, door-1, keys-1, setup-1
+ Container j1-aae2b5e81e25-keys-1 Starting 
+ Container j1-aae2b5e81e25-keys-1 Started 
+ Container j1-aae2b5e81e25-keys-1 Waiting 
+keys-1  | kept db_password
+keys-1  | kept auth_secret
+keys-1  | kept sample_password
+[Kkeys-1 exited with code 0
+ Container j1-aae2b5e81e25-keys-1 Exited 
+ Container j1-aae2b5e81e25-db-1 Starting 
+ Container j1-aae2b5e81e25-db-1 Started 
+ Container j1-aae2b5e81e25-db-1 Waiting 
+db-1    | 
+db-1    | PostgreSQL Database directory appears to contain a database; Skipping initialization
+db-1    | 
+db-1    | 2026-11-14 15:05:13.573 UTC [1] LOG:  starting PostgreSQL 16.15 on x86_64-pc-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit
+db-1    | 2026-11-14 15:05:13.573 UTC [1] LOG:  listening on IPv4 address "0.0.0.0", port 5432
+db-1    | 2026-11-14 15:05:13.573 UTC [1] LOG:  could not create IPv6 socket for address "::": Address family not supported by protocol
+db-1    | 2026-11-14 15:05:13.574 UTC [1] LOG:  listening on Unix socket "/var/run/postgresql/.s.PGSQL.5432"
+db-1    | 2026-11-14 15:05:13.576 UTC [29] LOG:  database system was shut down at 2026-11-14 15:05:11 UTC
+db-1    | 2026-11-14 15:05:13.581 UTC [1] LOG:  database system is ready to accept connections
+ Container j1-aae2b5e81e25-db-1 Healthy 
+ Container j1-aae2b5e81e25-setup-1 Starting 
+ Container j1-aae2b5e81e25-setup-1 Started 
+ Container j1-aae2b5e81e25-setup-1 Waiting 
+setup-1  | No config path provided, using default 'drizzle.config.ts'
+setup-1  | Reading config file '/app/drizzle.config.ts'
+setup-1  | Using 'pg' driver for database querying
+setup-1  | [⣷] applying migrations...[2K[1G[✓] migrations applied successfully!exists: employee@example.test (employee)
+setup-1  | exists: manager@example.test (manager)
+setup-1  | exists: hr.admin@example.test (hr_admin)
+ Container j1-aae2b5e81e25-setup-1 Exited 
+ Container j1-aae2b5e81e25-app-1 Starting 
+[Ksetup-1 exited with code 0
+ Container j1-aae2b5e81e25-app-1 Started 
+ Container j1-aae2b5e81e25-app-1 Waiting 
+app-1    | ▲ Next.js 16.4.6
+app-1    | - Local:         http://localhost:3000
+app-1    | - Network:       http://0.0.0.0:3000
+app-1    | ✓ Ready in 0ms
+app-1    | ✓ Running next.config took 1.5ms
+ Container j1-aae2b5e81e25-app-1 Healthy 
+ Container j1-aae2b5e81e25-door-1 Starting 
+ Container j1-aae2b5e81e25-door-1 Started 
+== docker compose down --volumes (the clean-up) ==
+
+== A start's command ended with exit code 0 ==
+== A start's command ended with exit code 0 ==

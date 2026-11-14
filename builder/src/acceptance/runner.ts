@@ -30,6 +30,12 @@ import { newRunFolder, newRunId, projectDir, sha256, STAND_IN_LABEL, verifyVersi
 /** The runner's command: Playwright Test with the runner's own configuration, baked into its image. */
 export const RUNNER_COMMAND = ["node", "/runner/node_modules/@playwright/test/cli.js", "test", "--config", "/runner/playwright.config.mjs"];
 export const DEFAULT_RUN_TIMEOUT_MS = 600_000;
+/**
+ * Where the runner's container sees a run's three mounts: the version's tests (read-only), the run's fresh results
+ * folder, and the sample password's one file (read-only). Package 3.2's check from an exported copy mounts the same
+ * three at the same places (src/export/check-from-copy.ts).
+ */
+export const RUNNER_MOUNT_TARGETS = { tests: "/acceptance", results: "/results", samplePassword: "/run/secrets/sample-password" } as const;
 
 export interface AcceptanceRunInput {
   pool: pg.Pool;
@@ -155,7 +161,7 @@ export async function runAcceptance(input: AcceptanceRunInput): Promise<Acceptan
     try {
       const run = sandboxManager.runStreaming(sb, "acceptance", RUNNER_COMMAND, {
         container: `${sb.projectName}-acceptance-${runId}`.slice(0, 120),
-        volumes: [`${versionDir}:/acceptance:ro`, `${runFolder.results}:/results`, `${runFolder.secretFile}:/run/secrets/sample-password:ro`],
+        volumes: [`${versionDir}:${RUNNER_MOUNT_TARGETS.tests}:ro`, `${runFolder.results}:${RUNNER_MOUNT_TARGETS.results}`, `${runFolder.secretFile}:${RUNNER_MOUNT_TARGETS.samplePassword}:ro`],
         env: { RUN_ID: runId },
         onLine: (l) => {
           output.push(l);

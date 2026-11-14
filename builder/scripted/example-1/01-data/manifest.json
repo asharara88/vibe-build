@@ -15,6 +15,22 @@
       "expectSha256": "e2f5f6e281242c9b8ad447c6f87a687c21cea6eae25723c8ec61ff31cac0a949"
     },
     {
+      "path": "drizzle/0001_leave_request.sql",
+      "op": "add",
+      "sha256": "1c4136635b63896e28dacbd21f5a1197f59306e760646114dcc950672bd82ae0"
+    },
+    {
+      "path": "drizzle/meta/0001_snapshot.json",
+      "op": "add",
+      "sha256": "a8cb43b82056e2a74e1586982fccd8290d6c4d83c183d12df011028764d9c9f2"
+    },
+    {
+      "path": "drizzle/meta/_journal.json",
+      "op": "replace",
+      "sha256": "4f6444c5273fa7408a1169b3f5d05093d2802aaab93ff0332cb110c3526381cb",
+      "expectSha256": "1434441f84ed94cc6602ce3687cad56fd38a1c31a0d128c1a7cee572c80dea45"
+    },
+    {
       "path": "messages/en.json",
       "op": "replace",
       "sha256": "a5baa4d2febeebcd453b1c6ddd91747cf87a027939dd301eed6a082cacb81b61",

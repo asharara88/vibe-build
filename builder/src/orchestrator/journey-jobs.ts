@@ -51,6 +51,14 @@
  * - After the review of 14787d8 (known gap 161, the owner's choice): "Open the live app" is refused once the project is
  *   signed off (journey.ts, `JOB_RULES.live`); attaching the preview gives the journey the way to end a project's live
  *   session, and wait for its close to be recorded, before its sign-off is recorded (journey.ts, `signOff`).
+ * - Package 3.2 (docs/design/package-3.2.md, sections 1, 4 and 5): one export per project (`JOB_RULES.export`). The
+ *   export job refuses a project whose record shows anything but the scripted engine's fixed change sets
+ *   (`scriptedOnlyProblem`, S15), and a version whose manifest is not the one checked by the run that journey.signed_off
+ *   names (export.ts, `signedOffRun`, S9). After the disk check every build makes, the archive is checked with Docker
+ *   before it is placed or recorded (`Sandboxes.checkExport`, design section 4, items 3 to 7). journey.export.written
+ *   also records the project's id, the manifest's SHA-256 and its items' fingerprints, the checklist count, the passing
+ *   run's id, the checks' results and the README's command. If that event cannot be written, the archive placed is
+ *   removed again, so that a failed export leaves no file.
  */
 import { chmodSync, chownSync, closeSync, constants, fstatSync, mkdirSync, openSync, readFileSync, readSync, rmSync, writeFileSync } from "node:fs";
 import { randomBytes } from "node:crypto";
@@ -65,7 +73,7 @@ import { journeyFolder } from "../web/files.js";
 import type { AppStream } from "../sandbox/manager.js";
 import { LiveOpenCancelled, type LivePreview, type OpenCancelledReason } from "../web/preview.js";
 import type { ProjectSandbox, Sandboxes } from "./example-1-adapter.js";
-import { writeExport } from "./export.js";
+import { removePlacedExport, signedOffRun, writeExport } from "./export.js";
 import {
   BROKEN_STEP,
   brokenStageRefusal,
@@ -77,6 +85,7 @@ import {
   EV,
   EXAMPLE,
   EXPORT_LABEL,
+  EXPORT_SCRIPTED_ONLY,
   freeBytes,
   Journey,
   JourneyRefused,
@@ -578,25 +587,59 @@ export class JourneyJobs {
     });
   }
 
-  /** The export (final design, section 1, item 9), only after sign-off (`JOB_RULES.export`). */
+  /**
+   * The export (final design, section 1, item 9), only after sign-off and once per project (`JOB_RULES.export`). Package
+   * 3.2: only for a project the scripted engine built (S15), of the version the passing run checked (S9), checked with
+   * Docker before it is placed or recorded (design section 4).
+   */
   exportProject(projectId: string): Promise<{ jobId: string }> {
     return this.j.startJob(projectId, "export", async ({ state, signal }) => {
       const x = this.held(projectId);
+      const notScripted = scriptedOnlyProblem(state);
+      if (notScripted) throw new JourneyRefused(`${EXPORT_SCRIPTED_ONLY} ${notScripted}`);
+      const passing = signedOffRun(state.events, state.acceptanceVersion);
+      if (typeof passing === "string") throw new JourneyRefused(`The export is refused: ${passing}.`);
+      // The export check builds two images (design section 4, item 3): the disk check every build makes, first.
+      this.disk();
       const store = openStore(this.j.dataDir, { refuse: [x.dir] });
       stillOwned(signal);
-      const out = await writeExport({ repo: x.repo, store, projectId, version: state.acceptanceVersion!, exportsDir: journeyFolder(this.j.dataDir, projectId, "exports") });
-      await appendEvent(this.j.pool, projectId, EV.exportWritten, {
-        file: { path: out.path, sha256: out.sha256 },
-        bytes: out.bytes,
-        export_commit: out.exportCommit,
-        workspace_head: out.workspaceHead,
-        workspace_history_changed: false,
-        commits: out.commits,
-        files: out.files.length,
-        acceptance_version: state.acceptanceVersion,
-        acceptance_in_exported_copy_only: true,
-        label: EXPORT_LABEL,
+      const out = await writeExport({
+        repo: x.repo,
+        store,
+        projectId,
+        version: state.acceptanceVersion!,
+        exportsDir: journeyFolder(this.j.dataDir, projectId, "exports"),
+        runManifestSha256: passing.manifestSha256,
+        check: (packed) => this.o.sandboxes.checkExport(x, packed),
+        beforePlace: () => stillOwned(signal),
       });
+      try {
+        stillOwned(signal);
+        await appendEvent(this.j.pool, projectId, EV.exportWritten, {
+          file: { path: out.path, sha256: out.sha256 },
+          bytes: out.bytes,
+          export_commit: out.exportCommit,
+          workspace_head: out.workspaceHead,
+          workspace_history_changed: false,
+          commits: out.commits,
+          files: out.files.length,
+          acceptance_version: state.acceptanceVersion,
+          acceptance_in_exported_copy_only: true,
+          label: EXPORT_LABEL,
+          project_id: projectId,
+          manifest_sha256: out.manifestSha256,
+          items: out.items,
+          checklist_items: this.j.spec.acceptance.length,
+          acceptance_run: passing.runId,
+          export_checks: out.checks,
+          readme_command: out.readmeCommand,
+          paths: out.files,
+        });
+      } catch (err) {
+        // A failed export leaves no file: the archive placed is removed again (S12).
+        removePlacedExport(out);
+        throw err;
+      }
       return { file: out.path, bytes: out.bytes, sha256: out.sha256 };
     });
   }

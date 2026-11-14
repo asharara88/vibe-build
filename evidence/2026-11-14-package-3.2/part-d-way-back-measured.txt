@@ -1,0 +1,42 @@
+Package 3.2, section 7 C, "No way back to the machine": measured before the automated run was written, 14 Nov 2026,
+14:44 to 14:45 UTC, under the shared lock, by two scratch scripts of Claude Code's (not in the repository). Each made
+one listener of its own on the machine, one probe container of the approved Node image (node:22-alpine at its approved
+digest; --rm, --read-only, --cap-drop ALL, user node, --pull never) and, the second, one network, removed by its exact
+name afterwards; the listeners were stopped by their exact process ids (checked: nothing named x32-probe left in
+Docker). Docker 29.9.2.
+
+Why: the design asks that, from the door's network namespace as well as the app's, a connection to a listener of the
+run's own on the machine, "on 127.0.0.1 and on every address", at 127.0.0.1, at each gateway address of their networks
+and at Docker's default bridge address, must fail. The door is on `front` (internal) and `edge`, an ordinary network
+"that has a route out" (design section 9, gap N1). This measures what a container on an ordinary bridge network can
+reach of the machine.
+
+Measurement 1: a listener on 0.0.0.0 (every address); the probe container on Docker's default bridge network.
+
+  listener on 0.0.0.0:43161
+  default bridge gateway: 172.17.0.1
+  172.17.0.1 connected
+  127.0.0.1 error ECONNREFUSED
+
+Measurement 2: listener A on 0.0.0.0 (every address) and listener B on 127.0.0.1; a network made with
+`docker network create --opt com.docker.network.enable_ipv6=false` (an ordinary user-defined bridge, as Compose makes
+`edge`); the probe container on that network alone.
+
+  listener A on 0.0.0.0:44923; listener B on 127.0.0.1:40917
+  user-defined bridge x32-probe-net-24207 gateway: 172.18.0.1; default bridge: 172.17.0.1
+  172.18.0.1:44923 connected
+  172.18.0.1:40917 error ECONNREFUSED
+  172.17.0.1:44923 connected
+  172.17.0.1:40917 error ECONNREFUSED
+  127.0.0.1:44923 error ECONNREFUSED
+  127.0.0.1:40917 error ECONNREFUSED
+  removed network x32-probe-net-24207
+
+(The probe printed one more line, an unhandled ECONNRESET, after its first connection: the listener closed the
+connection the probe had already counted. It does not change the results above.)
+
+What it shows: from a container on an ordinary bridge network, a listener of the machine's that is bound to every
+address is reached at that network's gateway address and at Docker's default bridge address; a listener bound to
+127.0.0.1 only is not reached at either. The automated run's own probe, from the door's namespace, found the same
+(run-demo.txt, section C, "no way back"; first-run/run-demo.txt). Nothing on the machine's firewall, routes or Docker
+settings was read or changed for this.
