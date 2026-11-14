@@ -593,11 +593,6 @@ async function main(): Promise<number> {
     const stagedBy = new Set((await pool.query<{ project_id: string }>("select distinct project_id from events where kind = 'journey.broken_step_staged'")).rows.map((r) => r.project_id));
     count("J2 (a), item 4", { name: "no other project of the run has a journey.broken_step_staged", ok: broken !== undefined && stagedBy.size === 1 && stagedBy.has(broken.id), detail: [...stagedBy].join(", ") });
     count("J2 (c)", { name: "the record of the run holds no journey.signed_off and no journey.export.written", ok: !all.some((e) => e.kind === "journey.signed_off" || e.kind === "journey.export.written"), detail: "" });
-    const evRows = await pool.query<{ id: string; project_id: string; at: Date; kind: string; step: string | null; payload: Record<string, unknown> }>("select id::text as id, project_id, at, kind, step, payload from events order by id");
-    const text = JSON.stringify({ run: runId, database: dbName, note: "Every event of the run's database, in id order. Made-up data only. Paths are of this machine's run folder, removed after the run.", events: evRows.rows.map((e) => ({ ...e, at: e.at.toISOString() })) }, null, 1);
-    if (text.includes(uiPassword)) throw new Error("The events would hold the interface's password; they are not written.");
-    writeFileSync(join(evidence, "events.json"), text.replaceAll(work, "<run folder>") + "\n");
-    say(`Events written to events.json: ${evRows.rows.length}, in id order, for ${new Set(evRows.rows.map((e) => e.project_id)).size} projects.`);
     code = 0;
   } catch (err) {
     say(`The run stopped part-way: ${err instanceof Error ? err.message : String(err)}`);
@@ -622,6 +617,18 @@ async function main(): Promise<number> {
     clearInterval(diskSampler);
     const gb = (b: number) => (b / 1024 ** 3).toFixed(2);
     say(`Free space on the data folder's disk, sampled every 2 s (${disk.samples} samples): ${gb(disk.first)} GB at the start, ${gb(disk.lowest)} GB at the lowest, ${gb(free())} GB at the end, before the clean-up (GB of 1024^3 bytes).`);
+
+    // Every event of the run, whether or not it ran to its end; never with the interface's password.
+    try {
+      const evRows = await pool.query<{ id: string; project_id: string; at: Date; kind: string; step: string | null; payload: Record<string, unknown> }>("select id::text as id, project_id, at, kind, step, payload from events order by id");
+      const text = JSON.stringify({ run: runId, database: dbName, note: "Every event of the run's database, in id order. Made-up data only. Paths are of this machine's run folder, removed after the run.", events: evRows.rows.map((e) => ({ ...e, at: e.at.toISOString() })) }, null, 1);
+      if (text.includes(uiPassword)) throw new Error("the events would hold the interface's password");
+      writeFileSync(join(evidence, "events.json"), text.replaceAll(work, "<run folder>") + "\n");
+      say(`Events written to events.json: ${evRows.rows.length}, in id order, for ${new Set(evRows.rows.map((e) => e.project_id)).size} projects.`);
+    } catch (err) {
+      say(`The events were not written: ${err instanceof Error ? err.message : String(err)}.`);
+      code = 1;
+    }
 
     // Rule N for the whole run: nothing of its projects left; no camera of the run. Removed by exact names if found.
     const m = await machine().catch(() => null);
