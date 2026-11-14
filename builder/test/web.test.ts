@@ -27,7 +27,7 @@ import { holdInstanceLock, LOCK_LOST, readSettings, SCRUBBED, stopAfterLockLost 
 import { frontTexts, messageKeys, t } from "../src/web/pages.js";
 import { LivePreview } from "../src/web/preview.js";
 import { testPool, TEST_DB_URL, uniqueId } from "./helpers.js";
-import { PASSED_SUMMARY, StandInSandboxes } from "./journey-stand-ins.js";
+import { BROKEN_STEP_ID, changeSetFolders, FAILED_STEP, FAILED_SUMMARY, PASSED_SUMMARY, StandInSandboxes } from "./journey-stand-ins.js";
 
 const builderDir = resolve(import.meta.dirname, "..");
 const ORIGIN = "http://localhost";
@@ -1779,4 +1779,369 @@ describe("J3 interface: the live app's screens (stand-in sandbox, the real front
       await t.j.closeProject(t.id);
     }
   }, 60_000);
+});
+
+describe("J2 (a) interface: the broken-copy demonstration's screens (stand-in sandboxes with their own change-set folders, no container)", () => {
+  const BROKEN = BROKEN_STEP_ID;
+  const NAME = "Deliberately broken copy (made-up)";
+  const BADGE = "Deliberately broken copy: a defect Claude Code planted on purpose";
+  const NEVER = "A deliberately broken copy is never signed off or exported.";
+  const LIVE_REFUSED = "A deliberately broken copy is not offered as a live app: it was built to be rejected by the checklist.";
+  const NO_QUALITY_CHECK = "No quality check after a step yet, and no retry (milestones 1 and 3): only the checklist at the end checks the app.";
+  const esc = (x: string) => x.replace(/&/g, "&amp;").replace(/'/g, "&#39;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const SCREENS = ["brief", "questions", "proposal", "plan", "build", "preview", "acceptance", "export", "cost", "record"] as const;
+  let sandboxes: StandInSandboxes;
+  const previews: LivePreview[] = [];
+  beforeAll(() => {
+    sandboxes = new StandInSandboxes(pool);
+  });
+  afterAll(async () => {
+    for (const p of previews) await p.stop().catch(() => undefined);
+    sandboxes.removeAll();
+  });
+
+  /** The interface with the jobs on stand-in sandboxes; with `front`, the live preview's front on, as J3's screens test it. */
+  async function makeJobsApp(o: { front?: boolean } = {}) {
+    const box: { jobs?: JourneyJobs } = {};
+    const j = new Journey({ pool, dataDir, cleanupProject: (id, rec) => box.jobs!.cleanup(id, rec) });
+    const jobs = new JourneyJobs({ journey: j, sandboxes, measureFree: () => 50 * 1024 ** 3 });
+    box.jobs = jobs;
+    let preview: LivePreview | undefined;
+    if (o.front) {
+      const srv = net.createServer();
+      await new Promise<void>((r) => srv.listen(0, "127.0.0.1", r));
+      const port = (srv.address() as net.AddressInfo).port;
+      await new Promise((r) => srv.close(r));
+      preview = new LivePreview({ port, texts: frontTexts(), base: "/tmp", openStream: (id) => jobs.openStream(id), onEvent: async (id, kind, payload) => void (await appendEvent(pool, id, kind, payload)) });
+      await preview.start();
+      previews.push(preview);
+      jobs.attachPreview(preview);
+    }
+    const app = createWebApp({ journey: j, jobs, password: new PasswordState("env", digestPassword(PASSWORD), null), sessions: new Sessions(), limiter: new SignInLimiter(), dataDir, preview });
+    return { app, j, jobs };
+  }
+  const page = async (app: App, path: string, cookie: string) => {
+    const r = await get(app, path, cookie);
+    expect(r.status, path).toBe(200);
+    return r.text();
+  };
+  const go = async (app: App, j: Journey, path: string, cookie: string, data: Record<string, string> = {}) => {
+    const r = await post(app, path, data, { cookie });
+    expect(r.status, `${path}: ${r.status === 303 ? "" : await r.clone().text()}`).toBe(303);
+    await j.waitForJob();
+    return r.headers.get("location");
+  };
+  const idFrom = (location: string | null) => /^\/projects\/(j1-[0-9a-f]{12})\/brief$/.exec(location ?? "")![1]!;
+  /** The demonstration's button, pressed; the questions answered and both confirmations given. */
+  const demo = async (app: App, j: Journey, cookie: string, o: { confirm?: boolean } = {}) => {
+    const id = idFrom(await go(app, j, "/demonstrations/broken-copy", cookie));
+    if (o.confirm !== false) for (const a of ["continue", "answer-rest", "confirm-brief", "confirm-plan"]) await go(app, j, `/projects/${id}/${a}`, cookie);
+    return id;
+  };
+  const normal = async (app: App, j: Journey, cookie: string, data: Record<string, string> = {}) => {
+    const made = await post(app, "/projects", { name: "Leave requests (made-up, J2)", cap: "5.00", brief: "I need an app where staff can request leave and managers approve it", ...data }, { cookie });
+    expect(made.status).toBe(303);
+    const id = idFrom(made.headers.get("location"));
+    for (const a of ["continue", "answer-rest", "confirm-brief", "confirm-plan"]) await go(app, j, `/projects/${id}/${a}`, cookie);
+    return id;
+  };
+  /** Steps built and approved through the screens, then the preview (the approval of the last step starts it). */
+  const toPreview = async (app: App, j: Journey, cookie: string, id: string) => {
+    await go(app, j, `/projects/${id}/build`, cookie, { step: "01-data" });
+    for (const step of (await j.state(id)).plan) await go(app, j, `/projects/${id}/approve`, cookie, { step });
+    expect((await j.state(id)).previewFinished).toBe(true);
+  };
+  const badgeShown = (html: string) => html.includes(`data-broken-badge>${esc(BADGE)}<`);
+  const heading = (html: string) => /<h1>[\s\S]*?<\/h1>/.exec(html)?.[0] ?? "";
+
+  it("A2 and A8: the Projects screen has a panel of its own, labelled Simulated build, with one button, apart from New project; the New project form keeps its three fields; the button makes one project with the fixed name and a $5.00 cap, whose first event carries broken_copy; the badge is on its list row and every page, in English and Arabic", async () => {
+    const { app, j } = await makeJobsApp();
+    const cookie = await signIn(app);
+    for (const lang of ["en", "ar"] as const) {
+      const html = await page(app, `/projects?lang=${lang}`, cookie);
+      const sections = html.split("<section ").slice(1);
+      const demoPanel = sections.filter((x) => x.includes('action="/demonstrations/broken-copy"'));
+      expect(demoPanel, lang).toHaveLength(1);
+      expect(demoPanel[0], lang).toMatch(/^class="panel sim" data-panel="simulated">/);
+      expect(demoPanel[0], lang).toContain(`<h2>${esc(t(lang, "demo.title"))}<span class="badge">`);
+      expect(demoPanel[0], lang).toContain(esc(t(lang, "demo.intro")));
+      expect(demoPanel[0], lang).toContain(`<button type="submit" class="">${esc(t(lang, "demo.button"))}</button>`);
+      expect(demoPanel[0], lang).not.toContain('href="/projects/new"');
+      expect(demoPanel[0]!.match(/<form /g), lang).toHaveLength(1);
+      expect(sections.some((x) => x.includes('href="/projects/new"')), lang).toBe(true);
+    }
+    expect(t("en", "demo.title")).toBe("Simulated build");
+    expect(t("en", "demo.button")).toBe("Start the broken-copy demonstration");
+    expect(t("en", "demo.intro")).toBe("Builds example 1 with one more step that Claude Code broke on purpose: a new request is saved as Approved instead of Waiting. The steps are fixed changes written in advance; no AI model is called. The checklist run on it is real. It is never signed off or exported.");
+    // The New project form: the same three fields as before.
+    const form = await page(app, "/projects/new", cookie);
+    const newForm = /<form method="post" action="\/projects">[\s\S]*?<\/form>/.exec(form)![0];
+    expect([...newForm.matchAll(/<(?:input|textarea|select)[^>]* name="([^"]+)"/g)].map((m) => m[1])).toEqual(["name", "cap", "brief"]);
+    const projects = await projectCount();
+    const id = await demo(app, j, cookie, { confirm: false });
+    expect(await projectCount()).toBe(projects + 1);
+    const s = await j.state(id);
+    expect(s.project.name).toBe(NAME);
+    expect(Number(s.project.cap_usd)).toBe(5);
+    const first = (await listEvents(pool, id))[0]!;
+    expect(first.kind).toBe(EV.briefEntered);
+    expect(first.payload.broken_copy).toMatchObject({ by: "owner", step: BROKEN, sign_off: "never", export: "never" });
+    expect(t("en", "broken.badge")).toBe(BADGE);
+    const n = await normal(app, j, cookie);
+    for (const lang of ["en", "ar"] as const) {
+      const list = await page(app, `/projects?lang=${lang}`, cookie);
+      const row = (p: string) => new RegExp(`<tr data-project="${p}">[\\s\\S]*?</tr>`).exec(list)?.[0] ?? "";
+      expect(row(id), lang).toContain(`data-broken-badge>${esc(t(lang, "broken.badge"))}<`);
+      expect(row(n), lang).not.toContain("data-broken-badge");
+      for (const screen of SCREENS) {
+        const html = await page(app, `/projects/${id}/${screen}?lang=${lang}`, cookie);
+        expect(heading(html), `${screen} ${lang}`).toContain(`data-broken-badge>${esc(t(lang, "broken.badge"))}<`);
+        expect(heading(await page(app, `/projects/${n}/${screen}?lang=${lang}`, cookie)), `${screen} ${lang}`).not.toContain("data-broken-badge");
+      }
+    }
+    await go(app, j, `/projects/${id}/close`, cookie);
+    await go(app, j, `/projects/${n}/close`, cookie);
+  });
+
+  it("A8: the broken copy through the screens: three steps, step 3's wording and the quality-check line on the plan and build screens, the approve wording, the checklist Failed with the step it failed at and its screenshot, the sign-off lines, no sign-off button and no Export tab; three reservations closed and $0.00 spent; then Close project", async () => {
+    const { app, j } = await makeJobsApp();
+    const cookie = await signIn(app);
+    const id = await demo(app, j, cookie);
+    const manifest = JSON.parse(readFileSync(join(builderDir, "scripted-broken", "example-1", BROKEN, "manifest.json"), "utf8")) as { label: string };
+    for (const lang of ["en", "ar"] as const) {
+      const plan = await page(app, `/projects/${id}/plan?lang=${lang}`, cookie);
+      expect([...plan.matchAll(/<li data-step="([^"]+)">/g)].map((m) => m[1]), lang).toEqual(["01-data", "02-submitter-screen", BROKEN]);
+      const step3 = new RegExp(`<li data-step="${BROKEN}">[\\s\\S]*?</li>`).exec(plan)![0];
+      expect(step3, lang).toContain(esc(manifest.label));
+      expect(step3, lang).toContain(`data-broken-step>${esc(t(lang, "broken.step_note"))}<`);
+      expect(plan, lang).toContain(esc(t(lang, "plan.quality_gate")));
+      expect(plan, lang).toContain(`data-no-quality-check>${esc(t(lang, "broken.no_quality_check"))}<`);
+      const build = await page(app, `/projects/${id}/build?lang=${lang}`, cookie);
+      expect(build, lang).toContain(`data-no-quality-check>${esc(t(lang, "broken.no_quality_check"))}<`);
+      expect(build, lang).toContain(esc(t(lang, "build.step_title", { n: 3, total: 3 }).replace("{step}", "")));
+    }
+    expect(t("en", "broken.no_quality_check")).toBe(NO_QUALITY_CHECK);
+    expect(t("en", "broken.step_note")).toBe("Deliberately broken copy: a new request is saved as Approved instead of Waiting. Made so that the checklist rejects it.");
+    await go(app, j, `/projects/${id}/build`, cookie, { step: "01-data" });
+    await go(app, j, `/projects/${id}/approve`, cookie, { step: "01-data" });
+    let build = await page(app, `/projects/${id}/build`, cookie);
+    expect(build).toContain(`<button type="submit" data-approve="02-submitter-screen">Approve and build step 3 (the deliberately broken copy)</button>`);
+    expect(await go(app, j, `/projects/${id}/approve`, cookie, { step: "02-submitter-screen" })).toBe(`/projects/${id}/build`);
+    build = await page(app, `/projects/${id}/build`, cookie);
+    expect(build).toContain(`data-step="${BROKEN}" data-step-state="finished" data-approved="no"`);
+    expect(build).toContain('data-reserved="$1.1664"');
+    expect(build).toContain(`<button type="submit" data-approve="${BROKEN}">Go on to the preview with this broken step (no quality check after a step yet)</button>`);
+    const ar = await page(app, `/projects/${id}/build?lang=ar`, cookie);
+    expect(ar).toContain(`data-approve="${BROKEN}">${esc(t("ar", "build.approve_after_broken"))}</button>`);
+    expect(await go(app, j, `/projects/${id}/approve`, cookie, { step: BROKEN })).toBe(`/projects/${id}/preview`);
+    expect(await page(app, `/projects/${id}/preview`, cookie)).toContain('data-shots="4"');
+    sandboxes.acceptanceOutcome = "failed";
+    try {
+      await go(app, j, `/projects/${id}/acceptance`, cookie);
+    } finally {
+      sandboxes.acceptanceOutcome = "passed";
+    }
+    const s = await j.state(id);
+    const finished = (await listEvents(pool, id, "acceptance.run.finished")).at(-1)!;
+    expect(finished.payload).toMatchObject({ outcome: "failed", exit_code: 1, summary: FAILED_SUMMARY, version: s.acceptanceVersion });
+    expect(FAILED_SUMMARY).toBe('version failed: item 1 failed at step "sees status waiting"');
+    const item = (await listEvents(pool, id, "acceptance.item")).at(-1)!;
+    const failure = item.payload.failure_file as { path: string; sha256: string };
+    expect(sha256(readFileSync(failure.path))).toBe(failure.sha256);
+    expect(readFileSync(failure.path, "utf8")).toContain("Approved");
+    for (const lang of ["en", "ar"] as const) {
+      const html = await page(app, `/projects/${id}/acceptance?lang=${lang}`, cookie);
+      expect(html.match(new RegExp(`<strong class="warn" data-outcome="failed">${t(lang, "acceptance.outcome.failed")}</strong>`, "g")) ?? [], lang).toHaveLength(2);
+      expect(html, lang).toContain(`<td lang="en" dir="ltr" data-summary>${esc(FAILED_SUMMARY)}</td>`);
+      expect(html, lang).toContain(`<th>${esc(t(lang, "acceptance.exit"))}</th><td>1</td>`);
+      const row1 = /<tr data-item="1"[\s\S]*?<\/tr>/.exec(html)![0];
+      expect(row1, lang).toContain('data-status="failed" data-shown="failed"');
+      expect(row1, lang).toContain(`<strong class="warn">${t(lang, "acceptance.status.failed")}</strong>`);
+      expect(row1, lang).toContain(`<div class="note" data-failed-step>${esc(t(lang, "acceptance.failed_at_step").split("{step}")[0]!)}<span lang="en" dir="ltr">${FAILED_STEP}</span>`);
+      expect(row1, lang).toContain(`<img src="/projects/${id}/files/${item.id}"`);
+      for (const n of [2, 3, 4, 5, 6]) expect(new RegExp(`<tr data-item="${n}" data-status="did not run" data-shown="did_not_run">`).test(html), `${lang} item ${n}`).toBe(true);
+      expect(html, lang).toContain(esc(t(lang, "acceptance.sign_off_not_yet")));
+      expect(html, lang).toContain(`data-broken-never>${esc(t(lang, "broken.never_signed_off"))}<`);
+      expect(html, lang).not.toContain(`action="/projects/${id}/sign-off"`);
+      expect(html, lang).not.toContain(`href="/projects/${id}/export"`);
+    }
+    expect(t("en", "acceptance.failed_at_step", { step: FAILED_STEP })).toBe("Failed at step: sees status waiting");
+    expect(t("en", "broken.never_signed_off")).toBe(NEVER);
+    const shot = await get(app, `/projects/${id}/files/${item.id}`, cookie);
+    expect(shot.headers.get("content-type")).toBe("image/png");
+    const signOff = await post(app, `/projects/${id}/sign-off`, {}, { cookie });
+    expect(signOff.status).toBe(409);
+    expect(await signOff.text()).toContain("The last checklist run did not pass, so there is nothing to sign off.");
+    expect((await post(app, `/projects/${id}/export`, {}, { cookie })).status).toBe(409);
+    expect(await page(app, `/projects/${id}/export`, cookie)).toContain("data-export-not-offered");
+    for (const screen of SCREENS) expect(await page(app, `/projects/${id}/${screen}`, cookie), screen).not.toContain(`href="/projects/${id}/export"`);
+    const cost = await page(app, `/projects/${id}/cost`, cookie);
+    expect(cost).toContain('<td data-spent>$0.00</td>');
+    expect([...cost.matchAll(/<tr><td><bdi dir="ltr">([^<]+)<\/bdi><\/td><td>(\$[0-9.]+)<\/td><td>([^<]+)<\/td><\/tr>/g)].map((m) => [m[1], m[2], m[3]])).toEqual([
+      ["01-data", "$1.5552", "closed (step_ended)"],
+      ["02-submitter-screen", "$3.1104", "closed (step_ended)"],
+      [BROKEN, "$1.1664", "closed (step_ended)"],
+    ]);
+    const kinds = (await listEvents(pool, id)).map((e) => e.kind);
+    expect(kinds).not.toContain(EV.signedOff);
+    expect(kinds).not.toContain(EV.exportWritten);
+    expect(kinds.filter((k) => k === "journey.broken_step_staged")).toHaveLength(1);
+    await go(app, j, `/projects/${id}/close`, cookie);
+    expect(sandboxes.destroyed).toContain(id);
+    expect(await page(app, `/projects/${id}/record`, cookie)).toContain("data-closed");
+  });
+
+  it("A8: 'Failed at step' is shown in a failed item's row for every project, a normal one too", async () => {
+    const { app, j } = await makeJobsApp();
+    const cookie = await signIn(app);
+    const id = await normal(app, j, cookie);
+    await toPreview(app, j, cookie, id);
+    sandboxes.acceptanceOutcome = "failed";
+    try {
+      await go(app, j, `/projects/${id}/acceptance`, cookie);
+    } finally {
+      sandboxes.acceptanceOutcome = "passed";
+    }
+    const html = await page(app, `/projects/${id}/acceptance`, cookie);
+    expect(/<tr data-item="1"[\s\S]*?<\/tr>/.exec(html)![0]).toContain(`<div class="note" data-failed-step>Failed at step: <span lang="en" dir="ltr">${FAILED_STEP}</span></div>`);
+    expect(html).not.toContain("data-broken-never");
+    expect(badgeShown(html)).toBe(false);
+    await go(app, j, `/projects/${id}/close`, cookie);
+  });
+
+  it("A1b (regression guard): a normal project past both confirmations, steps 1 and 2 built and approved (the preview waited for), asks to build 03-wrong-status: 409, \"That step is not one of the plan's.\", no job starts, nothing is staged, builder/scripted is unchanged; the same with a broken_copy written later by hand", async () => {
+    const before = changeSetFolders();
+    const { app, j } = await makeJobsApp();
+    const cookie = await signIn(app);
+    const id = await normal(app, j, cookie);
+    await toPreview(app, j, cookie, id);
+    const refusedNow = async (what: string) => {
+      const started = (await listEvents(pool, id, EV.jobStarted)).length;
+      const r = await post(app, `/projects/${id}/build`, { step: BROKEN }, { cookie });
+      expect(r.status, what).toBe(409);
+      expect(await r.text(), what).toContain("That step is not one of the plan&#39;s.");
+      await j.waitForJob();
+      expect((await listEvents(pool, id, EV.jobStarted)).length, what).toBe(started);
+      expect((await listEvents(pool, id)).filter((e) => e.step === BROKEN), what).toEqual([]);
+      expect(sandboxes.stagedBroken.filter((c) => c.projectId === id), what).toEqual([]);
+    };
+    await refusedNow("a normal project");
+    const first = (await listEvents(pool, id))[0]!;
+    const choice = { by: "owner", step: BROKEN, source: "builder/scripted-broken/example-1/03-wrong-status", label: "made-up", manifest_sha256: sha256(readFileSync(join(builderDir, "scripted-broken", "example-1", BROKEN, "manifest.json"))), sign_off: "never", export: "never" };
+    await appendEvent(pool, id, EV.briefEntered, { ...first.payload, broken_copy: choice });
+    await refusedNow("a broken_copy written later by hand");
+    expect((await j.state(id)).plan).toEqual(["01-data", "02-submitter-screen"]);
+    await go(app, j, `/projects/${id}/close`, cookie);
+    expect(changeSetFolders()).toEqual(before);
+  });
+
+  it("A2b: POST /projects with extra fields (broken_copy=1, step=03-wrong-status) makes a normal project: two steps, nothing of the choice recorded, no badge (regression guard); a name that starts 'Deliberately broken copy' is refused on the New project form, and nothing is made", async () => {
+    const { app, j } = await makeJobsApp();
+    const cookie = await signIn(app);
+    const id = await normal(app, j, cookie, { broken_copy: "1", step: BROKEN });
+    const s = await j.state(id);
+    expect(s.plan).toEqual(["01-data", "02-submitter-screen"]);
+    expect(s.events.filter((e) => "broken_copy" in e.payload)).toEqual([]);
+    expect(Object.keys(s.events[0]!.payload).sort()).toEqual(["characters", "given_to_engine", "text"]);
+    expect(badgeShown(await page(app, `/projects/${id}/plan`, cookie))).toBe(false);
+    expect(badgeShown(await page(app, `/projects`, cookie))).toBe(false);
+    await go(app, j, `/projects/${id}/close`, cookie);
+    const projects = await projectCount();
+    for (const name of [NAME, "Deliberately broken copy", "deliberately broken copy of my own (made-up)", "  Deliberately   Broken Copy, again (made-up)"]) {
+      const r = await post(app, "/projects", { name, cap: "5.00", brief: "Made-up brief." }, { cookie });
+      expect(r.status, name).toBe(400);
+      const html = await r.text();
+      expect(html, name).toContain(esc('A name that starts "Deliberately broken copy" is kept for the broken-copy demonstration on the Projects screen. Give this project another name.'));
+      expect(html, name).toContain('action="/projects"');
+    }
+    expect(await projectCount()).toBe(projects);
+  });
+
+  it("A6: a broken copy whose checklist run reads 'passed' (a forged pass): no sign-off button, the warning instead, POST sign-off 409; with a forged journey.signed_off, POST export 409 and nothing exported; a normal project whose record holds only a journey.broken_step_staged, or only an engine event of step 03: the badge, sign-off and export refused", async () => {
+    const { app, j } = await makeJobsApp();
+    const cookie = await signIn(app);
+    const id = await demo(app, j, cookie);
+    await toPreview(app, j, cookie, id);
+    sandboxes.acceptanceOutcome = "passed";
+    await go(app, j, `/projects/${id}/acceptance`, cookie);
+    expect((await j.state(id)).acceptanceRun?.outcome).toBe("passed");
+    expect(t("en", "broken.passed_warning")).toBe("A checklist run passed on a deliberately broken copy: the check did not catch the planted defect. It is still not signed off.");
+    for (const lang of ["en", "ar"] as const) {
+      const html = await page(app, `/projects/${id}/acceptance?lang=${lang}`, cookie);
+      expect(html, lang).toContain(`data-broken-passed>${esc(t(lang, "broken.passed_warning"))}<`);
+      expect(html, lang).not.toContain(esc(t(lang, "acceptance.sign_off_not_yet")));
+      expect(html, lang).toContain(`data-broken-never>${esc(t(lang, "broken.never_signed_off"))}<`);
+      expect(html, lang).not.toContain(`action="/projects/${id}/sign-off"`);
+    }
+    const r = await post(app, `/projects/${id}/sign-off`, {}, { cookie });
+    expect(r.status).toBe(409);
+    expect(await r.text()).toContain(NEVER);
+    await appendEvent(pool, id, EV.signedOff, { note: "forged by the test" });
+    const e = await post(app, `/projects/${id}/export`, {}, { cookie });
+    expect(e.status).toBe(409);
+    expect(await e.text()).toContain(NEVER);
+    expect(await page(app, `/projects/${id}/export`, cookie)).not.toContain(`action="/projects/${id}/export"`);
+    expect(await listEvents(pool, id, EV.exportWritten)).toEqual([]);
+    await go(app, j, `/projects/${id}/close`, cookie);
+    for (const [what, kind, payload] of [
+      ["only a journey.broken_step_staged", "journey.broken_step_staged", { note: "forged by the test" }],
+      ["only an engine event of step 03", EV.engineEvent, { type: "text", text: "Scripted engine: made-up line of the test.", at: new Date().toISOString() }],
+    ] as const) {
+      const n = await normal(app, j, cookie);
+      await toPreview(app, j, cookie, n);
+      await go(app, j, `/projects/${n}/acceptance`, cookie);
+      expect(await page(app, `/projects/${n}/acceptance`, cookie), what).toContain(`action="/projects/${n}/sign-off"`);
+      await appendEvent(pool, n, kind, payload, BROKEN);
+      const html = await page(app, `/projects/${n}/acceptance`, cookie);
+      expect(badgeShown(heading(html)), what).toBe(true);
+      expect(html, what).not.toContain(`action="/projects/${n}/sign-off"`);
+      expect(html, what).toContain("data-broken-passed");
+      expect((await post(app, `/projects/${n}/sign-off`, {}, { cookie })).status, what).toBe(409);
+      await appendEvent(pool, n, EV.signedOff, { note: "forged by the test" });
+      expect((await post(app, `/projects/${n}/export`, {}, { cookie })).status, what).toBe(409);
+      expect(await listEvents(pool, n, EV.exportWritten), what).toEqual([]);
+      expect(badgeShown(await page(app, `/projects`, cookie)), what).toBe(true);
+      await go(app, j, `/projects/${n}/close`, cookie);
+    }
+  });
+
+  it("A7: a broken copy's preview screen renders with the live preview's front on: no 'Open the live app', the plain sentence instead; POST live 409", async () => {
+    const { app, j } = await makeJobsApp({ front: true });
+    const cookie = await signIn(app);
+    const id = await demo(app, j, cookie);
+    await toPreview(app, j, cookie, id);
+    for (const lang of ["en", "ar"] as const) {
+      const html = await page(app, `/projects/${id}/preview?lang=${lang}`, cookie);
+      expect(html, lang).toContain(`<p class="warn" lang="en" dir="ltr" data-live-refused>${esc(LIVE_REFUSED)}</p>`);
+      expect(html, lang).not.toContain("data-live-open");
+      expect(html, lang).toContain('data-shots="4"');
+    }
+    const r = await post(app, `/projects/${id}/live`, {}, { cookie });
+    expect(r.status).toBe(409);
+    expect(await r.text()).toContain(esc(LIVE_REFUSED));
+    expect((await listEvents(pool, id, EV.liveOpened))).toEqual([]);
+    await go(app, j, `/projects/${id}/close`, cookie);
+  });
+
+  it("A9: an interrupted project whose last checklist run passed: the interrupted panel, no sign-off button, and POST sign-off 409", async () => {
+    const { app, j } = await makeJobsApp();
+    const cookie = await signIn(app);
+    const id = await normal(app, j, cookie);
+    await toPreview(app, j, cookie, id);
+    await go(app, j, `/projects/${id}/acceptance`, cookie);
+    expect(await page(app, `/projects/${id}/acceptance`, cookie)).toContain(`action="/projects/${id}/sign-off"`);
+    // As the next start's recovery records a sandbox left by an interface that stopped (journey.ts, recoverInterrupted).
+    await appendEvent(pool, id, EV.sandboxRemoved, { reason: "Found at start: made by an interface that has since stopped. It is not resumed.", interrupted: true, removed: true });
+    for (const lang of ["en", "ar"] as const) {
+      const html = await page(app, `/projects/${id}/acceptance?lang=${lang}`, cookie);
+      // The interrupted panel: its "Close project" is the only one on this screen.
+      expect(html, lang).toContain(`<form method="post" action="/projects/${id}/close"><button type="submit">${esc(t(lang, "interrupted.close"))}</button></form>`);
+      expect(html, lang).not.toContain(`action="/projects/${id}/sign-off"`);
+    }
+    const r = await post(app, `/projects/${id}/sign-off`, {}, { cookie });
+    expect(r.status).toBe(409);
+    expect(await r.text()).toContain("This project was interrupted when the interface stopped, so it is not signed off.");
+    expect(await listEvents(pool, id, EV.signedOff)).toEqual([]);
+    await go(app, j, `/projects/${id}/close`, cookie);
+  });
 });
