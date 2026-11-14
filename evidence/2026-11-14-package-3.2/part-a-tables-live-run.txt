@@ -1,0 +1,36 @@
+# Package 3.2, part A: the tables made live, 14 Nov 2026 (<scratch>/x32a/live-tables.mts, under the shared lock)
+
+What ran, on the development machine, with the scripted engine only (no model): scripts/example-1-sandbox.ts as the
+builder uses it: makeExample1 (project x32live), example 1's steps 01 and 02 in the engine container (7 and 8 files),
+buildAndStart (the image build through the sandbox's own build path with part A's Dockerfile and template; the tables
+by drizzle-kit migrate from the fixed files; the drift check; the seed; the app started and healthy), then a second
+makeTables, then a drift control: the same tools image (its schema has the leave-request table) given only the
+template's migrations, as if step 01 had changed the schema with no migration. Real drizzle-kit output throughout.
+At the end destroyExample1 removed the project's containers, network, volume and images, and its folder.
+
+step 01-data: ok=true turns=7 files=7
+step 02-submitter-screen: ok=true turns=8 files=8
+files of step 01 in the workspace's drizzle/: 0000_template.sql, 0001_leave_request.sql, meta/0000_snapshot.json, meta/0001_snapshot.json, meta/_journal.json
+  App and tools images built (the template's guard check and next build ran in the build).
+  Tables made from the fixed migration files with drizzle-kit migrate (4 lines); drift check passed: "No schema changes, nothing to migrate", no file added.
+  Sample users added in the tools container (3 lines from the seed).
+  Before the app was started, nothing answered at http://app:3161, asked from a container on the project's front network (EAI_AGAIN).
+  App container started and healthy.
+build, tables, seed and app: 44 s from the start
+drizzle.__drizzle_migrations (id, created_at):
+1|1794659492475
+2|1794659504312
+tables in public: account, leave_request, session, user, verification
+checks of leave_request: leave_request_created_by_user_id_fk, leave_request_days_within_range, leave_request_employee_user_id_fk, leave_request_last_day_not_before_first, leave_request_pkey, leave_request_status_known, leave_request_updated_by_user_id_fk
+users: employee@example.test (employee), hr.admin@example.test (hr_admin), manager@example.test (manager)
+second makeTables, migrate output (last line): [⣷] applying migrations...[✓] migrations applied successfully!
+second makeTables, drift check: ok=true, output (last line):  Container builder_x32live-drift-check-9dc94e Created
+drizzle.__drizzle_migrations rows after it: 2
+drift control: ok=false, exit code 0 (recorded only), added=["0001_drift_check.sql","meta/0001_snapshot.json"], changed=["meta/_journal.json"]
+drift control reason: drizzle-kit generate did not say "No schema changes, nothing to migrate", and it wrote 0001_drift_check.sql (added), meta/0001_snapshot.json (added), meta/_journal.json (changed): the schema files and the migrations do not match, or the check could not run
+drift control output (last lines):
+[✓] Your SQL migration file ➜ drizzle/0001_drift_check.sql 🚀
+ Container builder_x32live-drift-check-4d3f8e Creating 
+ Container builder_x32live-drift-check-4d3f8e Created
+containers of the project left: none; temporary folder removed
+whole run: 60 s
