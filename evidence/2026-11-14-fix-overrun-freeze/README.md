@@ -140,3 +140,13 @@ The suite was run on the code commit `9b2c29c` (`builder/` tree `4ff3417`); the 
 | `controls.py`, `controls.txt` | The 13 controls |
 | `full-suite.sh`, `run-tests-full.txt`, `run-typecheck.txt`, `run-licences.txt` | The whole suite, the typecheck and the licence check, on the committed code |
 | `run-tests-full-in-worktree.txt`, `run-tests-full-in-clone-with-links.txt` | The two earlier whole-suite runs, kept as they came out (see "What was run") |
+
+## Notes from the review
+
+*Added 14 Nov 2026 by Claude Code.* One adversarial reviewer who did not write the fix read the claims, the evidence and the code. It reran the ten new tests on the branch (10 of 10) and on the old code in a scratch copy (8 failed, 2 passed, the same failures as saved). **Nothing blocking:** the requirement holds for one gateway, today's set-up. Recorded in gap 170, items (8) to (10):
+- the one-hour price for cache writes at the stop against the five-minute floor at a keep: a caller that cancels after the end marker can lift the stop, as before this fix;
+- a hold already marked as kept by another gateway: the stop then holds only in memory until settlement's freeze;
+- frames ended by carriage returns alone are not read (today's provider uses line feeds).
+
+Also corrected: `docs/SOURCES.md` said "the two behaviours below" above three rows. Item (1) of gap 170, a second gateway's call admitted before the stop, stays as the author wrote it; one gateway runs today.
+

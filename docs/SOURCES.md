@@ -312,7 +312,7 @@ Docker's documentation was read in its source repository on GitHub, since docs.d
 
 ## Measured on 14 November 2026 for known gap 145 (PostgreSQL 16.15 and Node v22.23.4 on the development machine)
 
-Nothing was read for this change: streams.spec.whatwg.org and developer.mozilla.org could not be reached from this session (the name did not resolve), so the two behaviours below rest on runs, not on a document.
+Nothing was read for this change: streams.spec.whatwg.org and developer.mozilla.org could not be reached from this session (the name did not resolve), so the three behaviours below rest on runs, not on a document.
 
 | Fact | Source |
 | --- | --- |
