@@ -1,0 +1,18 @@
+J2, second review: the tests these fixes add or extend, on f8cfc57 (builder/ tree 37ae8c2). 2026-11-14T10:46:57Z.
+
+== BEFORE: the fixed files as on claude/stage-1 at 51a1321 (git checkout origin/claude/stage-1 -- src/orchestrator/journey.ts src/web/main.ts src/web/pages.ts src/web/messages/en.json src/web/messages/ar.json scripts/journey-restart-checks.ts); the test files as here
+files of builder/ differing from HEAD now: 6
+test/journey.test.ts -t "A4c \(after J2's second review\)":  Tests 1 failed | 70 skipped (71)
+test/journey.test.ts -t "C8 \(regression guard\)":  Tests 1 failed | 70 skipped (71)
+test/web.test.ts -t "C12 \(after J2's second review\)":  Tests 1 failed | 71 skipped (72)
+test/web.test.ts -t "A2 and A8:":  Tests 1 failed | 71 skipped (72)
+test/web.test.ts -t "A8: the broken copy through the screens":  Tests 1 failed | 71 skipped (72)
+test/web.test.ts -t "C7: the interrupted panel":  Tests 1 failed | 71 skipped (72)
+
+== AFTER: everything as committed at f8cfc57 (files of builder/ differing from HEAD: 0)
+test/journey.test.ts -t "A4c \(after J2's second review\)":  Tests 1 passed | 70 skipped (71)
+test/journey.test.ts -t "C8 \(regression guard\)":  Tests 1 passed | 70 skipped (71)
+test/web.test.ts -t "C12 \(after J2's second review\)":  Tests 1 passed | 71 skipped (72)
+test/web.test.ts -t "A2 and A8:":  Tests 1 passed | 71 skipped (72)
+test/web.test.ts -t "A8: the broken copy through the screens":  Tests 1 passed | 71 skipped (72)
+test/web.test.ts -t "C7: the interrupted panel":  Tests 1 passed | 71 skipped (72)
