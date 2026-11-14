@@ -364,8 +364,8 @@ async function realContainers(): Promise<void> {
 
   log("== A4. Four deliberate misconfigurations of real containers: each must FAIL its comparison ==");
   const ids = (c: Comparison) => c.rows.filter((r) => !r.pass).map((r) => r.id);
-  const misRow = (label: string, project: string, image: string, imageId: string | undefined, container: string, how: string, report: ProbeReport, kind: DevContainer, c: Comparison, caught: boolean) =>
-    which.push([label, "real image, misconfigured on purpose", `real example-1 (${project}), its Compose file edited before anything started`, `${image} (${shortId(imageId)})`, container, how, info(report, "user id") ?? "?", `\`${kind}\``, counts(c), caught ? "FAIL, as it must" : "PASSED: NOT CAUGHT"]);
+  const misRow = (label: string, word: string, project: string, image: string, imageId: string | undefined, container: string, how: string, report: ProbeReport, kind: DevContainer, c: Comparison, caught: boolean) =>
+    which.push([`${label} (misconfigured on purpose)`, word, `real example-1 (${project}), its Compose file edited before anything started`, `${image} (${shortId(imageId)})`, container, how, info(report, "user id") ?? "?", `\`${kind}\``, counts(c), caught ? "FAIL, as it must" : "PASSED: NOT CAUGHT"]);
   for (const n of [1, 2, 3, 4] as const) {
     const m = REAL_MISCONFIGURATIONS[`R${n}`];
     const tM = Date.now();
@@ -404,7 +404,7 @@ async function realContainers(): Promise<void> {
       log(`     ran in the real image (${p.seen.imageId}, seen while it ran): ${realOne ? "yes" : "NO"}; what must give it away is among the failing rows: ${gaveAway ? "yes" : "NO"}`);
       const caught = !c.pass && gaveAway && realOne;
       if (!caught) verdictReal = false;
-      misRow(`R${n}: ${m.what}`, project, p.seen.imageName ?? image.name, p.seen.imageId, `${p.seen.container}, a one-off container of the ${service} service`, "the probe mounted read-only as the container's command", report, kind, c, caught);
+      misRow(`R${n}: ${m.what}`, "real image, one-off container", project, p.seen.imageName ?? image.name, p.seen.imageId, `${p.seen.container}, a one-off container of the ${service} service`, "the probe mounted read-only as the container's command", report, kind, c, caught);
       if (n === 1) {
         // The running app itself, misconfigured, probed in place.
         const ip = await probeInPlace(mis.x.sb, "app", s.settings);
@@ -415,7 +415,7 @@ async function realContainers(): Promise<void> {
         show(`misconfiguration R1: ${m.what}; the running app itself, in place`, r2, c2);
         const caught2 = !c2.pass && ids(c2).some((id) => /^(A|B|D1|D5|M)/.test(id)) && ip.removed && ip.sha256.inside === ip.sha256.repository;
         if (!caught2) verdictReal = false;
-        misRow(`R1: ${m.what}; the running app itself`, project, mis.images.app.name, mis.appContainer?.imageId, `${project}-app-1 (${mis.appContainer?.id.slice(0, 12)}), the running container`, "`docker compose exec` in the running container (as in A2)", r2, "app-running", c2, caught2);
+        misRow(`R1: ${m.what}; the running app itself`, "real container, in place", project, mis.images.app.name, mis.appContainer?.imageId, `${project}-app-1 (${mis.appContainer?.id.slice(0, 12)}), the running container`, "`docker compose exec` in the running container (as in A2)", r2, "app-running", c2, caught2);
       }
     } finally {
       log(`     Removed. Left of ${mis.x.sb.projectName}: ${await destroyRealProject(mis.x)}`);
@@ -430,7 +430,8 @@ async function realContainers(): Promise<void> {
   files["real-egress-host-log.txt"] = hostLog.join("\n") + "\n";
   files["real-door-log.txt"] = doorLog.join("\n") + "\n";
   for (const l of hostLog.filter((y) => /listening|refusedToStart/.test(y))) log(`  egress-host: ${l}`);
-  log(`  egress-host: ${hostLog.filter((y) => y.includes('"decision"')).length} decisions logged (the image build's npm goes through its loopback port).`);
+  const decisions = hostLog.filter((y) => y.includes('"decision"')).length;
+  log(`  egress-host: ${decisions} decisions logged. The image build's install step (npm ci) reaches the registry only through this side's loopback port${decisions === 0 ? "; no request came, so that step fetched nothing in this build (inferred: Docker took it from its build cache)" : ""}.`);
   log(`  door: ${doorLog.filter((l) => l.includes('"forwarded"')).length} connections forwarded (no real container of this project is on the out network); ${doorLog.filter((l) => l.includes('"error"')).length} errors.`);
   log();
 
@@ -585,8 +586,8 @@ try {
   files["comparison-misconfiguration-2.md"] = `# Misconfiguration 2: data internal, without the isolated gateway mode (tools, stand-in image)\n\n${renderComparison("tools, misconfigured", c2)}\n`;
   show("misconfiguration 2: data internal without the isolated gateway mode (tools, stand-in image)", parseProbeOutput(l2), c2);
   if (c2.pass) verdict = false;
-  which.push(["misconfiguration 1: the app also on an ordinary bridge", "stand-in image, misconfigured on purpose", `stand-in project (${mis1.sb.projectName})`, `${made.at(-2)!.images[0]}`, "a one-off container of the app service", "the probe mounted read-only as the container's command", parseProbeOutput(l1).info.find((i) => i.name === "user id")?.value ?? "?", "`app`", counts(c1), c1.pass ? "PASSED: NOT CAUGHT" : "FAIL, as it must"]);
-  which.push(["misconfiguration 2: data internal without the isolated gateway mode", "stand-in image, misconfigured on purpose", `stand-in project (${mis2.sb.projectName})`, `${made.at(-1)!.images[1]}`, "a one-off container of the tools service", "the probe mounted read-only as the container's command", parseProbeOutput(l2).info.find((i) => i.name === "user id")?.value ?? "?", "`tools`", counts(c2), c2.pass ? "PASSED: NOT CAUGHT" : "FAIL, as it must"]);
+  which.push(["misconfiguration 1: the app (stand-in image) also on an ordinary bridge (misconfigured on purpose)", "stand-in image", `stand-in project (${mis1.sb.projectName})`, `${made.at(-2)!.images[0]}`, "a one-off container of the app service", "the probe mounted read-only as the container's command", parseProbeOutput(l1).info.find((i) => i.name === "user id")?.value ?? "?", "`app`", counts(c1), c1.pass ? "PASSED: NOT CAUGHT" : "FAIL, as it must"]);
+  which.push(["misconfiguration 2: data internal without the isolated gateway mode; tools (stand-in image) (misconfigured on purpose)", "stand-in image", `stand-in project (${mis2.sb.projectName})`, `${made.at(-1)!.images[1]}`, "a one-off container of the tools service", "the probe mounted read-only as the container's command", parseProbeOutput(l2).info.find((i) => i.name === "user id")?.value ?? "?", "`tools`", counts(c2), c2.pass ? "PASSED: NOT CAUGHT" : "FAIL, as it must"]);
   // Package J3: the stream container misplaced; each must fail the check's comparison, and be refused by the builder's own check.
   for (const [n, label, mutate] of [
     [3, "the stream container (check) also on out", (d: Record<string, unknown>) => void ((d.services as Record<string, { networks?: string[] }>).check!.networks = ["front", "out"])],
@@ -608,7 +609,7 @@ try {
     files[`comparison-misconfiguration-${n}.md`] = `# Misconfiguration ${n}: ${label}\n\n${renderComparison(`check, misconfigured`, cm)}\n`;
     show(`misconfiguration ${n}: ${label}`, parseProbeOutput(lm), cm);
     if (cm.pass) verdict = false;
-    which.push([`misconfiguration ${n}: ${label}`, "real image, misconfigured on purpose", `stand-in project (${mis.sb.projectName})`, `${standIn.node.name} (${shortId(standIn.node.id)})`, "a one-off container of the check service", "the probe mounted read-only as the container's command", parseProbeOutput(lm).info.find((i) => i.name === "user id")?.value ?? "?", "`check`", counts(cm), cm.pass ? "PASSED: NOT CAUGHT" : "FAIL, as it must"]);
+    which.push([`misconfiguration ${n}: ${label} (misconfigured on purpose)`, "real image, one-off container", `stand-in project (${mis.sb.projectName})`, `${standIn.node.name} (${shortId(standIn.node.id)})`, "a one-off container of the check service", "the probe mounted read-only as the container's command", parseProbeOutput(lm).info.find((i) => i.name === "user id")?.value ?? "?", "`check`", counts(cm), cm.pass ? "PASSED: NOT CAUGHT" : "FAIL, as it must"]);
   }
   log();
 
