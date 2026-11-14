@@ -1,0 +1,11 @@
+Known gap 180, second review round: the whole of test/web.test.ts, first run, on commit cb16530 (builder/ tree 0d359ca), working tree as committed, 2026-11-14T14:57:05Z. Database builder_test_g180fix. TMPDIR <scratchpad>/t2.
+
+ RUN  v5.1.0 <scratchpad>/wt180/builder
+
+
+ Test Files  1 passed (1)
+      Tests  78 passed (78)
+   Start at  14:57:17
+   Duration  55.29s (tests 99%)
+
+vitest exit code: 0
