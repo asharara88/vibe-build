@@ -1,4 +1,4 @@
-{"kind":"walk","walk":"j2a","part":"J2 (a)","camera":"j2-builder-camera-20261114_f52280-1","env":{}}
+{"kind":"walk","walk":"j2a","part":"J2 (a)","camera":"j2-builder-camera-20261114_ae7e99-1","env":{}}
 {"kind":"check","name":"signed in, at the projects page","ok":true,"detail":"/projects"}
 {"kind":"check","name":"Projects screen: a panel of its own labelled 'Simulated build', with one button, 'Start the broken-copy demonstration', apart from 'New project'","ok":true,"detail":"Simulated buildSimulated / [\"Start the broken-copy demonstration\"]"}
 {"kind":"check","name":"the panel says the steps are fixed changes and the checklist run on it is real","ok":true,"detail":""}
@@ -7,21 +7,21 @@
 {"kind":"shot","file":"01-projects-phone.png","path":"/projects","lang":"en","width":390}
 {"kind":"check","name":"the New project form keeps its three fields: name, cap, brief","ok":true,"detail":"[\"name\",\"cap\",\"brief\"]"}
 {"kind":"shot","file":"02-new-project-en.png","path":"/projects/new","lang":"en","width":1280}
-{"kind":"check","name":"pressing the button makes one project, at its brief","ok":true,"detail":"/projects/j1-bd7539e62f61/brief"}
-{"kind":"project","id":"j1-bd7539e62f61","name":"Deliberately broken copy (made-up)","cap":"5.00","walk":"j2a"}
+{"kind":"check","name":"pressing the button makes one project, at its brief","ok":true,"detail":"/projects/j1-c31b9633a72b/brief"}
+{"kind":"project","id":"j1-c31b9633a72b","name":"Deliberately broken copy (made-up)","cap":"5.00","walk":"j2a"}
 {"kind":"check","name":"the project is named 'Deliberately broken copy (made-up)', with the badge next to its name","ok":true,"detail":"Deliberately broken copy (made-up) Deliberately broken copy: a defect Claude Code planted on purpose"}
 {"kind":"check","name":"its brief is example 1's ask","ok":true,"detail":"I need an app where staff can request leave and managers approve it"}
-{"kind":"shot","file":"03-brief-en.png","path":"/projects/j1-bd7539e62f61/brief","lang":"en","width":1280}
-{"kind":"shot","file":"03-brief-ar.png","path":"/projects/j1-bd7539e62f61/brief","lang":"ar","width":1280}
+{"kind":"shot","file":"03-brief-en.png","path":"/projects/j1-c31b9633a72b/brief","lang":"en","width":1280}
+{"kind":"shot","file":"03-brief-ar.png","path":"/projects/j1-c31b9633a72b/brief","lang":"ar","width":1280}
 {"kind":"check","name":"its list row: the name with the badge, a cap of $5.00","ok":true,"detail":"[\"Deliberately broken copy (made-up) Deliberately broken copy: a defect Claude Code planted on purpose\",\"Brief entered\",\"$5.00\",\"$0.00\",\"Record\"]"}
 {"kind":"check","name":"every question answered from example 1's answer sheet","ok":true,"detail":""}
-{"kind":"check","name":"brief confirmed, at the build steps","ok":true,"detail":"/projects/j1-bd7539e62f61/plan"}
+{"kind":"check","name":"brief confirmed, at the build steps","ok":true,"detail":"/projects/j1-c31b9633a72b/plan"}
 {"kind":"check","name":"the plan lists three steps, the third 03-wrong-status","ok":true,"detail":"[\"01-data\",\"02-submitter-screen\",\"03-wrong-status\"]"}
 {"kind":"check","name":"step 3 shows its manifest label and the plain sentence","ok":true,"detail":"03-wrong-statusWhat you will be shown: Deliberately broken copy (package 3.1): a new leave request is saved as approved instead of waiting, and the banner says so; for the acceptance check to rejectDeliberately broken copy: a new request is saved as Approved instead of Waiting. Made so that the checklist rejects it.Files the fixed change writes: 3"}
 {"kind":"check","name":"the plan screen says: no quality check after a step yet, and no retry","ok":true,"detail":"No quality check after a step yet, and no retry (milestones 1 and 3): only the checklist at the end checks the app."}
-{"kind":"shot","file":"04-plan-en.png","path":"/projects/j1-bd7539e62f61/plan","lang":"en","width":1280}
-{"kind":"shot","file":"04-plan-ar.png","path":"/projects/j1-bd7539e62f61/plan","lang":"ar","width":1280}
-{"kind":"shot","file":"04-plan-phone.png","path":"/projects/j1-bd7539e62f61/plan","lang":"en","width":390}
+{"kind":"shot","file":"04-plan-en.png","path":"/projects/j1-c31b9633a72b/plan","lang":"en","width":1280}
+{"kind":"shot","file":"04-plan-ar.png","path":"/projects/j1-c31b9633a72b/plan","lang":"ar","width":1280}
+{"kind":"shot","file":"04-plan-phone.png","path":"/projects/j1-c31b9633a72b/plan","lang":"en","width":390}
 {"kind":"check","name":"plan confirmed; tests fixed as v001, stand-in test, not independent acceptance","ok":true,"detail":""}
 {"kind":"check","name":"the build screen says: no quality check after a step yet, and no retry","ok":true,"detail":"No quality check after a step yet, and no retry (milestones 1 and 3): only the checklist at the end checks the app."}
 {"kind":"check","name":"step 1 (01-data) built","ok":true,"detail":"What you will be shown: The data step: the leave-request table, the configuration that names it, and the banner sentence that labels the app as built by the scripted engine Started.Sandbox made: the template copied and its history started. No container yet.Reserved $1.5552 for up to 4 turns, sized at claude-opus-5-5's prices.Scripted engine: fixed change example-1/01-data. The instruction (117 cha"}
@@ -34,15 +34,15 @@
 {"kind":"check","name":"step 3: $1.1664 reserved while it ran, released, $0.00 spent","ok":true,"detail":"Scripted: fixed change, no model call. Reserved while it ran: $1.1664, sized at claude-opus-5-5's prices, released. Spent: $0.00."}
 {"kind":"check","name":"step 3's approve button reads \"Go on to the preview with this broken step (no quality check after a step yet)\"","ok":true,"detail":"Go on to the preview with this broken step (no quality check after a step yet)"}
 {"kind":"check","name":"step 3's panel shows the plain sentence","ok":true,"detail":""}
-{"kind":"shot","file":"05-build-step-3-en.png","path":"/projects/j1-bd7539e62f61/build","lang":"en","width":1280}
-{"kind":"shot","file":"05-build-step-3-ar.png","path":"/projects/j1-bd7539e62f61/build","lang":"ar","width":1280}
-{"kind":"shot","file":"05-build-step-3-phone.png","path":"/projects/j1-bd7539e62f61/build","lang":"en","width":390}
-{"kind":"check","name":"steps 1, 2 and 3 approved; the app is being built for the preview","ok":true,"detail":"/projects/j1-bd7539e62f61/preview"}
+{"kind":"shot","file":"05-build-step-3-en.png","path":"/projects/j1-c31b9633a72b/build","lang":"en","width":1280}
+{"kind":"shot","file":"05-build-step-3-ar.png","path":"/projects/j1-c31b9633a72b/build","lang":"ar","width":1280}
+{"kind":"shot","file":"05-build-step-3-phone.png","path":"/projects/j1-c31b9633a72b/build","lang":"en","width":390}
+{"kind":"check","name":"steps 1, 2 and 3 approved; the app is being built for the preview","ok":true,"detail":"/projects/j1-c31b9633a72b/preview"}
 {"kind":"check","name":"the preview's screenshots are there","ok":true,"detail":"Deliberately broken copy (made-up) Deliberately broken copy: a defect Claude Code planted on purpose Stage: Checklist BriefQuestionsProposed appBuild stepsBuildPreviewChecklistCostRecord PreviewReal The app is running in its sandbox on this machine, on the project's own private networks: only the project's own containers reach it. The live app below passes your clicks to it through short-lived con"}
 {"kind":"check","name":"four screenshots of the running app (two English, two Arabic), each loaded","ok":true,"detail":"[true,true,true,true]"}
-{"kind":"shot","file":"06-preview-en.png","path":"/projects/j1-bd7539e62f61/preview","lang":"en","width":1280}
-{"kind":"check","name":"the checklist ran","ok":true,"detail":"Deliberately broken copy (made-up) Deliberately broken copy: a defect Claude Code planted on purpose Stage: Checklist BriefQuestionsProposed appBuild stepsBuildPreviewChecklistCostRecord The checklist runReal The acceptance runner runs the fixed tests in its own container, against the running app. Run the checklist Latest checklist jobEndedRunrun-20261114t045703-1f3897c0Tests versionv001Runner's e"}
-{"kind":"check","name":"the outcome word, as the run's record gives it: Failed","ok":true,"detail":"Latest checklist jobEndedRunrun-20261114t045703-1f3897c0Tests versionv001Runner's exit code1Outcome, as the run's record gives itFailedSummary, as the runner's reading wrote itversion failed: item 1 failed at step \"sees status waiting\""}
+{"kind":"shot","file":"06-preview-en.png","path":"/projects/j1-c31b9633a72b/preview","lang":"en","width":1280}
+{"kind":"check","name":"the checklist ran","ok":true,"detail":"Deliberately broken copy (made-up) Deliberately broken copy: a defect Claude Code planted on purpose Stage: Checklist BriefQuestionsProposed appBuild stepsBuildPreviewChecklistCostRecord The checklist runReal The acceptance runner runs the fixed tests in its own container, against the running app. Run the checklist Latest checklist jobEndedRunrun-20261114t100249-66ab29b0Tests versionv001Runner's e"}
+{"kind":"check","name":"the outcome word, as the run's record gives it: Failed","ok":true,"detail":"Latest checklist jobEndedRunrun-20261114t100249-66ab29b0Tests versionv001Runner's exit code1Outcome, as the run's record gives itFailedSummary, as the runner's reading wrote itversion failed: item 1 failed at step \"sees status waiting\""}
 {"kind":"check","name":"the summary as the runner's reading wrote it","ok":true,"detail":"version failed: item 1 failed at step \"sees status waiting\""}
 {"kind":"check","name":"item 1 reads Failed, with 'Failed at step: sees status waiting'","ok":true,"detail":"1As employee: Signs in and submits a request for five working days. Sees: The request in My requests with status waiting.FailedThe run's outcome: Failedit ran and failedFailed at step: sees status waitingTaken by the acceptance runner at the end of the test. Sample data."}
 {"kind":"check","name":"item 1's screenshot, taken by the runner, is shown","ok":true,"detail":"[true]"}
@@ -51,96 +51,96 @@
 {"kind":"check","name":"no sign-off button","ok":true,"detail":""}
 {"kind":"check","name":"the sign-off panel reads 'Sign-off is offered once a checklist run has passed.' and 'A deliberately broken copy is never signed off or exported.'","ok":true,"detail":"A deliberately broken copy is never signed off or exported."}
 {"kind":"check","name":"no Export tab","ok":true,"detail":"[\"Brief\",\"Questions\",\"Proposed app\",\"Build steps\",\"Build\",\"Preview\",\"Checklist\",\"Cost\",\"Record\"]"}
-{"kind":"shot","file":"07-checklist-en.png","path":"/projects/j1-bd7539e62f61/acceptance","lang":"en","width":1280}
-{"kind":"shot","file":"07-checklist-ar.png","path":"/projects/j1-bd7539e62f61/acceptance","lang":"ar","width":1280}
-{"kind":"shot","file":"07-checklist-phone.png","path":"/projects/j1-bd7539e62f61/acceptance","lang":"en","width":390}
-{"kind":"shot","file":"08-sign-off-en.png","path":"/projects/j1-bd7539e62f61/acceptance","lang":"en","width":1280}
+{"kind":"shot","file":"07-checklist-en.png","path":"/projects/j1-c31b9633a72b/acceptance","lang":"en","width":1280}
+{"kind":"shot","file":"07-checklist-ar.png","path":"/projects/j1-c31b9633a72b/acceptance","lang":"ar","width":1280}
+{"kind":"shot","file":"07-checklist-phone.png","path":"/projects/j1-c31b9633a72b/acceptance","lang":"en","width":390}
+{"kind":"shot","file":"08-sign-off-en.png","path":"/projects/j1-c31b9633a72b/acceptance","lang":"en","width":1280}
 {"kind":"check","name":"cost: $0.00 spent, no freeze, an empty unreconciled list","ok":true,"detail":"Cap$5.00 Spent$0.00 Held for calls in progress or awaiting reconciliation$0.0000 Reserved for running steps$0.0000 Left$5.0000"}
 {"kind":"check","name":"cost: three step reservations, $1.5552, $3.1104 and $1.1664, each closed (step_ended)","ok":true,"detail":"[[\"01-data\",\"$1.5552\",\"closed (step_ended)\"],[\"02-submitter-screen\",\"$3.1104\",\"closed (step_ended)\"],[\"03-wrong-status\",\"$1.1664\",\"closed (step_ended)\"]]"}
-{"kind":"shot","file":"09-cost-en.png","path":"/projects/j1-bd7539e62f61/cost","lang":"en","width":1280}
-{"kind":"shot","file":"09-cost-ar.png","path":"/projects/j1-bd7539e62f61/cost","lang":"ar","width":1280}
-{"kind":"shot","file":"09-cost-phone.png","path":"/projects/j1-bd7539e62f61/cost","lang":"en","width":390}
+{"kind":"shot","file":"09-cost-en.png","path":"/projects/j1-c31b9633a72b/cost","lang":"en","width":1280}
+{"kind":"shot","file":"09-cost-ar.png","path":"/projects/j1-c31b9633a72b/cost","lang":"ar","width":1280}
+{"kind":"shot","file":"09-cost-phone.png","path":"/projects/j1-c31b9633a72b/cost","lang":"en","width":390}
 {"kind":"check","name":"the badge on every page of the project (10 screens) and in its list row, in English and Arabic","ok":true,"detail":"20 pages and 2 list rows"}
 {"kind":"check","name":"the record lists every event in id order","ok":true,"detail":"92 events"}
-{"kind":"record","project":"j1-bd7539e62f61","events":92}
-{"kind":"shot","file":"10-record-en.png","path":"/projects/j1-bd7539e62f61/record","lang":"en","width":1280}
+{"kind":"record","project":"j1-c31b9633a72b","events":92}
+{"kind":"shot","file":"10-record-en.png","path":"/projects/j1-c31b9633a72b/record","lang":"en","width":1280}
 {"kind":"check","name":"the project is closed: its containers, images and folder removed","ok":true,"detail":""}
-{"kind":"shot","file":"11-closed-en.png","path":"/projects/j1-bd7539e62f61/record","lang":"en","width":1280}
+{"kind":"shot","file":"11-closed-en.png","path":"/projects/j1-c31b9633a72b/record","lang":"en","width":1280}
 {"kind":"shot","file":"12-projects-end-en.png","path":"/projects","lang":"en","width":1280}
 {"kind":"check","name":"signed out","ok":true,"detail":"/sign-in"}
 {"kind":"check","name":"nothing but 127.0.0.1:4022 was loaded","ok":true,"detail":""}
 {"kind":"done","failed":0}
-{"kind":"walk","walk":"j2c-run","part":"T1","camera":"j2-builder-camera-20261114_f52280-2","env":{"BUILDER_CAMERA_PATH":"t","BUILDER_CAMERA_PAUSE_MS":"4000"}}
+{"kind":"walk","walk":"j2c-run","part":"T1","camera":"j2-builder-camera-20261114_ae7e99-2","env":{"BUILDER_CAMERA_PATH":"t","BUILDER_CAMERA_PAUSE_MS":"4000"}}
 {"kind":"check","name":"signed in, at the projects page","ok":true,"detail":"/projects"}
-{"kind":"check","name":"the project is made","ok":true,"detail":"/projects/j1-a3d412798092/brief"}
-{"kind":"project","id":"j1-a3d412798092","name":"Restart: clean stop (made-up)","cap":"5.00","walk":"j2c-run","path":"t"}
+{"kind":"check","name":"the project is made","ok":true,"detail":"/projects/j1-91a2f41386be/brief"}
+{"kind":"project","id":"j1-91a2f41386be","name":"Restart: clean stop (made-up)","cap":"5.00","walk":"j2c-run","path":"t"}
 {"kind":"check","name":"a normal project: no badge","ok":true,"detail":""}
 {"kind":"check","name":"every question answered from example 1's answer sheet","ok":true,"detail":""}
-{"kind":"check","name":"brief confirmed, at the build steps","ok":true,"detail":"/projects/j1-a3d412798092/plan"}
+{"kind":"check","name":"brief confirmed, at the build steps","ok":true,"detail":"/projects/j1-91a2f41386be/plan"}
 {"kind":"check","name":"the plan has the two steps","ok":true,"detail":""}
 {"kind":"check","name":"the build screen shows the demonstration setting","ok":true,"detail":"Demonstration setting: the scripted engine pauses 4,000 ms before each write, so that a stop part-way can be shown."}
 {"kind":"check","name":"step 1 built","ok":true,"detail":"What you will be shown: The data step: the leave-request table, the configuration that names it, and the banner sentence that labels the app as built by the scripted engine Started.Sandbox made: the template copied and its history started. No container yet.Reserved $1.5552 for up to 4 turns, sized at claude-opus-5-5's prices.Scripted engine: fixed change example-1/01-data. The instruction (117 cha"}
 {"kind":"check","name":"step 1 approved; step 2 running part-way: the running note, the demonstration setting, at least 1 and fewer than 8 files written","ok":true,"detail":"1 written"}
-{"kind":"shot","file":"21-t-build-running-en.png","path":"/projects/j1-a3d412798092/build","lang":"en","width":1280}
-{"kind":"mid_step","project":"j1-a3d412798092","step":"02-submitter-screen","wrote_seen":1}
+{"kind":"shot","file":"21-t-build-running-en.png","path":"/projects/j1-91a2f41386be/build","lang":"en","width":1280}
+{"kind":"mid_step","project":"j1-91a2f41386be","step":"02-submitter-screen","wrote_seen":1}
 {"kind":"check","name":"nothing but 127.0.0.1:4022 was loaded","ok":true,"detail":""}
 {"kind":"done","failed":0}
-{"kind":"walk","walk":"j2c-after","part":"T6 and T7","camera":"j2-builder-camera-20261114_f52280-3","env":{"BUILDER_CAMERA_PATH":"t","BUILDER_CAMERA_PROJECT":"j1-a3d412798092","BUILDER_CAMERA_HOLD_REASON":"step_ended"}}
+{"kind":"walk","walk":"j2c-after","part":"T6 and T7","camera":"j2-builder-camera-20261114_ae7e99-3","env":{"BUILDER_CAMERA_PATH":"t","BUILDER_CAMERA_PROJECT":"j1-91a2f41386be","BUILDER_CAMERA_HOLD_REASON":"step_ended"}}
 {"kind":"check","name":"signed in, at the projects page","ok":true,"detail":"/projects"}
-{"kind":"check","name":"the project page opens its build screen, the stage it was at","ok":true,"detail":"/projects/j1-a3d412798092/build"}
+{"kind":"check","name":"the project page opens its build screen, the stage it was at","ok":true,"detail":"/projects/j1-91a2f41386be/build"}
 {"kind":"check","name":"the interrupted panel, with only 'Close project' and 'New project'","ok":true,"detail":"A job of this project was interrupted when the interface stopped. It is not resumed. Close the project, or start a new one. / [\"Close project\"] / [\"New project\"]"}
 {"kind":"check","name":"step 2 reads \"Interrupted: the interface stopped while it ran.\", with no build, approve or retry button","ok":true,"detail":"The engine stopped: stopped | Released $3.1104. Spent in the step: $0.00. | Interrupted: the interface stopped while it ran."}
 {"kind":"check","name":"no sign-off button on the build screen","ok":true,"detail":""}
-{"kind":"shot","file":"31-t-build-interrupted-en.png","path":"/projects/j1-a3d412798092/build","lang":"en","width":1280}
-{"kind":"shot","file":"31-t-build-interrupted-ar.png","path":"/projects/j1-a3d412798092/build","lang":"ar","width":1280}
-{"kind":"shot","file":"31-t-build-interrupted-phone.png","path":"/projects/j1-a3d412798092/build","lang":"en","width":390}
+{"kind":"shot","file":"31-t-build-interrupted-en.png","path":"/projects/j1-91a2f41386be/build","lang":"en","width":1280}
+{"kind":"shot","file":"31-t-build-interrupted-ar.png","path":"/projects/j1-91a2f41386be/build","lang":"ar","width":1280}
+{"kind":"shot","file":"31-t-build-interrupted-phone.png","path":"/projects/j1-91a2f41386be/build","lang":"en","width":390}
 {"kind":"check","name":"no sign-off button on the checklist screen","ok":true,"detail":""}
 {"kind":"check","name":"cost: step 2 \"closed (step_ended)\", with the note \"stopped part-way when the interface stopped; not resumed\"; step 1 closed (step_ended), without it","ok":true,"detail":"[[\"01-data\",\"$1.5552\",\"closed (step_ended)\"],[\"02-submitter-screen\",\"$3.1104\",\"closed (step_ended) stopped part-way when the interface stopped; not resumed\"]]"}
 {"kind":"check","name":"cost: step room $0.0000 and spent $0.00","ok":true,"detail":"$0.0000 / $0.00"}
-{"kind":"shot","file":"32-t-cost-en.png","path":"/projects/j1-a3d412798092/cost","lang":"en","width":1280}
-{"kind":"shot","file":"32-t-cost-ar.png","path":"/projects/j1-a3d412798092/cost","lang":"ar","width":1280}
-{"kind":"shot","file":"32-t-cost-phone.png","path":"/projects/j1-a3d412798092/cost","lang":"en","width":390}
+{"kind":"shot","file":"32-t-cost-en.png","path":"/projects/j1-91a2f41386be/cost","lang":"en","width":1280}
+{"kind":"shot","file":"32-t-cost-ar.png","path":"/projects/j1-91a2f41386be/cost","lang":"ar","width":1280}
+{"kind":"shot","file":"32-t-cost-phone.png","path":"/projects/j1-91a2f41386be/cost","lang":"en","width":390}
 {"kind":"check","name":"the record lists every event in id order","ok":true,"detail":"49 events"}
-{"kind":"shot","file":"33-t-record-en.png","path":"/projects/j1-a3d412798092/record","lang":"en","width":1280}
-{"kind":"check","name":"'Close project': the record page opens, and the record ends with journey.closed","ok":true,"detail":"/projects/j1-a3d412798092/record / journey.closed"}
-{"kind":"shot","file":"34-t-closed-en.png","path":"/projects/j1-a3d412798092/record","lang":"en","width":1280}
+{"kind":"shot","file":"33-t-record-en.png","path":"/projects/j1-91a2f41386be/record","lang":"en","width":1280}
+{"kind":"check","name":"'Close project': the record page opens, and the record ends with journey.closed","ok":true,"detail":"/projects/j1-91a2f41386be/record / journey.closed"}
+{"kind":"shot","file":"34-t-closed-en.png","path":"/projects/j1-91a2f41386be/record","lang":"en","width":1280}
 {"kind":"check","name":"signed out","ok":true,"detail":"/sign-in"}
 {"kind":"check","name":"nothing but 127.0.0.1:4022 was loaded","ok":true,"detail":""}
 {"kind":"done","failed":0}
-{"kind":"walk","walk":"j2c-run","part":"K1","camera":"j2-builder-camera-20261114_f52280-4","env":{"BUILDER_CAMERA_PATH":"k","BUILDER_CAMERA_PAUSE_MS":"4000"}}
+{"kind":"walk","walk":"j2c-run","part":"K1","camera":"j2-builder-camera-20261114_ae7e99-4","env":{"BUILDER_CAMERA_PATH":"k","BUILDER_CAMERA_PAUSE_MS":"4000"}}
 {"kind":"check","name":"signed in, at the projects page","ok":true,"detail":"/projects"}
-{"kind":"check","name":"the project is made","ok":true,"detail":"/projects/j1-009352b2abad/brief"}
-{"kind":"project","id":"j1-009352b2abad","name":"Restart: crash (made-up)","cap":"5.00","walk":"j2c-run","path":"k"}
+{"kind":"check","name":"the project is made","ok":true,"detail":"/projects/j1-a621a1b6b8f1/brief"}
+{"kind":"project","id":"j1-a621a1b6b8f1","name":"Restart: crash (made-up)","cap":"5.00","walk":"j2c-run","path":"k"}
 {"kind":"check","name":"a normal project: no badge","ok":true,"detail":""}
 {"kind":"check","name":"every question answered from example 1's answer sheet","ok":true,"detail":""}
-{"kind":"check","name":"brief confirmed, at the build steps","ok":true,"detail":"/projects/j1-009352b2abad/plan"}
+{"kind":"check","name":"brief confirmed, at the build steps","ok":true,"detail":"/projects/j1-a621a1b6b8f1/plan"}
 {"kind":"check","name":"the plan has the two steps","ok":true,"detail":""}
 {"kind":"check","name":"the build screen shows the demonstration setting","ok":true,"detail":"Demonstration setting: the scripted engine pauses 4,000 ms before each write, so that a stop part-way can be shown."}
 {"kind":"check","name":"step 1 built","ok":true,"detail":"What you will be shown: The data step: the leave-request table, the configuration that names it, and the banner sentence that labels the app as built by the scripted engine Started.Sandbox made: the template copied and its history started. No container yet.Reserved $1.5552 for up to 4 turns, sized at claude-opus-5-5's prices.Scripted engine: fixed change example-1/01-data. The instruction (117 cha"}
 {"kind":"check","name":"step 1 approved; step 2 running part-way: the running note, the demonstration setting, at least 1 and fewer than 8 files written","ok":true,"detail":"1 written"}
-{"kind":"shot","file":"41-k-build-running-en.png","path":"/projects/j1-009352b2abad/build","lang":"en","width":1280}
-{"kind":"mid_step","project":"j1-009352b2abad","step":"02-submitter-screen","wrote_seen":1}
+{"kind":"shot","file":"41-k-build-running-en.png","path":"/projects/j1-a621a1b6b8f1/build","lang":"en","width":1280}
+{"kind":"mid_step","project":"j1-a621a1b6b8f1","step":"02-submitter-screen","wrote_seen":1}
 {"kind":"check","name":"nothing but 127.0.0.1:4022 was loaded","ok":true,"detail":""}
 {"kind":"done","failed":0}
-{"kind":"walk","walk":"j2c-after","part":"K5 and K6","camera":"j2-builder-camera-20261114_f52280-5","env":{"BUILDER_CAMERA_PATH":"k","BUILDER_CAMERA_PROJECT":"j1-009352b2abad","BUILDER_CAMERA_HOLD_REASON":"job_interrupted"}}
+{"kind":"walk","walk":"j2c-after","part":"K5 and K6","camera":"j2-builder-camera-20261114_ae7e99-5","env":{"BUILDER_CAMERA_PATH":"k","BUILDER_CAMERA_PROJECT":"j1-a621a1b6b8f1","BUILDER_CAMERA_HOLD_REASON":"job_interrupted"}}
 {"kind":"check","name":"signed in, at the projects page","ok":true,"detail":"/projects"}
-{"kind":"check","name":"the project page opens its build screen, the stage it was at","ok":true,"detail":"/projects/j1-009352b2abad/build"}
+{"kind":"check","name":"the project page opens its build screen, the stage it was at","ok":true,"detail":"/projects/j1-a621a1b6b8f1/build"}
 {"kind":"check","name":"the interrupted panel, with only 'Close project' and 'New project'","ok":true,"detail":"A job of this project was interrupted when the interface stopped. It is not resumed. Close the project, or start a new one. / [\"Close project\"] / [\"New project\"]"}
 {"kind":"check","name":"step 2 reads \"Interrupted: the interface stopped while it ran.\", with no build, approve or retry button","ok":true,"detail":"Wrote src/app/[locale]/my-requests/rules.ts (add). | Interrupted: the interface stopped while it ran. | Released $3.1104. Spent in the step: $0.00."}
 {"kind":"check","name":"no sign-off button on the build screen","ok":true,"detail":""}
-{"kind":"shot","file":"51-k-build-interrupted-en.png","path":"/projects/j1-009352b2abad/build","lang":"en","width":1280}
-{"kind":"shot","file":"51-k-build-interrupted-ar.png","path":"/projects/j1-009352b2abad/build","lang":"ar","width":1280}
-{"kind":"shot","file":"51-k-build-interrupted-phone.png","path":"/projects/j1-009352b2abad/build","lang":"en","width":390}
+{"kind":"shot","file":"51-k-build-interrupted-en.png","path":"/projects/j1-a621a1b6b8f1/build","lang":"en","width":1280}
+{"kind":"shot","file":"51-k-build-interrupted-ar.png","path":"/projects/j1-a621a1b6b8f1/build","lang":"ar","width":1280}
+{"kind":"shot","file":"51-k-build-interrupted-phone.png","path":"/projects/j1-a621a1b6b8f1/build","lang":"en","width":390}
 {"kind":"check","name":"no sign-off button on the checklist screen","ok":true,"detail":""}
 {"kind":"check","name":"cost: step 2 \"closed (job_interrupted)\", with the note \"stopped part-way when the interface stopped; not resumed\"; step 1 closed (step_ended), without it","ok":true,"detail":"[[\"01-data\",\"$1.5552\",\"closed (step_ended)\"],[\"02-submitter-screen\",\"$3.1104\",\"closed (job_interrupted) stopped part-way when the interface stopped; not resumed\"]]"}
 {"kind":"check","name":"cost: step room $0.0000 and spent $0.00","ok":true,"detail":"$0.0000 / $0.00"}
-{"kind":"shot","file":"52-k-cost-en.png","path":"/projects/j1-009352b2abad/cost","lang":"en","width":1280}
-{"kind":"shot","file":"52-k-cost-ar.png","path":"/projects/j1-009352b2abad/cost","lang":"ar","width":1280}
-{"kind":"shot","file":"52-k-cost-phone.png","path":"/projects/j1-009352b2abad/cost","lang":"en","width":390}
+{"kind":"shot","file":"52-k-cost-en.png","path":"/projects/j1-a621a1b6b8f1/cost","lang":"en","width":1280}
+{"kind":"shot","file":"52-k-cost-ar.png","path":"/projects/j1-a621a1b6b8f1/cost","lang":"ar","width":1280}
+{"kind":"shot","file":"52-k-cost-phone.png","path":"/projects/j1-a621a1b6b8f1/cost","lang":"en","width":390}
 {"kind":"check","name":"the record lists every event in id order","ok":true,"detail":"48 events"}
-{"kind":"shot","file":"53-k-record-en.png","path":"/projects/j1-009352b2abad/record","lang":"en","width":1280}
-{"kind":"check","name":"'Close project': the record page opens, and the record ends with journey.closed","ok":true,"detail":"/projects/j1-009352b2abad/record / journey.closed"}
-{"kind":"shot","file":"54-k-closed-en.png","path":"/projects/j1-009352b2abad/record","lang":"en","width":1280}
+{"kind":"shot","file":"53-k-record-en.png","path":"/projects/j1-a621a1b6b8f1/record","lang":"en","width":1280}
+{"kind":"check","name":"'Close project': the record page opens, and the record ends with journey.closed","ok":true,"detail":"/projects/j1-a621a1b6b8f1/record / journey.closed"}
+{"kind":"shot","file":"54-k-closed-en.png","path":"/projects/j1-a621a1b6b8f1/record","lang":"en","width":1280}
 {"kind":"check","name":"signed out","ok":true,"detail":"/sign-in"}
 {"kind":"check","name":"nothing but 127.0.0.1:4022 was loaded","ok":true,"detail":""}
 {"kind":"done","failed":0}

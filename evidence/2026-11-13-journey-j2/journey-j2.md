@@ -4,8 +4,8 @@
 | --- | --- |
 | Package | J2, parts (a) and (c) (planned in `docs/design/journey-j1.md`; part (b), package 3.2, comes after) |
 | Design | `docs/design/journey-j2.md` (final design after two independent critiques; the owner answered its one question on 14 Nov 2026, option (a); section 13 lists the changes made during the build) |
-| Branch | `claude/j2-broken-and-restart`, from `claude/stage-1` at `14787d8`; pushed up to `5a2254d` (13 and 14 Nov 2026), every later commit on this machine only; no pull request opened. *Corrected after the review, 14 Nov 2026: this said "not pushed".* |
-| This file | 14 Nov 2026. First version: the automated run of section 7. Completed the same day with the controls of section 6 and the full checks (the whole suite, typecheck, licence check). Written by Claude Code. Reviewed once, on 14 Nov 2026: see "After the review", at the end |
+| Branch | `claude/j2-broken-and-restart`, from `claude/stage-1` at `14787d8`; pushed up to `5a2254d` (13 and 14 Nov 2026), every later commit on this machine only; no pull request opened. *Corrected after the review, 14 Nov 2026: this said "not pushed".* Brought up to date with `claude/stage-1` at `c4f198b` on 14 Nov 2026 (merge commit `3231071`; see the last section) |
+| This file | 14 Nov 2026. First version: the automated run of section 7. Completed the same day with the controls of section 6 and the full checks (the whole suite, typecheck, licence check). Written by Claude Code. Reviewed once, on 14 Nov 2026: see "After the review". Brought up to date with the integration branch at `c4f198b` the same day, and the automated run repeated on the merged head: see the last section; "The automated run" and the sections after it describe that run |
 | Machine | The development machine (a cloud session); the run under the shared lock, with its own database (`builder_j2_<run>`), data folder and port (127.0.0.1:4022); the live preview off; real Docker; the scripted engine only, no model called |
 
 ## What the owner can now do
@@ -36,9 +36,9 @@
 
 ## The automated run
 
-`flock <scratchpad>/live-tests.lock npx tsx scripts/demo-journey-j2.ts <evidence folder>`, from `builder/`, on commit `c81eccb` (`builder/` tree `8449a9a`), 14 Nov 2026, lock held 04:56:17 to 04:58:50 UTC (`lock-lines.txt`).
+`flock <scratchpad>/live-tests.lock npx tsx scripts/demo-journey-j2.ts <evidence folder>`, from `builder/`, on the merged head, commit `3231071` (`builder/` tree `993b1f0`), 14 Nov 2026, lock held 10:02:04 to 10:04:37 UTC (`lock-lines.txt`). `TMPDIR` was a short link, `/tmp/j2mg-10d8e4`, to a folder in the session's scratch folder, removed after the run: with `TMPDIR` set to the scratch folder's own path, tsx's wrapper could not make its socket there (a socket path holds at most 107 bytes) and start 2 did not start (the first try, `after-merge/first-try/`: 72 of 73 checks, start 2 failed with EADDRINUSE; nothing of its one project left).
 
-**Result: 150 of 150 checks passed; 41 of 41 screenshots copied; exit code 0** (`run-demo.txt`, its last lines).
+**Result: 150 of 150 checks passed; 41 of 41 screenshots copied; exit code 0** (`run-demo.txt`, its last lines). The run before the merge, on `c81eccb` (`builder/` tree `8449a9a`), 04:56 to 04:58 UTC, also passed 150 of 150 with 41 screenshots; its log and lock lines are in `run-before-merge/`, and its events, camera lines, interface log and screenshots in this folder as of commit `93d59ec`.
 
 How it ran (design section 7):
 - **Before:** the runner image checked (`runnerImageProblem`); nothing named `builder_j1-` on the machine (else it refuses); ports 13161 and 4022 free (it waits, and stops nothing); a fresh database, data folder and camera folder, all in one run folder; a random interface password, given to the interface in its environment and to the builder camera as one read-only file (mode 0400), never printed.
@@ -48,7 +48,7 @@ How it ran (design section 7):
 - **Start 4** (`node --import tsx`, no setting): K3, K4; walk `j2c-after` for P2 (K5, K6). SIGTERM: exit 0.
 - No signal was sent while a camera walk ran. Signals went only to the process ids the run started. Clean-up was only by the run's exact project ids and its cameras' exact names; nothing was left to clean.
 
-Timing, measured (`run-demo.txt`): walk `j2a` took 77 s; each `j2c-run` 25 s, step 2's first write recorded about 24 s into the walk (step 1's four writes at 4 s each came first), so the signal came with 1 of step 2's 8 files written. The tsx wrapper exited 0.6 s after SIGTERM; the interface started directly exited 0.2 s after it.
+Timing, measured (`run-demo.txt`), the same as in the run before the merge: walk `j2a` took 77 s; `j2c-run` 25 s for P1 and 24 s for P2, step 2's first write recorded about 24 s into the walk (step 1's four writes at 4 s each came first), so the signal came with 1 of step 2's 8 files written. The tsx wrapper exited 0.6 s after SIGTERM; the interface started directly exited 0.2 s after it.
 
 A first run (commit `5a624d5`, 04:34 UTC) also passed, 147 of 147, but its script kept the shared lock about 95 s after its end (timers), counted one write of P1 in a K1 sample, and left processes out of K4's first look. All three were fixed in the script, and the run above is the run of record. The first run's log is in `first-run/`.
 
@@ -79,7 +79,7 @@ Item 10 (the normal path unchanged) is shown by tests, not by the run: the regre
 | Design item | What the run found |
 | --- | --- |
 | T1 | The camera saw step 1 approved and step 2 running, the running note, the demonstration setting line and 1 file written (`21-t-build-running-en`), and exited 0. Then the record held 1 of step 2's 8 writes, and Docker listed `builder_<P1>-engine-02-submitter-screen-2baa2b`. |
-| T2 | SIGTERM to the tsx wrapper: exit code 0 after 0.6 s. The interface's lines named the job (`job-7eb18240`) and the sandbox it removed, said "removed at the stop: 1" and ended "Exit code 0." (`interface-log.txt`, start 2). |
+| T2 | SIGTERM to the tsx wrapper: exit code 0 after 0.6 s. The interface's lines named the job (`job-a42f91fe`) and the sandbox it removed, said "removed at the stop: 1" and ended "Exit code 0." (`interface-log.txt`, start 2). |
 | T3 | Right after the exit, before any restart: nothing of P1 left (N): no container, volume, network, image or process, the folder gone. |
 | T4 | `journey.job.interrupted` with "…stopped on purpose (SIGTERM)…"; `step.hold_closed` step_ended; `journey.sandbox.removed` with `interrupted: true`, `removed: true` and the stop's own reason; no job finished or failed, no `journey.workspace.reset`. |
 | T5 | The restart printed "…removed at start: 0."; the camera signed in again. |
@@ -123,15 +123,15 @@ Nothing of the three projects left (N); no container of the run's builder camera
 | `52-k-cost-en`, `-ar`, `-phone` | P2's cost: step 2 closed (job_interrupted), stopped part-way |
 | `53-k-record-en`, `54-k-closed-en` | P2's record; after "Close project" |
 
-Each picture was looked at for a password, a pass or a secret: none is shown. No sign-in page is photographed in this run; the password is typed only into the sign-in form and never photographed; the record pages hold the run's events, which hold no password (checked by the run before `events.json` was written). Run folder paths show on the record pages; they name this session's scratch folder and were removed after the run.
+Each picture of the run on the merged head was looked at (the tall ones in pieces) for a password, a pass, a secret, an email address or a real name: none is shown. The only email address is the app's made-up sample user, `employee@example.test`, on the record pages; the names are the projects' made-up names and the app's "Sample Employee". No sign-in page is photographed; the password is typed only into the sign-in form and never photographed; the record pages hold the run's events, which hold no password (checked by the run before `events.json` was written, and `events.json` searched again after: no field named for a pass, a secret or a password). Run folder paths show on the record pages (the short link and the scratch folder's own path); the folders were removed after the run.
 
 ## Files
 
 - `run-demo.txt`: the run's own log, each check with its detail, the lists of Docker and the machine between the starts (counts, and what N matches of each project), the disk, the result.
-- `events.json`: every event of the run's database, 193, for the 3 projects, sorted by the id as text (1, 10, 100, 101, …, 2, …), not by number (the run folder written `<run folder>`). *Corrected after the review, 14 Nov 2026: this said "in id order"; the run script's query sorted by the text of the id (`after-review/events-order.txt`). No counted check depended on that order.*
+- `events.json`: every event of the run's database, 193, for the 3 projects, in id order (by number: checked, 1 to 193), the run folder written `<run folder>`. *The run before the merge sorted them by the id as text (1, 10, 100, …); corrected after the review (`after-review/events-order.txt`), and fixed in the script, whose new order this run is the first to use. Six paths the record holds through the folder's real path (screenshots and the checklist's files) were also written `<run folder>`, by hand after the run.*
 - `camera-lines.jsonl`: every line of the five camera walks, each walk starting with a `{"kind":"walk"}` line.
 - `interface-log.txt`: the interface's own output, each line marked with its start (1 to 4).
-- `lock-lines.txt`: the lock lines around the run. `first-run/`: the first run's log.
+- `lock-lines.txt`: the lock lines around the run. `first-run/`: the first run's log (13 Nov code). `run-before-merge/`: the log and lock lines of the run before the merge. `after-merge/`: the checks after the merge, and the first try on the merged head (`first-try/`).
 - `new-tests-a-…`, `new-tests-c-…`, `touched-test-files-c.txt`: the tests of parts (a) and (c), before and after (written by those parts).
 - `controls-scripts/controls.py`, `controls-output.txt`: the controls (below).
 - `full-checks.sh`: the script that ran the controls, the whole suite, the typecheck and the licence check; `run-tests-full.txt`, `run-typecheck.txt`, `run-licences.txt`: their output.
@@ -159,7 +159,7 @@ Run by `full-checks.sh` from `builder/`, as J3's were (`evidence/2026-11-13-jour
 
 ## Checked and assumed
 
-- **Checked (by the run, with the output named):** every item above; that the run used real Docker and the real interface process, started as named; the disk: 6.31 GB free at the start, 5.27 GB at the lowest, so about 1.0 GB used at once (sampled every 2 s); after the run, no container on the machine, nothing named `builder_j1-`, ports 4022 and 13161 free.
+- **Checked (by the run, with the output named):** every item above; that the run used real Docker and the real interface process, started as named; the disk: 16.48 GB free at the start, 15.43 GB at the lowest, so about 1.0 GB used at once (sampled every 2 s); after the run, no container on the machine, nothing named `builder_j1-`, ports 4022 and 13161 free.
 - **Checked by reading the pictures:** the screens listed above show what their lines say, in both languages where taken.
 - **Assumed, not shown:** that the clean stop behaves the same on a slower machine or with a job that cannot be stopped (the 30 s wait, the 5 s lock check and the 90 s bound were not reached here: every stop took under 1 s); and what a `docker build` left running by a stop or a crash does: it can outlive the next start's removal (here each stop came mid-step, with no image build running; gap 178).
 - **Not shown here because the run's live preview was off:** the broken copy's live refusal ("A deliberately broken copy is not offered as a live app…"). Test A7 shows it with the front on.
@@ -209,3 +209,43 @@ Run by `full-checks.sh` from `builder/`, as J3's were (`evidence/2026-11-13-jour
 | The automated run | **Not repeated.** The product change only widens a refusal, which the run passed through once on a real folder; the script's change is the order of its event queries | — |
 
 **Checked and assumed.** Checked: the findings against the files and the remote, the look-alike names against the check's expression, and the checks above. Not checked: the fixes after the review have not been read by a reviewer; the run script's new order has not been run (only its query's order, on made-up ids); the real adapter's target check still has no test.
+
+**The isolation reviewer's notes not handled in the round of fixes** (*added 14 Nov 2026, with the merge below*; recorded, not fixed; also in gaps 178 and 179):
+- Gap 178, item (4), says a lock lost while a project is being removed "ends the process at once". That holds only when no job is left running: with a job that outlived the 30 s wait, the removal under way runs to its end, and the exit comes from the stop's own path, with code 1. (The reviewer's reading; not checked again.)
+- No test drives the stop with a live session open.
+- Rule N, as the automated run matches it (`builder/scripts/journey-restart-checks.ts`, `projectLeftovers`), has three weaknesses, each checked by reading that function and test C8: (1) C8 has no case of a network matched only by its Compose label; (2) the process rule matches only command lines that hold `builder_<P>`, so a lingering `docker compose -f <dir>/compose.yaml` up, down or build of the project, which has no `-p`, would not be seen (matching the sandbox folder's path would be stronger); (3) dangling `<none>` images are not matched.
+
+## Brought up to date with the integration branch at `c4f198b`
+
+*Added by Claude Code on 14 Nov 2026.* The integration branch `claude/stage-1` at `c4f198b` was merged into this branch (merge commit `3231071`). It brought four merged pull requests J2 did not have: #40 (question 18's records), #41 (the phone test's decision: `builder/scripts/probe-phone.ts` and a new test file), #42 (gap 145: a streamed call read above its hold stops its project; the gateway, `store/holds.ts`, migration 013, `test/overrun-stop.test.ts`) and #43 (sign-off and the live app: "Open the live app" refused after sign-off, and an open live session ended before the sign-off is recorded; `journey.ts`, `journey-jobs.ts`, `web/preview.ts`, tests in `test/web.test.ts`). Files in `after-merge/`; the checks' script, `after-merge/checks-after-merge.sh`, written as `after-review/checks-after-review.sh`.
+
+**Each conflicted hunk in code, and how it was resolved** (every refusal of both sides kept; no test of either side dropped or changed):
+
+| File, hunk | Resolution |
+| --- | --- |
+| `builder/src/orchestrator/journey.ts`, the constants after `EV` | Both kept: J2's `REMOVED_AT_STOP`, `FOUND_AT_START` and `StopRemoval`, then the sign-off fix's `LIVE_AFTER_SIGN_OFF` and `LIVE_CLOSED_BY_SIGN_OFF`. |
+| `journey.ts`, `JOB_RULES.export` (in the same hunk as `live`) | J2's rule kept (not signed off, then any trace of the broken copy); the integration branch had not changed it. |
+| `journey.ts`, `JOB_RULES.live` | Every refusal of both kept, in this order: plan not confirmed; signed off (`LIVE_AFTER_SIGN_OFF`); the app not running; any trace of the broken copy (`BROKEN_LIVE_REFUSAL`); the scripted-only check. Each side's own order is unchanged; a broken copy is never signed off, so on a real record the two new refusals never meet (a broken copy with a forged `journey.signed_off` gets the after-sign-off refusal: still refused). |
+| `builder/src/orchestrator/journey-jobs.ts`, the file's opening comment | Both bullets kept: J2's (a) and (c), then the sign-off fix's. |
+| `builder/test/web.test.ts`, the end of the file | Both new `describe` blocks kept, J2's first, then the sign-off fix's, each closed. |
+
+Merged without a conflict, and read: `signOff` (the live session ended after J2's refusals, just before `journey.signed_off` is written) and `attachPreview` (the hook given to the journey). The records: `docs/DECISIONS.md`, every new row of both kept (the integration branch's six, then J2's three); `docs/KNOWN-GAPS.md`, gap 161 kept only in its updated form (closed for use after sign-off; J2's side held the old copy), and every new row of both kept (162, 168, 170, 173, 174; 175 to 181); `docs/SOURCES.md`, both new sections kept. Checked after: no gap number twice (`grep -E '^\| [0-9]+ \|' docs/KNOWN-GAPS.md | awk -F'|' '{print $2}' | sort | uniq -d` printed nothing), no two DECISIONS rows with the same first 120 characters, no question number twice in `docs/QUESTIONS.md` (its `**N.**` entries). `docs/STATUS.md` was taken from J2 and rewritten for the merged state (the version before kept as `docs/log/2026-11-14-status-before-j2-merge.md`).
+
+**One control's text updated:** J2-C14 (the broken copy's live refusal removed) replaced three lines that, after the merge, occur 0 times: the sign-off fix's refusal now comes before "the app is not running", so the same three lines sit two spaces deeper. The control now replaces the merged three lines, which hold the same safeguard (`controls-scripts/controls.py`, with a comment saying so). Every other text to replace, of J2's 45 controls and of the sign-off fix's 8 (`evidence/2026-11-14-fix-signoff-live/controls.py`, not changed), occurred exactly once in the merged code.
+
+**The checks on the merged head** (`3231071`, `builder/` tree `993b1f0`; each under the shared lock, on fresh databases dropped after, `TMPDIR` in the session's scratch folder):
+
+| Check | Result | File |
+| --- | --- | --- |
+| `npm run typecheck` | Passed, exit code 0 | `after-merge/run-typecheck.txt` |
+| `npm run check:licences` | Passed for `builder/` and `builder/runner/`, exit code 0; no dependency file or image list changed since `14787d8`; no dependency added | `after-merge/run-licences.txt` |
+| J2's controls | **45 of 45 failed** with their safeguard removed, as they should. Each of the 32 named tests passed alone first; after every control the code was as committed. Two databases were left by controls' tests that ran into their time limit (J2-C23 and J2-C37, as before); both dropped | `after-merge/controls-j2-after-merge.txt` |
+| The sign-off fix's controls | **8 of 8 failed** with their safeguard removed, as they should; after every control the code was as committed; no database left | `after-merge/controls-signoff-after-merge.txt` |
+| `npm test`, the whole suite, live tests included | **787 of 787 passed, in 31 of 31 files, none skipped** (J2's 730 and the 57 the integration branch added since `14787d8`); the lock held from 09:38:40 to 09:58:31 UTC. No container before or after; no short preview folder left in /tmp; no database of the J2 (c) tests left; the browser zip in the cache the same size and time after as before | `after-merge/run-tests-full.txt` |
+| The automated run, again on the merged head | **150 of 150 checks passed, 41 of 41 screenshots, exit code 0**, lock held 10:02:04 to 10:04:37 UTC (the second try; see below). The same figures as the run before the merge: the same event numbers (the broken step staged at event 56, after step 2's approval at 54 and before step 3's first engine event at 58), 92 events before closing, 193 in all, each stop under 1 s | `run-demo.txt`, `lock-lines.txt`, `events.json`, `camera-lines.jsonl`, `interface-log.txt`, `screens/` (each replacing the earlier run's; its log in `run-before-merge/`) |
+
+**The automated run, two tries.** The first try (10:00 UTC, `after-merge/first-try/`) ran with `TMPDIR` set to a folder in the session's scratch folder, as every other check here. Start 1, the whole of part (a), passed; start 2 did not start: tsx's wrapper makes a socket in `TMPDIR`, the run gives the interface `<run folder>/tmp` as its `TMPDIR`, and with the scratch folder's path (83 bytes) in front the socket's path was 127 bytes, above the 107 a socket path may hold, so it was cut short to the run folder itself and refused (EADDRINUSE). The run counted that as a failed check (72 of 73), cleaned up and exited 1; nothing of its one project, no camera container and no run folder were left, and its database was dropped. The second try gave `TMPDIR` as a short link in /tmp (`/tmp/j2mg-10d8e4`) to a new folder in the scratch folder, so every file the run wrote still landed in the scratch folder; the link was removed after the run. This is a change to how the run was started, not to the run or the code. The run before the merge had a `TMPDIR` short enough (not recorded).
+
+**After the run, checked:** no container on the machine; nothing named `builder_j1-`; ports 4022 and 13161 free; the run's database dropped and its run folder removed (the run's own checks); the link gone; no database `builder_j2_*` or `builder_test_j2_mg*` left (`psql`); the four volumes Docker lists are anonymous ones made on 13 Nov 2026, before this work, and were left alone. The scratch folders the checks and the run used (`<scratchpad>/j2mg-tmp`, `<scratchpad>/j2mg-demo-tmp`) were removed after. Found in the first before removing it: 10 folders left by tests in their `TMPDIR`, 3 `builder-acceptance-standin-*` made during the controls (09:37 to 09:38 UTC) and 4 `builder-sb-*`, 2 `builder-user-docker-*` and 1 `builder-home-*` made during the whole suite (09:55 UTC); not looked into further.
+
+**Checked and assumed.** Checked: each conflict against both sides' diffs from `14787d8`; that every refusal of both sides is in the merged rules (read, and shown by both sides' tests and controls passing and failing as they should); the checks and the run above. Not checked: the merge has not been read by a reviewer; nothing was pushed.

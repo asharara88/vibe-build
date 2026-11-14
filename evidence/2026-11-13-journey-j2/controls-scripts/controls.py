@@ -60,7 +60,9 @@ CONTROLS = [
   [('${s.brokenTrace && outcome === "passed" ? html`<p class="warn" data-broken-passed>', '${false ? html`<p class="warn" data-broken-passed>')],
   [(W, "A6:")]),
  ("J2-C14", "the live refusal for a broken copy (JOB_RULES.live goes straight to the scripted-only check)", JOURNEY,
-  [("        : s.brokenTrace\n          ? BROKEN_LIVE_REFUSAL\n          : scriptedOnlyProblem(s),", "        : scriptedOnlyProblem(s),")],
+  # Updated on 14 Nov 2026 after the merge of the integration branch at c4f198b: the sign-off fix put its own refusal
+  # (LIVE_AFTER_SIGN_OFF) before "the app is not running", so the same three lines now sit two spaces deeper.
+  [("          : s.brokenTrace\n            ? BROKEN_LIVE_REFUSAL\n            : scriptedOnlyProblem(s),", "          : scriptedOnlyProblem(s),")],
   [(J, "A7:"), (W, "A7:")]),
  ("J2-C15", "the badge helper (no badge drawn)", PAGES,
   [("  return s.brokenTrace ? html` <span class=\"label\" data-broken-badge>", "  return false ? html` <span class=\"label\" data-broken-badge>")],
