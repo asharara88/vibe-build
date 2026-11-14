@@ -9,8 +9,10 @@ LABEL=$1
 OUT=$(realpath -m "$2")
 REPO=$(git -C "$(dirname "$0")" rev-parse --show-toplevel)
 T=$S/f${LABEL:0:1}
-# Kept short (after the first attempt on 14 Nov 2026): tsx makes a socket at $TMPDIR/tsx-<uid>/<pid>.pipe, and Linux
-# takes at most 107 bytes for a socket's path; a longer TMPDIR made the suite's tsx scripts fail (EADDRINUSE).
+# Kept short (after the first attempt on 14 Nov 2026): tsx makes a socket at $TMPDIR/tsx-<uid>/<pid>.pipe, and Node
+# keeps at most 108 bytes of a socket's path, cutting a longer one short without an error (socket-path-probe.js); with
+# a TMPDIR of 102 bytes every such path was cut to the same 108 bytes and the suite's tsx scripts failed (EADDRINUSE).
+# The guard leaves room for an 8-digit process number and keeps the whole path within 107 bytes.
 if [ $(( ${#T} + ${#UID} + 19 )) -gt 107 ]; then echo "TMPDIR $T is too long for tsx's socket path; use a shorter one." >&2; exit 1; fi
 DB=builder_test_tmpdir_$LABEL
 rm -rf "$T" && mkdir -p "$T"
