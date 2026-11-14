@@ -1,6 +1,6 @@
 # Package 0.6c: the probe inside the real containers (14 November 2026)
 
-**Numbers.** This file was written on a side branch before its records had numbers. Where it says "proposed gap 185" and "proposed question 23", read known gap 210 and question 30 (`docs/KNOWN-GAPS.md`, `docs/QUESTIONS.md`); 185 and 23 had been taken by other work when it was merged. Known gap 185 is about something else.
+**Numbers.** This file was written on a side branch before its records had numbers. Where it says "proposed gap 185" and "proposed question 23", read known gap 210 and question 31 (`docs/KNOWN-GAPS.md`, `docs/QUESTIONS.md`); 185 and 23 had been taken by other work when it was merged. Known gap 185 is about something else.
 
 **The reading used.** The build plan asks that the isolation probe is "run in each of those containers": the app and tools containers, package 3.1's acceptance runner and package 2.2's engine. "Run in each of those containers" is read here as: for the app, inside the running container itself; for the tools container, the runner and the engine, in a one-off container of the real service from the real image, which is the only form those containers ever take. This reading is Claude Code's; no engineer has confirmed it.
 
