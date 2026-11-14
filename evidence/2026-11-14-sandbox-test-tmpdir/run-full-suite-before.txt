@@ -1,0 +1,141 @@
+Run 'before': the whole suite, live tests included (npx vitest run), in builder/, on commit 14787d8, builder/ tree 1035be8, working tree: 1 changed files (evidence/2026-11-14-sandbox-test-tmpdir/ ).
+Test database builder_test_tmpdir_before, made new. TMPDIR=<scratchpad>/fb, made new and empty; entries in it before the run: 0. BUILDER_BROWSER_CACHE=<scratchpad>/browser-cache.
+Free disk before (df -h /): 26G free of 252G
+Containers on this machine before (docker ps -aq, count): 0
+Waiting for the shared lock (flock <scratchpad>/live-tests.lock) from 03:10:12 UTC.
+Lock held from 03:10:12 UTC.
+
+ RUN  v5.1.0 /home/user/vibe-build/builder
+
+(node:28016) Warning: Closing file descriptor 25 on garbage collection
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:28016) [DEP0137] DeprecationWarning: Closing a FileHandle object on garbage collection is deprecated. Please close FileHandle objects explicitly using FileHandle.prototype.close(). In the future, an error will be thrown if a file descriptor is closed during garbage collection.
+(node:28016) Warning: Closing file descriptor 24 on garbage collection
+(node:28016) Warning: Closing file descriptor 26 on garbage collection
+(node:28016) Warning: Closing file descriptor 27 on garbage collection
+(node:28016) Warning: Closing file descriptor 28 on garbage collection
+(node:28016) Warning: Closing file descriptor 29 on garbage collection
+(node:28016) Warning: Closing file descriptor 24 on garbage collection
+(node:28016) Warning: Closing file descriptor 25 on garbage collection
+(node:28016) Warning: Closing file descriptor 26 on garbage collection
+(node:28016) Warning: Closing file descriptor 28 on garbage collection
+(node:28016) Warning: Closing file descriptor 25 on garbage collection
+(node:28016) Warning: Closing file descriptor 26 on garbage collection
+(node:28016) Warning: Closing file descriptor 27 on garbage collection
+(node:28016) Warning: Closing file descriptor 28 on garbage collection
+(node:28016) Warning: Closing file descriptor 25 on garbage collection
+(node:28016) Warning: Closing file descriptor 26 on garbage collection
+(node:28016) Warning: Closing file descriptor 27 on garbage collection
+ ❯ test/preview-live.test.ts (6 tests | 5 failed) 1646ms
+   ❯ J3, live: the scripted app through the whole chain (example 1, development profile) (6)
+     × example 1 is built and started; the check service reads as on front alone; the live app opens for it 1005ms
+     × the owner's walk through the preview, with Chromium's checks: every check passes, nothing names app:3161, every cookie carries the prefix 3ms
+     × after a new entry, the page's storage is gone (Clear-Site-Data, in Chromium) 1ms
+     × each mapping turned off in turn shows which the app needs, and that its own check then refuses; the policy's sandbox value is tried 1ms
+     × the refusals: no pass gives only the gate; a crafted cross-site POST opens no stream; after the project closes (the app stopped), the live app is gone 38ms
+{"at":"2026-11-14T03:24:17.799Z","method":"CONNECT","host":"registry.example.test","port":443,"decision":"allowed"}
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 5 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/preview-live.test.ts > J3, live: the scripted app through the whole chain (example 1, development profile) > example 1 is built and started; the check service reads as on front alone; the live app opens for it
+AssertionError: The app camera cannot start, so the app was not built: the runner image builder-acceptance-runner:local is not on this machine: it is built from the approved browser zip (scripts/fetch-browser.ts fetches the zip; the image is built by buildRunnerImage).: expected 'failed' to be 'finished' // Object.is equality
+
+Expected: "finished"
+Received: "failed"
+
+ ❯ test/preview-live.test.ts:177:101
+    175|       await journey.waitForJob();
+    176|       const s = await journey.state(projectId);
+    177|       expect(s.jobs.filter((j) => j.kind === "preview").at(-1)?.state,…
+       |                                                                                                     ^
+    178|       note(`example 1 built, started and photographed by the app camer…
+    179|       expect(await streamNetworkProblem(jobs.handle(projectId)!.sb)).t…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/5]⎯
+
+ FAIL  test/preview-live.test.ts > J3, live: the scripted app through the whole chain (example 1, development profile) > the owner's walk through the preview, with Chromium's checks: every check passes, nothing names app:3161, every cookie carries the prefix
+JourneyRefused: The app is not running in this interface.
+ ❯ JourneyJobs.sampleSignIn src/orchestrator/journey-jobs.ts:259:30
+    257|   sampleSignIn(projectId: string): { email: string; password: string }…
+    258|     const x = this.held(projectId);
+    259|     if (!x.appStarted) throw new JourneyRefused("The app is not runnin…
+       |                              ^
+    260|     return { email: SAMPLE_EMPLOYEE_EMAIL, password: x.samplePassword …
+    261|   }
+ ❯ secrets test/preview-live.test.ts:77:34
+ ❯ cameraRun test/preview-live.test.ts:96:13
+ ❯ test/preview-live.test.ts:189:23
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/5]⎯
+
+ FAIL  test/preview-live.test.ts > J3, live: the scripted app through the whole chain (example 1, development profile) > after a new entry, the page's storage is gone (Clear-Site-Data, in Chromium)
+JourneyRefused: The app is not running in this interface.
+ ❯ JourneyJobs.sampleSignIn src/orchestrator/journey-jobs.ts:259:30
+    257|   sampleSignIn(projectId: string): { email: string; password: string }…
+    258|     const x = this.held(projectId);
+    259|     if (!x.appStarted) throw new JourneyRefused("The app is not runnin…
+       |                              ^
+    260|     return { email: SAMPLE_EMPLOYEE_EMAIL, password: x.samplePassword …
+    261|   }
+ ❯ secrets test/preview-live.test.ts:77:34
+ ❯ cameraRun test/preview-live.test.ts:96:13
+ ❯ test/preview-live.test.ts:211:23
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/5]⎯
+
+ FAIL  test/preview-live.test.ts > J3, live: the scripted app through the whole chain (example 1, development profile) > each mapping turned off in turn shows which the app needs, and that its own check then refuses; the policy's sandbox value is tried
+JourneyRefused: The app is not running in this interface.
+ ❯ JourneyJobs.sampleSignIn src/orchestrator/journey-jobs.ts:259:30
+    257|   sampleSignIn(projectId: string): { email: string; password: string }…
+    258|     const x = this.held(projectId);
+    259|     if (!x.appStarted) throw new JourneyRefused("The app is not runnin…
+       |                              ^
+    260|     return { email: SAMPLE_EMPLOYEE_EMAIL, password: x.samplePassword …
+    261|   }
+ ❯ secrets test/preview-live.test.ts:77:34
+ ❯ cameraRun test/preview-live.test.ts:96:13
+ ❯ test/preview-live.test.ts:243:27
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/5]⎯
+
+ FAIL  test/preview-live.test.ts > J3, live: the scripted app through the whole chain (example 1, development profile) > the refusals: no pass gives only the gate; a crafted cross-site POST opens no stream; after the project closes (the app stopped), the live app is gone
+JourneyRefused: The app is not running: make the preview first. The live app is offered only while it runs.
+ ❯ src/orchestrator/journey.ts:839:22
+    837|       if (s.interrupted) throw new JourneyRefused("A job of this proje…
+    838|       const why = JOB_RULES[kind](s) ?? (kind === "build_step" ? build…
+    839|       if (why) throw new JourneyRefused(why);
+       |                      ^
+    840|       // After the review bot on defb9c4: the instance lock is asked o…
+    841|       // the halt is looked at again, with nothing awaited between it,…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/5]⎯
+
+
+ Test Files  1 failed | 28 passed (29)
+      Tests  5 failed | 687 passed (692)
+   Start at  03:10:13
+   Duration  866.68s (tests 100%)
+
+vitest exit code: 1
+Lock released at 03:24:39 UTC.
+Containers on this machine after (docker ps -aq, count): 0
+Free disk after (df -h /): 23G free of 252G
+
+What is left in TMPDIR after the run (entries directly in it: 9; everything below it: 614):
+du -sh of each entry, largest first:
+2.6M	node-compile-cache
+356K	tsx-0
+36K	builder-sb-njttwT
+36K	builder-sb-aT7HPq
+36K	builder-sb-SyOkbS
+36K	builder-sb-L6LAPq
+12K	builder-home-wh62WW
+8.0K	builder-user-docker-p2nAXm
+4.0K	builder-user-docker-S3Sow8
+du -sh of TMPDIR as a whole: 3.1M
+Entries by name, with the part after the last '-' dropped (count):
+      1 builder-home-*
+      4 builder-sb-*
+      2 builder-user-docker-*
+      1 node-compile-*
+      1 tsx-*

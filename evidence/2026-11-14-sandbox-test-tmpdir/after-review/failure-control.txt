@@ -1,0 +1,37 @@
+== The test file of 9f65b54 (after the fix), with one failure added on purpose (the line it follows occurs 1 time(s) in the file):
+@@ -467,2 +467,3 @@
+     expect(existsSync(sb.composeFile)).toBe(true);
++    expect("this control fails on purpose").toBe("a pass");
+     expect(readFileSync(join(dir, "secrets", "db_password"), "utf8")).toBe("sample-only-password");
+TMPDIR=<scratchpad>/ca, made new and empty; entries before: 0.
+$ node node_modules/vitest/vitest.mjs run test/sandbox.test.ts -t 'writes YAML that Docker Compose accepts'
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  test/sandbox.test.ts > sandbox manager: compose documents > writes YAML that Docker Compose accepts
+AssertionError: expected 'this control fails on purpose' to be 'a pass' // Object.is equality
+Expected: "a pass"
+Received: "this control fails on purpose"
+ Test Files  1 failed (1)
+      Tests  1 failed | 22 skipped (23)
+vitest exit code: 1
+Left in TMPDIR (entries directly in it: 0):
+(nothing: TMPDIR is empty)
+
+== The test file of 14787d8 (before the fix), with one failure added on purpose (the line it follows occurs 1 time(s) in the file):
+@@ -449,2 +449,3 @@
+     expect(existsSync(sb.composeFile)).toBe(true);
++    expect("this control fails on purpose").toBe("a pass");
+     expect(readFileSync(join(dir, "secrets", "db_password"), "utf8")).toBe("sample-only-password");
+TMPDIR=<scratchpad>/cb, made new and empty; entries before: 0.
+$ node node_modules/vitest/vitest.mjs run test/sandbox.test.ts -t 'writes YAML that Docker Compose accepts'
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  test/sandbox.test.ts > sandbox manager: compose documents > writes YAML that Docker Compose accepts
+AssertionError: expected 'this control fails on purpose' to be 'a pass' // Object.is equality
+Expected: "a pass"
+Received: "this control fails on purpose"
+ Test Files  1 failed (1)
+      Tests  1 failed | 22 skipped (23)
+vitest exit code: 1
+Left in TMPDIR (entries directly in it: 1):
+36K	builder-sb-hoptU5
+
+The test file put back as committed: git status of it is '' (empty: unchanged), blob 2529338ba6c4967691c708cd9ce54961e93c9cb4.
