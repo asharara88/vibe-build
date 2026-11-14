@@ -6,7 +6,7 @@
  * workspace and history, no container.
  */
 import { execFileSync, spawnSync } from "node:child_process";
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import net from "node:net";
 import { existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -30,7 +30,7 @@ import { LivePreview } from "../src/web/preview.js";
 import { runBudgetedStep } from "../src/orchestrator/steps.js";
 import { sandbox as sandboxManager, type Sandbox, type StreamingOptions } from "../src/sandbox/manager.js";
 import { networkChecks } from "../scripts/journey-network-checks.js";
-import { cleanStopRecordChecks, crashRestartRecordChecks, midStepChecks, parseImages, parseNameLabel, parseProcesses, projectLeftovers } from "../scripts/journey-restart-checks.js";
+import { brokenCopyRecordChecks, cleanStopRecordChecks, crashRestartRecordChecks, midStepChecks, parseImages, parseNameLabel, parseProcesses, projectLeftovers } from "../scripts/journey-restart-checks.js";
 import { createPool } from "../src/store/db.js";
 import { migrate } from "../src/store/migrate.js";
 import { appendEvent, listEvents } from "../src/store/events.js";
@@ -2244,5 +2244,65 @@ describe("J2 (c): the clean stop and restart, the journey's part (stand-in sandb
     expect(allOk(crashRestartRecordChecks(k, "job-0000aaaa", "02-submitter-screen"))).toBe(true);
     expect(failing(crashRestartRecordChecks(k.map((e) => (e.kind === "step.hold_closed" ? { ...e, payload: { reason: "step_ended" } } : e)), "job-0000aaaa", "02-submitter-screen"))).toHaveLength(1);
     expect(failing(crashRestartRecordChecks(k.filter((e) => e.kind !== EV.sandboxRemoved), "job-0000aaaa", "02-submitter-screen"))).toHaveLength(1);
+  });
+
+  it("the automated run's record checks of the broken copy (scripts/journey-restart-checks.ts, brokenCopyRecordChecks), on a made-up record: all pass on it, and each fault given alone is reported by its own check", () => {
+    const steps = ["01-data", "02-submitter-screen", "03-wrong-status"];
+    const reservations = [1.5552, 3.1104, 1.1664];
+    const x = { step: "03-wrong-status", source: "builder/scripted-broken/example-1/03-wrong-status", label: "made-up label", manifestSha256: "a".repeat(64), steps, reservations, bannerEn: "Made-up English sentence.", bannerAr: "جملة عربية مختلقة." };
+    const failureText = Buffer.from("made-up runner error: expected Waiting, received Approved");
+    const digest = (b: Buffer) => createHash("sha256").update(b).digest("hex");
+    const readFile = (p: string) => (p === "/made-up/item-01-failure.txt" ? failureText : null);
+    const choice = { by: "owner", step: x.step, source: x.source, label: x.label, manifest_sha256: x.manifestSha256, sign_off: "never", export: "never" };
+    const record = (o: { twoStaged?: boolean; signedOff?: boolean } = {}) => {
+      let n = 0;
+      const ev = (kind: string, payload: Record<string, unknown>, step: string | null = null) => ({ id: String(++n), kind, step, payload });
+      const out = [
+        ev(EV.briefEntered, { text: "made-up", broken_copy: choice }),
+        ev(EV.planConfirmed, { steps: steps.map((st, i) => ({ step: st, label: i === 2 ? x.label : "made-up" })), acceptance_version: "v001", broken_copy: true, quality_check_after_each_step_and_retry: "not done (milestones 1 and 3)" }),
+      ];
+      steps.forEach((st, i) => {
+        out.push(ev(EV.jobStarted, { job_id: `job-${i}`, kind: "build_step", step: st }, st));
+        if (st === x.step) for (let k = 0; k < (o.twoStaged ? 2 : 1); k++) out.push(ev(EV.brokenStepStaged, { manifest_sha256: x.manifestSha256, manifest_read_from: "the sandbox's own copy, as the engine reads it" }, st));
+        out.push(ev("step.hold_opened", { step_budget_usd: reservations[i] }, st));
+        out.push(ev(EV.engineEvent, { type: "tool_call", tool: "scripted.write" }, st));
+        out.push(ev("step.hold_closed", { reason: "step_ended", released_usd: reservations[i], spent_in_step_usd: 0 }, st));
+        out.push(ev(EV.jobFinished, { job_id: `job-${i}`, kind: "build_step", step: st }, st));
+        out.push(ev(EV.stepApproved, { step: st }, st));
+      });
+      for (const [name, text] of [["app-home-en", x.bannerEn], ["app-my-requests-en", x.bannerEn], ["app-home-ar", x.bannerAr], ["app-my-requests-ar", x.bannerAr]] as const) {
+        out.push(ev(EV.screenshot, { name, lang: name.slice(-2) }));
+        out.push(ev(EV.previewLine, { line: `app camera: ${JSON.stringify({ kind: "banner", name, text: `Made-up start. ${text}` })}` }));
+      }
+      out.push(ev("acceptance.item", { item: 1, status: "failed", step: "sees status waiting", screenshot: { path: "/made-up/shot.png" }, failure_file: { path: "/made-up/item-01-failure.txt", sha256: digest(failureText) } }));
+      out.push(ev("acceptance.run.finished", { outcome: "failed", exit_code: 1, version: "v001", summary: 'version failed: item 1 failed at step "sees status waiting"' }));
+      if (o.signedOff) out.push(ev(EV.signedOff, { label: "made-up" }));
+      out.push(ev(EV.sandboxRemoved, { reason: "The project was closed.", interrupted: false }));
+      out.push(ev(EV.closed, { at_stage: "acceptance" }));
+      return out;
+    };
+    const failing = (r: ReturnType<typeof record>, read = readFile) => brokenCopyRecordChecks(r, x, read, digest).filter((c) => !c.ok).map((c) => c.name);
+    expect(brokenCopyRecordChecks(record(), x, readFile, digest).length).toBe(11);
+    expect(failing(record())).toEqual([]);
+    const change = (kind: string, f: (p: Record<string, unknown>) => Record<string, unknown>) => record().map((e) => (e.kind === kind ? { ...e, payload: f(e.payload) } : e));
+    const one = (r: ReturnType<typeof record>, words: string, read = readFile) => {
+      const names = failing(r, read);
+      expect(names, words).toHaveLength(1);
+      expect(names[0], words).toContain(words);
+    };
+    one(change(EV.briefEntered, (p) => ({ ...p, broken_copy: { ...choice, export: "allowed" } })), "first event");
+    one(change(EV.planConfirmed, (p) => ({ ...p, steps: (p.steps as unknown[]).slice(0, 2) })), "plan_confirmed");
+    one(record().filter((e) => !(e.kind === EV.stepApproved && e.step === "03-wrong-status")), "built once and approved");
+    one(change("step.hold_closed", (p) => ({ ...p, spent_in_step_usd: 0.01 })), "reservation");
+    one(record({ twoStaged: true }), "broken_step_staged");
+    one(change(EV.brokenStepStaged, (p) => ({ ...p, manifest_sha256: "b".repeat(64) })), "broken_step_staged");
+    one(change(EV.previewLine, (p) => ({ ...p, line: String(p.line).replace(x.bannerAr, "made-up other text") })), "banner");
+    one(change("acceptance.run.finished", (p) => ({ ...p, outcome: "not passed" })), "outcome");
+    one(change("acceptance.run.finished", (p) => ({ ...p, version: "v002" })), "outcome");
+    one(change("acceptance.item", (p) => ({ ...p, step: "made-up other step" })), "item 1 failed");
+    one(record(), "failure file", () => null);
+    one(record(), "failure file", () => Buffer.from("made-up text without the word"));
+    one(record({ signedOff: true }), "signed_off");
+    one(record().filter((e) => e.kind !== EV.closed), "journey.closed");
   });
 });

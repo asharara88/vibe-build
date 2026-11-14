@@ -134,3 +134,144 @@ export function crashRestartRecordChecks(events: EventSeen[], jobId: string, ste
     { name: `step.hold_closed for step ${step} with reason job_interrupted`, ok: holds.length === 1 && holds[0]!.payload.reason === "job_interrupted", detail: holds.map((e) => String(e.payload.reason)).join(", ") || "none" },
   ];
 }
+
+/* ------------------------------------------------------------------ J2 (a): the broken copy's record */
+
+/** What the run expects of the broken copy's record, read by the run from builder/scripted-broken itself. */
+export interface BrokenCopyExpected {
+  /** The broken step, its source folder (repository-relative), its manifest's label and the manifest file's SHA-256. */
+  step: string;
+  source: string;
+  label: string;
+  manifestSha256: string;
+  /** The plan, in order, and each step's reservation in US dollars. */
+  steps: string[];
+  reservations: number[];
+  /** The app's banner sentence of the broken copy, in English and in Arabic (its own message files). */
+  bannerEn: string;
+  bannerAr: string;
+}
+
+const sameUsd = (a: unknown, b: number) => typeof a === "number" && Math.abs(a - b) < 1e-9;
+const byId = (a: EventSeen, b: EventSeen) => (BigInt(a.id) < BigInt(b.id) ? -1 : BigInt(a.id) > BigInt(b.id) ? 1 : 0);
+
+/**
+ * J2 (a), "Done means" items 2 to 9, the record's part (the screens are the builder camera's): the choice in the
+ * project's first event; the three steps in `journey.plan_confirmed`; each step built, approved and its reservation made
+ * and released; exactly one `journey.broken_step_staged`, between step 2's approval and step 3's first engine event,
+ * with the chosen SHA-256; the app camera's banner lines; the checklist's run as the record gives it (outcome "failed",
+ * exit code 1, the version fixed at "Confirm plan", the summary) and item 1's failure file (read through `readFile`, its
+ * text never returned); no sign-off and no export; the record ending with the project closed.
+ */
+export function brokenCopyRecordChecks(events: EventSeen[], x: BrokenCopyExpected, readFile: (path: string) => Buffer | null, sha256Of: (b: Buffer) => string): Check[] {
+  const ev = [...events].sort(byId);
+  const of = (kind: string, step?: string) => ev.filter((e) => e.kind === kind && (step === undefined || e.step === step));
+  const first = ev[0];
+  const choice = first?.kind === "intake.brief_entered" ? (first.payload.broken_copy as Record<string, unknown> | undefined) : undefined;
+  const wantChoice = { by: "owner", step: x.step, source: x.source, label: x.label, manifest_sha256: x.manifestSha256, sign_off: "never", export: "never" };
+  const plans = of("journey.plan_confirmed");
+  const plan = plans[0]?.payload ?? {};
+  const planSteps = Array.isArray(plan.steps) ? (plan.steps as Array<{ step?: unknown; label?: unknown }>) : [];
+  const out: Check[] = [];
+  out.push({
+    name: "the record's first event is intake.brief_entered, carrying broken_copy: by owner, the step, its source, label and manifest SHA-256, sign_off never, export never",
+    ok: choice !== undefined && JSON.stringify(Object.entries(choice).sort()) === JSON.stringify(Object.entries(wantChoice).sort()),
+    detail: first ? `${first.kind}: ${JSON.stringify(choice ?? null)}` : "no event",
+  });
+  out.push({
+    name: `journey.plan_confirmed lists the three steps (${x.steps.join(", ")}), the third with its label from builder/scripted-broken, and broken_copy: true`,
+    ok:
+      plans.length === 1 &&
+      JSON.stringify(planSteps.map((s) => s.step)) === JSON.stringify(x.steps) &&
+      planSteps[x.steps.indexOf(x.step)]?.label === x.label &&
+      plan.broken_copy === true &&
+      plan.quality_check_after_each_step_and_retry === "not done (milestones 1 and 3)",
+    detail: `${plans.length} confirmed: ${JSON.stringify(planSteps.map((s) => s.step))}, broken_copy ${JSON.stringify(plan.broken_copy)}`,
+  });
+  const notBuilt = x.steps.filter((step) => {
+    const finished = of("journey.job.finished", step).filter((e) => e.payload.kind === "build_step");
+    const bad = [...of("journey.job.failed", step), ...of("journey.job.interrupted", step)];
+    return finished.length !== 1 || bad.length !== 0 || of("journey.step_approved", step).length !== 1;
+  });
+  out.push({ name: "steps 1, 2 and 3 each built once and approved", ok: notBuilt.length === 0, detail: notBuilt.length ? `not so: ${notBuilt.join(", ")}` : "" });
+  const holdsWrong = x.steps.filter((step, i) => {
+    const opened = of("step.hold_opened", step);
+    const closed = of("step.hold_closed", step);
+    const r = x.reservations[i]!;
+    return !(opened.length === 1 && closed.length === 1 && sameUsd(opened[0]!.payload.step_budget_usd, r) && closed[0]!.payload.reason === "step_ended" && sameUsd(closed[0]!.payload.released_usd, r) && sameUsd(closed[0]!.payload.spent_in_step_usd, 0));
+  });
+  out.push({
+    name: `each step's reservation made and released, closed step_ended: ${x.reservations.map((r) => `$${r.toFixed(4)}`).join(", ")}; $0.00 spent in each`,
+    ok: holdsWrong.length === 0,
+    detail: x.steps.map((step) => `${step}: ${of("step.hold_opened", step).map((e) => String(e.payload.step_budget_usd)).join("/")} -> ${of("step.hold_closed", step).map((e) => `${String(e.payload.reason)} released ${String(e.payload.released_usd)} spent ${String(e.payload.spent_in_step_usd)}`).join("/")}`).join("; "),
+  });
+  const staged = of("journey.broken_step_staged");
+  const approved2 = of("journey.step_approved", x.steps[x.steps.indexOf(x.step) - 1]).at(-1);
+  const firstEngine3 = of("engine.event", x.step)[0];
+  out.push({
+    name: "exactly one journey.broken_step_staged, after step 2's approval and before step 3's first engine event, its manifest SHA-256 (read back from the sandbox's copy) the chosen one",
+    ok:
+      staged.length === 1 &&
+      approved2 !== undefined &&
+      firstEngine3 !== undefined &&
+      BigInt(staged[0]!.id) > BigInt(approved2.id) &&
+      BigInt(staged[0]!.id) < BigInt(firstEngine3.id) &&
+      staged[0]!.payload.manifest_sha256 === x.manifestSha256 &&
+      staged[0]!.payload.manifest_sha256 === choice?.manifest_sha256 &&
+      String(staged[0]!.payload.manifest_read_from).includes("sandbox's own copy"),
+    detail: `${staged.length} staged (ids ${staged.map((e) => e.id).join(", ")}); step 2 approved at ${approved2?.id ?? "none"}; step 3's first engine event ${firstEngine3?.id ?? "none"}; SHA-256 ${String(staged[0]?.payload.manifest_sha256 ?? "none")}`,
+  });
+  // The app camera's banner lines, kept among the preview's lines ("app camera: {...}").
+  const banners = new Map<string, string | null>();
+  for (const e of of("journey.preview.line")) {
+    const line = String(e.payload.line ?? "");
+    if (!line.startsWith("app camera: ")) continue;
+    try {
+      const o = JSON.parse(line.slice("app camera: ".length)) as { kind?: unknown; name?: unknown; text?: unknown };
+      if (o.kind === "banner") banners.set(String(o.name), typeof o.text === "string" ? o.text : null);
+    } catch {
+      // a line cut at 300 characters, or not JSON: not a banner line
+    }
+  }
+  const wantBanner: Array<[string, string]> = [
+    ["app-home-en", x.bannerEn],
+    ["app-my-requests-en", x.bannerEn],
+    ["app-home-ar", x.bannerAr],
+    ["app-my-requests-ar", x.bannerAr],
+  ];
+  const shotsByLang = of("journey.screenshot").map((e) => String(e.payload.lang));
+  out.push({
+    name: "the app camera's pictures recorded for both languages, and its banner lines: each English page carries the English sentence, each Arabic page the Arabic one",
+    ok: shotsByLang.filter((l) => l === "en").length === 2 && shotsByLang.filter((l) => l === "ar").length === 2 && wantBanner.every(([name, want]) => (banners.get(name) ?? "").includes(want)),
+    detail: `${shotsByLang.join(",")}; ${wantBanner.map(([name]) => `${name}: ${JSON.stringify(banners.get(name) ?? null)}`).join("; ")}`,
+  });
+  const runs = of("acceptance.run.finished");
+  const run = runs[0]?.payload ?? {};
+  out.push({
+    name: 'the checklist run as its record gives it: outcome "failed", exit code 1, the version fixed at "Confirm plan", the summary \'version failed: item 1 failed at step "sees status waiting"\'',
+    ok: runs.length === 1 && run.outcome === "failed" && run.exit_code === 1 && typeof plan.acceptance_version === "string" && run.version === plan.acceptance_version && run.summary === 'version failed: item 1 failed at step "sees status waiting"',
+    detail: `${runs.length} runs: ${JSON.stringify({ outcome: run.outcome, exit_code: run.exit_code, version: run.version, plan_version: plan.acceptance_version, summary: run.summary })}`,
+  });
+  const items = of("acceptance.item");
+  const item1 = items.find((e) => e.payload.item === 1);
+  const ff = (item1?.payload.failure_file ?? null) as { path?: unknown; sha256?: unknown } | null;
+  out.push({
+    name: "item 1 failed at step 'sees status waiting', with the runner's screenshot; no other item has a result",
+    ok: item1 !== undefined && items.length === 1 && item1.payload.status === "failed" && item1.payload.step === "sees status waiting" && item1.payload.screenshot !== null && item1.payload.screenshot !== undefined,
+    detail: items.map((e) => `item ${String(e.payload.item)}: ${String(e.payload.status)} at ${String(e.payload.step)}`).join("; ") || "none",
+  });
+  const body = typeof ff?.path === "string" ? readFile(ff.path) : null;
+  out.push({
+    name: "the failure file item 1's event names exists, its SHA-256 is the event's, and its text contains \"Approved\" (the text is not copied)",
+    ok: body !== null && sha256Of(body) === ff?.sha256 && body.toString("utf8").includes("Approved"),
+    detail: body === null ? "not found" : `${body.length} bytes; SHA-256 ${sha256Of(body) === ff?.sha256 ? "the event's" : "NOT the event's"}; "Approved" ${body.toString("utf8").includes("Approved") ? "in it" : "NOT in it"}`,
+  });
+  out.push({ name: "the record holds no journey.signed_off and no journey.export.written", ok: of("journey.signed_off").length === 0 && of("journey.export.written").length === 0, detail: `${of("journey.signed_off").length} signed off, ${of("journey.export.written").length} exports` });
+  const removed = of("journey.sandbox.removed");
+  out.push({
+    name: "closed: its sandbox removed (not interrupted), and the record ends with journey.closed",
+    ok: ev.at(-1)?.kind === "journey.closed" && removed.length === 1 && removed[0]!.payload.interrupted === false,
+    detail: `last: ${ev.at(-1)?.kind ?? "none"}; removed: ${removed.map((e) => JSON.stringify(e.payload)).join(" | ")}`,
+  });
+  return out;
+}
