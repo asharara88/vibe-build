@@ -1,0 +1,506 @@
+Package 3.2 controls, 2026-11-14 15:16 UTC, on HEAD 8e8e198. builder/ and templates/ as committed (`git status --porcelain -- builder templates` empty before: yes).
+Each safeguard removed in turn by exact replacement (each text to replace occurring exactly once in its file), compose.yaml written
+again from app-compose.ts where the safeguard is there (so that only the rule's own test can catch it), the test or tests that guard
+it run, then the files put back with `git checkout HEAD --` and checked unchanged. Fast tests: `npx vitest run <file> -t <name>`, the
+named test reported failed in vitest's JSON report. Live tests: the whole of test/export-live.test.ts under the shared lock (each
+live test needs the ones before it); the named test reported failed. Paths under the session's scratch folder are written <scratchpad>.
+
+1. Baseline, on the tree as committed: each named fast test passes, and the live file passes in full.
+  test/export.test.ts -t "E1 (S1)": passed (1 test(s) ran, 1 s) | Test Files  1 passed (1) | Tests  1 passed | 59 skipped (60)
+  test/export.test.ts -t "E10 (S12): one export per project in writeExport": passed (1 test(s) ran, 2 s) | Test Files  1 passed (1) | Tests  1 passed | 59 skipped (60)
+  test/export.test.ts -t "E10 (S12): one export per project: a second": passed (1 test(s) ran, 2 s) | Test Files  1 passed (1) | Tests  1 passed | 59 skipped (60)
+  test/export.test.ts -t "E12 (S14)": passed (1 test(s) ran, 2 s) | Test Files  1 passed (1) | Tests  1 passed | 59 skipped (60)
+  test/export.test.ts -t "E13 (S13)": passed (1 test(s) ran, 3 s) | Test Files  1 passed (1) | Tests  1 passed | 59 skipped (60)
+  test/export.test.ts -t "E15 (S28)": passed (1 test(s) ran, 1 s) | Test Files  1 passed (1) | Tests  1 passed | 59 skipped (60)
+  test/export.test.ts -t "E16 (S15)": passed (1 test(s) ran, 1 s) | Test Files  1 passed (1) | Tests  1 passed | 59 skipped (60)
+  test/export.test.ts -t "E17 (S31)": passed (3 test(s) ran, 1 s) | Test Files  1 passed (1) | Tests  3 passed | 57 skipped (60)
+  test/export.test.ts -t "E1b (S2)": passed (1 test(s) ran, 1 s) | Test Files  1 passed (1) | Tests  1 passed | 59 skipped (60)
+  test/export.test.ts -t "E2 (S1)": passed (1 test(s) ran, 1 s) | Test Files  1 passed (1) | Tests  1 passed | 59 skipped (60)
+  test/export.test.ts -t "E20 (S20": passed (1 test(s) ran, 1 s) | Test Files  1 passed (1) | Tests  1 passed | 59 skipped (60)
+  test/export.test.ts -t "E21 (S29)": passed (1 test(s) ran, 1 s) | Test Files  1 passed (1) | Tests  1 passed | 59 skipped (60)
+  test/export.test.ts -t "E3 (S3)": passed (1 test(s) ran, 1 s) | Test Files  1 passed (1) | Tests  1 passed | 59 skipped (60)
+  test/export.test.ts -t "E4 (S4)": passed (1 test(s) ran, 1 s) | Test Files  1 passed (1) | Tests  1 passed | 59 skipped (60)
+  test/export.test.ts -t "E5 (S5)": passed (1 test(s) ran, 1 s) | Test Files  1 passed (1) | Tests  1 passed | 59 skipped (60)
+  test/export.test.ts -t "E6 (S6": passed (1 test(s) ran, 1 s) | Test Files  1 passed (1) | Tests  1 passed | 59 skipped (60)
+  test/export.test.ts -t "E7 (S8": passed (1 test(s) ran, 1 s) | Test Files  1 passed (1) | Tests  1 passed | 59 skipped (60)
+  test/export.test.ts -t "E8 (S10": passed (1 test(s) ran, 1 s) | Test Files  1 passed (1) | Tests  1 passed | 59 skipped (60)
+  test/export.test.ts -t "E9 (S9)": passed (1 test(s) ran, 2 s) | Test Files  1 passed (1) | Tests  1 passed | 59 skipped (60)
+  test/export.test.ts -t "S17 under question 26": passed (1 test(s) ran, 0 s) | Test Files  1 passed (1) | Tests  1 passed | 59 skipped (60)
+  test/export.test.ts -t "S18: the notices file": passed (1 test(s) ran, 0 s) | Test Files  1 passed (1) | Tests  1 passed | 59 skipped (60)
+  test/export.test.ts -t "S19: the template's licence check": passed (1 test(s) ran, 0 s) | Test Files  1 passed (1) | Tests  1 passed | 59 skipped (60)
+  test/export.test.ts -t "S30: what Compose reads": passed (1 test(s) ran, 0 s) | Test Files  1 passed (1) | Tests  1 passed | 59 skipped (60)
+  test/export.test.ts -t "S9 in writeExport": passed (1 test(s) ran, 1 s) | Test Files  1 passed (1) | Tests  1 passed | 59 skipped (60)
+  test/export.test.ts -t "S9's reading of the record": passed (1 test(s) ran, 0 s) | Test Files  1 passed (1) | Tests  1 passed | 59 skipped (60)
+  test/export.test.ts -t "T1 (S21)": passed (2 test(s) ran, 1 s) | Test Files  1 passed (1) | Tests  2 passed | 58 skipped (60)
+  test/export.test.ts -t "T2 (S22)": passed (9 test(s) ran, 1 s) | Test Files  1 passed (1) | Tests  9 passed | 51 skipped (60)
+  test/export.test.ts -t "T3 (S23)": passed (2 test(s) ran, 0 s) | Test Files  1 passed (1) | Tests  2 passed | 58 skipped (60)
+  test/export.test.ts -t "T5:": passed (5 test(s) ran, 0 s) | Test Files  1 passed (1) | Tests  5 passed | 55 skipped (60)
+  test/export.test.ts -t "T6:": passed (3 test(s) ran, 0 s) | Test Files  1 passed (1) | Tests  3 passed | 57 skipped (60)
+  test/export.test.ts -t "T7 (S24)": passed (7 test(s) ran, 1 s) | Test Files  1 passed (1) | Tests  7 passed | 53 skipped (60)
+  test/export.test.ts -t "T8:": passed (1 test(s) ran, 0 s) | Test Files  1 passed (1) | Tests  1 passed | 59 skipped (60)
+  test/export.test.ts -t "are on the project's removal list": passed (1 test(s) ran, 0 s) | Test Files  1 passed (1) | Tests  1 passed | 59 skipped (60)
+  test/export.test.ts -t "the containers of the checks carry": passed (1 test(s) ran, 0 s) | Test Files  1 passed (1) | Tests  1 passed | 59 skipped (60)
+  test/journey.test.ts -t "A6:": passed (1 test(s) ran, 2 s) | Test Files  1 passed (1) | Tests  1 passed | 70 skipped (71)
+  test/journey.test.ts -t "A6b:": passed (1 test(s) ran, 2 s) | Test Files  1 passed (1) | Tests  1 passed | 70 skipped (71)
+  test/journey.test.ts -t "export is refused before sign-off, and allowed after it": passed (1 test(s) ran, 1 s) | Test Files  1 passed (1) | Tests  1 passed | 70 skipped (71)
+  test/journey.test.ts -t "the checklist, sign-off and export in order": passed (1 test(s) ran, 1 s) | Test Files  1 passed (1) | Tests  1 passed | 70 skipped (71)
+  test/journey.test.ts -t "the export is refused when any commit of the history held a file that looks like a secret": passed (1 test(s) ran, 1 s) | Test Files  1 passed (1) | Tests  1 passed | 70 skipped (71)
+  test/journey.test.ts -t "the export is refused when the project's history holds a file that looks like a secret": passed (1 test(s) ran, 1 s) | Test Files  1 passed (1) | Tests  1 passed | 70 skipped (71)
+  test/journey.test.ts -t "the export: a .tar.gz of the project's history": passed (1 test(s) ran, 2 s) | Test Files  1 passed (1) | Tests  1 passed | 70 skipped (71)
+  test/journey.test.ts -t "the exported copy holds only what the history reaches": passed (1 test(s) ran, 2 s) | Test Files  1 passed (1) | Tests  1 passed | 70 skipped (71)
+  test/scripted-engine.test.ts -t "S23": passed (2 test(s) ran, 2 s) | Test Files  1 passed (1) | Tests  2 passed | 47 skipped (49)
+  test/web.test.ts -t "A6:": passed (1 test(s) ran, 3 s) | Test Files  1 passed (1) | Tests  1 passed | 72 skipped (73)
+  test/export-live.test.ts, in full, under the lock: all 10 passed (139 s) | Test Files  1 passed (1) | Tests  10 passed (10)
+
+2. The controls of section 5 (S1 to S31) and of the safeguards the builders added with a test of their own.
+S01 (S1) links and submodules in any commit not refused: FAILED, as it should with the safeguard removed
+    in builder/src/orchestrator/export.ts: 'if (special.size) refuse(' -> 'if (special.size && false) refuse('
+    test/export.test.ts -t "E1 (S1)": exit 1, 1 s; the test "E1 (S1)": FAILED, as it must | Test Files  1 failed (1) | Tests  1 failed | 59 skipped (60)
+      failed: Part B, writeExport: a made-up project's export, with the Docker checks stood in for (no database, no container) E1 (S1): a history in which any commi
+      first error line: AssertionError: promise resolved "{ …(11) }" instead of rejecting
+    test/export.test.ts -t "E2 (S1)": exit 1, 1 s; the test "E2 (S1)": FAILED, as it must | Test Files  1 failed (1) | Tests  1 failed | 59 skipped (60)
+      failed: Part B, writeExport: a made-up project's export, with the Docker checks stood in for (no database, no container) E2 (S1): a history holding a submodul
+      first error line: AssertionError: expected [Function] to throw error including 'The project\'s history holds a symbol…' but got 'The exported copy\'s checkout is not …'
+S02 (S2) the exporter's files created without O_EXCL and O_NOFOLLOW (truncating, following a link): FAILED, as it should with the safeguard removed
+    in builder/src/orchestrator/export.ts: 'constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW' -> 'constants.O_WRONLY | constants.O_CREAT | constants.O_TRUNC'
+    test/export.test.ts -t "E1b (S2)": exit 1, 1 s; the test "E1b (S2)": FAILED, as it must | Test Files  1 failed (1) | Tests  1 failed | 59 skipped (60)
+      failed: Part B, writeExport: a made-up project's export, with the Docker checks stood in for (no database, no container) E1b (S2): the exporter's own files ar
+      first error line: AssertionError: expected [Function] to throw error matching /The exporter could not create EXPORT-…/ but got 'The export commit does not add exactl…'
+S03 (S3) EXPORT-NOTE.txt in the history not refused: FAILED, as it should with the safeguard removed
+    in builder/src/orchestrator/export.ts: 'if (tracked.some((f) => f.toLowerCase() === EXPORT_NOTE.toLowerCase())) refuse(' -> 'if (false) refuse('
+    test/export.test.ts -t "E3 (S3)": exit 1, 1 s; the test "E3 (S3)": FAILED, as it must | Test Files  1 failed (1) | Tests  1 failed | 59 skipped (60)
+      failed: Part B, writeExport: a made-up project's export, with the Docker checks stood in for (no database, no container) E3 (S3): EXPORT-NOTE.txt in any commi
+      first error line: AssertionError: promise resolved "{ …(11) }" instead of rejecting
+S04 (S4) the export commit's contents not checked: FAILED, as it should with the safeguard removed
+    in builder/src/orchestrator/export.ts: 'if (commitProblems.length) refuse(' -> 'if (commitProblems.length && false) refuse('
+    test/export.test.ts -t "E4 (S4)": exit 1, 1 s; the test "E4 (S4)": FAILED, as it must | Test Files  1 failed (1) | Tests  1 failed | 59 skipped (60)
+      failed: Part B, writeExport: a made-up project's export, with the Docker checks stood in for (no database, no container) E4 (S4): the export commit must add e
+      first error line: AssertionError: promise resolved "{ …(11) }" instead of rejecting
+S05 (S5) the checkout's bytes not compared with the history: FAILED, as it should with the safeguard removed
+    in builder/src/orchestrator/export.ts: 'if (differ.length) refuse(' -> 'if (differ.length && false) refuse('
+    test/export.test.ts -t "E5 (S5)": exit 1, 1 s; the test "E5 (S5)": FAILED, as it must | Test Files  1 failed (1) | Tests  1 failed | 59 skipped (60)
+      failed: Part B, writeExport: a made-up project's export, with the Docker checks stood in for (no database, no container) E5 (S5): a checkout whose bytes diffe
+      first error line: AssertionError: expected [Function] to throw error matching /The exported copy's checkout is not b…/ but got 'The exported copy\'s fixed files diff…'
+S06 (S6) an acceptance folder in the history not refused: FAILED, as it should with the safeguard removed
+    in builder/src/orchestrator/export.ts: 'if (tracked.some((f) => f === "acceptance" || f.startsWith("acceptance/"))) refuse(' -> 'if (false) refuse('
+    test/export.test.ts -t "E6 (S6": exit 1, 1 s; the test "E6 (S6": FAILED, as it must | Test Files  1 failed (1) | Tests  1 failed | 59 skipped (60)
+      failed: Part B, writeExport: a made-up project's export, with the Docker checks stood in for (no database, no container) E6 (S6, a regression guard): an accep
+      first error line: AssertionError: promise resolved "{ …(11) }" instead of rejecting
+S07 (S7) secret-like paths in the history not refused: FAILED, as it should with the safeguard removed
+    in builder/src/orchestrator/export.ts: 'if (secretLike.length) refuse(' -> 'if (secretLike.length && false) refuse('
+    test/journey.test.ts -t "the export is refused when the project's history holds a file that looks like a secret": exit 1, 1 s; the test "the export is refused when the project's history holds a file that looks like a secret": FAILED, as it must | Test Files  1 failed (1) | Tests  1 failed | 70 skipped (71)
+      failed: J1 journey, part 2: the build, preview, checklist and export jobs (stand-in sandbox, no container, no model) the export is refused when the project's 
+      first error line: AssertionError: expected { jobId: 'job-40f86ddc', …(5) } to match object { kind: 'export', state: 'failed' }
+    test/journey.test.ts -t "the export is refused when any commit of the history held a file that looks like a secret": exit 1, 1 s; the test "the export is refused when any commit of the history held a file that looks like a secret": FAILED, as it must | Test Files  1 failed (1) | Tests  1 failed | 70 skipped (71)
+      failed: J1 journey, part 2: the build, preview, checklist and export jobs (stand-in sandbox, no container, no model) the export is refused when any commit of 
+      first error line: AssertionError: expected { jobId: 'job-c0f903f0', …(5) } to match object { kind: 'export', state: 'failed' }
+S08 (S8) a version that does not match its manifest accepted: FAILED, as it should with the safeguard removed
+    in builder/src/orchestrator/export.ts: 'if (!v.ok || !v.manifest || !v.manifestSha256) return refuse(' -> 'if (!v.manifest || !v.manifestSha256) return refuse('
+    test/export.test.ts -t "E7 (S8": exit 1, 1 s; the test "E7 (S8": FAILED, as it must | Test Files  1 failed (1) | Tests  1 failed | 59 skipped (60)
+      failed: Part B, writeExport: a made-up project's export, with the Docker checks stood in for (no database, no container) E7 (S8, a regression guard): a versio
+      first error line: AssertionError: promise resolved "{ …(11) }" instead of rejecting
+S09a (S9) the version's manifest not compared with the passing run's: FAILED, as it should with the safeguard removed
+    in builder/src/orchestrator/export.ts: 'if (v.manifestSha256 !== i.runManifestSha256) refuse(' -> 'if (false) refuse('
+    test/export.test.ts -t "S9 in writeExport": exit 1, 1 s; the test "S9 in writeExport": FAILED, as it must | Test Files  1 failed (1) | Tests  1 failed | 59 skipped (60)
+      failed: Part B, writeExport: a made-up project's export, with the Docker checks stood in for (no database, no container) S9 in writeExport: the version's mani
+      first error line: AssertionError: promise resolved "{ …(11) }" instead of rejecting
+    test/export.test.ts -t "E9 (S9)": exit 1, 1 s; the test "E9 (S9)": FAILED, as it must | Test Files  1 failed (1) | Tests  1 failed | 59 skipped (60)
+      failed: Part B, the export job: one export per project, the passing run's manifest, the event, the label and the screen, scripted only (stand-in sandboxes, te
+      first error line: AssertionError: expected { jobId: 'job-150a6879', …(5) } to match object { kind: 'export', …(2) }
+S09b (S9) the run's record read without its manifest SHA-256: FAILED, as it should with the safeguard removed
+    in builder/src/orchestrator/export.ts: 'if (typeof p.manifest_sha256 !== "string" || !/^[0-9a-f]{64}$/.test(p.manifest_sha256)) return' -> 'if (false) return'
+    test/export.test.ts -t "S9's reading of the record": exit 1, 0 s; the test "S9's reading of the record": FAILED, as it must | Test Files  1 failed (1) | Tests  1 failed | 59 skipped (60)
+      failed: Part B, writeExport: a made-up project's export, with the Docker checks stood in for (no database, no container) S9's reading of the record: the run j
+      first error line: AssertionError: expected { runId: 'run-a', …(1) } to be 'run run-a, the run its sign-off names…' // Object.is equality
+    test/export.test.ts -t "E9 (S9)": exit 1, 2 s; the test "E9 (S9)": FAILED, as it must | Test Files  1 failed (1) | Tests  1 failed | 59 skipped (60)
+      failed: Part B, the export job: one export per project, the passing run's manifest, the event, the label and the screen, scripted only (stand-in sandboxes, te
+      first error line: AssertionError: expected { jobId: 'job-33a15e8c', …(5) } to match object { kind: 'export', …(2) }
+S10 (S10) the workspace history's head not compared after the export commit: FAILED, as it should with the safeguard removed
+    in builder/src/orchestrator/export.ts: 'if ((await git(i.repo, ["rev-parse", "HEAD"])).trim() !== workspaceHead) refuse(' -> 'if (false) refuse('
+    test/export.test.ts -t "E8 (S10": exit 1, 1 s; the test "E8 (S10": FAILED, as it must | Test Files  1 failed (1) | Tests  1 failed | 59 skipped (60)
+      failed: Part B, writeExport: a made-up project's export, with the Docker checks stood in for (no database, no container) E8 (S10, a regression guard): the wor
+      first error line: AssertionError: promise resolved "{ …(11) }" instead of rejecting
+S11a (S11) the clone made locally (--no-local removed: objects no commit reaches are copied): FAILED, as it should with the safeguard removed
+    in builder/src/orchestrator/export.ts: '["clone", "--quiet", "--no-local", "--no-hardlinks",' -> '["clone", "--quiet", "--no-hardlinks",'
+    test/journey.test.ts -t "the exported copy holds only what the history reaches": exit 1, 2 s; the test "the exported copy holds only what the history reaches": FAILED, as it must | Test Files  1 failed (1) | Tests  1 failed | 70 skipped (71)
+      failed: J1 journey, part 2: the build, preview, checklist and export jobs (stand-in sandbox, no container, no model) the exported copy holds only what the his
+      first error line: AssertionError: expected true to be false // Object.is equality
+S11b (S11) the copy's remote kept (it points back at the machine's folder): FAILED, as it should with the safeguard removed
+    in builder/src/orchestrator/export.ts: 'await gitIn(top, ["remote", "remove", "origin"]);' -> ''
+    test/journey.test.ts -t "the export: a .tar.gz of the project's history": exit 1, 1 s; the test "the export: a .tar.gz of the project's history": FAILED, as it must | Test Files  1 failed (1) | Tests  1 failed | 70 skipped (71)
+      failed: J1 journey, part 2: the build, preview, checklist and export jobs (stand-in sandbox, no container, no model) the export: a .tar.gz of the project's hi
+      first error line: AssertionError: expected 'origin' to be '' // Object.is equality
+S12a (S12) the job's rule: one export per project: FAILED, as it should with the safeguard removed
+    in builder/src/orchestrator/journey.ts: ': s.exportEventId ? EXPORT_ONCE : null),' -> ': null),'
+    test/export.test.ts -t "E10 (S12): one export per project: a second": exit 1, 1 s; the test "E10 (S12): one export per project: a second": FAILED, as it must | Test Files  1 failed (1) | Tests  1 failed | 59 skipped (60)
+      failed: Part B, the export job: one export per project, the passing run's manifest, the event, the label and the screen, scripted only (stand-in sandboxes, te
+      first error line: AssertionError: expected null to be 'This project is exported already: one…' // Object.is equality
+S12b (S12) the archive placed although one exists (removed first, then placed): FAILED, as it should with the safeguard removed
+    in builder/src/orchestrator/export.ts: 'if (lstatSync(path, { throwIfNoEntry: false })) exists();' -> ''
+    in builder/src/orchestrator/export.ts: 'linkSync(packed, path);' -> 'rmSync(path, { force: true });\n      linkSync(packed, path);'
+    test/export.test.ts -t "E10 (S12): one export per project in writeExport": exit 1, 1 s; the test "E10 (S12): one export per project in writeExport": FAILED, as it must | Test Files  1 failed (1) | Tests  1 failed | 59 skipped (60)
+      failed: Part B, writeExport: a made-up project's export, with the Docker checks stood in for (no database, no container) E10 (S12): one export per project in 
+      first error line: AssertionError: promise resolved "{ …(11) }" instead of rejecting
+S12c (S12) a failed export leaves its staging folder (and the archive in it): FAILED, as it should with the safeguard removed
+    in builder/src/orchestrator/export.ts: '} finally {\n    rmSync(staging, { recursive: true, force: true });\n  }' -> '} finally {\n  }'
+    test/export.test.ts -t "E10 (S12): one export per project in writeExport": exit 1, 1 s; the test "E10 (S12): one export per project in writeExport": FAILED, as it must | Test Files  1 failed (1) | Tests  1 failed | 59 skipped (60)
+      failed: Part B, writeExport: a made-up project's export, with the Docker checks stood in for (no database, no container) E10 (S12): one export per project in 
+      first error line: AssertionError: expected [ '.staging-sZKFWD', …(1) ] to deeply equal [ 'j1-99cd8f845ad9-export.tar.gz' ]
+S13 (S13) the fixed files not compared with the builder's template copies: FAILED, as it should with the safeguard removed
+    in builder/src/orchestrator/export.ts: 'if (fixed.length) refuse(' -> 'if (fixed.length && false) refuse('
+    test/export.test.ts -t "E13 (S13)": exit 1, 1 s; the test "E13 (S13)": FAILED, as it must | Test Files  1 failed (1) | Tests  1 failed | 59 skipped (60)
+      failed: Part B, writeExport: a made-up project's export, with the Docker checks stood in for (no database, no container) E13 (S13): each fixed file changed in
+      first error line: AssertionError: promise resolved "{ …(11) }" instead of rejecting
+S14 (S14) drizzle/ not compared with its journal: FAILED, as it should with the safeguard removed
+    in builder/src/orchestrator/export.ts: 'if (migrations.length) refuse(' -> 'if (migrations.length && false) refuse('
+    test/export.test.ts -t "E12 (S14)": exit 1, 1 s; the test "E12 (S14)": FAILED, as it must | Test Files  1 failed (1) | Tests  1 failed | 59 skipped (60)
+      failed: Part B, writeExport: a made-up project's export, with the Docker checks stood in for (no database, no container) E12 (S14): the drizzle/ folder must m
+      first error line: TypeError: .toMatch() expects to receive a string, but got object
+S15 (S15) a project the scripted engine did not build exported: FAILED, as it should with the safeguard removed
+    in builder/src/orchestrator/journey-jobs.ts: 'if (notScripted) throw new JourneyRefused(' -> 'if (notScripted && false) throw new JourneyRefused('
+    test/export.test.ts -t "E16 (S15)": exit 1, 1 s; the test "E16 (S15)": FAILED, as it must | Test Files  1 failed (1) | Tests  1 failed | 59 skipped (60)
+      failed: Part B, the export job: one export per project, the passing run's manifest, the event, the label and the screen, scripted only (stand-in sandboxes, te
+      first error line: AssertionError: expected { jobId: 'job-9056d6fa', …(5) } to match object { kind: 'export', …(2) }
+S16a (S16) export before sign-off allowed (the sign-off rule of JOB_RULES.export): FAILED, as it should with the safeguard removed
+    in builder/src/orchestrator/journey.ts: 'export: (s) => (!s.signedOff ? "The project is not signed off yet.' -> 'export: (s) => (false ? "The project is not signed off yet.'
+    test/journey.test.ts -t "export is refused before sign-off, and allowed after it": exit 1, 1 s; the test "export is refused before sign-off, and allowed after it": FAILED, as it must | Test Files  1 failed (1) | Tests  1 failed | 70 skipped (71)
+      failed: J1 journey: nothing is built before both confirmations, nothing exported before sign-off export is refused before sign-off, and allowed after it
+      first error line: AssertionError: promise resolved "{ jobId: 'job-78dadba0' }" instead of rejecting
+    test/journey.test.ts -t "the checklist, sign-off and export in order": exit 1, 1 s; the test "the checklist, sign-off and export in order": FAILED, as it must | Test Files  1 failed (1) | Tests  1 failed | 70 skipped (71)
+      failed: J1 journey, part 2: the build, preview, checklist and export jobs (stand-in sandbox, no container, no model) the checklist, sign-off and export in ord
+      first error line: AssertionError: promise resolved "{ jobId: 'job-ee4b3c5e' }" instead of rejecting
+S16b (S16) a broken copy's export allowed (the broken-copy rule of JOB_RULES.export): FAILED, as it should with the safeguard removed
+    in builder/src/orchestrator/journey.ts: ': s.brokenTrace ? BROKEN_COPY_REFUSAL : s.exportEventId ? EXPORT_ONCE : null),' -> ': s.exportEventId ? EXPORT_ONCE : null),'
+    test/journey.test.ts -t "A6:": exit 1, 1 s; the test "A6:": FAILED, as it must | Test Files  1 failed (1) | Tests  1 failed | 70 skipped (71)
+      failed: J2 (a): the broken copy rejected (stand-in sandboxes, each with its own change-set folder; no container, no model) A6: a broken copy whose run reads '
+      first error line: AssertionError: expected null to be 'A deliberately broken copy is never s…' // Object.is equality
+    test/web.test.ts -t "A6:": exit 1, 1 s; the test "A6:": FAILED, as it must | Test Files  1 failed (1) | Tests  1 failed | 72 skipped (73)
+      failed: J2 (a) interface: the broken-copy demonstration's screens (stand-in sandboxes with their own change-set folders, no container) A6: a broken copy whose
+      first error line: AssertionError: expected 303 to be 409 // Object.is equality
+    test/journey.test.ts -t "A6b:": exit 1, 1 s; the test "A6b:": FAILED, as it must | Test Files  1 failed (1) | Tests  1 failed | 70 skipped (71)
+      failed: J2 (a): the broken copy rejected (stand-in sandboxes, each with its own change-set folder; no container, no model) A6b: a normal project whose record 
+      first error line: AssertionError: the steps as confirmPlan writes them, step 03 added: expected null to be 'A deliberately broken copy is never s…' // Object.is equality
+S17a (S17) verdict: a development-only package under /app of the run image allowed: FAILED, as it should with the safeguard removed
+    in builder/src/export/export-check.ts: 'if (c.path === "/app" || c.path.startsWith("/app/")) problems.push(' -> 'if (false) problems.push('
+    test/export.test.ts -t "S17 under question 26": exit 1, 0 s; the test "S17 under question 26": FAILED, as it must | Test Files  1 failed (1) | Tests  1 failed | 59 skipped (60)
+      failed: Part B, the export checks' verdicts (section 4 items 4 to 7), on made-up readings; their live proof is L1 and L2b S17 under question 26 (a): none of t
+      first error line: AssertionError: expected [ Array(1) ] to deeply equal [ Array(1) ]
+S17b (S17) live: a development-only package under /app of the run image allowed: FAILED, as it should with the safeguard removed
+    in builder/src/export/export-check.ts: 'if (c.path === "/app" || c.path.startsWith("/app/")) problems.push(' -> 'if (false) problems.push('
+    test/export-live.test.ts (live, in full, under the lock): exit 1, 133 s; the test "L1: the image checks refuse": FAILED, as it must | Test Files  1 failed (1) | Tests  1 failed | 9 passed (10)
+      failed: package 3.2, live: the export's checks, the exported copy's own start, and the check from the copy L1: the image checks refuse, on made-up images made
+      first error line: AssertionError: expected 'The image the app runs from holds dev…' to contain 'lightningcss 1.30.1 at /app/node_modu…'
+S17c (S17) live: any copy outside /app of the run image allowed: FAILED, as it should with the safeguard removed
+    in builder/src/export/export-check.ts: 'else if (!(c.path === KNOWN_BASE_COPY.path && c.name === KNOWN_BASE_COPY.name && c.version === KNOWN_BASE_COPY.version))' -> 'else if (false)'
+    test/export-live.test.ts (live, in full, under the lock): exit 1, 130 s; the test "L1: the image checks refuse": FAILED, as it must | Test Files  1 failed (1) | Tests  1 failed | 9 passed (10)
+      failed: package 3.2, live: the export's checks, the exported copy's own start, and the check from the copy L1: the image checks refuse, on made-up images made
+      first error line: AssertionError: expected { id: 'run_image_packages', …(9) } to match object { id: 'run_image_packages', …(1) }
+S18a (S18) verdict: the notices file in the run image not compared: FAILED, as it should with the safeguard removed
+    in builder/src/export/export-check.ts: 'if (inImage.sha256 !== copySha256) return' -> 'if (false) return'
+    test/export.test.ts -t "S18: the notices file": exit 1, 1 s; the test "S18: the notices file": FAILED, as it must | Test Files  1 failed (1) | Tests  1 failed | 59 skipped (60)
+      failed: Part B, the export checks' verdicts (section 4 items 4 to 7), on made-up readings; their live proof is L1 and L2b S18: the notices file in the run ima
+      first error line: AssertionError: expected true to be false // Object.is equality
+S18b (S18) live: no notices file in the run image allowed: FAILED, as it should with the safeguard removed
+    in builder/src/export/export-check.ts: 'if (!inImage) return { passed: false, summary: "The image the app runs from has no /app/THIRD-PARTY-NOTICES.md." };' -> 'if (!inImage) return { passed: true, summary: "made-up control: not checked" };'
+    test/export-live.test.ts (live, in full, under the lock): exit 1, 128 s; the test "L1: the image checks refuse": FAILED, as it must | Test Files  1 failed (1) | Tests  1 failed | 9 passed (10)
+      failed: package 3.2, live: the export's checks, the exported copy's own start, and the check from the copy L1: the image checks refuse, on made-up images made
+      first error line: AssertionError: expected [ Array(2) ] to deeply equal [ Array(2) ]
+S19a (S19) verdict: the licence check read from its exit code alone: FAILED, as it should with the safeguard removed
+    in builder/src/export/export-check.ts: 'const passed = code === 0 && results === 2 && notices;' -> 'const passed = code === 0;'
+    test/export.test.ts -t "S19: the template's licence check": exit 1, 1 s; the test "S19: the template's licence check": FAILED, as it must | Test Files  1 failed (1) | Tests  1 failed | 59 skipped (60)
+      failed: Part B, the export checks' verdicts (section 4 items 4 to 7), on made-up readings; their live proof is L1 and L2b S19: the template's licence check pa
+      first error line: AssertionError: expected true to be false // Object.is equality
+S19b (S19) live: the licence check read as passed whatever it said: FAILED, as it should with the safeguard removed
+    in builder/src/export/export-check.ts: 'const passed = code === 0 && results === 2 && notices;' -> 'const passed = true;'
+    test/export-live.test.ts (live, in full, under the lock): exit 1, 127 s; the test "L1: the image checks refuse": FAILED, as it must | Test Files  1 failed (1) | Tests  1 failed | 9 passed (10)
+      failed: package 3.2, live: the export's checks, the exported copy's own start, and the check from the copy L1: the image checks refuse, on made-up images made
+      first error line: AssertionError: expected [ …(2) ] to deeply equal [ …(2) ]
+S20 (S20) node_modules and the 14 names allowed in the archive: FAILED, as it should with the safeguard removed
+    in builder/src/orchestrator/export.ts: 'const bad = new Set(["node_modules", ...devNames.map((n) => n.toLowerCase())]);' -> 'const bad = new Set<string>();'
+    test/export.test.ts -t "E20 (S20": exit 1, 1 s; the test "E20 (S20": FAILED, as it must | Test Files  1 failed (1) | Tests  1 failed | 59 skipped (60)
+      failed: Part B, writeExport: a made-up project's export, with the Docker checks stood in for (no database, no container) E20 (S20, a regression guard): the ar
+      first error line: AssertionError: expected [] to deeply equal [ 'j1-made-up/node_modules/' ]
+S21a (S21) tsconfig.json no longer excludes acceptance: FAILED, as it should with the safeguard removed
+    in templates/next/tsconfig.json: '"node_modules",\n    "acceptance"' -> '"node_modules"'
+    test/export.test.ts -t "T1 (S21)": exit 1, 0 s; the test "excludes the acceptance folder": FAILED, as it must | Test Files  1 failed (1) | Tests  1 failed | 1 passed | 58 skipped (60)
+      failed: T1 (S21): the checklist's tests are kept out of the type check and out of both images tsconfig.json still takes in every .ts file and excludes the acc
+      first error line: AssertionError: expected [ 'node_modules' ] to include 'acceptance'
+S21b (S21) .dockerignore no longer lists acceptance: FAILED, as it should with the safeguard removed
+    in templates/next/.dockerignore: 'acceptance' -> ''
+    test/export.test.ts -t "T1 (S21)": exit 1, 0 s; the test ".dockerignore lists acceptance and .git": FAILED, as it must | Test Files  1 failed (1) | Tests  1 failed | 1 passed | 58 skipped (60)
+      failed: T1 (S21): the checklist's tests are kept out of the type check and out of both images .dockerignore lists acceptance and .git, each on a line of its o
+      first error line: AssertionError: expected [ 'node_modules', '.next', …(5) ] to include 'acceptance'
+S21c (S21) .dockerignore no longer lists .git: FAILED, as it should with the safeguard removed
+    in templates/next/.dockerignore: '.git' -> ''
+    test/export.test.ts -t "T1 (S21)": exit 1, 0 s; the test ".dockerignore lists acceptance and .git": FAILED, as it must | Test Files  1 failed (1) | Tests  1 failed | 1 passed | 58 skipped (60)
+      failed: T1 (S21): the checklist's tests are kept out of the type check and out of both images .dockerignore lists acceptance and .git, each on a line of its o
+      first error line: AssertionError: expected [ 'node_modules', '.next', …(5) ] to include '.git'
+S21d (S21) live: both removed (the checklist's test reaches the image build and its type check): FAILED, as it should with the safeguard removed
+    in templates/next/tsconfig.json: '"node_modules",\n    "acceptance"' -> '"node_modules"'
+    in templates/next/.dockerignore: 'acceptance' -> ''
+    test/export-live.test.ts (live, in full, under the lock): exit 1, 70 s; the test "L1: a real export of example 1": FAILED, as it must | Test Files  1 failed (1) | Tests  8 failed | 2 passed (10)
+      failed: package 3.2, live: the export's checks, the exported copy's own start, and the check from the copy L1: a real export of example 1 (the scripted engine
+      failed: package 3.2, live: the export's checks, the exported copy's own start, and the check from the copy L1: the image checks refuse, on made-up images made
+      failed: package 3.2, live: the export's checks, the exported copy's own start, and the check from the copy L2: the copy's own start, by its README's one comma
+      failed: package 3.2, live: the export's checks, the exported copy's own start, and the check from the copy L2b (S30): what Compose reads from an unpacked copy
+      failed: package 3.2, live: the export's checks, the exported copy's own start, and the check from the copy L3 (S25, S26, S27, S31) and L3c: the check from the
+      failed: package 3.2, live: the export's checks, the exported copy's own start, and the check from the copy L3 (S25): a test in the copy loosened after export 
+      failed: package 3.2, live: the export's checks, the exported copy's own start, and the check from the copy L3b (S26): refused before the start when the app is
+      failed: package 3.2, live: the export's checks, the exported copy's own start, and the check from the copy L2: a second start keeps the keys, applies no migra
+      first error line: TypeError: Cannot read properties of undefined (reading 'path')
+S22a (S22) data not internal: FAILED, as it should with the safeguard removed
+    in builder/src/export/app-compose.ts: 'networks: { data: PROJECT_NETWORK, front: PROJECT_NETWORK, edge: { enable_ipv6: false } },' -> 'networks: { data: { ...PROJECT_NETWORK, internal: false }, front: PROJECT_NETWORK, edge: { enable_ipv6: false } },'
+    compose.yaml written again from app-compose.ts: exit 0
+    test/export.test.ts -t "T2 (S22)": exit 1, 0 s; the test "the networks: data and front": FAILED, as it must | Test Files  1 failed (1) | Tests  2 failed | 7 passed | 51 skipped (60)
+      failed: T2 (S22): the exported app's compose file the networks: data and front exactly the sandbox's private network (internal, isolated gateway mode, IPv6 of
+      failed: T2 (S22): the exported app's compose file app, db and setup on the internal networks only; keys with no network; the door on front and edge; no servic
+      first error line: AssertionError: expected { …(3) } to deeply equal { Object (data, front, ...) }
+S22b (S22) the app also on edge: FAILED, as it should with the safeguard removed
+    in builder/src/export/app-compose.ts: 'networks: ["data", "front"],\n        depends_on: { setup:' -> 'networks: ["data", "front", "edge"],\n        depends_on: { setup:'
+    compose.yaml written again from app-compose.ts: exit 0
+    test/export.test.ts -t "T2 (S22)": exit 1, 0 s; the test "app, db and setup on the internal networks only": FAILED, as it must | Test Files  1 failed (1) | Tests  1 failed | 8 passed | 51 skipped (60)
+      failed: T2 (S22): the exported app's compose file app, db and setup on the internal networks only; keys with no network; the door on front and edge; no servic
+      first error line: AssertionError: expected { keys: 'none', db: [ 'data' ], …(3) } to deeply equal { keys: 'none', db: [ 'data' ], …(3) }
+S22c (S22) keys on data: FAILED, as it should with the safeguard removed
+    in builder/src/export/app-compose.ts: 'network_mode: "none",' -> 'networks: ["data"],'
+    compose.yaml written again from app-compose.ts: exit 0
+    test/export.test.ts -t "T2 (S22)": exit 1, 0 s; the test "app, db and setup on the internal networks only": FAILED, as it must | Test Files  1 failed (1) | Tests  1 failed | 8 passed | 51 skipped (60)
+      failed: T2 (S22): the exported app's compose file app, db and setup on the internal networks only; keys with no network; the door on front and edge; no servic
+      first error line: AssertionError: expected { keys: [ 'data' ], …(4) } to deeply equal { keys: 'none', db: [ 'data' ], …(3) }
+S22d (S22) the door's port on every address: FAILED, as it should with the safeguard removed
+    in builder/src/export/app-compose.ts: 'host_ip: "127.0.0.1"' -> 'host_ip: "0.0.0.0"'
+    compose.yaml written again from app-compose.ts: exit 0
+    test/export.test.ts -t "T2 (S22)": exit 1, 1 s; the test "the door is the only service with a port": FAILED, as it must | Test Files  1 failed (1) | Tests  1 failed | 8 passed | 51 skipped (60)
+      failed: T2 (S22): the exported app's compose file the door is the only service with a port: one, on the machine's loopback address only, to the app's port, 30
+      first error line: AssertionError: expected [ { target: 3000, …(3) } ] to deeply equal [ { target: 3000, …(3) } ]
+S22e (S22) the app publishes a port too: FAILED, as it should with the safeguard removed
+    in builder/src/export/app-compose.ts: 'networks: ["data", "front"],\n        depends_on: { setup:' -> 'networks: ["data", "front"],\n        ports: [{ target: 3000, published: "3001", host_ip: "127.0.0.1", protocol: "tcp" }],\n        depends_on'
+    compose.yaml written again from app-compose.ts: exit 0
+    test/export.test.ts -t "T2 (S22)": exit 1, 1 s; the test "the door is the only service with a port": FAILED, as it must | Test Files  1 failed (1) | Tests  1 failed | 8 passed | 51 skipped (60)
+      failed: T2 (S22): the exported app's compose file the door is the only service with a port: one, on the machine's loopback address only, to the app's port, 30
+      first error line: AssertionError: app: expected [ { target: 3000, …(3) } ] to be undefined
+S22f (S22) the door on the machine's network: FAILED, as it should with the safeguard removed
+    in builder/src/export/app-compose.ts: 'networks: ["front", "edge"],' -> 'network_mode: "host",'
+    compose.yaml written again from app-compose.ts: exit 0
+    test/export.test.ts -t "T2 (S22)": exit 1, 0 s; the test "app, db and setup on the internal networks only": FAILED, as it must | Test Files  1 failed (1) | Tests  1 failed | 8 passed | 51 skipped (60)
+      failed: T2 (S22): the exported app's compose file app, db and setup on the internal networks only; keys with no network; the door on front and edge; no servic
+      first error line: AssertionError: expected { keys: 'none', db: [ 'data' ], …(3) } to deeply equal { keys: 'none', db: [ 'data' ], …(3) }
+S22g (S22) no-new-privileges dropped: FAILED, as it should with the safeguard removed
+    in builder/src/export/app-compose.ts: 'security_opt: HARDENING.security_opt,' -> ''
+    compose.yaml written again from app-compose.ts: exit 0
+    test/export.test.ts -t "T2 (S22)": exit 1, 1 s; the test "every service has the sandbox's hardening": FAILED, as it must | Test Files  1 failed (1) | Tests  1 failed | 8 passed | 51 skipped (60)
+      failed: T2 (S22): the exported app's compose file every service has the sandbox's hardening: every capability dropped (the database gets back its five), no ne
+      first error line: AssertionError: keys: expected undefined to deeply equal [ 'no-new-privileges:true' ]
+S22h (S22) setup's root writable: FAILED, as it should with the safeguard removed
+    in builder/src/export/app-compose.ts: 'read_only: true,\n        tmpfs: ["/tmp:rw,noexec,nosuid,size=64m"],\n        environment: { APP_URL: APP_URL_VALUE },' -> 'read_only: false,\n        tmpfs: ["/tmp:rw,noexec,nosuid,size=64m"],\n        environment: { APP_URL: APP_URL_VALUE },'
+    compose.yaml written again from app-compose.ts: exit 0
+    test/export.test.ts -t "T2 (S22)": exit 1, 1 s; the test "every service has the sandbox's hardening": FAILED, as it must | Test Files  1 failed (1) | Tests  1 failed | 8 passed | 51 skipped (60)
+      failed: T2 (S22): the exported app's compose file every service has the sandbox's hardening: every capability dropped (the database gets back its five), no ne
+      first error line: AssertionError: setup: expected false to be true // Object.is equality
+S22i (S22) the door's image by tag alone: FAILED, as it should with the safeguard removed
+    in builder/src/export/app-compose.ts: 'user: "node",\n        entrypoint: [],\n        networks: ["front", "edge"],' -> 'user: "node",\n        image: DEFAULT_IMAGES.node.split("@")[0],\n        entrypoint: [],\n        networks: ["front", "edge"],'
+    compose.yaml written again from app-compose.ts: exit 0
+    test/export.test.ts -t "T2 (S22)": exit 1, 0 s; the test "only approved images": FAILED, as it must | Test Files  1 failed (1) | Tests  1 failed | 8 passed | 51 skipped (60)
+      failed: T2 (S22): the exported app's compose file only approved images, written tag@digest; the app and setup are built from the copy's own Dockerfile, its ru
+      first error line: AssertionError: expected { …(3) } to deeply equal { …(3) }
+S22j (S22) the app also given the sample password: FAILED, as it should with the safeguard removed
+    in builder/src/export/app-compose.ts: 'app: ["db_password", "auth_secret"],' -> 'app: ["db_password", "auth_secret", "sample_password"],'
+    compose.yaml written again from app-compose.ts: exit 0
+    test/export.test.ts -t "T2 (S22)": exit 1, 1 s; the test "each service is given only its own key files": FAILED, as it must | Test Files  1 failed (1) | Tests  1 failed | 8 passed | 51 skipped (60)
+      failed: T2 (S22): the exported app's compose file each service is given only its own key files, each alone and read-only through the volume's subpath; only ke
+      first error line: AssertionError: expected { db: [ 'db_password' ], …(3) } to deeply equal { db: [ 'db_password' ], …(3) }
+S22k (S22) the app given the whole keys volume: FAILED, as it should with the safeguard removed
+    in builder/src/export/app-compose.ts: 'volumes: KEYS_GIVEN.app!.map(keyMount),' -> 'volumes: [{ type: "volume", source: "keys", target: "/keys" }],'
+    compose.yaml written again from app-compose.ts: exit 0
+    test/export.test.ts -t "T2 (S22)": exit 1, 0 s; the test "each service is given only its own key files": FAILED, as it must | Test Files  1 failed (1) | Tests  1 failed | 8 passed | 51 skipped (60)
+      failed: T2 (S22): the exported app's compose file each service is given only its own key files, each alone and read-only through the volume's subpath; only ke
+      first error line: AssertionError: expected { Object (type, source, ...) } to deeply equal { Object (type, source, ...) }
+S22l (S22) compose.yaml edited by hand (no longer the generated text): FAILED, as it should with the safeguard removed
+    in templates/next/compose.yaml: 'host_ip: "127.0.0.1"' -> 'host_ip: "0.0.0.0"'
+    test/export.test.ts -t "T2 (S22)": exit 1, 0 s; the test "is the generated text, byte for byte": FAILED, as it must | Test Files  1 failed (1) | Tests  1 failed | 8 passed | 51 skipped (60)
+      failed: T2 (S22): the exported app's compose file templates/next/compose.yaml is the generated text, byte for byte (builder/src/export/app-compose.ts)
+      first error line: AssertionError: expected '# The exported app\'s one command, fr…' to be '# The exported app\'s one command, fr…' // Object.is equality
+S23a (S23) compose.yaml not protected: FAILED, as it should with the safeguard removed
+    in builder/src/engine/scripted.ts: '"compose.yaml",' -> ''
+    test/scripted-engine.test.ts -t "S23": exit 1, 2 s; the test "a step that writes compose.yaml fails": FAILED, as it must | Test Files  1 failed (1) | Tests  1 failed | 1 passed | 47 skipped (49)
+      failed: scripted engine: the class, against a stand-in runner (no container, no model) package 3.2 (S23): a step that writes compose.yaml fails, the file name
+      first error line: AssertionError: expected { ok: true, …(3) } to match object { ok: false, …(2) }
+S23b (S23) a step that adds one of S29's names does not fail: FAILED, as it should with the safeguard removed
+    in builder/src/engine/scripted.ts: 'if (readUntold.length) return fail(' -> 'if (readUntold.length && false) return fail('
+    test/scripted-engine.test.ts -t "S23": exit 1, 1 s; the test "a step that adds compose.override.yaml": FAILED, as it must | Test Files  1 failed (1) | Tests  1 failed | 1 passed | 47 skipped (49)
+      failed: scripted engine: the class, against a stand-in runner (no container, no model) package 3.2 (S23, S29): a step that adds compose.override.yaml, or any 
+      first error line: AssertionError: compose.override.yaml: expected { ok: true, …(3) } to match object { ok: false, …(2) }
+S23c (S23) README.md not protected (T3): FAILED, as it should with the safeguard removed
+    in builder/src/engine/scripted.ts: '"README.md",' -> ''
+    test/export.test.ts -t "T3 (S23)": exit 1, 0 s; the test "the protected paths hold the start files": FAILED, as it must | Test Files  1 failed (1) | Tests  1 failed | 1 passed | 58 skipped (60)
+      failed: T3 (S23): the protected paths, and the names Compose and the image build read without being told (S29) the protected paths hold the start files, the t
+      first error line: AssertionError: README.md: expected [ 'src/auth.ts', …(21) ] to include 'README.md'
+S24a (S24) tables by push --force instead of migrate: FAILED, as it should with the safeguard removed
+    in builder/src/sandbox/tables.ts: 'export const MIGRATE_COMMAND = ["node_modules/.bin/drizzle-kit", "migrate"] as const;' -> 'export const MIGRATE_COMMAND = ["node_modules/.bin/drizzle-kit", "push", "--force"] as const;'
+    test/export.test.ts -t "T7 (S24)": exit 1, 1 s; the test "makeTables: drizzle-kit migrate": FAILED, as it must | Test Files  1 failed (1) | Tests  2 failed | 5 passed | 53 skipped (60)
+      failed: T7 (S24): the tables, made by drizzle-kit migrate through one helper, and the drift check the builder's sandbox and the two demonstration scripts make
+      failed: T7 (S24): the tables, made by drizzle-kit migrate through one helper, and the drift check makeTables: drizzle-kit migrate in the tools container, then
+      first error line: AssertionError: expected [ 'src/sandbox/tables.ts' ] to deeply equal []
+S24b (S24) the drift check's output not read: FAILED, as it should with the safeguard removed
+    in builder/src/sandbox/tables.ts: 'const said = output.includes(NO_DRIFT);' -> 'const said = true;'
+    test/export.test.ts -t "T7 (S24)": exit 1, 1 s; the test "does not say "No schema changes"": FAILED, as it must | Test Files  1 failed (1) | Tests  2 failed | 5 passed | 53 skipped (60)
+      failed: T7 (S24): the tables, made by drizzle-kit migrate through one helper, and the drift check the drift check fails, naming what generate wrote, when gene
+      failed: T7 (S24): the tables, made by drizzle-kit migrate through one helper, and the drift check the drift check fails when generate does not say "No schema 
+      first error line: AssertionError: expected 'drizzle-kit generate said "No schema …' to match /d…/0002_snapshot\.json \(added\), meta\
+S24c (S24) the files the drift check wrote not compared: FAILED, as it should with the safeguard removed
+    in builder/src/sandbox/tables.ts: 'if (said && touched.length === 0) return' -> 'if (said) return'
+    test/export.test.ts -t "T7 (S24)": exit 1, 0 s; the test "but the copy changed": FAILED, as it must | Test Files  1 failed (1) | Tests  1 failed | 6 passed | 53 skipped (60)
+      failed: T7 (S24): the tables, made by drizzle-kit migrate through one helper, and the drift check the drift check fails when generate says "No schema changes"
+      first error line: AssertionError: added: expected { ok: true, …(5) } to match object { ok: false, …(3) }
+S24d (S24) a drift does not refuse (fast): FAILED, as it should with the safeguard removed
+    in builder/src/sandbox/tables.ts: 'if (!drift.ok) throw new Error(' -> 'if (!drift.ok && false) throw new Error('
+    test/export.test.ts -t "T7 (S24)": exit 1, 1 s; the test "when generate writes a migration": FAILED, as it must | Test Files  1 failed (1) | Tests  1 failed | 6 passed | 53 skipped (60)
+      failed: T7 (S24): the tables, made by drizzle-kit migrate through one helper, and the drift check the drift check fails, naming what generate wrote, when gene
+      first error line: AssertionError: promise resolved "{ …(2) }" instead of rejecting
+S24e (S24) a link in drizzle/ not refused before the drift check: FAILED, as it should with the safeguard removed
+    in builder/src/sandbox/tables.ts: 'if (other.length) throw new Error(' -> 'if (other.length && false) throw new Error('
+    test/export.test.ts -t "T7 (S24)": exit 1, 1 s; the test "holds a link": FAILED, as it must | Test Files  1 failed (1) | Tests  1 failed | 6 passed | 53 skipped (60)
+      failed: T7 (S24): the tables, made by drizzle-kit migrate through one helper, and the drift check the drift check refuses a drizzle/ folder that holds a link,
+      first error line: AssertionError: promise resolved "{ ok: true, added: [], …(4) }" instead of rejecting
+S24f (S24) live: a drift does not refuse the start: FAILED, as it should with the safeguard removed
+    in builder/src/sandbox/tables.ts: 'if (!drift.ok) throw new Error(' -> 'if (false) throw new Error('
+    test/export-live.test.ts (live, in full, under the lock): exit 1, 147 s; the test "L4 (S24)": FAILED, as it must | Test Files  1 failed (1) | Tests  1 failed | 9 passed (10)
+      failed: package 3.2, live: the export's checks, the exported copy's own start, and the check from the copy L4 (S24): a schema change with no migration: the st
+      first error line: AssertionError: expected null not to be null
+S25 (S25) live: the version check before the start removed: FAILED, as it should with the safeguard removed
+    in builder/src/export/check-from-copy.ts: 'if (!check.ok) refused = `the version does not match its manifest: ${check.problems.join("; ")}`;' -> ''
+    test/export-live.test.ts (live, in full, under the lock): exit 1, 141 s; the test "L3 (S25): a test in the copy loosened": FAILED, as it must | Test Files  1 failed (1) | Tests  1 failed | 9 passed (10)
+      failed: package 3.2, live: the export's checks, the exported copy's own start, and the check from the copy L3 (S25): a test in the copy loosened after export 
+      first error line: TypeError: .toMatch() expects to receive a string, but got object
+S26a (S26) live: the app not chosen by its project's working folder: FAILED, as it should with the safeguard removed
+    in builder/src/export/check-from-copy.ts: '&& same(c.Config?.Labels?.["com.docker.compose.project.working_dir"], copyReal));' -> ');'
+    test/export-live.test.ts (live, in full, under the lock): exit 1, 137 s; the test "L3b (S26)": FAILED, as it must | Test Files  1 failed (1) | Tests  1 failed | 9 passed (10)
+      failed: package 3.2, live: the export's checks, the exported copy's own start, and the check from the copy L3b (S26): refused before the start when the app is
+      first error line: AssertionError: expected 'the app is not the one this copy star…' to match /no app container was started from thi…/
+S26b (S26) live: the app container's image not compared by id: FAILED, as it should with the safeguard removed
+    in builder/src/export/check-from-copy.ts: "if (c.Image !== image.Id) return `the app container's image" -> "if (false) return `the app container's image"
+    test/export-live.test.ts (live, in full, under the lock): exit 1, 137 s; the test "L3b (S26)": FAILED, as it must | Test Files  1 failed (1) | Tests  1 failed | 9 passed (10)
+      failed: package 3.2, live: the export's checks, the exported copy's own start, and the check from the copy L3b (S26): refused before the start when the app is
+      first error line: AssertionError: expected 'the app is not the one this copy star…' to match /the app container's image is not the …/
+S26c (S26) live: other containers on the project's front network allowed: FAILED, as it should with the safeguard removed
+    in builder/src/export/check-from-copy.ts: 'if (others.length) return `' -> 'if (false) return `'
+    test/export-live.test.ts (live, in full, under the lock): exit 1, 139 s; the test "L3b (S26)": FAILED, as it must | Test Files  1 failed (1) | Tests  1 failed | 9 passed (10)
+      failed: package 3.2, live: the export's checks, the exported copy's own start, and the check from the copy L3b (S26): refused before the start when the app is
+      first error line: TypeError: .toMatch() expects to receive a string, but got object
+S27a (S27) the runner not in the forwarder's namespace (fast, T8): FAILED, as it should with the safeguard removed
+    in builder/src/export/check-from-copy.ts: '`container:${o.forwarder}`,' -> '"none",'
+    test/export.test.ts -t "T8:": exit 1, 1 s; the test "T8:": FAILED, as it must | Test Files  1 failed (1) | Tests  1 failed | 59 skipped (60)
+      failed: T8: the check from the copy starts 3.1's runner from 3.1's own service definition, not a second one the runner's docker run arguments are acceptanceSe
+      first error line: AssertionError: expected [ 'none' ] to deeply equal [ Array(1) ]
+S27b (S27) live: the runner not in the forwarder's namespace: FAILED, as it should with the safeguard removed
+    in builder/src/export/check-from-copy.ts: '`container:${o.forwarder}`,' -> '"none",'
+    test/export-live.test.ts (live, in full, under the lock): exit 1, 136 s; the test "L3 (S25, S26, S27, S31) and L3c": FAILED, as it must | Test Files  1 failed (1) | Tests  1 failed | 9 passed (10)
+      failed: package 3.2, live: the export's checks, the exported copy's own start, and the check from the copy L3 (S25, S26, S27, S31) and L3c: the check from the
+      first error line: AssertionError: expected { code: 1, timedOut: false } to deeply equal { code: +0, timedOut: false }
+S27c (S27) live: the forwarder made on the project's data network, its own network check removed: FAILED, as it should with the safeguard removed
+    in builder/src/export/check-from-copy.ts: 'forwarderRunArgs({ name: forwarderName, network: app.front,' -> 'forwarderRunArgs({ name: forwarderName, network: `${app.project}_data`,'
+    in builder/src/export/check-from-copy.ts: 'if (nets.length !== 1 || nets[0] !== app.front) refused =' -> 'if (false) refused ='
+    test/export-live.test.ts (live, in full, under the lock): exit 1, 139 s; the test "L3 (S25, S26, S27, S31) and L3c": FAILED, as it must | Test Files  1 failed (1) | Tests  1 failed | 9 passed (10)
+      failed: package 3.2, live: the export's checks, the exported copy's own start, and the check from the copy L3 (S25, S26, S27, S31) and L3c: the check from the
+      first error line: AssertionError: expected [ 'j1-ce15ea059c4b_data' ] to deeply equal [ 'j1-ce15ea059c4b_front' ]
+S28 (S28) the old label ("no notices file") back in English: FAILED, as it should with the safeguard removed
+    in builder/src/web/messages/en.json: '"export.label": "Internal only, not for customers. The two container images' -> '"export.label": "Internal only, not for customers. Not yet shown to start without the builder (package 3.2): its tables are made by the buil'
+    test/export.test.ts -t "E15 (S28)": exit 1, 0 s; the test "E15 (S28)": FAILED, as it must | Test Files  1 failed (1) | Tests  1 failed | 59 skipped (60)
+      failed: Part B, the export job: one export per project, the passing run's manifest, the event, the label and the screen, scripted only (stand-in sandboxes, te
+      first error line: AssertionError: expected 'Internal only, not for customers. Not…' to be 'Internal only, not for customers. The…' // Object.is equality
+S29 (S29) files Compose or the image build reads untold not refused in the history: FAILED, as it should with the safeguard removed
+    in builder/src/orchestrator/export.ts: 'if (composeRead.length) refuse(' -> 'if (composeRead.length && false) refuse('
+    test/export.test.ts -t "E21 (S29)": exit 1, 1 s; the test "E21 (S29)": FAILED, as it must | Test Files  1 failed (1) | Tests  1 failed | 59 skipped (60)
+      failed: Part B, writeExport: a made-up project's export, with the Docker checks stood in for (no database, no container) E21 (S29): each name Docker Compose o
+      first error line: AssertionError: promise resolved "{ …(11) }" instead of rejecting
+S30a (S30) verdict: Compose's two readings no longer compared: FAILED, as it should with the safeguard removed
+    in builder/src/export/export-check.ts: 'differences(a, b, "", diffs, 20);' -> ''
+    test/export.test.ts -t "S30: what Compose reads": exit 1, 0 s; the test "S30: what Compose reads": FAILED, as it must | Test Files  1 failed (1) | Tests  1 failed | 59 skipped (60)
+      failed: Part B, the export checks' verdicts (section 4 items 4 to 7), on made-up readings; their live proof is L1 and L2b S30: what Compose reads from the cop
+      first error line: AssertionError: expected true to be false // Object.is equality
+S30b (S30) live: Compose's two readings no longer compared: FAILED, as it should with the safeguard removed
+    in builder/src/export/export-check.ts: 'differences(a, b, "", diffs, 20);' -> ''
+    test/export-live.test.ts (live, in full, under the lock): exit 1, 138 s; the test "L2b (S30)": FAILED, as it must | Test Files  1 failed (1) | Tests  1 failed | 9 passed (10)
+      failed: package 3.2, live: the export's checks, the exported copy's own start, and the check from the copy L2b (S30): what Compose reads from an unpacked copy
+      first error line: AssertionError: expected { id: 'compose_config', …(3) } to match object { id: 'compose_config', passed: false }
+S31a (S31) --checklist-items made optional (a default of 6): FAILED, as it should with the safeguard removed
+    in builder/src/export/check-from-copy.ts: 'for (const f of FLAGS) if (!seen.has(f)) throw' -> 'for (const f of FLAGS) if (!seen.has(f) && f !== "--checklist-items") throw'
+    in builder/src/export/check-from-copy.ts: 'const n = seen.get("--checklist-items")!;' -> 'const n = seen.get("--checklist-items") ?? "6";'
+    test/export.test.ts -t "E17 (S31)": exit 1, 1 s; the test "the script's values": FAILED, as it must | Test Files  1 failed (1) | Tests  2 failed | 1 passed | 57 skipped (60)
+      failed: E17 (S31): the check script's reading uses the checklist count recorded in the event the script's values: all six are needed; without --checklist-item
+      failed: E17 (S31): the check script's reading uses the checklist count recorded in the event the script itself refuses to run without --checklist-items, befor
+      first error line: AssertionError: expected [Function] to throw an error
+    test/export.test.ts -t "E17 (S31)": exit 1, 1 s; the test "the script itself refuses to run without --checklist-items": FAILED, as it must | Test Files  1 failed (1) | Tests  2 failed | 1 passed | 57 skipped (60)
+      failed: E17 (S31): the check script's reading uses the checklist count recorded in the event the script's values: all six are needed; without --checklist-item
+      failed: E17 (S31): the check script's reading uses the checklist count recorded in the event the script itself refuses to run without --checklist-items, befor
+      first error line: AssertionError: expected [Function] to throw an error
+S31b (S31) the reading takes the manifest's item count, not the count given: FAILED, as it should with the safeguard removed
+    in builder/src/export/check-from-copy.ts: 'checklistItems: args.checklistItems });' -> 'checklistItems: facts.manifest.items.length });'
+    test/export.test.ts -t "E17 (S31)": exit 1, 1 s; the test "a made-up results folder, read with the count given": FAILED, as it must | Test Files  1 failed (1) | Tests  1 failed | 2 passed | 57 skipped (60)
+      failed: E17 (S31): the check script's reading uses the checklist count recorded in the event a made-up results folder, read with the count given: 6 gives "ver
+      first error line: AssertionError: expected 'version passed' to be 'version passed; checklist incomplete …' // Object.is equality
+B-chk1 (B1 (section 4 items 3-7)) a Docker check reported not passed does not refuse: FAILED, as it should with the safeguard removed
+    in builder/src/orchestrator/export.ts: 'const failed = docker.find((c) => c.passed !== true);' -> 'const failed = undefined as ExportCheck | undefined;'
+    test/export.test.ts -t "E10 (S12): one export per project in writeExport": exit 1, 2 s; the test "E10 (S12): one export per project in writeExport": FAILED, as it must | Test Files  1 failed (1) | Tests  1 failed | 59 skipped (60)
+      failed: Part B, writeExport: a made-up project's export, with the Docker checks stood in for (no database, no container) E10 (S12): one export per project in 
+      first error line: AssertionError: promise resolved "{ …(11) }" instead of rejecting
+    test/export.test.ts -t "E10 (S12): one export per project: a second": exit 1, 2 s; the test "E10 (S12): one export per project: a second": FAILED, as it must | Test Files  1 failed (1) | Tests  1 failed | 59 skipped (60)
+      failed: Part B, the export job: one export per project, the passing run's manifest, the event, the label and the screen, scripted only (stand-in sandboxes, te
+      first error line: AssertionError: expected { jobId: 'job-97683480', …(5) } to match object { kind: 'export', …(2) }
+B-chk2 (B1 (section 4 items 3-7)) the six Docker checks need not each be reported once: FAILED, as it should with the safeguard removed
+    in builder/src/orchestrator/export.ts: 'const missing = DOCKER_CHECK_IDS.filter((id) => docker.filter((c) => c.id === id).length !== 1);' -> 'const missing: string[] = [];'
+    test/export.test.ts -t "E10 (S12): one export per project in writeExport": exit 1, 3 s; the test "E10 (S12): one export per project in writeExport": FAILED, as it must | Test Files  1 failed (1) | Tests  1 failed | 59 skipped (60)
+      failed: Part B, writeExport: a made-up project's export, with the Docker checks stood in for (no database, no container) E10 (S12): one export per project in 
+      first error line: AssertionError: promise resolved "{ …(11) }" instead of rejecting
+B-hard (section 4 (the checks' containers)) the check containers' read-only root dropped: FAILED, as it should with the safeguard removed
+    in builder/src/export/export-check.ts: '...(HARDENING.read_only ? ["--read-only"] : []),' -> ''
+    test/export.test.ts -t "the containers of the checks carry": exit 1, 0 s; the test "the containers of the checks carry": FAILED, as it must | Test Files  1 failed (1) | Tests  1 failed | 59 skipped (60)
+      failed: Part B, the export checks' verdicts (section 4 items 4 to 7), on made-up readings; their live proof is L1 and L2b the containers of the checks carry t
+      first error line: AssertionError: expected [ 'run', '--rm', '--name', …(20) ] to include '--read-only'
+B-rm (B2 (removal list)) the check's two images not on the project's removal list: FAILED, as it should with the safeguard removed
+    in builder/src/sandbox/manager.ts: 'return [appBuild.image, appBuild.toolsImage, `${projectName}-exportcheck-run:latest`, `${projectName}-exportcheck-tools:latest`];' -> 'return [appBuild.image, appBuild.toolsImage];'
+    test/export.test.ts -t "are on the project's removal list": exit 1, 1 s; the test "are on the project's removal list": FAILED, as it must | Test Files  1 failed (1) | Tests  1 failed | 59 skipped (60)
+      failed: Part B, the export checks' verdicts (section 4 items 4 to 7), on made-up readings; their live proof is L1 and L2b the export check's two images are na
+      first error line: AssertionError: expected [ …(2) ] to deeply equal [ …(4) ]
+A-T5a (T5 (README)) a second code block under "Start it": FAILED, as it should with the safeguard removed
+    in templates/next/README.md: '```\ndocker compose up --build\n```' -> '```\ndocker compose up --build\n```\n\n```\nAPP_PORT=3100 docker compose up --build\n```'
+    test/export.test.ts -t "T5:": exit 1, 1 s; the test "holds exactly one code block": FAILED, as it must | Test Files  1 failed (1) | Tests  1 failed | 4 passed | 55 skipped (60)
+      failed: T5: the exported app's README "Start it" holds exactly one code block, the one command: docker compose up --build
+      first error line: AssertionError: expected [ 'docker compose up --build', …(1) ] to deeply equal [ 'docker compose up --build' ]
+A-T5b (T5 (README)) the role guard's section of the template removed: FAILED, as it should with the safeguard removed
+    in templates/next/README.md: '## The role guard (rule 5)' -> '## Rule 5'
+    test/export.test.ts -t "T5:": exit 1, 0 s; the test "the template's own sections stay": FAILED, as it must | Test Files  1 failed (1) | Tests  1 failed | 4 passed | 55 skipped (60)
+      failed: T5: the exported app's README the template's own sections stay: the ten rules, the role guard, sharp
+      first error line: AssertionError: The role guard (rule 5): expected '' not to be '' // Object.is equality
+A-T6 (T6 (Dockerfile)) the notices file not copied into the run stage: FAILED, as it should with the safeguard removed
+    in templates/next/Dockerfile: 'COPY --from=build /app/THIRD-PARTY-NOTICES.md ./THIRD-PARTY-NOTICES.md' -> ''
+    test/export.test.ts -t "T6:": exit 1, 0 s; the test "copies the notices file into /app": FAILED, as it must | Test Files  1 failed (1) | Tests  1 failed | 2 passed | 57 skipped (60)
+      failed: T6: the template's Dockerfile the run stage copies the notices file into /app
+      first error line: AssertionError: expected [] to deeply equal [ Array(1) ]
+C-T8 (T8 (C1)) the runner's read-only root dropped: FAILED, as it should with the safeguard removed
+    in builder/src/export/check-from-copy.ts: '...(svc.read_only ? ["--read-only"] : []),' -> ''
+    test/export.test.ts -t "T8:": exit 1, 0 s; the test "T8:": FAILED, as it must | Test Files  1 failed (1) | Tests  1 failed | 59 skipped (60)
+      failed: T8: the check from the copy starts 3.1's runner from 3.1's own service definition, not a second one the runner's docker run arguments are acceptanceSe
+      first error line: AssertionError: expected [ '--cap-drop', '--entrypoint', …(12) ] to deeply equal [ '--cap-drop', '--entrypoint', …(13) ]
+
+3. Checks the builders added (design section 13, C3 and C4) that no test names: each removed, the live file run in full, to see
+   whether any test sees the removal. Reported apart; not counted in the controls' result.
+P1 (C4) the app container need not have been started from the copy's compose.yaml alone (config_files): NO TEST FAILED: no test sees this removal (exit 0, 137 s) | Test Files  1 passed (1) | Tests  10 passed (10)
+    in builder/src/export/check-from-copy.ts: 'if (configFiles !== join(labels["com.docker.compose.project.working_dir"]!, "compose.yaml"))\n    return' -> 'if (false)\n    return'
+P2 (C3) the keys volume need not carry Compose's labels for this project: NO TEST FAILED: no test sees this removal (exit 0, 817 s) | Test Files  1 passed (1) | Tests  10 passed (10)
+    in builder/src/export/check-from-copy.ts: 'if (v.Labels?.["com.docker.compose.project"] !== project || v.Labels?.["com.docker.compose.volume"] !== "keys") return' -> 'if (false) return'
+P3 (C4) the front network need not be internal in the isolated gateway mode: NO TEST FAILED: no test sees this removal (exit 0, 142 s) | Test Files  1 passed (1) | Tests  10 passed (10)
+    in builder/src/export/check-from-copy.ts: 'if (net.Internal !== true || net.Options?.["com.docker.network.bridge.gateway_mode_ipv4"] !== "isolated") return' -> 'if (false) return'
+P4 (C4) the app's APP_URL need not be http://localhost:<port>: NO TEST FAILED: no test sees this removal (exit 0, 143 s) | Test Files  1 passed (1) | Tests  10 passed (10)
+    in builder/src/export/check-from-copy.ts: "return `the app container's APP_URL (${appUrl}) is not http://localhost:<port>" -> "void `the app container's APP_URL (${appUrl}) is not http://localhost:<port>"
+P5 (C4) a one-off container of the service app may be taken for the app: NO TEST FAILED: no test sees this removal (exit 0, 141 s) | Test Files  1 passed (1) | Tests  10 passed (10)
+    in builder/src/export/check-from-copy.ts: 'c.Config?.Labels?.["com.docker.compose.oneoff"] !== "True" && same(' -> 'same('
+
+After every control: `git status --porcelain -- builder templates` empty: yes
+`git diff HEAD --stat -- builder templates`: (empty)
+Docker containers: 0 before, 0 after; new: none; gone: none
+Docker images: 8 before, 8 after; new: none; gone: none
+Docker volumes: 4 before, 4 after; new: none; gone: none
+Docker networks: 3 before, 3 after; new: none; gone: none
+Result: baseline every named test passed; controls: 75 run, 75 failed their tests as they should.
+Probes: 5 run; a test saw the removal in 0; no test saw it in P1, P2, P3, P4, P5.
