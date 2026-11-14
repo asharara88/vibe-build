@@ -310,6 +310,17 @@ Docker's documentation was read in its source repository on GitHub, since docs.d
 | In the acceptance runner's browser (Chrome for Testing's headless shell 153.0.8010.12), a page at `http://app:3000` is not a secure context (`isSecureContext` false), also with Chromium's `--unsafely-treat-insecure-origin-as-secure` flag, tried two ways | Measured 13 Nov 2026, `measure/05a-runner-at-http-app.txt` and `measure/05b-runner-secure-context-flag.txt` |
 | The Dockerfile's format: "The instruction is not case-sensitive"; lines that begin with `#` are comments, and "Comment lines are removed before the Dockerfile instructions are executed", also inside a step continued over several lines; "leading whitespace before comments (`#`) and instructions (such as `RUN`) are ignored"; parser directive keys "aren't case-sensitive" and may hold whitespace; the `escape` directive sets the character that continues a line. Relied on by the template's image-build test since 0.6c's review | [Dockerfile reference, in BuildKit's repository](https://raw.githubusercontent.com/moby/buildkit/master/frontend/dockerfile/docs/reference.md), sections "Format", "Parser directives" and "escape", read 13 Nov 2026 at about 13:56 UTC (the Docker documentation repository's path for this page answered 404) |
 
+## Read on 14 November 2026 for package J2 (c), the clean stop: tsx's signal relay and exit code (tsx 4.23.15)
+
+Read in tsx's own files as installed in `builder/node_modules/tsx` (version 4.23.15, from its `package.json`; MIT, `docs/SOURCES.md`, 11 Nov 2026), on 14 Nov 2026. The files are minified; the functions are named by the names tsx gives them. J2's design read the same files on 13 Nov 2026 (`docs/design/journey-j2.md`, section 4.1).
+
+| Fact | Source |
+| --- | --- |
+| When the `tsx` command receives SIGINT or SIGTERM, it first waits about 30 ms for the program it runs (its child) to report that it received the same signal. With no report, it sends the signal to the child, and waits about 30 ms more; with still no report, it kills the child with SIGKILL and, once the child has exited, exits itself with 128 plus the signal's number | `builder/node_modules/tsx/dist/cli.mjs`, the function `relaySignalToChild` inside `relaySignals` (installed for SIGINT and SIGTERM), read 14 Nov 2026 |
+| The child reports a signal through tsx's preflight: for SIGINT and SIGTERM it puts a hidden handler first, which sends the signal's name to tsx and, if the program has no handler of its own for it, exits with 128 plus the signal's number. The hidden handler is left out of `process.listenerCount` and `process.listeners` | `builder/node_modules/tsx/dist/preflight.cjs` (`bindHiddenSignalsHandler`), read 14 Nov 2026 |
+| `tsx` exits with its child's own exit code; if the child ended by a signal, with 128 plus that signal's number | `builder/node_modules/tsx/dist/cli.mjs`, the child's `close` handler (`process.exit(l)`, with `l` set from `signalCode` when null), read 14 Nov 2026 |
+| Seen in J2's automated run: SIGTERM sent to tsx's process alone (the interface started as `npm run web` starts it) ended with tsx's exit code 0, 0.6 s after the signal, the interface having stopped cleanly | `evidence/2026-11-13-journey-j2/run-demo.txt` ("T2"), 14 Nov 2026 |
+
 ## Product documentation read on 12 November 2026 for the owner's own set-up; nothing in the repository relies on it
 
 | Fact | Source |

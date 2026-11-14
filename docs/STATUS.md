@@ -1,33 +1,32 @@
 # Status
 
-**As of:** 13 November 2026, J3's review and the review bot answered. Rules: build plan section 8, rule 6. Questions: [`docs/QUESTIONS.md`](QUESTIONS.md). Earlier versions: `docs/log/` (the one before this: `2026-11-13-status-before-j3-review.md`).
+**As of:** 14 November 2026, J2 built, not reviewed. Rules: build plan section 8, rule 6. Questions: [`docs/QUESTIONS.md`](QUESTIONS.md). Earlier versions: `docs/log/` (the one before this: `2026-11-13-status-before-j2.md`).
 
-## What you can now do (J3, built, reviewed once, not tested)
+## What you can now do (J2, built, not tested)
 
-- **Use the scripted app live from your phone, after your phone test.** "Open the live app" on the preview screen shows a pass once (2 minutes); open "app" in your Claude app's preview list, type it, and use example 1's app. Labelled "Simulated build"; made-up data only.
-- **Off until then.** It starts only when turned on (`BUILDER_LIVE_PREVIEW=1`), after your two-page phone test (`docs/QUESTIONS.md`, "Yours to confirm").
-- Shown by an automated run on `0706ee3` (46 of 46 checks, 20 photographs): `evidence/2026-11-13-journey-j3/live-preview.md`.
-
-## The review
-
-Nothing blocking; nine notes, six fixed (among them the switch above, and a live session ending with its sign-in); gaps 148, 149 corrected, 159 to 161 added (161, the live app after sign-off, is your choice). The review bot found two, my own check a third: a sign-out in another tab while the live app was opening, or closing, still gave a pass; an answer the app cut short stayed open 60 seconds. All fixed, each with a test that failed before and a control.
+- **Watch the checklist reject a broken app.** On Projects, a panel marked "Simulated build" (always there, as you answered) has one button, "Start the broken-copy demonstration". Its project has a third step Claude Code broke on purpose (a new request saved as Approved, not Waiting), and a badge on every page. The checklist reads **Failed** at "sees status waiting". It is never signed off or exported.
+- **What that does not show:** that the checklist catches mistakes in general. Claude Code wrote both the mistake and the test.
+- **See a stop in the middle of a step.** Stopping the interface on purpose now marks the project interrupted and removes its containers (sealed boxes a step or the app runs in) before it exits; after a crash, at the next start. Nothing is resumed.
+- Shown by an automated run (not your instance): 150 of 150 checks, 41 pictures (`evidence/2026-11-13-journey-j2/journey-j2.md`).
 
 ## State
 
 1. **Tested:** 0.1 to 0.5, 0.6a (development profile), 1.1, 1.2, 1.2b, 1.3, 1.4, 1.5 (stand-in only), 2.1, W4.
-2. **Built, not tested:** 3.1, 1.4c, 3.1b, 1.4b, 0.6c, J1 (merged), J3 (pull request #38).
-3. **Checked after the review bot:** on `34ff56c`, the whole suite, 692 of 692 (live tests included), typecheck and licence check passed; 46 of 46 controls failed with their safeguard removed. Not repeated: 0.6c's isolation run (nothing it covers changed). **Assumed:** your phone's browser behaves as Chromium did (M1).
-4. **Your 4020 interface:** stopped at 19:24 UTC (the session's limit); restarted from the merged code once J3 merges, live preview off.
+2. **Built, not tested:** 3.1, 1.4c, 3.1b, 1.4b, 0.6c, J1 and J3 (both merged), **J2** (branch `claude/j2-broken-and-restart`, not pushed).
+3. **Checked for J2:** new tests failed without J2's code and pass with it; the whole suite, 728 of 728 (live tests included); typecheck and licence check passed; 42 of 42 controls failed with their safeguard removed. **Assumed:** the stop's 30 s, 5 s and 90 s limits (never reached in the run).
+4. **Your phone test:** still pending; the live preview stays off until then.
+5. **Your 4020 interface:** running, on code without J2: a stop still leaves your open projects' containers until its next start.
 
 ## Next
 
-1. Your phone test, then its result recorded and the live preview turned on.
-2. J2: the broken copy rejected by the checklist; a restart mid-build shown; then 3.2, the export that starts on its own.
+1. J2's review by fresh reviewers (design section 8), then its pull request.
+2. 3.2: the exported app starting on its own, with the builder stopped.
 
 ## What blocks it
 
-- No engineer has read 0.6c or J3 (gaps 35, 148, 149, 159).
+- No engineer has read 0.6c, J3 or J2's stop (gaps 35, 148, 149, 159, 165).
 - 2.3, the first real-model run: 2.2, the key, and 0.6c tested.
+- Gap 162's number clashes with the integration branch's; renumbered at merge.
 
 ## Money
 
