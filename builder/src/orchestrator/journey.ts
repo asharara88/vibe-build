@@ -29,7 +29,7 @@
  */
 import { randomBytes } from "node:crypto";
 import { readFileSync, realpathSync, statfsSync } from "node:fs";
-import { isAbsolute, join, resolve } from "node:path";
+import { basename, dirname, isAbsolute, join, resolve } from "node:path";
 import type pg from "pg";
 import type { BuildEngine, EngineEvent, StepInstruction, StepResult } from "../engine/interface.js";
 import { listSteps, readManifest, ScriptedEngine, type ScriptedEngineOptions } from "../engine/scripted.js";
@@ -137,7 +137,8 @@ export function brokenStageRefusal(s: Pick<JourneyState, "brokenCopy" | "plan" |
 /**
  * Why the broken step may not be staged into a sandbox's change-set folder, or null (final design, section 3.3): the
  * folder must be the sandbox's own, `engine-change-sets` inside its folder, as makeExample1 makes it, and not under
- * builder/ (so never builder/scripted, which every project's plan reads), by its path and, if it exists, by its real path.
+ * builder/ (so never builder/scripted, which every project's plan reads), by its path and by its real path as far as
+ * the path exists (`realpathAsFar`).
  */
 export function brokenStageTargetProblem(x: { dir: string; changeSets: string }): string | null {
   if (!isAbsolute(x.dir) || !isAbsolute(x.changeSets)) return "the sandbox's folders are not absolute paths";
@@ -148,12 +149,23 @@ export function brokenStageTargetProblem(x: { dir: string; changeSets: string })
   return null;
 }
 
-/** A path's real path, or the path itself when it does not exist (yet). */
+/**
+ * A path's real path, as far as it exists: the real path of its nearest folder that exists, with the rest of the path
+ * after it, so that a folder not made yet under a link into builder/ is still seen as under builder/ (J2's review,
+ * 14 Nov 2026). The path itself only when no part of it can be read.
+ */
 function realpathAsFar(p: string): string {
-  try {
-    return realpathSync(p);
-  } catch {
-    return resolve(p);
+  const whole = resolve(p);
+  const rest: string[] = [];
+  for (let head = whole; ; ) {
+    try {
+      return join(realpathSync(head), ...rest);
+    } catch {
+      const up = dirname(head);
+      if (up === head) return whole;
+      rest.unshift(basename(head));
+      head = up;
+    }
   }
 }
 

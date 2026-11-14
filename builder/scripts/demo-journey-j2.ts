@@ -293,7 +293,7 @@ async function main(): Promise<number> {
 
   async function eventsOf(projectId: string | null): Promise<EventSeen[]> {
     const r = await pool.query<{ id: string; kind: string; step: string | null; payload: Record<string, unknown> }>(
-      projectId === null ? "select id::text as id, kind, step, payload from events order by id" : "select id::text as id, kind, step, payload from events where project_id = $1 order by id",
+      projectId === null ? "select id::text as id, kind, step, payload from events order by events.id" : "select id::text as id, kind, step, payload from events where project_id = $1 order by events.id",
       projectId === null ? [] : [projectId],
     );
     return r.rows;
@@ -625,7 +625,7 @@ async function main(): Promise<number> {
 
     // Every event of the run, whether or not it ran to its end; never with the interface's password.
     try {
-      const evRows = await pool.query<{ id: string; project_id: string; at: Date; kind: string; step: string | null; payload: Record<string, unknown> }>("select id::text as id, project_id, at, kind, step, payload from events order by id");
+      const evRows = await pool.query<{ id: string; project_id: string; at: Date; kind: string; step: string | null; payload: Record<string, unknown> }>("select id::text as id, project_id, at, kind, step, payload from events order by events.id");
       const text = JSON.stringify({ run: runId, database: dbName, note: "Every event of the run's database, in id order. Made-up data only. Paths are of this machine's run folder, removed after the run.", events: evRows.rows.map((e) => ({ ...e, at: e.at.toISOString() })) }, null, 1);
       if (text.includes(uiPassword)) throw new Error("the events would hold the interface's password");
       writeFileSync(join(evidence, "events.json"), text.replaceAll(work, "<run folder>") + "\n");
