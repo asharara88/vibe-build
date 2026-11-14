@@ -1,0 +1,6 @@
+J2 after merging e6bf03d: npm run typecheck on 5ee35b4 (builder/ tree 0f51708), working tree of builder/: 0 changed files, 2026-11-14T10:23:29Z.
+
+> builder@0.0.1 typecheck
+> tsc --noEmit
+
+exit code: 0

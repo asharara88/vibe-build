@@ -249,3 +249,21 @@ Merged without a conflict, and read: `signOff` (the live session ended after J2'
 **After the run, checked:** no container on the machine; nothing named `builder_j1-`; ports 4022 and 13161 free; the run's database dropped and its run folder removed (the run's own checks); the link gone; no database `builder_j2_*` or `builder_test_j2_mg*` left (`psql`); the four volumes Docker lists are anonymous ones made on 13 Nov 2026, before this work, and were left alone. The scratch folders the checks and the run used (`<scratchpad>/j2mg-tmp`, `<scratchpad>/j2mg-demo-tmp`) were removed after. Found in the first before removing it: 10 folders left by tests in their `TMPDIR`, 3 `builder-acceptance-standin-*` made during the controls (09:37 to 09:38 UTC) and 4 `builder-sb-*`, 2 `builder-user-docker-*` and 1 `builder-home-*` made during the whole suite (09:55 UTC); not looked into further.
 
 **Checked and assumed.** Checked: each conflict against both sides' diffs from `14787d8`; that every refusal of both sides is in the merged rules (read, and shown by both sides' tests and controls passing and failing as they should); the checks and the run above. Not checked: the merge has not been read by a reviewer; nothing was pushed.
+
+## The second review round, and brought up to date with the integration branch at `e6bf03d`
+
+**The second review round (14 Nov 2026).** Pull request #48 was marked ready for review at 10:18 UTC. The review bot read its head, `b2649f0` (J2, its fixes after the first review, and the merges of `c4f198b` and `269fdec`), and finished at 10:20:38 UTC with no findings (its summary comment on the pull request: "has_any_findings": false). That is the second and last review round the build plan allows (section 3, step 7). No finding of either round is open that breaks a hard rule or leaves a "Done means" unmet.
+
+**The integration branch moved meanwhile** to `e6bf03d` (pull request #47: #39, the sandbox tests' leftover folders, brought up to date, and known gap 162 fixed). Merged into J2 as `5ee35b4`. Only records were in conflict (`docs/DECISIONS.md`, `docs/KNOWN-GAPS.md`, `docs/SOURCES.md`); the rows and sections of both sides were kept. Gap 175 had been taken by #47, which merged first, so J2's gaps 175 to 181 are now **176 to 182**, changed in J2's own lines only (records, design and this file), with a dated note where the earlier renumbering is recorded. From `builder/`, the merge brings only `test/sandbox.test.ts` and `test/preview-live.test.ts` (the same number of tests in each, 23 and 6); nothing of `builder/src` changes.
+
+**The checks on the merged head** (`5ee35b4`, `builder/` tree `0f51708`; script `after-merge-e6bf03d/checks-after-merge.sh`, `TMPDIR` `<scratchpad>/m2`, 86 bytes, kept short for gap 175's second point):
+
+| Check | Result | File |
+| --- | --- | --- |
+| `npm run typecheck` | Passed, exit code 0 | `after-merge-e6bf03d/run-typecheck.txt` |
+| `npm run check:licences` | Passed, exit code 0; no dependency file or image list changed since `14787d8` | `after-merge-e6bf03d/run-licences.txt` |
+| `npm test`, the whole suite, live tests included | **787 of 787 passed, in 31 of 31 files**, on a fresh database; lock held 10:23:34 to 10:41:20 UTC; no container before or after; no preview folder left in /tmp; no test database left | `after-merge-e6bf03d/run-tests-full.txt` |
+
+**Not run again here, and why:** J2's 45 controls, the sign-off fix's 8, and the automated run. This merge changes no file of `builder/src`, no file J2's controls edit, and no script of the run; their last runs, on `3231071`, are in "Brought up to date with the integration branch at `c4f198b`" above.
+
+**Notes from another session's reviewers (14 Nov 2026),** reported to this one by message; neither blocking, both to be handled in that session's follow-up pull request (#49), not here: (1) in `builder/scripts/demo-journey-j2.ts`, `if (job1)` and `if (job2)` skip two record checks (T4's and K3's) without counting a failed check when step 2's job is not found; in this run both jobs were found, so no check was skipped (`run-demo.txt`). (2) A sentence of this file's "Checked and assumed" was said to call a cut-off `docker build` unable to outlive the next start's removal; on this branch it already says it *can* (gap 179).
