@@ -1,0 +1,18 @@
+M6: is a one-off container that lives a fraction of a second always seen running? Started 2026-11-14T12:31:20.883Z.
+Real project builder_p_iso06c_real_m started; the runner image's id sha256:fef0d0f40bde1918ef196f40fb2d45c0b8f4f12b1ca253cd9702f7d9f02220e9; the acceptance service's image as read after the build sha256:fef0d0f40bde1918ef196f40fb2d45c0b8f4f12b1ca253cd9702f7d9f02220e9.
+(b) Docker's events for one runner container (builder_p_iso06c_real_m-isolation-events); seen running by the harness: true, image sha256:fef0d0f40bde1918ef196f40fb2d45c0b8f4f12b1ca253cd9702f7d9f02220e9
+    +    0 ms  create
+    +    5 ms  attach
+    +  128 ms  start
+    +  321 ms  die
+    +  337 ms  destroy
+    the create event's image-related attributes: {"com.docker.compose.image":"sha256:cd4e1a2a859ef890842212fa4e38ae5f9bae98a198dc0091a87d24272ac70a4f","image":"builder-acceptance-runner:local","name":"builder_p_iso06c_real_m-isolation-events","org.opencontainers.image.version":"24.04"}
+    from start to end: 193 ms; attempts read: 49
+(a) probeServiceSeen on the acceptance service, 20 times: seen running 20 of 20; the image id read equal to the runner image's 20 of 20; each whole run took between 545 and 661 ms.
+Removed. Left of the project: containers: none; named containers: none; networks: none; volumes: none; images: none
+Finished 2026-11-14T12:32:16.176Z.
+
+Note, written after the run: the harness asked every 100 ms in this measurement (20 of 20 seen). Its rhythm was then
+set to 20 ms, since the container was running for only 193 ms and an answer took some tens of milliseconds. The
+label Compose puts on the container (com.docker.compose.image) is another digest than the image's id as
+`docker image inspect` and `docker inspect` give it, so it is not used for the comparison.

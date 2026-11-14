@@ -1,0 +1,5 @@
+M5: leftOf after destroyExample1 (the project's folder, with its Docker client folder, is removed by then).
+leftOf before: containers: builder_p_iso06c_real_m-egress-1, builder_p_iso06c_real_m-app-1, builder_p_iso06c_real_m-db-1, builder_p_iso06c_real_m-egress-host-1; named containers: builder_p_iso06c_real_m-egress-1, builder_p_iso06c_real_m-app-1, builder_p_iso06c_real_m-db-1, builder_p_iso06c_real_m-egress-host-1; networks: builder_p_iso06c_real_m_data, builder_p_iso06c_real_m_front, builder_p_iso06c_real_m_out; volumes: builder_p_iso06c_real_m_dbdata; images: builder_p_iso06c_real_m-app:latest, builder_p_iso06c_real_m-tools:latest
+destroyExample1: containers of the project left: none; temporary folder removed
+leftOf after: containers: none; named containers: none; networks: none; volumes: none; images: none
+the runner image is still on the machine: sha256:58f6ac3725e29092a1d0b44f8d0c99d18a9fcf6b2b1d63303dd748012ad1479c

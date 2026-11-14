@@ -1,0 +1,32 @@
+Measurements before the code, package 0.6c in real containers. Started 2026-11-14T12:17:17.838Z.
+M0: the builder's folder mounted read-only at /builder in a container of the approved Node image (no network, user 1000, read-only root), then `node --import tsx -e ...`, as the door's containers start.
+this copy (node_modules a real folder): exit 0: tsx loaded
+the worktree (node_modules a link to a folder outside it): exit 1:   throw new ERR_MODULE_NOT_FOUND(packageName, fileURLToPath(base), null); / Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'tsx' imported from /builder/
+Runner image builder-acceptance-runner:local: built in 4.3 s; id before the build sha256:88fbbc30fd6392428ef75855b50e56ee5e9e5b1c2c8dd11a81e33d4fc4b7803e; id after sha256:fad52b15b6c1b81ba5171915b8e2f5e5dc1d191a84d36be0f473617597c272c2; problems []; label problem null; user "1001 runner".
+Scripted engine, step 01-data: ok
+Scripted engine, step 02-submitter-screen: ok
+  App and tools images built (the template's guard check and next build ran in the build).
+  Tables created and sample users added in the tools container (3 lines from the seed).
+  Before the app was started, nothing answered at http://app:3191, asked from a container on the project's front network (EAI_AGAIN).
+  App container started and healthy.
+Real project builder_p_iso06c_real_m made, built and started, the door too, in 29.7 s.
+FAILED: Command failed: docker image inspect builder_p_iso06c_real_m-app:latest --format id={{.Id}} user={{json .Config.User}} cmd={{json .Config.Cmd}} entrypoint={{json .Config.Entrypoint}} workdir={{json .Config.WorkingDir}} repoDigests={{json .RepoDigests}} labels={{json .Config.Labels}}
+template parsing error: template: :1:193: executing "" at <.Config.Labels>: map has no entry for key "Labels"
+
+template parsing error: template: :1:193: executing "" at <.Config.Labels>: map has no entry for key "Labels"
+
+Error: Command failed: docker image inspect builder_p_iso06c_real_m-app:latest --format id={{.Id}} user={{json .Config.User}} cmd={{json .Config.Cmd}} entrypoint={{json .Config.Entrypoint}} workdir={{json .Config.WorkingDir}} repoDigests={{json .RepoDigests}} labels={{json .Config.Labels}}
+template parsing error: template: :1:193: executing "" at <.Config.Labels>: map has no entry for key "Labels"
+
+    at genericNodeError (node:internal/errors:983:15)
+    at wrappedFn (node:internal/errors:537:14)
+    at ChildProcess.exithandler (node:child_process:417:12)
+    at ChildProcess.emit (node:events:519:28)
+    at maybeClose (node:internal/child_process:1101:16)
+    at ChildProcess._handle.onexit (node:internal/child_process:304:5)
+M5: leftOf after destroyExample1 (the project's folder, with its Docker client folder, is removed by then).
+leftOf before: containers: builder_p_iso06c_real_m-egress-1, builder_p_iso06c_real_m-app-1, builder_p_iso06c_real_m-db-1, builder_p_iso06c_real_m-egress-host-1; named containers: builder_p_iso06c_real_m-egress-1, builder_p_iso06c_real_m-app-1, builder_p_iso06c_real_m-db-1, builder_p_iso06c_real_m-egress-host-1; networks: builder_p_iso06c_real_m_data, builder_p_iso06c_real_m_front, builder_p_iso06c_real_m_out; volumes: builder_p_iso06c_real_m_dbdata; images: builder_p_iso06c_real_m-app:latest, builder_p_iso06c_real_m-tools:latest
+destroyExample1: containers of the project left: none; temporary folder removed
+leftOf after: containers: none; named containers: none; networks: none; volumes: none; images: none
+the runner image is still on the machine: sha256:fad52b15b6c1b81ba5171915b8e2f5e5dc1d191a84d36be0f473617597c272c2
+Finished 2026-11-14T12:18:18.358Z.

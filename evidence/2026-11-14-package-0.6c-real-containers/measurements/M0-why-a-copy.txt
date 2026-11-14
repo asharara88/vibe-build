@@ -1,0 +1,3 @@
+M0: the builder's folder mounted read-only at /builder in a container of the approved Node image (no network, user 1000, read-only root), then `node --import tsx -e ...`, as the door's containers start.
+this copy (node_modules a real folder): exit 0: tsx loaded
+the worktree (node_modules a link to a folder outside it): exit 1:   throw new ERR_MODULE_NOT_FOUND(packageName, fileURLToPath(base), null); / Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'tsx' imported from /builder/
