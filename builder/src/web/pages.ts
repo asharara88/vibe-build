@@ -7,6 +7,15 @@
  * Every page shows the mode line, true on every page: "Scripted mode: no AI model is connected. The
  * real-model gate is closed." Each panel says Real or Simulated; a simulated panel says who wrote its
  * content. English and Arabic on every page, with `lang` and `dir` set (right to left for Arabic).
+ *
+ * Package J2 (a): the Projects screen's "Simulated build" panel, whose button starts the broken-copy demonstration
+ * (shown as `brokenCopyDemoShown` decides); the badge on every page and list row of a project with any trace of the
+ * broken copy (`brokenBadge`, from `JourneyState.brokenTrace`, never from the name); the plan and build screens from
+ * the project's own plan (`planSteps(s)`); a failed checklist item's step; and the sign-off panel's lines for it.
+ *
+ * Package J2 (c): the interrupted panel's second wording, for a project marked interrupted with no job interrupted (its
+ * app was set up or running when the interface stopped); the cost screen's note on the reservation of a step stopped
+ * part-way (`holdsStoppedPartWay`); and, while the demonstration pause is on, its line on the build screen.
  */
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -17,7 +26,28 @@ import type { Budget, StepHoldRow } from "../store/holds.js";
 import { SET_ASIDE_FREEZE_REASON, type Freeze, type FreezeKind } from "../store/freezes.js";
 import type { UnreconciledList } from "../store/reconcile.js";
 import { fieldChecklist, MAX_FREE_TEXT, showReason, type Answer, type IntakeQuestion } from "../orchestrator/intake.js";
-import { approveRefusal, buildStepRefusal, DISK_FLOOR_BYTES, EV, EXPORT_LABEL, JOB_RULES, jobRunFinished, JOURNEY_PREFIX, JOURNEY_STAND_IN_LABEL, MAX_BRIEF, MAX_NAME, runOutcome, SIGN_OFF_LABEL, signOffRefusal, type Journey, type JourneyState, type Stage } from "../orchestrator/journey.js";
+import {
+  approveRefusal,
+  BROKEN_STEP,
+  brokenCopyDemoShown,
+  buildStepRefusal,
+  DISK_FLOOR_BYTES,
+  EV,
+  EXAMPLE_1_ASK,
+  EXPORT_LABEL,
+  JOB_RULES,
+  jobRunFinished,
+  JOURNEY_PREFIX,
+  JOURNEY_STAND_IN_LABEL,
+  MAX_BRIEF,
+  MAX_NAME,
+  runOutcome,
+  SIGN_OFF_LABEL,
+  signOffRefusal,
+  type Journey,
+  type JourneyState,
+  type Stage,
+} from "../orchestrator/journey.js";
 import { LIVE_DATA_LABEL, LIVE_LABEL, REFUSAL_EXTRA, USED_LIVE_NOTE } from "../orchestrator/journey-jobs.js";
 import type { LiveSession } from "./preview.js";
 import { FRONT_TEXT_KEYS, type Texts } from "./preview-rules.ts";
@@ -40,8 +70,8 @@ export function t(lang: Lang, key: string, vars: Record<string, string | number>
   return m.replace(/\{(\w+)\}/g, (all, k: string) => (k in vars ? String(vars[k]) : all));
 }
 
-/** B5's raw ask for example 1, as the new-project box is prefilled. */
-export const EXAMPLE_1_ASK = "I need an app where staff can request leave and managers approve it";
+/** B5's raw ask for example 1, as the new-project box is prefilled (defined in journey.ts, which the demonstration also uses). */
+export { EXAMPLE_1_ASK };
 
 export const STYLESHEET = `
 :root{ --ink: #1d2330; --muted: #5b6475; --line: #d5d9e2; --bg: #f6f7f9; --card: #fff; --real: #14633a; --real-bg: #e3f4ea; --sim: #7a4b00; --sim-bg: #fff2d6; --accent: #1f4fbf; --bad: #9b1c1c }
@@ -242,7 +272,7 @@ export function projectsPage(lang: Lang, rows: Array<{ state: JourneyState; spen
 <thead><tr><th>${t(lang, "col.name")}</th><th>${t(lang, "col.stage")}</th><th>${t(lang, "col.cap")}</th><th>${t(lang, "col.spent")}</th><th></th></tr></thead>
 <tbody>${rows.map(
         (r) => html`<tr data-project="${r.state.project.id}">
-<td><a href="/projects/${r.state.project.id}">${r.state.project.name}</a></td>
+<td><a href="/projects/${r.state.project.id}">${r.state.project.name}</a>${brokenBadge(lang, r.state)}</td>
 <td>${stageName(lang, r.state.stage)}</td>
 <td>${usd(Number(r.state.project.cap_usd))}</td>
 <td>${usd(r.spentUsd)}</td>
@@ -253,8 +283,25 @@ export function projectsPage(lang: Lang, rows: Array<{ state: JourneyState; spen
   return layout(
     { lang, title: t(lang, "projects.title"), back: "/projects", signedIn: true },
     html`<h1>${t(lang, "projects.title")}</h1>
-${panel(lang, "real", t(lang, "projects.title"), html`${list}<div class="actions"><a href="/projects/new">${t(lang, "projects.new")}</a></div>${others > 0 ? html`<p class="note">${t(lang, "projects.others", { n: others })}</p>` : ""}`)}`,
+${panel(lang, "real", t(lang, "projects.title"), html`${list}<div class="actions"><a href="/projects/new">${t(lang, "projects.new")}</a></div>${others > 0 ? html`<p class="note">${t(lang, "projects.others", { n: others })}</p>` : ""}`)}
+${brokenCopyDemoShown() ? demoPanel(lang) : ""}`,
   );
+}
+
+/**
+ * Package J2 (a): the demonstration's panel, apart from "New project": labelled "Simulated build", with one button. The
+ * route behind it makes a project the builder names itself (journey.ts, `createBrokenCopyDemo`).
+ */
+function demoPanel(lang: Lang): Html {
+  return panel(lang, "sim", t(lang, "demo.title"), html`<p>${t(lang, "demo.intro")}</p><div class="actions">${postButton("/demonstrations/broken-copy", t(lang, "demo.button"))}</div>`, { simNote: t(lang, "demo.sim_note") });
+}
+
+/**
+ * Package J2 (a): the badge of a project with any trace of the broken copy (`JourneyState.brokenTrace`), added by the
+ * system on every page of the project and in its list row. Drawn from the record, never from the name.
+ */
+export function brokenBadge(lang: Lang, s: Pick<JourneyState, "brokenTrace">): Html | string {
+  return s.brokenTrace ? html` <span class="label" data-broken-badge>${t(lang, "broken.badge")}</span>` : "";
 }
 
 export function stageName(lang: Lang, stage: Stage): string {
@@ -313,7 +360,7 @@ export function tabs(lang: Lang, s: JourneyState, here: Screen): Html {
 function projectPage(lang: Lang, s: JourneyState, here: Screen, title: string, body: Html, o: { refreshSeconds?: number } = {}): Html {
   return layout(
     { lang, title: `${title} · ${s.project.name}`, back: `/projects/${s.project.id}/${here}`, signedIn: true, refreshSeconds: o.refreshSeconds },
-    html`<h1>${s.project.name}</h1>
+    html`<h1>${s.project.name}${brokenBadge(lang, s)}</h1>
 <p class="note">${t(lang, "col.stage")}: <strong data-stage="${s.stage}">${stageName(lang, s.stage)}</strong></p>
 ${tabs(lang, s, here)}
 ${s.interrupted && s.stage !== "closed" ? interruptedPanel(lang, s) : ""}
@@ -322,16 +369,25 @@ ${body}`,
 }
 
 function interruptedPanel(lang: Lang, s: JourneyState): Html {
+  // Package J2 (c): "A job of this project was interrupted…" only when one was; otherwise the project had only its app
+  // set up or running (its sandbox was removed at a stop, or found at the next start).
+  const jobInterrupted = s.jobs.some((j) => j.state === "interrupted");
   return panel(
     lang,
     "real",
     t(lang, "error.title"),
-    html`<p class="warn">${t(lang, "interrupted.message")}</p>
+    html`<p class="warn">${t(lang, jobInterrupted ? "interrupted.message" : "interrupted.no_job")}</p>
 <div class="actions"><form method="post" action="/projects/${s.project.id}/close"><button type="submit">${t(lang, "interrupted.close")}</button></form><a href="/projects/new">${t(lang, "projects.new")}</a></div>`,
   );
 }
 
 const postButton = (action: string, label: string, cls = "") => html`<form method="post" action="${action}"><button type="submit" class="${cls}">${label}</button></form>`;
+
+/** Package J2 (a): on a broken copy's plan and build screens, the line saying no step is checked after it runs, nor retried. */
+const noQualityCheck = (lang: Lang, s: JourneyState): Html | string => (s.brokenTrace ? html`<p class="greyed" data-no-quality-check>${t(lang, "broken.no_quality_check")}</p>` : "");
+
+/** Package J2 (a): under the broken step, what it does and why it is there. */
+const brokenStepNote = (lang: Lang, step: string): Html | string => (step === BROKEN_STEP ? html`<div class="warn" data-broken-step>${t(lang, "broken.step_note")}</div>` : "");
 
 export function briefPage(lang: Lang, s: JourneyState, j: Journey): Html {
   const id = s.project.id;
@@ -469,12 +525,13 @@ ${s.stage === "brief_review" ? html`<div class="actions">${postButton(`/projects
 export function planPage(lang: Lang, s: JourneyState, j: Journey): Html {
   const id = s.project.id;
   if (!s.briefConfirmed) return projectPage(lang, s, "plan", t(lang, "plan.title"), panel(lang, "sim", t(lang, "plan.title"), html`<p>${t(lang, "plan.not_yet")}</p>`));
-  const steps = j.planSteps();
+  const steps = j.planSteps(s);
   const body = html`<ol data-steps>${steps.map(
-    (st) => html`<li data-step="${st.step}"><strong>${stepId(st.step)}</strong><div>${t(lang, "plan.shown")}: <span lang="en" dir="ltr">${st.label}</span></div><div class="note">${t(lang, "plan.files", { n: st.files })}</div></li>`,
+    (st) => html`<li data-step="${st.step}"><strong>${stepId(st.step)}</strong><div>${t(lang, "plan.shown")}: <span lang="en" dir="ltr">${st.label}</span></div>${brokenStepNote(lang, st.step)}<div class="note">${t(lang, "plan.files", { n: st.files })}</div></li>`,
   )}</ol>
 <p class="greyed">${t(lang, "plan.not_built")}</p>
 <p class="greyed">${t(lang, "plan.quality_gate")}</p>
+${noQualityCheck(lang, s)}
 <p class="note">${t(lang, "plan.tests_fixed")}</p>
 ${
   s.stage === "plan_review"
@@ -497,8 +554,27 @@ export interface CostView {
   priceTableDate: string;
 }
 
+/**
+ * Package J2 (c): the step holds stopped part-way, by their id: each opened by the last build job of its step, when that
+ * job was interrupted (the interface stopped while it ran). Its close reads "step_ended" after a clean stop, or
+ * "job_interrupted" after a crash; the cost screen adds a note to either, so that neither reads as a finished step.
+ */
+export function holdsStoppedPartWay(s: JourneyState): Set<string> {
+  const out = new Set<string>();
+  for (const [step, job] of s.stepJobs) {
+    if (job.state !== "interrupted") continue;
+    const end = s.events.find((e) => e.kind === EV.jobInterrupted && String(e.payload.job_id) === job.jobId);
+    for (const e of s.events) {
+      if (e.kind !== "step.hold_opened" || e.step !== step || BigInt(e.id) <= BigInt(job.startedEventId) || (end && BigInt(e.id) >= BigInt(end.id))) continue;
+      out.add(String(e.payload.step_hold_id));
+    }
+  }
+  return out;
+}
+
 export function costPage(lang: Lang, s: JourneyState, v: CostView): Html {
   const b = v.budget;
+  const partWay = holdsStoppedPartWay(s);
   const left = Math.max(b.cap - b.spent - b.openHolds - b.stepRoom, 0);
   const figures = html`<table data-cost>
 <tr><th>${t(lang, "cost.cap")}</th><td data-cap>${usd(b.cap)}</td></tr>
@@ -511,7 +587,10 @@ ${b.spent === 0 && v.modelCalls === 0 ? html`<p class="note" data-zero>${t(lang,
 <p class="note">${t(lang, "cost.read_only")}</p>`;
   const steps = v.stepHolds.length
     ? html`<div class="scroll"><table data-step-holds><thead><tr><th>${t(lang, "col.step")}</th><th>${t(lang, "cost.reserved")}</th><th>${t(lang, "cost.state")}</th></tr></thead>
-<tbody>${v.stepHolds.map((h) => html`<tr><td>${stepId(h.step_id)}</td><td>${usd4(Number(h.budget_usd))}</td><td>${h.state}${h.closed_reason ? ` (${h.closed_reason})` : ""}</td></tr>`)}</tbody></table></div>
+<tbody>${v.stepHolds.map(
+        (h) =>
+          html`<tr><td>${stepId(h.step_id)}</td><td>${usd4(Number(h.budget_usd))}</td><td>${h.state}${h.closed_reason ? ` (${h.closed_reason})` : ""}${h.state === "closed" && partWay.has(String(h.id)) ? html`<br><span class="note" data-stopped-part-way>${t(lang, "cost.stopped_part_way")}</span>` : ""}</td></tr>`,
+      )}</tbody></table></div>
 <p class="note">${t(lang, "cost.priced", { model: v.pricedModel, date: v.priceTableDate })}</p>`
     : html`<p>${t(lang, "cost.no_steps")}</p>`;
   // Every freeze not cleared, each with its kind (packages 1.4, 1.4b and 1.4c) and the message the gateway's refusal gives.
@@ -633,10 +712,14 @@ function runningNote(lang: Lang, s: JourneyState): Html | string {
   return s.runningJob ? html`<p class="note" data-job-running="${s.runningJob.kind}">${t(lang, "job.running", { kind: t(lang, `job.kind.${s.runningJob.kind}`) })}</p>` : "";
 }
 
-export function buildPage(lang: Lang, s: JourneyState, j: Journey): Html {
+/**
+ * The build screen. Package J2 (c): `stepPauseMs`, the demonstration pause while it is on (BUILDER_DEMO_STEP_PAUSE_MS),
+ * is shown on it as a demonstration setting.
+ */
+export function buildPage(lang: Lang, s: JourneyState, j: Journey, o: { stepPauseMs?: number } = {}): Html {
   const id = s.project.id;
   if (!s.planConfirmed) return projectPage(lang, s, "build", t(lang, "build.title"), panel(lang, "real", t(lang, "build.title"), html`<p>${t(lang, "build.not_yet")}</p>`));
-  const steps = j.planSteps();
+  const steps = j.planSteps(s);
   const open = !s.runningJob && !s.interrupted && s.stage !== "closed" && s.stage !== "stopped";
   // The next thing to do: build the first step not approved, or approve it once built.
   let action: Html | string = "";
@@ -645,7 +728,15 @@ export function buildPage(lang: Lang, s: JourneyState, j: Journey): Html {
     const st = steps[next]!;
     const last = s.stepJobs.get(st.step);
     if (last?.state === "finished" && !approveRefusal(s, st.step)) {
-      const label = next < steps.length - 1 ? t(lang, "build.approve_next") : t(lang, "build.approve_last");
+      // Package J2: the approval before the broken step, and of it, say what they lead to.
+      const label =
+        steps[next + 1]?.step === BROKEN_STEP
+          ? t(lang, "build.approve_broken", { n: next + 2 })
+          : st.step === BROKEN_STEP
+            ? t(lang, "build.approve_after_broken")
+            : next < steps.length - 1
+              ? t(lang, "build.approve_next")
+              : t(lang, "build.approve_last");
       action = html`<form method="post" action="/projects/${id}/approve"><input type="hidden" name="step" value="${st.step}"><button type="submit" data-approve="${st.step}">${label}</button></form>`;
     } else if (!buildStepRefusal(s, st.step)) {
       const label = last?.state === "failed" || last?.state === "interrupted" ? t(lang, "build.retry", { n: next + 1 }) : t(lang, "build.start", { n: next + 1 });
@@ -658,11 +749,12 @@ export function buildPage(lang: Lang, s: JourneyState, j: Journey): Html {
     lang,
     "real",
     t(lang, "build.title"),
-    html`${runningNote(lang, s)}<p>${t(lang, "build.intro")}</p>
+    html`${runningNote(lang, s)}${o.stepPauseMs ? html`<p class="warn" data-step-pause="${o.stepPauseMs}">${t(lang, "build.step_pause", { ms: o.stepPauseMs.toLocaleString("en") })}</p>` : ""}<p>${t(lang, "build.intro")}</p>
 <div class="actions">${action}</div>
 <p class="note">${t(lang, "build.no_preview_after_1")}</p>
 <p class="note">${t(lang, "build.disk_note", { gb: (DISK_FLOOR_BYTES / 1024 ** 3).toFixed(1) })}</p>
-<p class="greyed">${t(lang, "plan.quality_gate")}</p>`,
+<p class="greyed">${t(lang, "plan.quality_gate")}</p>
+${noQualityCheck(lang, s)}`,
   );
   const stepPanels = steps.map((st, i) => {
     const last = s.stepJobs.get(st.step);
@@ -683,6 +775,7 @@ export function buildPage(lang: Lang, s: JourneyState, j: Journey): Html {
       tStep(lang, "build.step_title", { n: i + 1, total: steps.length }, st.step),
       html`<div data-step="${st.step}" data-step-state="${state}" data-approved="${s.approved.has(st.step) ? "yes" : "no"}">
 <p>${t(lang, "plan.shown")}: <span lang="en" dir="ltr">${st.label}</span></p>
+${brokenStepNote(lang, st.step)}
 ${lines.length ? lineList(lines) : html`<p class="note">${t(lang, "build.not_built")}</p>`}
 ${summary}
 ${s.approved.has(st.step) ? html`<p class="ok">${t(lang, "build.approved")}</p>` : ""}
@@ -852,7 +945,9 @@ ${runTable}`,
     const shot = ev && ev.payload.screenshot ? html`<figure><img src="/projects/${id}/files/${ev.id}" alt="${t(lang, "acceptance.shot_alt", { n: item.number })}" loading="lazy"><figcaption>${t(lang, "acceptance.shot_caption")}</figcaption></figure>` : "";
     const why = ev ? html`<span lang="en" dir="ltr">${String(ev.payload.why ?? "")}</span>` : !tested.has(item.number) ? html`${t(lang, "acceptance.no_test")}` : html`${t(lang, ended ? "acceptance.test_no_result" : "acceptance.test_not_run_yet")}`;
     const runOutcomeNote = runId && outcome !== "passed" ? html`<div class="note" data-run-outcome="${outcome ?? "none"}">${t(lang, "acceptance.item_run_outcome", { outcome: outcomeWord })}</div>` : "";
-    return html`<tr data-item="${item.number}" data-status="${status}" data-shown="${shownAs}"><td>${item.number}</td><td lang="en" dir="ltr">As ${item.as_role}: ${item.does} Sees: ${item.sees}</td><td><strong class="${shownAs === "passed" ? "ok" : shownAs === "passed_provisional" ? "neutral" : "warn"}">${t(lang, `acceptance.status.${shownAs}`)}</strong>${runOutcomeNote}<div class="note">${why}</div>${shot}</td></tr>`;
+    // Package J2, for every project: the step a failed item failed at, from its own event (the runner's `step`).
+    const failedStep = shownAs === "failed" && typeof ev?.payload.step === "string" && ev.payload.step !== "" ? failedAt(lang, ev.payload.step) : "";
+    return html`<tr data-item="${item.number}" data-status="${status}" data-shown="${shownAs}"><td>${item.number}</td><td lang="en" dir="ltr">As ${item.as_role}: ${item.does} Sees: ${item.sees}</td><td><strong class="${shownAs === "passed" ? "ok" : shownAs === "passed_provisional" ? "neutral" : "warn"}">${t(lang, `acceptance.status.${shownAs}`)}</strong>${runOutcomeNote}<div class="note">${why}</div>${failedStep}${shot}</td></tr>`;
   });
   const results = panel(
     lang,
@@ -875,9 +970,15 @@ ${ended ? html`<p>${t(lang, "acceptance.outcome")}: ${outcomeShown}</p>${finishe
       ? html`<p class="ok" data-signed-off>${t(lang, "acceptance.signed_off", { time: signed.at.toISOString().replace("T", " ").slice(0, 19) })}</p><p><span class="label" data-sign-off-label>${t(lang, "acceptance.sign_off_label")}</span></p>${englishToo(lang, SIGN_OFF_LABEL)}<div class="actions"><a href="/projects/${id}/export" data-go="export">${t(lang, "acceptance.go_export")}</a></div>`
       : signOffRefusal(s) === null
         ? html`<p><span class="label" data-sign-off-label>${t(lang, "acceptance.sign_off_label")}</span></p>${englishToo(lang, SIGN_OFF_LABEL)}<div class="actions">${postButton(`/projects/${id}/sign-off`, t(lang, "acceptance.sign_off"))}</div>`
-        : html`<p class="note">${t(lang, "acceptance.sign_off_not_yet")}</p>`,
+        : html`${s.brokenTrace && outcome === "passed" ? html`<p class="warn" data-broken-passed>${t(lang, "broken.passed_warning")}</p>` : html`<p class="note">${t(lang, "acceptance.sign_off_not_yet")}</p>`}${s.brokenTrace ? html`<p class="warn" data-broken-never>${t(lang, "broken.never_signed_off")}</p>` : ""}`,
   );
   return projectPage(lang, s, "acceptance", t(lang, "acceptance.title"), html`${runPanel}${results}${signOff}`, { refreshSeconds: s.runningJob ? 2 : undefined });
+}
+
+/** Package J2: "Failed at step: <step>", the step in English, isolated left to right. */
+function failedAt(lang: Lang, step: string): Html {
+  const [before, ...after] = t(lang, "acceptance.failed_at_step").split("{step}");
+  return html`<div class="note" data-failed-step>${before}${after.map((a) => html`<span lang="en" dir="ltr">${step}</span>${a}`)}</div>`;
 }
 
 export function exportPage(lang: Lang, s: JourneyState): Html {

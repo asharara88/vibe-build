@@ -1,0 +1,11 @@
+J2 (c): both test files the change touched, in full, on c2396b9, 2026-11-14T04:16:36Z. Command (from builder/, test database builder_test_j2_c, TMPDIR <scratchpad>/j2c-tmp): flock <scratchpad>/live-tests.lock npx vitest run test/journey.test.ts test/web.test.ts. Its output, as printed:
+
+
+ RUN  v5.1.0 <scratchpad>/wt-j2/builder
+
+
+ Test Files  2 passed (2)
+      Tests  131 passed (131)
+   Start at  04:15:10
+   Duration  68.69s (tests 99%, import 1%)
+
