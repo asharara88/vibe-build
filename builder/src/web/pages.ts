@@ -41,6 +41,7 @@ import {
   JOURNEY_STAND_IN_LABEL,
   MAX_BRIEF,
   MAX_NAME,
+  removalNotFinished,
   runOutcome,
   SIGN_OFF_LABEL,
   signOffRefusal,
@@ -364,7 +365,45 @@ function projectPage(lang: Lang, s: JourneyState, here: Screen, title: string, b
 <p class="note">${t(lang, "col.stage")}: <strong data-stage="${s.stage}">${stageName(lang, s.stage)}</strong></p>
 ${tabs(lang, s, here)}
 ${s.interrupted && s.stage !== "closed" ? interruptedPanel(lang, s) : ""}
+${!s.interrupted && removalNotFinished(s) ? removalNotFinishedPanel(lang, s) : ""}
 ${body}`,
+  );
+}
+
+/**
+ * After the review of known gap 180's fix: a project on which nothing more is done here. Interrupted (not resumed), or
+ * its removal not finished (a "Close project" that left something). Its screens offer no build, approval, preview,
+ * checklist run, sign-off, export or live app: only "Close project" and "New project".
+ */
+const noMoreWork = (s: JourneyState): boolean => s.interrupted || removalNotFinished(s);
+
+/**
+ * Known gap 180's fix: when the last removal of the project's sandbox did not complete, the screen says so, in place of
+ * leaving "removed" to be understood. After the fix's review: worded as what that try recorded as left (a name from
+ * Docker's lists, the folder, or that Docker could not be asked), not as something Docker lists now; the names in
+ * English, isolated left to right; and "Close project" named by the label of the button shown with the note (`close`).
+ */
+function removalLeftNote(lang: Lang, s: JourneyState, close: string): Html | "" {
+  if (!s.removalLeft) return "";
+  const left = s.removalLeft.join("; ");
+  const [before, ...after] = t(lang, "removal.left", { close }).split("{left}");
+  return html`<p class="warn" data-removal-left>${before}${after.map((a) => html`<span lang="en" dir="ltr">${left}</span>${a}`)}</p>`;
+}
+
+/**
+ * After the review of known gap 180's fix: the panel of a project whose removal is not finished and that was not
+ * interrupted (a refused "Close project"): what that means, what the last try recorded as left, and the two things
+ * still offered. An interrupted project shows the same note in its own panel.
+ */
+function removalNotFinishedPanel(lang: Lang, s: JourneyState): Html {
+  const close = t(lang, "close.button");
+  return panel(
+    lang,
+    "real",
+    t(lang, "error.title"),
+    html`<p class="warn" data-removal-not-finished>${t(lang, "removal.not_finished")}</p>
+${removalLeftNote(lang, s, close)}
+<div class="actions"><form method="post" action="/projects/${s.project.id}/close"><button type="submit" data-close-again>${close}</button></form><a href="/projects/new">${t(lang, "projects.new")}</a></div>`,
   );
 }
 
@@ -377,6 +416,7 @@ function interruptedPanel(lang: Lang, s: JourneyState): Html {
     "real",
     t(lang, "error.title"),
     html`<p class="warn">${t(lang, jobInterrupted ? "interrupted.message" : "interrupted.no_job")}</p>
+${removalLeftNote(lang, s, t(lang, "interrupted.close"))}
 <div class="actions"><form method="post" action="/projects/${s.project.id}/close"><button type="submit">${t(lang, "interrupted.close")}</button></form><a href="/projects/new">${t(lang, "projects.new")}</a></div>`,
   );
 }
@@ -720,7 +760,7 @@ export function buildPage(lang: Lang, s: JourneyState, j: Journey, o: { stepPaus
   const id = s.project.id;
   if (!s.planConfirmed) return projectPage(lang, s, "build", t(lang, "build.title"), panel(lang, "real", t(lang, "build.title"), html`<p>${t(lang, "build.not_yet")}</p>`));
   const steps = j.planSteps(s);
-  const open = !s.runningJob && !s.interrupted && s.stage !== "closed" && s.stage !== "stopped";
+  const open = !s.runningJob && !noMoreWork(s) && s.stage !== "closed" && s.stage !== "stopped";
   // The next thing to do: build the first step not approved, or approve it once built.
   let action: Html | string = "";
   const next = steps.findIndex((st) => !s.approved.has(st.step));
@@ -808,7 +848,7 @@ function livePanel(lang: Lang, s: JourneyState, live: { port: number; session: L
   else if (!s.appRunning || s.stage === "closed") body = html`${labels}<p class="note" data-live-off>${t(lang, "live.only_running")}</p>${closedNote}`;
   else {
     const se = live.session;
-    const canOpen = !s.runningJob && !s.interrupted && JOB_RULES.live(s) === null;
+    const canOpen = !s.runningJob && !noMoreWork(s) && JOB_RULES.live(s) === null;
     const state = se
       ? se.entered
         ? html`<p class="ok" data-live-state="entered">${t(lang, "live.open_entered", { time: utcTime(se.enteredAt ?? se.openedAt), until: utcTime(se.endsAt) })}</p>`
@@ -882,10 +922,13 @@ export function previewPage(lang: Lang, s: JourneyState, live: { port: number; s
   // The screenshots of the latest preview job only (one job runs at a time): never an earlier attempt's, which
   // failed part-way and whose files are kept (review bot on defb9c4).
   const shots = lastPreview ? s.events.filter((e) => e.kind === EV.screenshot && BigInt(e.id) > BigInt(lastPreview.startedEventId)) : [];
-  const canStart = !s.runningJob && !s.interrupted && JOB_RULES.preview(s) === null;
+  const canStart = !s.runningJob && !noMoreWork(s) && JOB_RULES.preview(s) === null;
+  // Second review round: "The app is not running any more" is not said while the project's last removal left something
+  // (`removalNotFinished`): the record marks the app as not running after every removal event, also one that could not
+  // ask Docker or that names the app's own container as left. The note of what was left, above, is what is known then.
   const status = html`${runningNote(lang, s)}
 ${lastPreview?.state === "failed" ? html`<p class="warn">${t(lang, "preview.failed")}</p><p class="warn" lang="en" dir="ltr">${lastPreview.reason ?? ""}</p>` : ""}
-${s.appRunning ? html`<p class="ok" data-app-running>${t(lang, "preview.app_running")}</p>` : s.previewFinished ? html`<p class="note">${t(lang, "preview.app_stopped")}</p>` : ""}
+${s.appRunning ? html`<p class="ok" data-app-running>${t(lang, "preview.app_running")}</p>` : s.previewFinished && !removalNotFinished(s) ? html`<p class="note">${t(lang, "preview.app_stopped")}</p>` : ""}
 ${canStart ? html`<div class="actions">${postButton(`/projects/${id}/preview`, t(lang, "preview.start"))}</div>` : ""}
 ${lines.length ? html`<details${s.runningJob?.kind === "preview" ? html` open` : ""}><summary>${t(lang, "preview.lines")}</summary><ol class="lines">${lines.map((e) => html`<li lang="en" dir="ltr">${String(e.payload.line ?? "")}</li>`)}</ol></details>` : ""}
 <p class="note">${t(lang, "preview.not_live")}</p>`;
@@ -921,7 +964,7 @@ export function acceptancePage(lang: Lang, s: JourneyState, j: Journey): Html {
   // The items the tests version has a test for (its acceptance.version.written event), so an item with a test that did not run is not called untested.
   const versionEvent = s.events.filter((e) => e.kind === "acceptance.version.written" && e.payload.version === s.acceptanceVersion).at(-1);
   const tested = new Set((Array.isArray(versionEvent?.payload.items) ? (versionEvent.payload.items as Array<{ number?: unknown }>) : []).map((i) => num(i.number)));
-  const canRun = !s.runningJob && !s.interrupted && JOB_RULES.acceptance(s) === null;
+  const canRun = !s.runningJob && !noMoreWork(s) && JOB_RULES.acceptance(s) === null;
   const dash = html`<span data-none>—</span>`;
   const runTable = ended
     ? html`<table data-run="${runId ?? ""}" data-job="${ended.jobId}" data-job-state="${ended.state}"><tr><th>${t(lang, "acceptance.job")}</th><td><strong class="${ended.state === "finished" ? "neutral" : "warn"}">${t(lang, `acceptance.job_state.${ended.state}`)}</strong></td></tr><tr><th>${t(lang, "acceptance.run_id")}</th><td>${runId ? html`<span lang="en" dir="ltr">${runId}</span>` : html`<span data-no-run>${t(lang, "acceptance.no_run")}</span>`}</td></tr><tr><th>${t(lang, "acceptance.version")}</th><td>${finished ? String(finished.payload.version ?? "") : dash}</td></tr><tr><th>${t(lang, "acceptance.exit")}</th><td>${!finished ? dash : finished.payload.exit_code === null ? t(lang, "acceptance.no_container") : String(finished.payload.exit_code)}</td></tr><tr><th>${t(lang, "acceptance.outcome")}</th><td>${outcomeShown}</td></tr><tr><th>${t(lang, "acceptance.summary")}</th><td lang="en" dir="ltr" data-summary>${finished ? String(finished.payload.summary ?? "") : dash}</td></tr></table>`
@@ -986,7 +1029,7 @@ export function exportPage(lang: Lang, s: JourneyState): Html {
   if (!s.signedOff) return projectPage(lang, s, "export", t(lang, "export.title"), panel(lang, "real", t(lang, "export.title"), html`<p data-export-not-offered>${t(lang, "export.not_yet")}</p>`));
   const written = s.exportEventId ? s.events.find((e) => e.id === s.exportEventId) : undefined;
   const lastExport = [...s.jobs].reverse().find((x) => x.kind === "export");
-  const canExport = !written && !s.runningJob && !s.interrupted && JOB_RULES.export(s) === null && s.stage !== "closed";
+  const canExport = !written && !s.runningJob && !noMoreWork(s) && JOB_RULES.export(s) === null && s.stage !== "closed";
   const file = written ? (written.payload.file as { path?: string; sha256?: string } | undefined) : undefined;
   const body = html`<p class="warn" data-export-label>${t(lang, "export.label")}</p>
 ${englishToo(lang, EXPORT_LABEL)}

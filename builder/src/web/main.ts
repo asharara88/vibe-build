@@ -44,7 +44,7 @@ import { dataDirFromSetting, openStore } from "../acceptance/store.js";
 import { createClient, createPool } from "../store/db.js";
 import { migrate } from "../store/migrate.js";
 import { example1Sandboxes } from "../orchestrator/example-1-adapter.js";
-import { Journey } from "../orchestrator/journey.js";
+import { Journey, type StartRecovery } from "../orchestrator/journey.js";
 import { JourneyJobs } from "../orchestrator/journey-jobs.js";
 import { appendEvent } from "../store/events.js";
 import { J1_BUILD_PROXY_PORT } from "../orchestrator/example-1-adapter.js";
@@ -348,7 +348,7 @@ export async function stopOnSignal(sig: StopSignal, o: StopOptions): Promise<voi
     });
     for (const x of r.removed) o.log(`[interface stopping] Project ${x.projectId}: its sandbox (${x.dir}) was removed at the stop: its containers, images and folder. It is marked interrupted, not resumed.`);
     if (r.ended !== null) o.log(`[interface stopping] ${r.ended} Nothing more is removed: the interface never removes once it does not hold its lock. The next start removes what is left.`);
-    for (const x of r.left) o.log(`[interface stopping] Project ${x.projectId} is left for the next start: ${x.why}.`);
+    for (const x of r.left) o.log(`[interface stopping] ${leftForNextStart(x)}`);
     o.log(`Projects with a sandbox, marked interrupted and removed at the stop: ${r.removed.length}.`);
     // 6. The lock released only now, so that no other interface on this database runs its recovery meanwhile.
     await o.lock.release().catch(() => undefined);
@@ -360,6 +360,23 @@ export async function stopOnSignal(sig: StopSignal, o: StopOptions): Promise<voi
     o.log(`[interface stopped] The stop failed part-way (${err instanceof Error ? err.name : typeof err}); the interface exits with code 1. The next start removes what is left.`);
     exit(1);
   }
+}
+
+/** The words for a project left for the next start, the same at a stop and at a start (after the review of known gap 180's fix). */
+export const leftForNextStart = (x: { projectId: string; why: string }) => `Project ${x.projectId} is left for the next start: ${x.why}.`;
+
+/**
+ * After the review of known gap 180's fix: the lines main.ts prints once the recovery at start has run
+ * (`Journey.recoverAtStart`). One line for each project whose removal left something, naming what is left, in the
+ * stop's own words for a project left; then the count line, which counts only the projects not left. With no project
+ * left, the count line alone, reading as it always did (J2's automated run reads it).
+ */
+export function startRecoveryLines(r: StartRecovery): string[] {
+  const left = new Set(r.left.map((x) => x.projectId));
+  return [
+    ...r.left.map((x) => `[interface starting] ${leftForNextStart(x)}`),
+    `Projects with a job or a sandbox left by an interface that stopped, marked interrupted and removed at start: ${r.touched.filter((id) => !left.has(id)).length}.`,
+  ];
 }
 
 /**
@@ -411,8 +428,7 @@ export async function main(env: NodeJS.ProcessEnv = process.env): Promise<void> 
   jobs = new JourneyJobs({ journey, sandboxes: example1Sandboxes(), onFault: fault, stepPauseMs: s.stepPauseMs });
   if (s.stepPauseMs > 0)
     console.log(`Demonstration setting: the scripted engine pauses ${s.stepPauseMs} ms before each write (BUILDER_DEMO_STEP_PAUSE_MS), so that a stop part-way can be shown. Every step is slower; each build step records the pause.`);
-  const touched = await journey.recoverInterrupted();
-  console.log(`Projects with a job or a sandbox left by an interface that stopped, marked interrupted and removed at start: ${touched.length}.`);
+  for (const line of startRecoveryLines(await journey.recoverAtStart())) console.log(line);
   // Package J3: the live preview's front, before the interface serves; only when it is turned on (J3's review).
   let preview: LivePreview | undefined;
   if (s.livePreview) {

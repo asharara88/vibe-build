@@ -1,0 +1,41 @@
+A red run kept (second review round of known gap 180). This is the rules-and-claims reviewer's own output of their first whole run of test/web.test.ts, 14 Nov 2026, on the branch's code as it stood before the second round's answers (builder/ tree dd9d7c8), on a test database of their own. Copied as it is from the reviewer's working folder, with the session's scratch path shortened to <scratchpad>. Every test passed (78 of 78); vitest reports one unhandled error and exits 1. It was not run by the agent that answered the review. What it is: clean-up-failures-seen.txt, next to this file.
+
+
+ RUN  v5.1.0 <scratchpad>/wt180/builder
+
+(node:10901) DeprecationWarning: Client.activeQuery is deprecated and will be removed in pg@9.0
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:10901) DeprecationWarning: Client.queryQueue is deprecated and will be removed in pg@9.0.
+⎯⎯⎯⎯⎯⎯ Unhandled Errors ⎯⎯⎯⎯⎯⎯
+
+Vitest caught 1 unhandled error during the test run.
+This might cause false positive tests. Resolve unhandled errors to make sure your tests are not affected.
+
+⎯⎯⎯⎯⎯ Uncaught Exception ⎯⎯⎯⎯⎯
+error: terminating connection due to administrator command
+ ❯ parseErrorMessage node_modules/pg-protocol/dist/parser.js:306:11
+ ❯ Parser.handlePacket node_modules/pg-protocol/dist/parser.js:143:27
+ ❯ Parser.parse node_modules/pg-protocol/dist/parser.js:37:38
+ ❯ Socket.<anonymous> node_modules/pg-protocol/dist/index.js:12:42
+ ❯ Socket.emit node:events:519:28
+ ❯ addChunk node:internal/streams/readable:561:12
+ ❯ readableAddChunkPushByteMode node:internal/streams/readable:512:3
+ ❯ Readable.push node:internal/streams/readable:392:5
+ ❯ Pipe.onStreamRead node:internal/stream_base_commons:189:23
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+Serialized Error: { length: 116, severity: 'FATAL', code: '57P01', detail: undefined, hint: undefined, position: undefined, internalPosition: undefined, internalQuery: undefined, where: undefined, schema: undefined, table: undefined, dataType: undefined, constraint: undefined, file: 'postgres.c', routine: 'ProcessInterrupts', client: { _events: [Object], _eventsCount: 1, _maxListeners: undefined, connectionParameters: [Object], user: 'root', database: 'builder_test_g180fix_rev_rules_and_claims_st_c4e702', port: 5432, host: '/var/run/postgresql', password: null, replication: undefined, _Promise: 'Function<Promise>', _types: [Object], _ending: true, _ended: false, _connecting: false, _connected: true, _connectionError: false, _queryable: false, _activeQuery: null, _txStatus: 'I', enableChannelBinding: false, scramMaxIterations: 100000, connection: [Object], _queryQueue: [Array], _sentQueryQueue: [Array], pipeline: false, binary: false, processID: 12043, secretKey: 1454877226, ssl: false, sslNegotiation: 'postgres', _connectionTimeoutMillis: 0, _connectionCallback: null, release: 'Function<anonymous>', readyForQuery: true, hasExecuted: true, _poolUseCount: 144, constructor: 'Function<Client>', activeQuery: null, _getActiveQuery: 'Function<_getActiveQuery>', _errorAllQueries: 'Function<_errorAllQueries>', _connect: 'Function<_connect>', connect: 'Function<connect>', _attachListeners: 'Function<_attachListeners>', _getPassword: 'Function<_getPassword>', _handleAuthCleartextPassword: 'Function<_handleAuthCleartextPassword>', _handleAuthMD5Password: 'Function<_handleAuthMD5Password>', _handleAuthSASL: 'Function<_handleAuthSASL>', _handleAuthSASLContinue: 'Function<_handleAuthSASLContinue>', _handleAuthSASLFinal: 'Function<_handleAuthSASLFinal>', _handleBackendKeyData: 'Function<_handleBackendKeyData>', _handleReadyForQuery: 'Function<_handleReadyForQuery>', _handleErrorWhileConnecting: 'Function<_handleErrorWhileConnecting>', _handleErrorEvent: 'Function<_handleErrorEvent>', _handleErrorMessage: 'Function<_handleErrorMessage>', _handleRowDescription: 'Function<_handleRowDescription>', _handleDataRow: 'Function<_handleDataRow>', _handlePortalSuspended: 'Function<_handlePortalSuspended>', _handleEmptyQuery: 'Function<_handleEmptyQuery>', _handleCommandComplete: 'Function<_handleCommandComplete>', _handleParseComplete: 'Function<_handleParseComplete>', _handleCopyInResponse: 'Function<_handleCopyInResponse>', _handleCopyData: 'Function<_handleCopyData>', _handleNotification: 'Function<_handleNotification>', _handleNotice: 'Function<_handleNotice>', getStartupConf: 'Function<getStartupConf>', cancel: 'Function<cancel>', setTypeParser: 'Function<setTypeParser>', getTypeParser: 'Function<getTypeParser>', escapeIdentifier: 'Function<escapeIdentifier>', escapeLiteral: 'Function<escapeLiteral>', _pulseQueryQueue: 'Function<_pulseQueryQueue>', _pulsePipelinedQueryQueue: 'Function<_pulsePipelinedQueryQueue>', query: 'Function<query>', ref: 'Function<ref>', unref: 'Function<unref>', getTransactionStatus: 'Function<getTransactionStatus>', end: 'Function<end>', queryQueue: [Array], setMaxListeners: 'Function<setMaxListeners>', getMaxListeners: 'Function<getMaxListeners>', emit: 'Function<emit>', addListener: 'Function<addListener>', on: 'Function<addListener>', prependListener: 'Function<prependListener>', once: 'Function<once>', prependOnceListener: 'Function<prependOnceListener>', removeListener: 'Function<removeListener>', off: 'Function<removeListener>', removeAllListeners: 'Function<removeAllListeners>', listeners: 'Function<listeners>', rawListeners: 'Function<rawListeners>', listenerCount: 'Function<listenerCount>', eventNames: 'Function<eventNames>' } }
+This error originated in "test/web.test.ts" test file. It doesn't mean the error was thrown inside the file itself, but while it was running.
+The last test to run before this error was "C18 (known gap 180, after its review): a stop with two projects, one whose removal leaves something and one that is removed: each is recorded and named for what happened to it, the count line counts the one removed, exit 1". This means either:
+- the error was thrown while Vitest was running this test, or
+- the error was thrown after the test completed, and this was the most recent test at that point.
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+
+
+ Test Files  1 passed (1)
+      Tests  78 passed (78)
+     Errors  1 error
+   Start at  14:31:56
+   Duration  55.18s (tests 99%)
+
+vitest exit code: 1

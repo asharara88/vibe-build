@@ -1,0 +1,6 @@
+Known gap 180, second review round: npm run typecheck, on commit cb16530 (builder/ tree 0d359ca), working tree as committed, 2026-11-14T14:57:05Z.
+
+> builder@0.0.1 typecheck
+> tsc --noEmit
+
+exit code: 0

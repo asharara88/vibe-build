@@ -1,0 +1,19 @@
+The 11 failures of the whole-suite run on 7433518: is the temporary folder's path the cause? One of the four failing files, test/sandbox.test.ts, run alone twice on the same commit (7433518, builder/ tree 783af9f), under the shared lock. 2026-11-14T12:25:59Z.
+
+TMPDIR=<scratchpad>/t180 (88 bytes):
+ FAIL  test/sandbox.test.ts > sandbox manager: live, development profile > starts the project's database and its door; from a container on `out`, the egress proxy behind the door lets the registry through and refuses a host not on
+dependency failed to start: container builder_p_live-egress-host-1 exited (1)
+ Test Files  1 failed (1)
+      Tests  1 failed | 22 passed (23)
+
+TMPDIR=<scratchpad>/t2 (86 bytes):
+ FAIL  test/sandbox.test.ts > sandbox manager: live, development profile > starts the project's database and its door; from a container on `out`, the egress proxy behind the door lets the registry through and refuses a host not on
+dependency failed to start: container builder_p_live-egress-host-1 exited (1)
+ Test Files  1 failed (1)
+      Tests  1 failed | 22 passed (23)
+
+Neither path made a difference, so the path is not the cause. Read next: the door's machine side (the egress-host service, src/sandbox/manager.ts) runs 'node --import tsx' with the builder's folder mounted into its container, so it needs builder/node_modules inside that mount. In this side working copy node_modules was a symbolic link to another folder on the machine, which does not exist inside the container.
+
+The same file again, same commit, after the link was replaced by a real copy of the same installed packages (TMPDIR=<scratchpad>/t2). 2026-11-14T12:31:26Z:
+ Test Files  1 passed (1)
+      Tests  23 passed (23)

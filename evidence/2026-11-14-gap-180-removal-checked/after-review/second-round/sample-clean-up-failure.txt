@@ -1,0 +1,13 @@
+A failure in a test's own clean-up, as vitest printed it. Kept by the second-round reviewer (rules and claims) from a run of J2-C64's replacement with test C14, 14 Nov 2026; copied here from the reviewer's own output file with its indentation taken off and the session's scratch path shortened. PostgreSQL's log has the refused drop at 14:24:09.557 UTC.
+
+FAIL  test/web.test.ts > J2 (c) interface: the clean stop and restart (stand-in sandboxes, no container; each test on a database of its own) > C14 (known gap 180's fix): a removal that leaves something at the stop is recorded removed: false, naming what is left; the project stays recorded for the next start; a line names it; exit 1. The next start tries again: still left, recorded so again, and it
+error: permission denied to terminate process
+ ❯ ../../../wt180/builder/node_modules/pg-pool/index.js:45:11
+ ❯ Object.drop test/web.test.ts:2195:9
+    2193|         sandboxes.removeAll();
+    2194|         await db.end();
+    2195|         await pool.query(`drop database if exists "${name}" with (forc…
+       |         ^
+    2196|       },
+    2197|     };
+ ❯ test/web.test.ts:2549:7
