@@ -11,6 +11,13 @@
 // file and typed into the sign-in form; it is never printed. The sign-in page is photographed before anything is
 // typed. Each thing it checks is printed as one JSON line ({"kind":"check",...}); it ends with exit code 0 only if
 // every check passed.
+//
+// BUILDER_CAMERA_WALK chooses the walk: j1 (the default), j3 (J3's live preview), and J2's three, started by
+// builder/scripts/demo-journey-j2.ts (docs/design/journey-j2.md, section 7): j2a, the broken-copy demonstration through
+// the checklist's rejection to "Close project"; j2c-run, a normal project to step 2 running with the demonstration pause,
+// photographed, the walk ending before the run sends its signal; j2c-after, that project after the next start (the
+// interrupted panel, the build and cost screens), then "Close project". Their settings (BUILDER_CAMERA_PATH,
+// BUILDER_CAMERA_PAUSE_MS, BUILDER_CAMERA_PROJECT, BUILDER_CAMERA_HOLD_REASON) are checked against fixed patterns first.
 import { createHash, randomBytes } from "node:crypto";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { chromium } from "/runner/node_modules/playwright-core/index.mjs";
@@ -381,9 +388,309 @@ async function runJ3() {
   check("signed out", path() === "/sign-in", path());
 }
 
+/* ------------------------------------------------------------------ package J2 (docs/design/journey-j2.md, section 7) */
+
+const BROKEN_NAME = "Deliberately broken copy (made-up)";
+const BROKEN_STEP = "03-wrong-status";
+const BADGE = { en: "Deliberately broken copy: a defect Claude Code planted on purpose", ar: "نسخة معطّلة عمداً: خلل زرعه Claude Code عن قصد" };
+const NO_QUALITY_CHECK = "No quality check after a step yet, and no retry (milestones 1 and 3): only the checklist at the end checks the app.";
+const STEP3_NOTE = "Deliberately broken copy: a new request is saved as Approved instead of Waiting. Made so that the checklist rejects it.";
+const STEP3_LABEL = "Deliberately broken copy (package 3.1): a new leave request is saved as approved instead of waiting, and the banner says so; for the acceptance check to reject";
+const INTERRUPTED_LINE = "Interrupted: the interface stopped while it ran.";
+const INTERRUPTED_PANEL = "A job of this project was interrupted when the interface stopped. It is not resumed. Close the project, or start a new one.";
+const PART_WAY = "stopped part-way when the interface stopped; not resumed";
+/** J2 (c)'s two projects, by path: T, the clean stop; K, the crash. */
+const RESTART_NAMES = { t: "Restart: clean stop (made-up)", k: "Restart: crash (made-up)" };
+
+/** J2's walks take their settings from the automated run, each checked before the browser does anything with it. */
+function j2Setting(name, re) {
+  const v = process.env[name] ?? "";
+  if (!re.test(v)) throw new Error(`${name} is not set as the automated run sets it`);
+  return v;
+}
+
+async function signIn() {
+  await page.goto(`${BASE}/sign-in`);
+  await page.fill("#password", password);
+  await clickAndLoad('form[action="/sign-in"] button[type="submit"]');
+  return check("signed in, at the projects page", path() === "/projects", path());
+}
+
+/** From a new project's brief to its build screen: the scripted customer answers the rest; both confirmations. */
+async function toBuild(id) {
+  await clickAndLoad(`form[action="/projects/${id}/continue"] button`);
+  await clickAndLoad(`form[action="/projects/${id}/answer-rest"] button`);
+  check("every question answered from example 1's answer sheet", (await text("main")).includes("Every question is answered."));
+  await clickAndLoad(`a[href="/projects/${id}/proposal"]`);
+  await clickAndLoad(`form[action="/projects/${id}/confirm-brief"] button`);
+  return check("brief confirmed, at the build steps", path() === `/projects/${id}/plan`, path());
+}
+
+/** The texts of a table's body rows, one array of cell texts per row, as rendered (a line break reads as a space). */
+const rowsOf = (sel) => page.$$eval(`${sel} tbody tr`, (trs) => trs.map((tr) => [...tr.querySelectorAll("td")].map((td) => (td.innerText ?? "").replace(/\s+/g, " ").trim())));
+
+/**
+ * Walk `j2a` (J2 (a), "Done means" items 1 to 9): the Projects screen's demonstration panel; the button; the broken copy
+ * through the questions, both confirmations, three steps built and approved, the preview, the checklist (failed, as the
+ * record gives it), no sign-off and no export, the cost; the badge on every page and in the list row, in English and
+ * Arabic; the record; "Close project".
+ */
+async function runJ2a() {
+  if (!(await signIn())) return;
+  // 1. The panel of its own, apart from "New project"; the New project form's three fields.
+  const demo = page.locator('section.panel:has(form[action="/demonstrations/broken-copy"])');
+  const demoTitle = (await demo.locator("h2").first().textContent().catch(() => "")) ?? "";
+  const demoButtons = await demo.locator("button").allTextContents().catch(() => []);
+  check(
+    "Projects screen: a panel of its own labelled 'Simulated build', with one button, 'Start the broken-copy demonstration', apart from 'New project'",
+    (await demo.count()) === 1 &&
+      demoTitle.replace(/\s+/g, " ").trim().startsWith("Simulated build") &&
+      (await demo.getAttribute("data-panel")) === "simulated" &&
+      demoButtons.length === 1 &&
+      demoButtons[0].trim() === "Start the broken-copy demonstration" &&
+      (await demo.locator('a[href="/projects/new"]').count()) === 0 &&
+      (await page.locator('section.panel:not(:has(form[action="/demonstrations/broken-copy"])) a[href="/projects/new"]').count()) === 1,
+    `${demoTitle} / ${JSON.stringify(demoButtons)}`,
+  );
+  check("the panel says the steps are fixed changes and the checklist run on it is real", ((await demo.textContent()) ?? "").replace(/\s+/g, " ").includes("The steps are fixed changes written in advance; no AI model is called. The checklist run on it is real. It is never signed off or exported."));
+  await photo(1, "projects", ["en", "ar", "phone"]);
+  await page.goto(`${BASE}/projects/new`);
+  const fields = await page.$$eval('form[action="/projects"] input:not([type="hidden"]), form[action="/projects"] textarea, form[action="/projects"] select', (els) => els.map((e) => e.getAttribute("name")));
+  check("the New project form keeps its three fields: name, cap, brief", JSON.stringify(fields) === JSON.stringify(["name", "cap", "brief"]), JSON.stringify(fields));
+  await photo(2, "new-project", ["en"]);
+
+  // 2. Pressing the button makes the project, named by the builder, capped at $5.00, with the badge.
+  await page.goto(`${BASE}/projects`);
+  await clickAndLoad('form[action="/demonstrations/broken-copy"] button');
+  const m = /^\/projects\/(j1-[0-9a-f]{12})\/brief$/.exec(path());
+  if (!check("pressing the button makes one project, at its brief", m, path())) return;
+  const id = m[1];
+  say({ kind: "project", id, name: BROKEN_NAME, cap: "5.00", walk: "j2a" });
+  check("the project is named 'Deliberately broken copy (made-up)', with the badge next to its name", (await text("h1")).startsWith(BROKEN_NAME) && (await text("h1 [data-broken-badge]")) === BADGE.en, await text("h1"));
+  check("its brief is example 1's ask", (await text("pre[data-brief]")) === ASK, await text("pre[data-brief]"));
+  await photo(3, "brief", ["en", "ar"]);
+  await page.goto(`${BASE}/projects`);
+  const row = await page.$$eval(`tr[data-project="${id}"] td`, (tds) => tds.map((td) => (td.textContent ?? "").replace(/\s+/g, " ").trim()));
+  check("its list row: the name with the badge, a cap of $5.00", row[0] === `${BROKEN_NAME} ${BADGE.en}` && row[2] === "$5.00", JSON.stringify(row));
+  await page.goto(`${BASE}/projects/${id}/brief`);
+
+  // 3. The questions and both confirmations; the plan's three steps, step 3's label and sentence, the quality-check line.
+  if (!(await toBuild(id))) return;
+  const planned = await page.$$eval("li[data-step]", (lis) => lis.map((li) => li.getAttribute("data-step")));
+  check("the plan lists three steps, the third 03-wrong-status", JSON.stringify(planned) === JSON.stringify(["01-data", "02-submitter-screen", BROKEN_STEP]), JSON.stringify(planned));
+  const third = `li[data-step="${BROKEN_STEP}"]`;
+  check("step 3 shows its manifest label and the plain sentence", (await text(third)).includes(STEP3_LABEL) && (await text(`${third} [data-broken-step]`)) === STEP3_NOTE, await text(third));
+  check("the plan screen says: no quality check after a step yet, and no retry", (await text("[data-no-quality-check]")) === NO_QUALITY_CHECK, await text("[data-no-quality-check]"));
+  await photo(4, "plan", ["en", "ar", "phone"]);
+  await clickAndLoad(`form[action="/projects/${id}/confirm-plan"] button`);
+  check("plan confirmed; tests fixed as v001, stand-in test, not independent acceptance", (await text("main")).includes("Tests fixed as version v001: stand-in test, not independent acceptance."));
+
+  // 4. Build: steps 1, 2 and 3, each approved; the approve buttons' wording; each reservation made and released.
+  await clickAndLoad('a[data-go="build"]');
+  check("the build screen says: no quality check after a step yet, and no retry", (await text("[data-no-quality-check]")) === NO_QUALITY_CHECK, await text("[data-no-quality-check]"));
+  await clickAndLoad('button[data-build="01-data"]');
+  const steps = [
+    { step: "01-data", usd: "$1.5552", approve: "Approve and build the next step" },
+    { step: "02-submitter-screen", usd: "$3.1104", approve: "Approve and build step 3 (the deliberately broken copy)" },
+    { step: BROKEN_STEP, usd: "$1.1664", approve: "Go on to the preview with this broken step (no quality check after a step yet)" },
+  ];
+  for (const [i, s] of steps.entries()) {
+    const built = await waitFor(`[data-step="${s.step}"][data-step-state="finished"]`, 600_000, `[data-step="${s.step}"][data-step-state="failed"]`);
+    if (!check(`step ${i + 1} (${s.step}) built`, built, await text(`[data-step="${s.step}"]`))) return stopped(19, `build-step-${i + 1}`, id);
+    const r = await text(`[data-step="${s.step}"] [data-reserved]`);
+    check(`step ${i + 1}: ${s.usd} reserved while it ran, released, $0.00 spent`, r.includes(`Reserved while it ran: ${s.usd}`) && r.includes("released") && r.includes("Spent: $0.00."), r);
+    const approve = await text(`button[data-approve="${s.step}"]`);
+    check(`step ${i + 1}'s approve button reads "${s.approve}"`, approve === s.approve, approve);
+    if (s.step === BROKEN_STEP) {
+      check("step 3's panel shows the plain sentence", (await text(`[data-step="${BROKEN_STEP}"] [data-broken-step]`)) === STEP3_NOTE);
+      await photo(5, "build-step-3", ["en", "ar", "phone"]);
+    }
+    await clickAndLoad(`button[data-approve="${s.step}"]`);
+  }
+  check("steps 1, 2 and 3 approved; the app is being built for the preview", path() === `/projects/${id}/preview`, path());
+
+  // 5. The preview: the app camera's four screenshots (the run checks their banner lines in the record).
+  const shots = await waitFor("[data-shots]", 1_800_000, "main p.warn");
+  if (!check("the preview's screenshots are there", shots, await text("main"))) return stopped(19, "preview", id);
+  const loaded = await page.$$eval("[data-shots] img", (imgs) => imgs.map((i) => i.complete && i.naturalWidth > 0));
+  check("four screenshots of the running app (two English, two Arabic), each loaded", loaded.length === 4 && loaded.every(Boolean), JSON.stringify(loaded));
+  await photo(6, "preview", ["en"]);
+
+  // 6. The checklist: run; the outcome the record gives, "failed"; item 1 failed at its step, with the runner's screenshot.
+  await clickAndLoad('a[data-go="acceptance"]');
+  await clickAndLoad(`form[action="/projects/${id}/acceptance"] button`);
+  if (!check("the checklist ran", await waitFor("table[data-run]", 900_000), await text("main"))) return stopped(19, "checklist", id);
+  check("the outcome word, as the run's record gives it: Failed", (await text('table[data-run] [data-outcome="failed"]')) === "Failed" && (await page.locator('[data-outcome]:not([data-outcome="failed"])').count()) === 0, await text("table[data-run]"));
+  check("the summary as the runner's reading wrote it", (await text("[data-summary]")) === 'version failed: item 1 failed at step "sees status waiting"', await text("[data-summary]"));
+  const one = 'tr[data-item="1"][data-status="failed"]';
+  check("item 1 reads Failed, with 'Failed at step: sees status waiting'", (await text(`${one} strong`)) === "Failed" && (await text(`${one} [data-failed-step]`)) === "Failed at step: sees status waiting", await text('tr[data-item="1"]'));
+  const itemShot = await page.$$eval('tr[data-item="1"] img', (imgs) => imgs.map((i) => i.complete && i.naturalWidth > 0));
+  check("item 1's screenshot, taken by the runner, is shown", itemShot.length === 1 && itemShot[0], JSON.stringify(itemShot));
+  let notRun = 0;
+  for (const n of [2, 3, 4, 5, 6]) if (await has(`tr[data-item="${n}"][data-status="did not run"]`)) notRun++;
+  check("items 2 to 6: did not run (no test written yet)", notRun === 5, `${notRun} of 5`);
+  check("labelled 'stand-in test, not independent acceptance'", (await text("[data-label]")) === "stand-in test, not independent acceptance", await text("[data-label]"));
+
+  // 7. No sign-off button, the two lines, no warning; no Export tab.
+  check("no sign-off button", (await page.locator(`form[action="/projects/${id}/sign-off"]`).count()) === 0);
+  check(
+    "the sign-off panel reads 'Sign-off is offered once a checklist run has passed.' and 'A deliberately broken copy is never signed off or exported.'",
+    (await page.locator("p.note", { hasText: "Sign-off is offered once a checklist run has passed." }).count()) === 1 && (await text("[data-broken-never]")) === "A deliberately broken copy is never signed off or exported." && !(await has("[data-broken-passed]")),
+    await text("[data-broken-never]"),
+  );
+  const tabNames = await page.$$eval("ul.tabs li", (lis) => lis.map((li) => (li.textContent ?? "").trim()));
+  check("no Export tab", !tabNames.includes("Export") && (await page.locator(`a[href="/projects/${id}/export"]`).count()) === 0, JSON.stringify(tabNames));
+  await photo(7, "checklist", ["en", "ar", "phone"]);
+  const signOffPanel = page.locator("section.panel:has([data-broken-never])");
+  await signOffPanel.screenshot({ path: "/shots/08-sign-off-en.png" });
+  say({ kind: "shot", file: "08-sign-off-en.png", path: path(), lang: "en", width: 1280 });
+
+  // 8. Cost: three step reservations, each closed (step_ended); $0.00 spent.
+  await page.goto(`${BASE}/projects/${id}/cost`);
+  check("cost: $0.00 spent, no freeze, an empty unreconciled list", (await text("td[data-spent]")) === "$0.00" && (await has("[data-no-freeze]")) && (await has("[data-unreconciled-empty]")), await text("table[data-cost]"));
+  const holds = await rowsOf("table[data-step-holds]");
+  check(
+    "cost: three step reservations, $1.5552, $3.1104 and $1.1664, each closed (step_ended)",
+    JSON.stringify(holds) === JSON.stringify(steps.map((s) => [s.step, s.usd, "closed (step_ended)"])),
+    JSON.stringify(holds),
+  );
+  await photo(9, "cost", ["en", "ar", "phone"]);
+
+  // 2, again: the badge on every page of the project and in its list row, in English and Arabic.
+  const missing = [];
+  for (const screen of ["brief", "questions", "proposal", "plan", "build", "preview", "acceptance", "export", "cost", "record"]) {
+    for (const lang of ["en", "ar"]) {
+      await page.goto(`${BASE}/projects/${id}/${screen}?lang=${lang}`);
+      if ((await text("h1 [data-broken-badge]")) !== BADGE[lang]) missing.push(`${screen} (${lang})`);
+    }
+  }
+  for (const lang of ["en", "ar"]) {
+    await page.goto(`${BASE}/projects?lang=${lang}`);
+    if ((await text(`tr[data-project="${id}"] [data-broken-badge]`)) !== BADGE[lang]) missing.push(`list row (${lang})`);
+  }
+  check("the badge on every page of the project (10 screens) and in its list row, in English and Arabic", missing.length === 0, missing.join(", ") || "20 pages and 2 list rows");
+
+  // 9. The record, every event in id order; "Close project".
+  await page.goto(`${BASE}/projects/${id}/record`);
+  const ids = await page.$$eval("tr[data-event]", (rows) => rows.map((r) => Number(r.getAttribute("data-event"))));
+  check("the record lists every event in id order", ids.length > 50 && ids.every((v, i) => i === 0 || v > ids[i - 1]), `${ids.length} events`);
+  say({ kind: "record", project: id, events: ids.length });
+  await photo(10, "record", ["en"]);
+  await clickAndLoad(`form[action="/projects/${id}/close"] button`);
+  check("the project is closed: its containers, images and folder removed", await has("[data-closed]"));
+  await photo(11, "closed", ["en"]);
+  await page.goto(`${BASE}/projects`);
+  await photo(12, "projects-end", ["en"]);
+  await clickAndLoad('form[action="/sign-out"] button');
+  check("signed out", path() === "/sign-in", path());
+}
+
+/**
+ * Walk `j2c-run` (J2 (c), T1 and K1): a normal project of path T or K to step 2, running with the demonstration pause.
+ * Step 1 is built and approved; once step 2 has written its first file, the build screen is checked (the running note,
+ * the demonstration setting, at least 1 and fewer than 8 files written) and photographed, and the walk ends. The
+ * automated run then checks the record and Docker's list itself, and only then sends the signal.
+ */
+async function runJ2cRun() {
+  const which = j2Setting("BUILDER_CAMERA_PATH", /^[tk]$/);
+  const pause = Number(j2Setting("BUILDER_CAMERA_PAUSE_MS", /^[1-9][0-9]{0,4}$/));
+  const name = RESTART_NAMES[which];
+  if (!(await signIn())) return;
+  await clickAndLoad('a[href="/projects/new"]');
+  await page.fill("#name", name);
+  await page.fill("#cap", "5.00");
+  await page.fill("#brief", ASK);
+  await clickAndLoad('form[action="/projects"] button[type="submit"]');
+  const m = /^\/projects\/(j1-[0-9a-f]{12})\/brief$/.exec(path());
+  if (!check("the project is made", m, path())) return;
+  const id = m[1];
+  say({ kind: "project", id, name, cap: "5.00", walk: "j2c-run", path: which });
+  check("a normal project: no badge", !(await has("[data-broken-badge]")));
+  if (!(await toBuild(id))) return;
+  check("the plan has the two steps", (await page.locator("li[data-step]").count()) === 2);
+  await clickAndLoad(`form[action="/projects/${id}/confirm-plan"] button`);
+  await clickAndLoad('a[data-go="build"]');
+  const pauseLine = `Demonstration setting: the scripted engine pauses ${pause.toLocaleString("en")} ms before each write, so that a stop part-way can be shown.`;
+  check("the build screen shows the demonstration setting", (await text(`[data-step-pause="${pause}"]`)) === pauseLine, await text("[data-step-pause]"));
+  await clickAndLoad('button[data-build="01-data"]');
+  if (!check("step 1 built", await waitFor('[data-step="01-data"][data-step-state="finished"]', 600_000, '[data-step="01-data"][data-step-state="failed"]'), await text('[data-step="01-data"]'))) return;
+  await clickAndLoad('button[data-approve="01-data"]');
+  const two = '[data-step="02-submitter-screen"]';
+  const running = await waitFor(`${two}[data-step-state="running"] ol[data-lines] li:has-text("Wrote ")`, 300_000, `${two}[data-step-state="failed"]`);
+  const wrote = await page.locator(`${two} ol[data-lines] li`, { hasText: "Wrote " }).count();
+  const ok = check(
+    "step 1 approved; step 2 running part-way: the running note, the demonstration setting, at least 1 and fewer than 8 files written",
+    running && (await has('[data-job-running="build_step"]')) && (await has(`[data-step-pause="${pause}"]`)) && (await has('[data-step="01-data"][data-approved="yes"]')) && wrote >= 1 && wrote < 8,
+    `${wrote} written`,
+  );
+  await photo(which === "t" ? 21 : 41, `${which}-build-running`, ["en"]);
+  if (ok) say({ kind: "mid_step", project: id, step: "02-submitter-screen", wrote_seen: wrote });
+}
+
+/**
+ * Walk `j2c-after` (J2 (c), T6 and T7, K5 and K6), after the next start: the project's page (the build screen, the stage
+ * it was at) with the interrupted panel and only "Close project" and "New project"; no sign-off; step 2 interrupted with
+ * no build, approve or retry button; the cost screen's step 2 reservation closed with the reason the run expects and the
+ * part-way note; the record; then "Close project" from the panel, the record ending with journey.closed.
+ */
+async function runJ2cAfter() {
+  const which = j2Setting("BUILDER_CAMERA_PATH", /^[tk]$/);
+  const id = j2Setting("BUILDER_CAMERA_PROJECT", /^j1-[0-9a-f]{12}$/);
+  const reason = j2Setting("BUILDER_CAMERA_HOLD_REASON", /^(step_ended|job_interrupted)$/);
+  const nn = which === "t" ? 31 : 51;
+  if (!(await signIn())) return;
+  await page.goto(`${BASE}/projects/${id}`);
+  check("the project page opens its build screen, the stage it was at", path() === `/projects/${id}/build`, path());
+  const panelSel = `section.panel:has(form[action="/projects/${id}/close"]):has(a[href="/projects/new"])`;
+  const iPanel = page.locator(panelSel);
+  const buttons = (await iPanel.locator("button").allTextContents().catch(() => [])).map((s) => s.trim());
+  const links = (await iPanel.locator("a").allTextContents().catch(() => [])).map((s) => s.trim());
+  check(
+    "the interrupted panel, with only 'Close project' and 'New project'",
+    (await iPanel.count()) === 1 && (await text(`${panelSel} p.warn`)) === INTERRUPTED_PANEL && JSON.stringify(buttons) === '["Close project"]' && JSON.stringify(links) === '["New project"]',
+    `${await text(`${panelSel} p.warn`)} / ${JSON.stringify(buttons)} / ${JSON.stringify(links)}`,
+  );
+  const two = '[data-step="02-submitter-screen"]';
+  const lines = await page.$$eval(`${two} ol[data-lines] li`, (lis) => lis.map((li) => (li.textContent ?? "").trim()));
+  check(
+    `step 2 reads "${INTERRUPTED_LINE}", with no build, approve or retry button`,
+    (await has(`${two}[data-step-state="interrupted"]`)) && lines.includes(INTERRUPTED_LINE) && (await page.locator("button[data-build], button[data-approve]").count()) === 0 && (await page.locator(`form[action="/projects/${id}/build"], form[action="/projects/${id}/approve"]`).count()) === 0,
+    lines.slice(-3).join(" | "),
+  );
+  check("no sign-off button on the build screen", (await page.locator(`form[action="/projects/${id}/sign-off"]`).count()) === 0);
+  await photo(nn, `${which}-build-interrupted`, ["en", "ar", "phone"]);
+  await page.goto(`${BASE}/projects/${id}/acceptance`);
+  check("no sign-off button on the checklist screen", (await page.locator(`form[action="/projects/${id}/sign-off"]`).count()) === 0);
+
+  await page.goto(`${BASE}/projects/${id}/cost`);
+  const holds = await rowsOf("table[data-step-holds]");
+  const note = await page.$$eval("table[data-step-holds] tbody tr", (trs) => trs.map((tr) => (tr.querySelector("[data-stopped-part-way]")?.textContent ?? "").trim()));
+  check(
+    `cost: step 2 "closed (${reason})", with the note "${PART_WAY}"; step 1 closed (step_ended), without it`,
+    holds.length === 2 && holds[0][0] === "01-data" && holds[0][2] === "closed (step_ended)" && note[0] === "" && holds[1][0] === "02-submitter-screen" && holds[1][2] === `closed (${reason}) ${PART_WAY}` && note[1] === PART_WAY,
+    JSON.stringify(holds),
+  );
+  check("cost: step room $0.0000 and spent $0.00", (await text("td[data-step-room]")) === "$0.0000" && (await text("td[data-spent]")) === "$0.00", `${await text("td[data-step-room]")} / ${await text("td[data-spent]")}`);
+  await photo(nn + 1, `${which}-cost`, ["en", "ar", "phone"]);
+
+  await page.goto(`${BASE}/projects/${id}/record`);
+  const ids = await page.$$eval("tr[data-event]", (rows) => rows.map((r) => Number(r.getAttribute("data-event"))));
+  check("the record lists every event in id order", ids.length > 20 && ids.every((v, i) => i === 0 || v > ids[i - 1]), `${ids.length} events`);
+  await photo(nn + 2, `${which}-record`, ["en"]);
+  await clickAndLoad(`${panelSel} button`);
+  const kinds = await page.$$eval("tr[data-event] td:nth-child(3)", (tds) => tds.map((td) => (td.textContent ?? "").trim()));
+  check("'Close project': the record page opens, and the record ends with journey.closed", path() === `/projects/${id}/record` && (await has("[data-closed]")) && kinds.at(-1) === "journey.closed", `${path()} / ${kinds.at(-1)}`);
+  await photo(nn + 3, `${which}-closed`, ["en"]);
+  await clickAndLoad('form[action="/sign-out"] button');
+  check("signed out", path() === "/sign-in", path());
+}
+
+const WALKS = { j1: () => run(), j3: () => runJ3(), j2a: () => runJ2a(), "j2c-run": () => runJ2cRun(), "j2c-after": () => runJ2cAfter() };
+
 try {
-  if ((process.env.BUILDER_CAMERA_WALK ?? "j1") === "j3") await runJ3();
-  else await run();
+  const name = process.env.BUILDER_CAMERA_WALK ?? "j1";
+  if (!Object.hasOwn(WALKS, name)) throw new Error("BUILDER_CAMERA_WALK names no walk");
+  await WALKS[name]();
 } catch (err) {
   check("the walk ran to its end without an error", false, String(err && err.message ? err.message : err).split("\n")[0]);
 } finally {

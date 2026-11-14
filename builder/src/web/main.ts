@@ -26,6 +26,16 @@
  * root; it is stopped with the interface, and when the interface loses its instance lock every live session ends
  * first. Off, nothing listens on that port and "Open the live app" is refused ("started without the live preview").
  * On, a port already taken stops the interface's start, in one line.
+ * Package J2 (c), the clean stop (docs/design/journey-j2.md, section 4.1): on SIGTERM or SIGINT (`stopOnSignal`) every
+ * request is answered with a plain 503, "The interface is stopping."; the server and the live preview are stopped; the
+ * journey is halted (no action or job starts; the running job is told to stop, its engine's container killed at once);
+ * the interface waits, at most 30 s, for that job and for each project's action in progress; then, asking the database
+ * before each project whether it still holds its instance lock (each answer bounded at 5 s), it removes every sandbox
+ * left in its own database and records it, with the stop's own reason; never once the lock is lost or not confirmed.
+ * Then it releases the lock, ends the pool and exits: 0 only if every open project was removed, else 1, naming each
+ * project left for the next start. A second signal exits at once with 1; so does the whole stop past 90 s.
+ * The demonstration pause, BUILDER_DEMO_STEP_PAUSE_MS (0 to 10,000; unset or 0: off), makes the scripted engine pause
+ * that long before each write, so that a stop part-way can be shown; a line at start says so while it is on.
  */
 import { serve } from "@hono/node-server";
 import { fileURLToPath } from "node:url";
@@ -58,7 +68,12 @@ export interface Settings {
   previewUid: number;
   /** Package J3, after its review: the front is started only when BUILDER_LIVE_PREVIEW is "1". Off by default. */
   livePreview: boolean;
+  /** Package J2 (c): the demonstration pause before each write of a scripted step, in milliseconds; 0 (off) by default. */
+  stepPauseMs: number;
 }
+
+/** Package J2 (c): the highest demonstration pause BUILDER_DEMO_STEP_PAUSE_MS takes, in milliseconds. */
+export const MAX_DEMO_STEP_PAUSE_MS = 10_000;
 
 /**
  * Read and check the settings, then delete the password and the model key from `env`. Throws, in plain words,
@@ -82,8 +97,12 @@ export function readSettings(env: NodeJS.ProcessEnv = process.env): Settings {
     const previewUid = env.BUILDER_PREVIEW_UID ? Number(env.BUILDER_PREVIEW_UID) : DEFAULT_PREVIEW_UID;
     const live = env.BUILDER_LIVE_PREVIEW ?? "";
     if (!["", "0", "1"].includes(live)) throw new Error("BUILDER_LIVE_PREVIEW must be 1 (the live preview on) or 0 or unset (off). The interface does not start.");
+    // Package J2 (c): a whole number of milliseconds from 0 to 10,000, written plainly; unset or 0 is off.
+    const pause = env.BUILDER_DEMO_STEP_PAUSE_MS ?? "";
+    if (!/^(0|[1-9]\d{0,4})?$/.test(pause) || Number(pause) > MAX_DEMO_STEP_PAUSE_MS)
+      throw new Error(`BUILDER_DEMO_STEP_PAUSE_MS must be a whole number of milliseconds from 0 to ${MAX_DEMO_STEP_PAUSE_MS} (0 or unset: off). The interface does not start.`);
     const password = passwordFromSettings(env, dataDir);
-    return { databaseUrl, dataDir, port, password, previewPort, previewUid, livePreview: live === "1" };
+    return { databaseUrl, dataDir, port, password, previewPort, previewUid, livePreview: live === "1", stepPauseMs: pause === "" ? 0 : Number(pause) };
   } finally {
     for (const k of SCRUBBED) delete env[k];
   }
@@ -201,6 +220,165 @@ export async function stopAfterLockLost(
   o.exit(1);
 }
 
+/* ------------------------------------------------------------------ package J2 (c): the clean stop */
+
+/** What every request is answered with, plain and 503, from a stop signal on (final design, section 4.1, item 1). */
+export const STOPPING = "The interface is stopping.";
+/** How long the stop waits for the running job and each project's action in progress, all together. Chosen, not measured. */
+export const STOP_WAIT_MS = 30_000;
+/** How long one ask of the instance lock may take before the removal ends. Chosen, not measured. */
+export const LOCK_CHECK_MS = 5_000;
+/** The whole stop's bound, from the signal: past it, the process exits with code 1 at once. Chosen, not measured. */
+export const STOP_DEADLINE_MS = 90_000;
+
+export type StopSignal = "SIGTERM" | "SIGINT";
+
+/** Why the journey is halted at a clean stop; the running job's record gives it. */
+export const stoppedOnPurpose = (sig: StopSignal) => `The interface was stopped on purpose (${sig}).`;
+
+/** Whether a stop signal has come: set once, never cleared. Read by every request through `unavailableReason`. */
+export class StopFlag {
+  why: string | null = null;
+  set(): void {
+    this.why ??= STOPPING;
+  }
+}
+
+/**
+ * Why the interface answers every request with a plain 503 now, or null (`createWebApp`'s `unavailable`): its instance
+ * lock lost (review bot on defb9c4), else a stop signal come (package J2 (c)).
+ */
+export function unavailableReason(lock: Pick<InstanceLock, "lost">, flag: StopFlag): () => string | null {
+  return () => lock.lost() ?? flag.why;
+}
+
+export interface StopOptions {
+  journey: Journey;
+  /** The instance lock: asked before each removal, released last. */
+  lock: Pick<InstanceLock, "check" | "release">;
+  flag: StopFlag;
+  closeServer: () => void;
+  preview?: Pick<LivePreview, "stop">;
+  endPool: () => Promise<void>;
+  log: (line: string) => void;
+  exit: (code: number) => void;
+  waitMs?: number;
+  lockCheckMs?: number;
+  deadlineMs?: number;
+}
+
+/** `p`'s value if it settles within `ms`, else `{ done: false }`; a rejection counts as settled, with no value. */
+async function within<T>(p: Promise<T>, ms: number): Promise<{ done: true; value: T | undefined } | { done: false }> {
+  let timer: NodeJS.Timeout | undefined;
+  try {
+    return await Promise.race([
+      p.then(
+        (value) => ({ done: true as const, value }),
+        () => ({ done: true as const, value: undefined }),
+      ),
+      new Promise<{ done: false }>((r) => (timer = setTimeout(() => r({ done: false }), Math.max(0, ms)))),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+const seconds = (ms: number) => `${Number((ms / 1000).toFixed(1))} s`;
+
+/**
+ * Package J2 (c): the clean stop on SIGTERM or SIGINT (final design, section 4.1), shaped like `stopAfterLockLost` so
+ * that it can be tested without a process. In order: no new work (the flag: every request a plain 503), the server and
+ * the live preview stopped; the journey halted with the stop's reason (the running job told to stop); a wait of at most
+ * `waitMs` for that job and for each project's action in progress; then every sandbox left in this database removed and
+ * recorded (`Journey.removeAtStop`), the instance lock asked of the database before each, each ask bounded at
+ * `lockCheckMs`: a lock lost or not confirmed ends the removal, and nothing more is removed. Then the lock is released,
+ * the pool ended, and the process exits: 0 only if every open project was removed, else 1, with a line naming each
+ * project left. Past `deadlineMs` from the signal, it exits with 1 at once. It never throws: a fault exits 1.
+ */
+export async function stopOnSignal(sig: StopSignal, o: StopOptions): Promise<void> {
+  const waitMs = o.waitMs ?? STOP_WAIT_MS;
+  const lockCheckMs = o.lockCheckMs ?? LOCK_CHECK_MS;
+  const deadlineMs = o.deadlineMs ?? STOP_DEADLINE_MS;
+  let exited = false;
+  let deadline: NodeJS.Timeout | undefined;
+  const exit = (code: number) => {
+    if (exited) return;
+    exited = true;
+    clearTimeout(deadline);
+    o.exit(code);
+  };
+  deadline = setTimeout(() => {
+    if (exited) return;
+    o.log(`[interface stopped] The stop had not finished ${seconds(deadlineMs)} after ${sig}; the interface exits now with code 1. What is left is removed at the next start.`);
+    exit(1);
+  }, deadlineMs);
+  try {
+    const why = stoppedOnPurpose(sig);
+    // 1. No new work: every request gets a plain 503 from now on; then the server and the live preview stop.
+    o.flag.set();
+    const job = o.journey.runningJob();
+    o.log(`[interface stopping] ${why} ${job ? `Its running job (${job.jobId}, project ${job.projectId}) is being stopped first.` : "No job was running."} Every request is now answered "${STOPPING}"`);
+    o.closeServer();
+    await o.preview?.stop().catch(() => undefined);
+    // 2 and 3. The journey halted, and a bounded wait for the running job (each project's action is waited for below).
+    const waitUntil = Date.now() + waitMs;
+    const halted = await within(o.journey.halt(why), waitMs);
+    if (job) {
+      o.log(
+        halted.done
+          ? `[interface stopping] The job ${job.jobId} has ended; its record says how. It is not resumed.`
+          : `[interface stopping] The job ${job.jobId} had not ended after ${seconds(waitMs)}; its project ${job.projectId} is not removed while the job runs. The next start removes it.`,
+      );
+    }
+    // 4 and 5. The removal, asking the lock of the database before each project, each ask bounded.
+    const r = await o.journey.removeAtStop({
+      waitUntil,
+      goOn: () => !exited,
+      mayRemove: async () => {
+        const asked = await within(o.lock.check(), lockCheckMs);
+        if (!asked.done) return `The instance lock was not confirmed by the database within ${seconds(lockCheckMs)}.`;
+        return asked.value === undefined ? "The instance lock could not be asked of the database." : asked.value;
+      },
+    });
+    for (const x of r.removed) o.log(`[interface stopping] Project ${x.projectId}: its sandbox (${x.dir}) was removed at the stop: its containers, images and folder. It is marked interrupted, not resumed.`);
+    if (r.ended !== null) o.log(`[interface stopping] ${r.ended} Nothing more is removed: the interface never removes once it does not hold its lock. The next start removes what is left.`);
+    for (const x of r.left) o.log(`[interface stopping] Project ${x.projectId} is left for the next start: ${x.why}.`);
+    o.log(`Projects with a sandbox, marked interrupted and removed at the stop: ${r.removed.length}.`);
+    // 6. The lock released only now, so that no other interface on this database runs its recovery meanwhile.
+    await o.lock.release().catch(() => undefined);
+    await o.endPool().catch(() => undefined);
+    const code = r.ended === null && r.left.length === 0 ? 0 : 1;
+    if (!exited) o.log(`[interface stopped] Lock released. Exit code ${code}${code === 0 ? "." : ": a project is left for the next start."}`);
+    exit(code);
+  } catch (err) {
+    o.log(`[interface stopped] The stop failed part-way (${err instanceof Error ? err.name : typeof err}); the interface exits with code 1. The next start removes what is left.`);
+    exit(1);
+  }
+}
+
+/**
+ * Package J2 (c): what main.ts runs on SIGTERM and SIGINT. The first starts the clean stop (`stopOnSignal`); a second,
+ * during the stop, exits at once with code 1 and says so (section 4.1). Returns the stop for the first signal.
+ */
+export function stopSignalHandler(o: StopOptions): (sig: StopSignal) => Promise<void> | undefined {
+  let exited = false;
+  const exit = (code: number) => {
+    if (exited) return;
+    exited = true;
+    o.exit(code);
+  };
+  let stopping: Promise<void> | null = null;
+  return (sig) => {
+    if (stopping) {
+      o.log(`[interface stopped] A second stop signal (${sig}) came during the stop; the interface exits now with code 1. What is left is removed at the next start.`);
+      exit(1);
+      return undefined;
+    }
+    stopping = stopOnSignal(sig, { ...o, exit });
+    return stopping;
+  };
+}
+
 export async function main(env: NodeJS.ProcessEnv = process.env): Promise<void> {
   let s: Settings;
   try {
@@ -224,7 +402,9 @@ export async function main(env: NodeJS.ProcessEnv = process.env): Promise<void> 
   // The jobs remove a project's sandbox when it is closed, or found at start from an interface that stopped.
   let jobs: JourneyJobs | null = null;
   const journey = new Journey({ pool, dataDir: s.dataDir, onFault: fault, cleanupProject: (id, rec) => jobs?.cleanup(id, rec) ?? Promise.resolve(), ownership: () => lock.check() });
-  jobs = new JourneyJobs({ journey, sandboxes: example1Sandboxes(), onFault: fault });
+  jobs = new JourneyJobs({ journey, sandboxes: example1Sandboxes(), onFault: fault, stepPauseMs: s.stepPauseMs });
+  if (s.stepPauseMs > 0)
+    console.log(`Demonstration setting: the scripted engine pauses ${s.stepPauseMs} ms before each write (BUILDER_DEMO_STEP_PAUSE_MS), so that a stop part-way can be shown. Every step is slower; each build step records the pause.`);
   const touched = await journey.recoverInterrupted();
   console.log(`Projects with a job or a sandbox left by an interface that stopped, marked interrupted and removed at start: ${touched.length}.`);
   // Package J3: the live preview's front, before the interface serves; only when it is turned on (J3's review).
@@ -251,7 +431,9 @@ export async function main(env: NodeJS.ProcessEnv = process.env): Promise<void> 
   } else {
     console.log(`Live preview: off (BUILDER_LIVE_PREVIEW is not 1). Nothing listens on 127.0.0.1:${s.previewPort}; "Open the live app" is refused.`);
   }
-  const app = createWebApp({ journey, jobs, password: s.password, sessions: new Sessions(), limiter: new SignInLimiter(), dataDir: s.dataDir, onFault: fault, unavailable: () => lock.lost(), preview });
+  // Package J2 (c): from a stop signal on, every request is answered with a plain 503, as after a lost lock.
+  const stopFlag = new StopFlag();
+  const app = createWebApp({ journey, jobs, password: s.password, sessions: new Sessions(), limiter: new SignInLimiter(), dataDir: s.dataDir, onFault: fault, unavailable: unavailableReason(lock, stopFlag), preview });
   const server = serve({ fetch: app.fetch, port: s.port, hostname: UI_HOST }, (info) => {
     console.log(`Interface listening on http://${info.address}:${info.port} (password from: ${s.password.source}).`);
   });
@@ -259,16 +441,19 @@ export async function main(env: NodeJS.ProcessEnv = process.env): Promise<void> 
     void stopAfterLockLost(why, { journey, closeServer: () => server.close(), log: (line) => console.error(line), exit: (code) => process.exit(code), preview });
   const lostAlready = lock.lost();
   if (lostAlready) onLockLost(lostAlready);
-  const stop = () => {
-    server.close();
-    void (preview?.stop() ?? Promise.resolve())
-      .catch(() => undefined)
-      .then(() => lock.release())
-      .then(() => pool.end())
-      .then(() => process.exit(0));
-  };
-  process.on("SIGINT", stop);
-  process.on("SIGTERM", stop);
+  // Package J2 (c): the clean stop; a second signal exits at once.
+  const onStop = stopSignalHandler({
+    journey,
+    lock,
+    flag: stopFlag,
+    closeServer: () => server.close(),
+    preview,
+    endPool: () => pool.end(),
+    log: (line) => console.log(line),
+    exit: (code) => process.exit(code),
+  });
+  process.on("SIGINT", () => void onStop("SIGINT"));
+  process.on("SIGTERM", () => void onStop("SIGTERM"));
 }
 
 const isMain = process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1];

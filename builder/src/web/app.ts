@@ -17,6 +17,9 @@
  *   not made yet; the open is made only if its sign-in session is still valid then (after the review bot on af80dc9).
  *   Sign-out, and a new sign-in, end every sign-in session the browser sent before anything is awaited, then close the
  *   live session of each: no open can come between the two (own check after the review bot on af80dc9).
+ * - Package J2 (a): `POST /demonstrations/broken-copy`, behind sign-in and csrf() like every route, makes the
+ *   broken-copy demonstration's project (journey.ts, `createBrokenCopyDemo`); it exists when `brokenCopyDemoShown`
+ *   says so (always, on the owner's answer of 14 Nov 2026). `POST /projects` reads only a name, a cap and a brief.
  */
 import { Hono, type Context } from "hono";
 import { bodyLimit } from "hono/body-limit";
@@ -29,7 +32,7 @@ import { getBudget, listStepHolds } from "../store/holds.js";
 import { listUnreconciled } from "../store/reconcile.js";
 import { PRICE_TABLE_DATE } from "../gateway/prices.js";
 import type { Answer } from "../orchestrator/intake.js";
-import { Journey, JourneyRefused } from "../orchestrator/journey.js";
+import { brokenCopyDemoShown, Journey, JourneyRefused } from "../orchestrator/journey.js";
 import { PRICED_MODEL, type JourneyJobs } from "../orchestrator/journey-jobs.js";
 import { passwordProblem, SESSION_COOKIE, type PasswordState, type Sessions, type SignInLimiter } from "./auth.js";
 import { recordedFile } from "./files.js";
@@ -254,6 +257,15 @@ export function createWebApp(d: WebDeps): Hono<Env> {
     }
   });
 
+  // Package J2 (a): the broken-copy demonstration. Not under /projects/…, whose paths take only a journey id or "new".
+  if (brokenCopyDemoShown()) {
+    app.post("/demonstrations/broken-copy", async (c) => {
+      await c.req.parseBody();
+      const id = await j.createBrokenCopyDemo();
+      return c.redirect(`/projects/${id}/brief`, 303);
+    });
+  }
+
   // One project. Its id must be one the journey made; anything else is "not found".
   app.use("/projects/:id/*", async (c, next) => {
     if (!isJourneyId(c.req.param("id") ?? "")) return c.html(notFoundPage(c.get("lang"), true), 404);
@@ -274,7 +286,7 @@ export function createWebApp(d: WebDeps): Hono<Env> {
   app.get("/projects/:id/questions", async (c) => c.html(questionsPage(c.get("lang"), await j.state(c.req.param("id")), j)));
   app.get("/projects/:id/proposal", async (c) => c.html(proposalPage(c.get("lang"), await j.state(c.req.param("id")), j)));
   app.get("/projects/:id/plan", async (c) => c.html(planPage(c.get("lang"), await j.state(c.req.param("id")), j)));
-  app.get("/projects/:id/build", async (c) => c.html(buildPage(c.get("lang"), await j.state(c.req.param("id")), j)));
+  app.get("/projects/:id/build", async (c) => c.html(buildPage(c.get("lang"), await j.state(c.req.param("id")), j, { stepPauseMs: d.jobs?.stepPauseMs() ?? 0 })));
   app.get("/projects/:id/preview", async (c) => {
     const s = await j.state(c.req.param("id"));
     const port = d.jobs?.livePort() ?? null;

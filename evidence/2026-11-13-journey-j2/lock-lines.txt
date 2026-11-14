@@ -1,0 +1,4 @@
+The run's lock lines (the wrapper's output around the run: flock, then the run, then these):
+Lock held from 10:02:04 UTC.
+run exit code: 0
+Lock released at 10:04:37 UTC.

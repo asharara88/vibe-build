@@ -6,8 +6,9 @@
  * workspace and history, no container.
  */
 import { execFileSync, spawnSync } from "node:child_process";
+import { createHash, randomBytes } from "node:crypto";
 import net from "node:net";
-import { existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import type pg from "pg";
@@ -20,19 +21,22 @@ import { secretLikePath } from "../src/orchestrator/export.js";
 import { APP_SHOTS, JourneyJobs, REFUSAL_EXTRA } from "../src/orchestrator/journey-jobs.js";
 import { journeyFolder, recordedFile } from "../src/web/files.js";
 import { frontTexts, previewPage } from "../src/web/pages.js";
-import { PASSED_SUMMARY, PNG_1X1, slowPoolFor, StandInSandboxes } from "./journey-stand-ins.js";
+import { BROKEN_STEP_ID, changeSetFolders, PASSED_SUMMARY, PNG_1X1, slowPoolFor, StandInSandboxes } from "./journey-stand-ins.js";
 import type { BuildEngine } from "../src/engine/interface.js";
 import { ScriptedEngine } from "../src/engine/scripted.js";
 import { DEFAULT_PROFILES } from "../src/gateway/hold.js";
-import { diskRefusal, EV, EventQueue, EXPORT_LABEL, jobRunFinished, Journey, JourneyRefused, JOURNEY_STAND_IN_LABEL, orderedEngine, runOutcome, scriptedEngineFor, scriptedOnlyProblem, engineEventHandler, SIGN_OFF_LABEL, type JobRecord } from "../src/orchestrator/journey.js";
+import { brokenStageTargetProblem, diskRefusal, EV, EventQueue, EXPORT_LABEL, JOB_RULES, jobRunFinished, Journey, JourneyRefused, JOURNEY_STAND_IN_LABEL, orderedEngine, runOutcome, scriptedEngineFor, scriptedOnlyProblem, engineEventHandler, SIGN_OFF_LABEL, signOffRefusal, type JobRecord, type JourneyState } from "../src/orchestrator/journey.js";
 import { LivePreview } from "../src/web/preview.js";
 import { runBudgetedStep } from "../src/orchestrator/steps.js";
 import { sandbox as sandboxManager, type Sandbox, type StreamingOptions } from "../src/sandbox/manager.js";
 import { networkChecks } from "../scripts/journey-network-checks.js";
+import { brokenCopyRecordChecks, cleanStopRecordChecks, crashRestartRecordChecks, midStepChecks, parseImages, parseNameLabel, parseProcesses, projectLeftovers } from "../scripts/journey-restart-checks.js";
+import { createPool } from "../src/store/db.js";
+import { migrate } from "../src/store/migrate.js";
 import { appendEvent, listEvents } from "../src/store/events.js";
 import { getBudget, listStepHolds, openStepHold } from "../src/store/holds.js";
 import { createProject } from "../src/store/projects.js";
-import { testPool, uniqueId } from "./helpers.js";
+import { testPool, TEST_DB_URL, uniqueId } from "./helpers.js";
 
 const builderDir = resolve(import.meta.dirname, "..");
 let pool: pg.Pool;
@@ -1582,5 +1586,788 @@ describe("J3: the live app, on the journey (stand-in sandbox, the real front, a 
     expect((await j.state(id)).jobs.at(-1)).toMatchObject({ kind: "live", state: "failed" });
     expect((await listEvents(pool, id, EV.liveClosed)).at(-1)!.payload).toMatchObject({ session: live!.sessionId, reason: "sign_out" });
     await j.closeProject(id);
+  });
+});
+
+/* ---------------------------------------------------------------- J2 (a): the broken copy rejected */
+
+describe("J2 (a): the broken copy rejected (stand-in sandboxes, each with its own change-set folder; no container, no model)", () => {
+  const BROKEN = BROKEN_STEP_ID;
+  const NAME = "Deliberately broken copy (made-up)";
+  const NEVER = "A deliberately broken copy is never signed off or exported.";
+  const LIVE_REFUSED = "A deliberately broken copy is not offered as a live app: it was built to be rejected by the checklist.";
+  const ASK = "I need an app where staff can request leave and managers approve it";
+  const brokenManifestPath = join(builderDir, "scripted-broken", "example-1", BROKEN, "manifest.json");
+  const brokenManifest = () => JSON.parse(readFileSync(brokenManifestPath, "utf8")) as { label: string; files: Array<{ path: string; sha256: string }> };
+  /** The choice as the demonstration records it (final design, section 3.1). */
+  const choice = () => ({ by: "owner", step: BROKEN, source: "builder/scripted-broken/example-1/03-wrong-status", label: brokenManifest().label, manifest_sha256: sha256(readFileSync(brokenManifestPath)), sign_off: "never", export: "never" });
+  let sandboxes: StandInSandboxes;
+  const outside: string[] = [];
+  beforeAll(() => {
+    sandboxes = new StandInSandboxes(pool);
+  });
+  afterAll(() => {
+    sandboxes.removeAll();
+    for (const d of outside) rmSync(d, { recursive: true, force: true });
+  });
+
+  /**
+   * A journey and its jobs. `doctor`, when set, changes the state a job's body is given, as if the journey's own rules
+   * had been passed some other way: a test of the job's own checks, made again inside it (final design, section 3.3).
+   */
+  const make = () => {
+    const box: { jobs?: JourneyJobs; doctor: ((s: JourneyState) => JourneyState) | null } = { doctor: null };
+    const j = new Journey({ pool, dataDir, cleanupProject: (id, rec) => box.jobs!.cleanup(id, rec) });
+    const seen = Object.create(j) as Journey;
+    seen.startJob = (projectId, kind, body, o) => j.startJob(projectId, kind, (ctx) => body(box.doctor ? { ...ctx, state: box.doctor(ctx.state) } : ctx), o);
+    box.jobs = new JourneyJobs({ journey: seen, sandboxes, measureFree: () => 50 * 1024 ** 3 });
+    return { j, jobs: box.jobs, setDoctor: (d: ((s: JourneyState) => JourneyState) | null) => void (box.doctor = d) };
+  };
+  const confirmed = async (j: Journey, id: string) => {
+    await j.continueWithExample(id);
+    await j.answerRestFromSheet(id);
+    await j.confirmBrief(id);
+    await j.confirmPlan(id);
+    return id;
+  };
+  const normal = async (j: Journey, name = "Leave requests (made-up, J2)") => confirmed(j, await j.createProject({ name, cap: "5", brief: ASK }));
+  const broken = async (j: Journey) => confirmed(j, await j.createBrokenCopyDemo());
+  /** Steps 1 and 2 built and approved; for a broken copy, the approval of step 2 builds step 3. */
+  const throughStep2 = async (j: Journey, jobs: JourneyJobs, id: string) => {
+    await jobs.buildStep(id, "01-data");
+    await j.waitForJob();
+    await jobs.approve(id, "01-data");
+    await j.waitForJob();
+    const r = await jobs.approve(id, "02-submitter-screen");
+    await j.waitForJob();
+    return r;
+  };
+  /** A project built, approved and previewed, its app running. */
+  const previewed = async (j: Journey, jobs: JourneyJobs, id: string) => {
+    const r = await throughStep2(j, jobs, id);
+    if (r.next === "build_step") {
+      await jobs.approve(id, BROKEN);
+      await j.waitForJob();
+    }
+    expect((await j.state(id)).previewFinished).toBe(true);
+    return id;
+  };
+  const passedRun = async (j: Journey, jobs: JourneyJobs, id: string) => {
+    sandboxes.acceptanceOutcome = "passed";
+    await jobs.acceptance(id);
+    await j.waitForJob();
+    expect((await j.state(id)).acceptanceRun?.outcome).toBe("passed");
+  };
+  const staged = (id: string) => listEvents(pool, id, "journey.broken_step_staged");
+  const stagedCalls = (id: string) => sandboxes.stagedBroken.filter((c) => c.projectId === id);
+
+  it("A1 (regression guard): a normal project goes through the whole journey on two steps; stageBrokenStep is never called; builder/scripted and builder/scripted-broken are unchanged", async () => {
+    const before = changeSetFolders();
+    const { j, jobs } = make();
+    const id = await normal(j);
+    expect((await j.state(id)).plan).toEqual(["01-data", "02-submitter-screen"]);
+    const r = await throughStep2(j, jobs, id);
+    expect(r.next).toBe("preview");
+    await passedRun(j, jobs, id);
+    await j.signOff(id);
+    await jobs.exportProject(id);
+    await j.waitForJob();
+    const s = await j.state(id);
+    expect(s.jobs.map((x) => [x.kind, x.step, x.state])).toEqual([
+      ["build_step", "01-data", "finished"],
+      ["build_step", "02-submitter-screen", "finished"],
+      ["preview", null, "finished"],
+      ["acceptance", null, "finished"],
+      ["export", null, "finished"],
+    ]);
+    expect(s.brokenTrace).not.toBe(true);
+    expect(stagedCalls(id)).toEqual([]);
+    expect(await staged(id)).toEqual([]);
+    expect(sandboxes.runnerCalls.filter((c) => c.container.startsWith(`builder_${id}-`)).map((c) => c.step)).toEqual(["01-data", "02-submitter-screen"]);
+    const x = jobs.handle(id)!;
+    expect(existsSync(join(x.changeSets, "example-1", BROKEN))).toBe(false);
+    await j.closeProject(id);
+    expect(changeSetFolders()).toEqual(before);
+    expect(before.status).toBe("");
+    expect(readdirSync(join(builderDir, "scripted", "example-1")).sort()).toEqual(["01-data", "02-submitter-screen"]);
+  });
+
+  it("A2: the demonstration makes one project: the fixed name and a $5.00 cap; its first event is intake.brief_entered with example 1's ask and broken_copy; three steps, step 3's label read from builder/scripted-broken; plan_confirmed lists all three, with broken_copy; a normal project's is unchanged", async () => {
+    const { j } = make();
+    const id = await j.createBrokenCopyDemo();
+    expect(id).toMatch(/^j1-[0-9a-f]{12}$/);
+    const s = await j.state(id);
+    expect(s.project.name).toBe(NAME);
+    expect(Number(s.project.cap_usd)).toBe(5);
+    const first = await listEvents(pool, id);
+    expect(first).toHaveLength(1);
+    expect(first[0]!.kind).toBe(EV.briefEntered);
+    expect(first[0]!.payload).toEqual({ text: ASK, characters: ASK.length, given_to_engine: false, broken_copy: choice() });
+    expect(s.plan).toEqual(["01-data", "02-submitter-screen", BROKEN]);
+    expect(s.brokenCopy).toEqual(choice());
+    expect(s.brokenTrace).toBe(true);
+    await confirmed(j, id);
+    const plan = (await listEvents(pool, id, EV.planConfirmed))[0]!.payload;
+    expect(plan).toMatchObject({ broken_copy: true, quality_check_after_each_step_and_retry: "not done (milestones 1 and 3)", quality_gate_after_each_step: "not done (milestone 1)", acceptance_label: JOURNEY_STAND_IN_LABEL });
+    const label = (step: string) => (JSON.parse(readFileSync(join(builderDir, "scripted", "example-1", step, "manifest.json"), "utf8")) as { label: string }).label;
+    expect((plan.steps as Array<{ step: string; label: string; files: number }>).map((x) => [x.step, x.label, x.files])).toEqual([
+      ["01-data", label("01-data"), 4],
+      ["02-submitter-screen", label("02-submitter-screen"), 8],
+      [BROKEN, brokenManifest().label, 3],
+    ]);
+    expect(j.planSteps(await j.state(id)).map((x) => x.step)).toEqual(["01-data", "02-submitter-screen", BROKEN]);
+    const n = await normal(j);
+    const normalPlan = (await listEvents(pool, n, EV.planConfirmed))[0]!.payload;
+    expect(Object.keys(normalPlan).sort()).toEqual(["acceptance_label", "acceptance_version", "acceptance_written_by", "quality_gate_after_each_step", "stand_in_label", "steps"]);
+    expect((normalPlan.steps as Array<{ step: string }>).map((x) => x.step)).toEqual(["01-data", "02-submitter-screen"]);
+    expect(Object.keys((await listEvents(pool, n))[0]!.payload).sort()).toEqual(["characters", "given_to_engine", "text"]);
+  });
+
+  it("A2: the project row and its first event are written in one transaction: with a database that refuses the second insert, no project row is left", async () => {
+    const refuse = (sql: unknown) => {
+      if (typeof sql === "string" && /^\s*insert into events/i.test(sql)) throw new Error("made-up refusal of the second insert");
+    };
+    const wrapQuery = <T extends { query: (...a: unknown[]) => unknown }>(target: T) =>
+      new Proxy(target, {
+        get(t, prop) {
+          if (prop === "query")
+            return async (...args: unknown[]) => {
+              refuse(args[0]);
+              return (t.query as (...a: unknown[]) => unknown)(...args);
+            };
+          const v = Reflect.get(t, prop) as unknown;
+          return typeof v === "function" ? (v as (...a: unknown[]) => unknown).bind(t) : v;
+        },
+      });
+    const refusing = new Proxy(pool, {
+      get(t, prop) {
+        if (prop === "connect") return async () => wrapQuery(await t.connect());
+        if (prop === "query") return wrapQuery(t).query;
+        const v = Reflect.get(t, prop) as unknown;
+        return typeof v === "function" ? (v as (...a: unknown[]) => unknown).bind(t) : v;
+      },
+    });
+    const count = async () => Number((await pool.query<{ n: string }>("select count(*)::text as n from projects where name = $1", [NAME])).rows[0]!.n);
+    const before = await count();
+    const j = new Journey({ pool: refusing, dataDir });
+    await expect(j.createBrokenCopyDemo()).rejects.toThrow("made-up refusal of the second insert");
+    expect(await count()).toBe(before);
+  });
+
+  it("A3: the choice is honoured only on the project's first event: a later intake.brief_entered carrying broken_copy leaves the plan at two steps, and sign-off and export are still refused", async () => {
+    const { j, jobs } = make();
+    const id = await normal(j);
+    await appendEvent(pool, id, EV.briefEntered, { text: "Made-up later brief.", characters: 20, given_to_engine: false, broken_copy: choice() });
+    let s = await j.state(id);
+    expect(s.plan).toEqual(["01-data", "02-submitter-screen"]);
+    expect(s.brokenCopy).toBeNull();
+    expect(s.brokenTrace).toBe(true);
+    expect(j.planSteps(s).map((x) => x.step)).toEqual(["01-data", "02-submitter-screen"]);
+    await expect(jobs.buildStep(id, BROKEN)).rejects.toThrow("That step is not one of the plan's.");
+    const r = await throughStep2(j, jobs, id);
+    expect(r.next).toBe("preview");
+    await passedRun(j, jobs, id);
+    s = await j.state(id);
+    expect(signOffRefusal(s)).toBe(NEVER);
+    await expect(j.signOff(id)).rejects.toThrow(NEVER);
+    await appendEvent(pool, id, EV.signedOff, { note: "forged by the test" });
+    s = await j.state(id);
+    expect(JOB_RULES.export(s)).toBe(NEVER);
+    await expect(jobs.exportProject(id)).rejects.toThrow(NEVER);
+    expect(await listEvents(pool, id, EV.exportWritten)).toEqual([]);
+    expect(stagedCalls(id)).toEqual([]);
+    await j.closeProject(id);
+  });
+
+  it("A4: step 3 is staged once, just before its engine and never before steps 1 and 2 are approved, only into the sandbox's own change-set folder; its SHA-256 is read from the staged copy; builder/scripted is unchanged", async () => {
+    const before = changeSetFolders();
+    const { j, jobs } = make();
+    const id = await broken(j);
+    await expect(jobs.buildStep(id, BROKEN)).rejects.toThrow("Step 01-data must be built and approved first.");
+    await jobs.buildStep(id, "01-data");
+    await j.waitForJob();
+    const x = jobs.handle(id)!;
+    expect(x.changeSets).toBe(join(x.dir, "engine-change-sets"));
+    const stagedDir = join(x.changeSets, "example-1", BROKEN);
+    expect(existsSync(stagedDir)).toBe(false);
+    await jobs.approve(id, "01-data");
+    await j.waitForJob();
+    expect((await j.state(id)).stepJobs.get("02-submitter-screen")).toMatchObject({ state: "finished" });
+    expect(existsSync(stagedDir)).toBe(false);
+    await expect(jobs.buildStep(id, BROKEN)).rejects.toThrow("Step 02-submitter-screen must be built and approved first.");
+    expect(stagedCalls(id)).toEqual([]);
+    expect(await staged(id)).toEqual([]);
+    const r = await jobs.approve(id, "02-submitter-screen");
+    expect(r.next).toBe("build_step");
+    await j.waitForJob();
+    expect((await j.state(id)).stepJobs.get(BROKEN)).toMatchObject({ state: "finished" });
+    expect(stagedCalls(id)).toEqual([{ projectId: id, into: x.changeSets }]);
+    const events = await listEvents(pool, id);
+    const ev = events.filter((e) => e.kind === "journey.broken_step_staged");
+    expect(ev).toHaveLength(1);
+    const at = (pred: (e: (typeof events)[number]) => boolean) => events.findIndex(pred);
+    const order = [
+      at((e) => e.kind === EV.stepApproved && e.payload.step === "02-submitter-screen"),
+      at((e) => e.kind === EV.jobStarted && e.payload.step === BROKEN),
+      at((e) => e.kind === "journey.broken_step_staged"),
+      at((e) => e.kind === "step.hold_opened" && e.step === BROKEN),
+      at((e) => e.kind === EV.engineEvent && e.step === BROKEN),
+    ];
+    expect(order.every((n) => n >= 0)).toBe(true);
+    expect([...order].sort((a, b) => a - b)).toEqual(order);
+    const stagedManifest = readFileSync(join(stagedDir, "manifest.json"));
+    expect(ev[0]!.step).toBe(BROKEN);
+    expect(ev[0]!.payload).toMatchObject({ step: BROKEN, manifest_sha256: sha256(stagedManifest), into: x.changeSets });
+    expect(ev[0]!.payload.manifest_sha256).toBe(choice().manifest_sha256);
+    expect(ev[0]!.payload.files).toEqual(brokenManifest().files.map((f) => ({ path: f.path, sha256: f.sha256 })));
+    // The staged copy is inside the sandbox's own folder; the engine ran step 3 from there, with exactly its files.
+    expect(stagedDir.startsWith(`${x.dir}/`)).toBe(true);
+    expect(sandboxes.runnerCalls.filter((c) => c.container.startsWith(`builder_${id}-`)).map((c) => c.step)).toEqual(["01-data", "02-submitter-screen", BROKEN]);
+    const writes = events.filter((e) => e.kind === EV.engineEvent && e.step === BROKEN && e.payload.type === "tool_call").map((e) => (e.payload.input as { path: string }).path);
+    expect(writes).toEqual(brokenManifest().files.map((f) => f.path));
+    await j.closeProject(id);
+    expect(changeSetFolders()).toEqual(before);
+    expect(readdirSync(join(builderDir, "scripted", "example-1")).sort()).toEqual(["01-data", "02-submitter-screen"]);
+  });
+
+  it("A4: staging happens once per build job of step 3: a retry after a failed step 3 stages again and writes one more event", async () => {
+    const { j, jobs } = make();
+    const id = await broken(j);
+    await jobs.buildStep(id, "01-data");
+    await j.waitForJob();
+    await jobs.approve(id, "01-data");
+    await j.waitForJob();
+    sandboxes.extraFile = "made-up-extra.txt";
+    await jobs.approve(id, "02-submitter-screen");
+    await j.waitForJob();
+    expect((await j.state(id)).stepJobs.get(BROKEN)).toMatchObject({ state: "failed", reason: "files changed that are not in the fixed change: made-up-extra.txt" });
+    expect(await staged(id)).toHaveLength(1);
+    await jobs.buildStep(id, BROKEN);
+    await j.waitForJob();
+    expect((await j.state(id)).stepJobs.get(BROKEN)).toMatchObject({ state: "finished" });
+    expect((await listEvents(pool, id, EV.jobStarted)).filter((e) => e.payload.step === BROKEN)).toHaveLength(2);
+    expect(await staged(id)).toHaveLength(2);
+    expect(stagedCalls(id)).toHaveLength(2);
+    await j.closeProject(id);
+  });
+
+  it("A4: a staged manifest whose SHA-256 is not the one chosen (read back from the sandbox's copy): step 3 is refused before its engine is made, and nothing is recorded as staged", async () => {
+    const { j, jobs } = make();
+    const id = await broken(j);
+    await jobs.buildStep(id, "01-data");
+    await j.waitForJob();
+    await jobs.approve(id, "01-data");
+    await j.waitForJob();
+    sandboxes.stageTamper = true;
+    try {
+      await jobs.approve(id, "02-submitter-screen");
+      await j.waitForJob();
+    } finally {
+      sandboxes.stageTamper = false;
+    }
+    const s = await j.state(id);
+    expect(s.stepJobs.get(BROKEN)?.state).toBe("failed");
+    expect(s.stepJobs.get(BROKEN)!.reason).toMatch(/^The staged broken step's manifest has the SHA-256 [0-9a-f]{64}, not [0-9a-f]{64}, recorded when the project was made\. Step 3 was not built\.$/);
+    expect(stagedCalls(id)).toHaveLength(1);
+    expect(await staged(id)).toEqual([]);
+    const kinds = (await listEvents(pool, id)).filter((e) => e.step === BROKEN).map((e) => e.kind);
+    expect(kinds).toEqual([EV.jobStarted, EV.jobFailed]);
+    expect(sandboxes.runnerCalls.filter((c) => c.container.startsWith(`builder_${id}-`)).map((c) => c.step)).toEqual(["01-data", "02-submitter-screen"]);
+    await j.closeProject(id);
+  });
+
+  it("A4: a sandbox whose change-set folder is outside its own folder: staging is refused and nothing is copied; the target check also refuses a folder under builder/", async () => {
+    const { j, jobs } = make();
+    const id = await broken(j);
+    const out = mkdtempSync(join(tmpdir(), "builder-outside-change-sets-"));
+    outside.push(out);
+    sandboxes.changeSetsOutside = out;
+    await jobs.buildStep(id, "01-data");
+    await j.waitForJob();
+    expect(jobs.handle(id)!.changeSets).toBe(out);
+    await jobs.approve(id, "01-data");
+    await j.waitForJob();
+    await jobs.approve(id, "02-submitter-screen");
+    await j.waitForJob();
+    const s = await j.state(id);
+    expect(s.stepJobs.get(BROKEN)?.state).toBe("failed");
+    expect(s.stepJobs.get(BROKEN)!.reason).toMatch(/^The broken step was not staged: the sandbox's change-set folder is not its own folder's engine-change-sets/);
+    expect(stagedCalls(id)).toEqual([]);
+    expect(existsSync(join(out, "example-1", BROKEN))).toBe(false);
+    expect(await staged(id)).toEqual([]);
+    expect((await listEvents(pool, id)).filter((e) => e.step === BROKEN).map((e) => e.kind)).toEqual([EV.jobStarted, EV.jobFailed]);
+    await j.closeProject(id);
+    // The check itself, on made-up folders: its own engine-change-sets, outside builder/, only.
+    const madeUp = join(tmpdir(), "builder-acceptance-made-up");
+    expect(brokenStageTargetProblem({ dir: madeUp, changeSets: join(madeUp, "engine-change-sets") })).toBeNull();
+    expect(brokenStageTargetProblem({ dir: madeUp, changeSets: join(builderDir, "scripted") })).toMatch(/not its own folder's engine-change-sets/);
+    expect(brokenStageTargetProblem({ dir: join(builderDir, "made-up"), changeSets: join(builderDir, "made-up", "engine-change-sets") })).toMatch(/under builder\//);
+    expect(brokenStageTargetProblem({ dir: madeUp, changeSets: join(madeUp, "engine-change-sets", "..", "elsewhere") })).toMatch(/not its own folder's engine-change-sets/);
+  });
+
+  it("A4b: the target check reads real paths: a change-set folder that is a link into builder/, a sandbox folder that is a link into builder/ before its change-set folder is made, and one under a folder that is such a link, are refused; real folders outside builder/ are accepted", () => {
+    // Made-up folders in the test's temporary folder; the links point at builder/scripted and builder/test, which the
+    // check only reads. rmSync removes a link, never what it points at.
+    const base = mkdtempSync(join(tmpdir(), "builder-target-links-"));
+    outside.push(base);
+    // What the check says; "accepted" for null, so that a failure names it.
+    const check = (dir: string) => brokenStageTargetProblem({ dir, changeSets: join(dir, "engine-change-sets") }) ?? "accepted";
+    // 1. The sandbox's folder is real; its engine-change-sets is a link to builder/scripted (the real-path half).
+    const real = join(base, "real-sandbox");
+    mkdirSync(real);
+    symlinkSync(join(builderDir, "scripted"), join(real, "engine-change-sets"));
+    expect(check(real)).toMatch(/under builder\//);
+    // 2. The sandbox's folder is itself a link into builder/; its engine-change-sets is not made yet.
+    const linked = join(base, "linked-sandbox");
+    symlinkSync(join(builderDir, "test"), linked);
+    expect(existsSync(join(linked, "engine-change-sets"))).toBe(false);
+    expect(check(linked)).toMatch(/under builder\//);
+    // 3. The sandbox's folder does not exist yet, under a folder that is a link to builder/.
+    const parent = join(base, "parent-link");
+    symlinkSync(builderDir, parent);
+    expect(existsSync(join(parent, "made-up-sandbox"))).toBe(false);
+    expect(check(join(parent, "made-up-sandbox"))).toMatch(/under builder\//);
+    // 4. Real folders outside builder/: accepted before and after the change-set folder is made, and when not made yet.
+    const plain = join(base, "plain-sandbox");
+    mkdirSync(plain);
+    expect(check(plain)).toBe("accepted");
+    mkdirSync(join(plain, "engine-change-sets"));
+    expect(check(plain)).toBe("accepted");
+    expect(check(join(base, "not-made-yet"))).toBe("accepted");
+    // Nothing was written under builder/.
+    expect(existsSync(join(builderDir, "test", "engine-change-sets"))).toBe(false);
+    expect(existsSync(join(builderDir, "made-up-sandbox"))).toBe(false);
+  });
+
+  it("A4: the job checks the state again before staging: given a state without the honoured choice, or without step 2's approval, it refuses and stages nothing", async () => {
+    const { j, jobs, setDoctor } = make();
+    const id = await broken(j);
+    await jobs.buildStep(id, "01-data");
+    await j.waitForJob();
+    await jobs.approve(id, "01-data");
+    await j.waitForJob();
+    // The approval alone (the journey's rules then allow step 3); the job is started below.
+    await j.approveStep(id, "02-submitter-screen");
+    const cases: Array<[string, (s: JourneyState) => JourneyState, string]> = [
+      ["without the honoured choice", (s) => ({ ...s, brokenCopy: null }), "This project was not made as the deliberately broken copy, so its broken step is not staged."],
+      ["without step 2's approval", (s) => ({ ...s, approved: new Set([...s.approved].filter((x) => x !== "02-submitter-screen")) }), "Step 02-submitter-screen must be built and approved before the broken step is staged."],
+    ];
+    for (const [what, doctor, why] of cases) {
+      setDoctor(doctor);
+      try {
+        await jobs.buildStep(id, BROKEN);
+        await j.waitForJob();
+      } finally {
+        setDoctor(null);
+      }
+      expect((await j.state(id)).stepJobs.get(BROKEN), what).toMatchObject({ state: "failed", reason: why });
+    }
+    expect(stagedCalls(id)).toEqual([]);
+    expect(await staged(id)).toEqual([]);
+    expect(existsSync(join(jobs.handle(id)!.changeSets, "example-1", BROKEN))).toBe(false);
+    expect((await listEvents(pool, id)).filter((e) => e.step === BROKEN && e.kind === EV.engineEvent)).toEqual([]);
+    await j.closeProject(id);
+  });
+
+  it("A5: step 3's reservation is sized for its 3 files: $1.1664 made and released, after $1.5552 and $3.1104; spent $0.00", async () => {
+    const { j, jobs } = make();
+    const id = await broken(j);
+    await throughStep2(j, jobs, id);
+    const holds = (await listEvents(pool, id)).filter((e) => e.kind === "step.hold_opened" || e.kind === "step.hold_closed");
+    expect(holds.map((e) => [e.kind, e.step, e.kind === "step.hold_opened" ? e.payload.step_budget_usd : e.payload.released_usd, e.payload.turns ?? null, e.payload.spent_in_step_usd ?? null])).toEqual([
+      ["step.hold_opened", "01-data", 1.5552, 4, null],
+      ["step.hold_closed", "01-data", 1.5552, null, 0],
+      ["step.hold_opened", "02-submitter-screen", 3.1104, 8, null],
+      ["step.hold_closed", "02-submitter-screen", 3.1104, null, 0],
+      ["step.hold_opened", BROKEN, 1.1664, 3, null],
+      ["step.hold_closed", BROKEN, 1.1664, null, 0],
+    ]);
+    expect((await listStepHolds(pool, id)).map((h) => [h.step_id, h.state, h.closed_reason])).toEqual([
+      ["01-data", "closed", "step_ended"],
+      ["02-submitter-screen", "closed", "step_ended"],
+      [BROKEN, "closed", "step_ended"],
+    ]);
+    expect((await getBudget(pool, id)).spent).toBe(0);
+    await j.closeProject(id);
+  });
+
+  it("A6: a broken copy whose run reads 'passed' (a forged pass) is not signed off; with a forged journey.signed_off its export is refused; a normal project whose record holds only a journey.broken_step_staged, or only an engine event of step 03, is refused the same", async () => {
+    const { j, jobs } = make();
+    const id = await previewed(j, jobs, await broken(j));
+    await passedRun(j, jobs, id);
+    expect(signOffRefusal(await j.state(id))).toBe(NEVER);
+    await expect(j.signOff(id)).rejects.toThrow(NEVER);
+    expect(await listEvents(pool, id, EV.signedOff)).toEqual([]);
+    await appendEvent(pool, id, EV.signedOff, { note: "forged by the test" });
+    expect(JOB_RULES.export(await j.state(id))).toBe(NEVER);
+    await expect(jobs.exportProject(id)).rejects.toThrow(NEVER);
+    expect(await listEvents(pool, id, EV.exportWritten)).toEqual([]);
+    await j.closeProject(id);
+    const traces: Array<[string, (id: string) => Promise<unknown>]> = [
+      ["only a journey.broken_step_staged", (p) => appendEvent(pool, p, "journey.broken_step_staged", { note: "forged by the test" }, BROKEN)],
+      ["only an engine event of step 03", (p) => appendEvent(pool, p, EV.engineEvent, { type: "text", text: "Scripted engine: made-up line of the test.", at: new Date().toISOString() }, BROKEN)],
+    ];
+    for (const [what, trace] of traces) {
+      const n = await previewed(j, jobs, await normal(j));
+      await passedRun(j, jobs, n);
+      expect(signOffRefusal(await j.state(n)), what).toBeNull();
+      await trace(n);
+      const s = await j.state(n);
+      expect(s.plan, what).toEqual(["01-data", "02-submitter-screen"]);
+      expect(s.brokenCopy, what).toBeNull();
+      expect(s.brokenTrace, what).toBe(true);
+      expect(signOffRefusal(s), what).toBe(NEVER);
+      await expect(j.signOff(n), what).rejects.toThrow(NEVER);
+      await appendEvent(pool, n, EV.signedOff, { note: "forged by the test" });
+      expect(JOB_RULES.export(await j.state(n)), what).toBe(NEVER);
+      await expect(jobs.exportProject(n), what).rejects.toThrow(NEVER);
+      expect(await listEvents(pool, n, EV.exportWritten), what).toEqual([]);
+      await j.closeProject(n);
+    }
+  });
+
+  it("A6b: a normal project whose record holds only a journey.plan_confirmed listing step 03 (forged, as confirmPlan writes its steps, or as plain step names) is refused sign-off and export the same", async () => {
+    const { j, jobs } = make();
+    const forms: Array<[string, (steps: unknown[]) => unknown[]]> = [
+      ["the steps as confirmPlan writes them, step 03 added", (steps) => [...steps, { step: BROKEN, label: brokenManifest().label, files: brokenManifest().files.length }]],
+      ["the steps as plain names, step 03 among them", () => ["01-data", "02-submitter-screen", BROKEN]],
+    ];
+    for (const [what, steps] of forms) {
+      const n = await previewed(j, jobs, await normal(j));
+      await passedRun(j, jobs, n);
+      expect(signOffRefusal(await j.state(n)), what).toBeNull();
+      const confirmed = await listEvents(pool, n, EV.planConfirmed);
+      expect(confirmed, what).toHaveLength(1);
+      const p = confirmed[0]!.payload;
+      expect(Array.isArray(p.steps) && p.steps.length === 2, what).toBe(true);
+      await appendEvent(pool, n, EV.planConfirmed, { ...p, steps: steps(p.steps as unknown[]), note: "forged by the test" });
+      const s = await j.state(n);
+      expect(s.plan, what).toEqual(["01-data", "02-submitter-screen"]);
+      expect(s.brokenCopy, what).toBeNull();
+      expect(s.acceptanceVersion, what).toBe(p.acceptance_version);
+      expect(s.brokenTrace, what).toBe(true);
+      expect(signOffRefusal(s), what).toBe(NEVER);
+      await expect(j.signOff(n), what).rejects.toThrow(NEVER);
+      await appendEvent(pool, n, EV.signedOff, { note: "forged by the test" });
+      expect(JOB_RULES.export(await j.state(n)), what).toBe(NEVER);
+      await expect(jobs.exportProject(n), what).rejects.toThrow(NEVER);
+      expect(await listEvents(pool, n, EV.exportWritten), what).toEqual([]);
+      expect(stagedCalls(n), what).toEqual([]);
+      await j.closeProject(n);
+    }
+  });
+
+  it("A7: the live app is refused for a broken copy with a plain sentence, before the scripted-only check (which its record, read through changeSetsFor, passes)", async () => {
+    const { j, jobs } = make();
+    const id = await previewed(j, jobs, await broken(j));
+    const s = await j.state(id);
+    expect(s.appRunning).toBe(true);
+    expect(scriptedOnlyProblem(s)).toBeNull();
+    expect(JOB_RULES.live(s)).toBe(LIVE_REFUSED);
+    await expect(j.startJob(id, "live", noop)).rejects.toThrow(LIVE_REFUSED);
+    expect((await j.state(id)).jobs.filter((x) => x.kind === "live")).toEqual([]);
+    await j.closeProject(id);
+  });
+
+  it("A8b: the app camera prints one banner line per page, after its photograph: the text of the app's role=\"note\" element, cut at 200 characters (read from the script; the automated run shows it working)", () => {
+    const source = readFileSync(join(builderDir, "camera", "app-shots.mjs"), "utf8");
+    const loop = /for \(const s of SHOTS\) \{([\s\S]*?)\n  \}/.exec(source)?.[1] ?? "";
+    expect(loop).toContain("page.screenshot(");
+    expect(loop).toContain(`page.locator('[role="note"]')`);
+    expect(loop).toMatch(/console\.log\(JSON\.stringify\(\{ kind: "banner", name: s\.name, text \}\)\)/);
+    expect(loop).toContain(".slice(0, 200)");
+    expect(loop.indexOf('kind: "banner"')).toBeGreaterThan(loop.indexOf("page.screenshot("));
+    expect(source.match(/kind: "banner"/g)).toHaveLength(1);
+    // The broken copy's banners fit whole in 200 characters, and each camera line in the record's 300.
+    for (const lang of ["en", "ar"]) {
+      const banner = (JSON.parse(readFileSync(join(builderDir, "scripted-broken", "example-1", BROKEN, "files", "messages", `${lang}.json`), "utf8")) as { app: { sample_banner: string } }).app.sample_banner;
+      expect(banner.length, lang).toBeLessThanOrEqual(200);
+      expect(JSON.stringify({ kind: "banner", name: `app-my-requests-${lang}`, text: banner }).length, lang).toBeLessThanOrEqual(300);
+    }
+  });
+
+  it("A9: an interrupted project whose last checklist run passed is not signed off", async () => {
+    const { j, jobs } = make();
+    const id = await previewed(j, jobs, await normal(j));
+    await passedRun(j, jobs, id);
+    expect(signOffRefusal(await j.state(id))).toBeNull();
+    // As the next start's recovery records a sandbox left by an interface that stopped (journey.ts, recoverInterrupted).
+    await appendEvent(pool, id, EV.sandboxRemoved, { reason: "Found at start: made by an interface that has since stopped. It is not resumed.", interrupted: true, removed: true });
+    const s = await j.state(id);
+    expect(s.interrupted).toBe(true);
+    expect(s.acceptanceRun?.outcome).toBe("passed");
+    expect(signOffRefusal(s)).toBe("This project was interrupted when the interface stopped, so it is not signed off. Close the project, or start a new one.");
+    await expect(j.signOff(id)).rejects.toThrow(/interrupted when the interface stopped/);
+    expect(await listEvents(pool, id, EV.signedOff)).toEqual([]);
+    await j.closeProject(id);
+  });
+});
+
+describe("J2 (c): the clean stop and restart, the journey's part (stand-in sandboxes; no container, no model)", () => {
+  /** A database of its own for one test (named after the test database, so builder_test_j2_… in J2's runs), migrated; dropped by `drop`. */
+  async function freshDb() {
+    const base = new URL(TEST_DB_URL);
+    const name = `${decodeURIComponent(base.pathname.slice(1))}_rs_${randomBytes(3).toString("hex")}`;
+    expect(name).toMatch(/^[a-z0-9_]{1,63}$/);
+    await pool.query(`create database "${name}"`);
+    base.pathname = `/${name}`;
+    const db = createPool(base.toString());
+    await migrate(db);
+    const sandboxes = new StandInSandboxes(db);
+    return {
+      db,
+      sandboxes,
+      drop: async () => {
+        sandboxes.removeAll();
+        await db.end();
+        await pool.query(`drop database if exists "${name}" with (force)`);
+      },
+    };
+  }
+  const ready = async (j: Journey, name: string) => {
+    const id = await j.createProject({ name, cap: "5", brief: "I need an app where staff can request leave and managers approve it" });
+    await j.continueWithExample(id);
+    await j.answerRestFromSheet(id);
+    await j.confirmBrief(id);
+    await j.confirmPlan(id);
+    return id;
+  };
+
+  it("C6: the demonstration pause: with stepPauseMs set, each build step first records journey.step.paused_for_demonstration and the engine's applier is given --delay-ms; unset or 0, neither", async () => {
+    const sandboxes = new StandInSandboxes(pool);
+    try {
+      for (const pause of [4000, 0, undefined]) {
+        const box: { jobs?: JourneyJobs } = {};
+        const j = new Journey({ pool, dataDir, cleanupProject: (id, rec) => box.jobs!.cleanup(id, rec) });
+        box.jobs = new JourneyJobs({ journey: j, sandboxes, measureFree: () => 50 * 1024 ** 3, ...(pause === undefined ? {} : { stepPauseMs: pause }) });
+        expect(box.jobs.stepPauseMs()).toBe(pause ?? 0);
+        const id = await ready(j, `Pause ${String(pause)} (made-up)`);
+        await box.jobs.buildStep(id, "01-data");
+        await j.waitForJob();
+        await box.jobs.approve(id, "01-data");
+        await j.waitForJob();
+        const calls = sandboxes.runnerCalls.filter((c) => c.container.startsWith(`builder_${id}-engine-`));
+        expect(calls.map((c) => c.step), String(pause)).toEqual(["01-data", "02-submitter-screen"]);
+        for (const c of calls) {
+          const at = c.cmd.indexOf("--delay-ms");
+          if (pause) expect(c.cmd.slice(at, at + 2), String(pause)).toEqual(["--delay-ms", "4000"]);
+          else expect(at, String(pause)).toBe(-1);
+        }
+        for (const step of ["01-data", "02-submitter-screen"]) {
+          const kinds = (await listEvents(pool, id)).filter((e) => e.step === step).map((e) => e.kind);
+          const paused = (await listEvents(pool, id, "journey.step.paused_for_demonstration")).filter((e) => e.step === step);
+          if (pause) {
+            // First in the job, right after its start.
+            expect(kinds.slice(0, 2), step).toEqual([EV.jobStarted, "journey.step.paused_for_demonstration"]);
+            expect(paused.map((e) => e.payload), step).toEqual([{ pause_ms: 4000, setting: "BUILDER_DEMO_STEP_PAUSE_MS", label: "Demonstration setting: the scripted engine pauses before each write, so that a stop part-way can be shown. Every step is slower." }]);
+          } else expect(paused, step).toEqual([]);
+        }
+        await j.closeProject(id);
+      }
+    } finally {
+      sandboxes.removeAll();
+    }
+  });
+
+  it("C10: a Close project in progress when the stop comes: the stop waits on that project's chain of actions, then skips it, closed; the record holds one journey.sandbox.removed; an action not ended within the wait leaves its project for the next start", async () => {
+    const f = await freshDb();
+    let release!: () => void;
+    const hold = new Promise<void>((r) => (release = r));
+    try {
+      let holdClose = false;
+      let inside!: () => void;
+      const closing = new Promise<void>((r) => (inside = r));
+      const box: { jobs?: JourneyJobs } = {};
+      const j = new Journey({
+        pool: f.db,
+        dataDir,
+        cleanupProject: async (id, rec) => {
+          if (holdClose) {
+            inside();
+            await hold;
+          }
+          await box.jobs!.cleanup(id, rec);
+        },
+      });
+      box.jobs = new JourneyJobs({ journey: j, sandboxes: f.sandboxes, measureFree: () => 50 * 1024 ** 3 });
+      const id = await ready(j, "Closed while the interface stops (made-up)");
+      await box.jobs.buildStep(id, "01-data");
+      await j.waitForJob();
+      holdClose = true;
+      const closed = j.closeProject(id);
+      await closing;
+      // The stop comes now, while the close is removing the sandbox: the journey is halted, then the removal runs.
+      await j.halt("Made-up stop for the test.");
+      setTimeout(release, 300);
+      const t0 = Date.now();
+      const r = await j.removeAtStop({ waitUntil: Date.now() + 10_000, mayRemove: async () => null });
+      expect(Date.now() - t0).toBeGreaterThanOrEqual(250);
+      await closed;
+      expect(r).toEqual({ removed: [], left: [], ended: null });
+      expect((await listEvents(f.db, id, EV.sandboxRemoved)).map((e) => e.payload)).toEqual([{ reason: "The project was closed.", interrupted: false }]);
+      expect((await j.state(id)).stage).toBe("closed");
+      expect(f.sandboxes.destroyed).toEqual([id]);
+
+      // An action that has not ended when the wait ends: its project is left, named, and not read or removed.
+      let release2!: () => void;
+      const hold2 = new Promise<void>((r2) => (release2 = r2));
+      let inside2!: () => void;
+      const closing2 = new Promise<void>((r2) => (inside2 = r2));
+      const box2: { jobs?: JourneyJobs; hold: boolean } = { hold: false };
+      const j2 = new Journey({
+        pool: f.db,
+        dataDir,
+        cleanupProject: async (pid, rec) => {
+          if (box2.hold) {
+            inside2();
+            await hold2;
+          }
+          await box2.jobs!.cleanup(pid, rec);
+        },
+      });
+      box2.jobs = new JourneyJobs({ journey: j2, sandboxes: f.sandboxes, measureFree: () => 50 * 1024 ** 3 });
+      const id2 = await ready(j2, "Its close outlasts the wait (made-up)");
+      await box2.jobs.buildStep(id2, "01-data");
+      await j2.waitForJob();
+      box2.hold = true;
+      const closed2 = j2.closeProject(id2);
+      await closing2;
+      await j2.halt("Made-up stop for the test.");
+      const r2 = await j2.removeAtStop({ waitUntil: Date.now() + 300, mayRemove: async () => null });
+      expect(r2).toEqual({ removed: [], left: [{ projectId: id2, why: "an action of this project was still in progress when the wait ended" }], ended: null });
+      release2();
+      await closed2;
+      expect((await listEvents(f.db, id2, EV.sandboxRemoved)).map((e) => e.payload)).toEqual([{ reason: "The project was closed.", interrupted: false }]);
+    } finally {
+      release();
+      await f.drop();
+    }
+  });
+
+  it("C8 (regression guard): the automated run's pure checks on made-up lists: N reports a container, a volume, a network, an image, a process or the folder of the project, each alone, and nothing of another project; the record checks for a clean stop, a crash and a step running", () => {
+    const P = "j1-0123456789ab";
+    const Q = "j1-ba9876543210";
+    const none = { containers: [], volumes: [], networks: [], images: [] };
+    const gone = { path: "/made-up/builder-acceptance-p", exists: false };
+    expect(projectLeftovers(P, none, [], gone)).toEqual([]);
+    // Each kind alone is reported.
+    expect(projectLeftovers(P, { ...none, containers: [{ name: `builder_${P}-engine-02-submitter-screen-1a2b3c`, composeProject: "" }] }, [], gone)).toEqual([`container builder_${P}-engine-02-submitter-screen-1a2b3c`]);
+    expect(projectLeftovers(P, { ...none, containers: [{ name: "made-up-name", composeProject: `builder_${P}` }] }, [], gone)).toEqual(["container made-up-name"]);
+    expect(projectLeftovers(P, { ...none, volumes: [{ name: `builder_${P}_pgdata`, composeProject: "" }] }, [], gone)).toEqual([`volume builder_${P}_pgdata`]);
+    expect(projectLeftovers(P, { ...none, volumes: [{ name: "made-up-volume", composeProject: `builder_${P}` }] }, [], gone)).toEqual(["volume made-up-volume"]);
+    expect(projectLeftovers(P, { ...none, networks: [{ name: `builder_${P}_front`, composeProject: "" }] }, [], gone)).toEqual([`network builder_${P}_front`]);
+    expect(projectLeftovers(P, { ...none, images: [{ repository: `builder_${P}-app`, tag: "latest" }] }, [], gone)).toEqual([`image builder_${P}-app:latest`]);
+    expect(projectLeftovers(P, { ...none, images: [{ repository: `builder_${P}-tools`, tag: "latest" }] }, [], gone)).toEqual([`image builder_${P}-tools:latest`]);
+    expect(projectLeftovers(P, { ...none, images: [{ repository: `builder_${P}-other`, tag: "made-up" }] }, [], gone)).toEqual([`image builder_${P}-other:made-up`]);
+    expect(projectLeftovers(P, none, [{ pid: 4242, args: `docker compose -p builder_${P} up --detach app` }], gone)).toEqual([`process 4242 docker compose -p builder_${P} up --detach app`]);
+    expect(projectLeftovers(P, none, [], { ...gone, exists: true })).toEqual(["folder /made-up/builder-acceptance-p"]);
+    // Nothing of another project, nor a name that only starts the same way without the separator.
+    const others = {
+      containers: [{ name: `builder_${Q}-app-1`, composeProject: `builder_${Q}` }, { name: `builder_${P}x-app-1`, composeProject: `builder_${P}x` }],
+      volumes: [{ name: `builder_${Q}_pgdata`, composeProject: `builder_${Q}` }],
+      networks: [{ name: `builder_${Q}_front`, composeProject: `builder_${Q}` }, { name: "bridge", composeProject: "" }],
+      images: [{ repository: `builder_${Q}-app`, tag: "latest" }, { repository: "node", tag: "22" }],
+    };
+    expect(projectLeftovers(P, others, [{ pid: 7, args: `docker compose -p builder_${Q} up` }], gone)).toEqual([]);
+    // The parsers of Docker's and ps's lines.
+    expect(parseNameLabel(`builder_${P}-app-1\tbuilder_${P}\nlone\t\n`)).toEqual([{ name: `builder_${P}-app-1`, composeProject: `builder_${P}` }, { name: "lone", composeProject: "" }]);
+    expect(parseImages(`builder_${P}-app:latest\nnode:22\n<none>:<none>\n`)).toEqual([{ repository: `builder_${P}-app`, tag: "latest" }, { repository: "node", tag: "22" }, { repository: "<none>", tag: "<none>" }]);
+    expect(parseProcesses("  PID COMMAND\n  12 node --import tsx src/web/main.ts\n 345 docker build --tag x .\n")).toEqual([{ pid: 12, args: "node --import tsx src/web/main.ts" }, { pid: 345, args: "docker build --tag x ." }]);
+
+    // The record checks. A made-up record of a clean stop with step 2 running (path T).
+    let n = 0;
+    const ev = (kind: string, payload: Record<string, unknown>, step: string | null = null) => ({ id: String(++n), kind, step, payload });
+    const writes = (k: number) => Array.from({ length: k }, (_, i) => ev(EV.engineEvent, { type: "tool_call", tool: "scripted.write", input: { path: `made-up-${i}.ts` } }, "02-submitter-screen"));
+    const started = ev(EV.jobStarted, { job_id: "job-0000aaaa", kind: "build_step", step: "02-submitter-screen" }, "02-submitter-screen");
+    const t = [
+      started,
+      ...writes(3),
+      ev("step.hold_closed", { reason: "step_ended" }, "02-submitter-screen"),
+      ev(EV.jobInterrupted, { job_id: "job-0000aaaa", reason: "The interface stopped while this job ran: The interface was stopped on purpose (SIGTERM). The job was stopped part-way and is not resumed." }, "02-submitter-screen"),
+      ev(EV.sandboxRemoved, { reason: "The interface was stopped on purpose; this project's containers, images and folder were removed at the stop. It is not resumed.", interrupted: true, removed: true }),
+    ];
+    const allOk = (rows: Array<{ ok: boolean }>) => rows.length > 0 && rows.every((r) => r.ok);
+    expect(allOk(cleanStopRecordChecks(t, "job-0000aaaa", "02-submitter-screen"))).toBe(true);
+    const failing = (rows: Array<{ name: string; ok: boolean }>) => rows.filter((r) => !r.ok).map((r) => r.name);
+    expect(failing(cleanStopRecordChecks(t.filter((e) => e.kind !== "step.hold_closed"), "job-0000aaaa", "02-submitter-screen"))).toHaveLength(1);
+    expect(failing(cleanStopRecordChecks([...t, ev(EV.workspaceReset, {}, "02-submitter-screen")], "job-0000aaaa", "02-submitter-screen"))).toHaveLength(1);
+    expect(failing(cleanStopRecordChecks([...t, ev(EV.jobFailed, { job_id: "job-0000aaaa", reason: "made-up" }, "02-submitter-screen")], "job-0000aaaa", "02-submitter-screen"))).toHaveLength(1);
+    expect(failing(cleanStopRecordChecks(t.map((e) => (e.kind === EV.sandboxRemoved ? { ...e, payload: { ...e.payload, reason: "Found at start: made by an interface that has since stopped. It is not resumed." } } : e)), "job-0000aaaa", "02-submitter-screen"))).toHaveLength(1);
+    // A step running: at least one and fewer than all of its writes, and its engine container in Docker's list.
+    expect(allOk(midStepChecks([started, ...writes(1)], "02-submitter-screen", 8, [`builder_${P}-engine-02-submitter-screen-1a2b3c`], P))).toBe(true);
+    expect(failing(midStepChecks([started], "02-submitter-screen", 8, [`builder_${P}-engine-02-submitter-screen-1a2b3c`], P))).toHaveLength(1);
+    expect(failing(midStepChecks([started, ...writes(8)], "02-submitter-screen", 8, [`builder_${P}-engine-02-submitter-screen-1a2b3c`], P))).toHaveLength(1);
+    expect(failing(midStepChecks([started, ...writes(2)], "02-submitter-screen", 8, [`builder_${Q}-engine-02-submitter-screen-1a2b3c`], P))).toHaveLength(1);
+    // A crash, then the next start (path K).
+    const k = [
+      started,
+      ...writes(2),
+      ev(EV.jobInterrupted, { job_id: "job-0000aaaa", reason: "The interface stopped while this job ran. It is not resumed." }, "02-submitter-screen"),
+      ev(EV.sandboxRemoved, { reason: "Found at start: made by an interface that has since stopped. It is not resumed.", interrupted: true, removed: true }),
+      ev("step.hold_closed", { reason: "job_interrupted" }, "02-submitter-screen"),
+    ];
+    expect(allOk(crashRestartRecordChecks(k, "job-0000aaaa", "02-submitter-screen"))).toBe(true);
+    expect(failing(crashRestartRecordChecks(k.map((e) => (e.kind === "step.hold_closed" ? { ...e, payload: { reason: "step_ended" } } : e)), "job-0000aaaa", "02-submitter-screen"))).toHaveLength(1);
+    expect(failing(crashRestartRecordChecks(k.filter((e) => e.kind !== EV.sandboxRemoved), "job-0000aaaa", "02-submitter-screen"))).toHaveLength(1);
+  });
+
+  it("the automated run's record checks of the broken copy (scripts/journey-restart-checks.ts, brokenCopyRecordChecks), on a made-up record: all pass on it, and each fault given alone is reported by its own check", () => {
+    const steps = ["01-data", "02-submitter-screen", "03-wrong-status"];
+    const reservations = [1.5552, 3.1104, 1.1664];
+    const x = { step: "03-wrong-status", source: "builder/scripted-broken/example-1/03-wrong-status", label: "made-up label", manifestSha256: "a".repeat(64), steps, reservations, bannerEn: "Made-up English sentence.", bannerAr: "جملة عربية مختلقة." };
+    const failureText = Buffer.from("made-up runner error: expected Waiting, received Approved");
+    const digest = (b: Buffer) => createHash("sha256").update(b).digest("hex");
+    const readFile = (p: string) => (p === "/made-up/item-01-failure.txt" ? failureText : null);
+    const choice = { by: "owner", step: x.step, source: x.source, label: x.label, manifest_sha256: x.manifestSha256, sign_off: "never", export: "never" };
+    const record = (o: { twoStaged?: boolean; signedOff?: boolean } = {}) => {
+      let n = 0;
+      const ev = (kind: string, payload: Record<string, unknown>, step: string | null = null) => ({ id: String(++n), kind, step, payload });
+      const out = [
+        ev(EV.briefEntered, { text: "made-up", broken_copy: choice }),
+        ev(EV.planConfirmed, { steps: steps.map((st, i) => ({ step: st, label: i === 2 ? x.label : "made-up" })), acceptance_version: "v001", broken_copy: true, quality_check_after_each_step_and_retry: "not done (milestones 1 and 3)" }),
+      ];
+      steps.forEach((st, i) => {
+        out.push(ev(EV.jobStarted, { job_id: `job-${i}`, kind: "build_step", step: st }, st));
+        if (st === x.step) for (let k = 0; k < (o.twoStaged ? 2 : 1); k++) out.push(ev(EV.brokenStepStaged, { manifest_sha256: x.manifestSha256, manifest_read_from: "the sandbox's own copy, as the engine reads it" }, st));
+        out.push(ev("step.hold_opened", { step_budget_usd: reservations[i] }, st));
+        out.push(ev(EV.engineEvent, { type: "tool_call", tool: "scripted.write" }, st));
+        out.push(ev("step.hold_closed", { reason: "step_ended", released_usd: reservations[i], spent_in_step_usd: 0 }, st));
+        out.push(ev(EV.jobFinished, { job_id: `job-${i}`, kind: "build_step", step: st }, st));
+        out.push(ev(EV.stepApproved, { step: st }, st));
+      });
+      for (const [name, text] of [["app-home-en", x.bannerEn], ["app-my-requests-en", x.bannerEn], ["app-home-ar", x.bannerAr], ["app-my-requests-ar", x.bannerAr]] as const) {
+        out.push(ev(EV.screenshot, { name, lang: name.slice(-2) }));
+        out.push(ev(EV.previewLine, { line: `app camera: ${JSON.stringify({ kind: "banner", name, text: `Made-up start. ${text}` })}` }));
+      }
+      out.push(ev("acceptance.item", { item: 1, status: "failed", step: "sees status waiting", screenshot: { path: "/made-up/shot.png" }, failure_file: { path: "/made-up/item-01-failure.txt", sha256: digest(failureText) } }));
+      out.push(ev("acceptance.run.finished", { outcome: "failed", exit_code: 1, version: "v001", summary: 'version failed: item 1 failed at step "sees status waiting"' }));
+      if (o.signedOff) out.push(ev(EV.signedOff, { label: "made-up" }));
+      out.push(ev(EV.sandboxRemoved, { reason: "The project was closed.", interrupted: false }));
+      out.push(ev(EV.closed, { at_stage: "acceptance" }));
+      return out;
+    };
+    const failing = (r: ReturnType<typeof record>, read = readFile) => brokenCopyRecordChecks(r, x, read, digest).filter((c) => !c.ok).map((c) => c.name);
+    expect(brokenCopyRecordChecks(record(), x, readFile, digest).length).toBe(11);
+    expect(failing(record())).toEqual([]);
+    const change = (kind: string, f: (p: Record<string, unknown>) => Record<string, unknown>) => record().map((e) => (e.kind === kind ? { ...e, payload: f(e.payload) } : e));
+    const one = (r: ReturnType<typeof record>, words: string, read = readFile) => {
+      const names = failing(r, read);
+      expect(names, words).toHaveLength(1);
+      expect(names[0], words).toContain(words);
+    };
+    one(change(EV.briefEntered, (p) => ({ ...p, broken_copy: { ...choice, export: "allowed" } })), "first event");
+    one(change(EV.planConfirmed, (p) => ({ ...p, steps: (p.steps as unknown[]).slice(0, 2) })), "plan_confirmed");
+    one(record().filter((e) => !(e.kind === EV.stepApproved && e.step === "03-wrong-status")), "built once and approved");
+    one(change("step.hold_closed", (p) => ({ ...p, spent_in_step_usd: 0.01 })), "reservation");
+    one(record({ twoStaged: true }), "broken_step_staged");
+    one(change(EV.brokenStepStaged, (p) => ({ ...p, manifest_sha256: "b".repeat(64) })), "broken_step_staged");
+    one(change(EV.previewLine, (p) => ({ ...p, line: String(p.line).replace(x.bannerAr, "made-up other text") })), "banner");
+    one(change("acceptance.run.finished", (p) => ({ ...p, outcome: "not passed" })), "outcome");
+    one(change("acceptance.run.finished", (p) => ({ ...p, version: "v002" })), "outcome");
+    one(change("acceptance.item", (p) => ({ ...p, step: "made-up other step" })), "item 1 failed");
+    one(record(), "failure file", () => null);
+    one(record(), "failure file", () => Buffer.from("made-up text without the word"));
+    one(record({ signedOff: true }), "signed_off");
+    one(record().filter((e) => e.kind !== EV.closed), "journey.closed");
   });
 });

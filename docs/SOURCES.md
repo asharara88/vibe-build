@@ -329,6 +329,17 @@ Nothing was read for this change: streams.spec.whatwg.org and developer.mozilla.
 | **Not read, seen in runs:** an insert into `events` waits on the project row another transaction holds `FOR UPDATE` (the foreign-key check), as the row of 13 November on `FOR KEY SHARE` (package 1.4, above) found for `holds`; so a refusal decided in the gateway's memory while the stop is being written answers only after that write | Test gap 145 (8): both refusals were decided with no counting call and answered about 0.5 s after the marker was written |
 | **Not read, seen in runs:** `pg_stat_activity` shows a statement of another session as `active`, with its text in `query`, while it runs (here, inside a trigger's `pg_sleep`); the tests use it only to wait for that moment | Tests gap 145 (3) and (8) |
 
+## Read on 14 November 2026 for package J2 (c), the clean stop: tsx's signal relay and exit code (tsx 4.23.15)
+
+Read in tsx's own files as installed in `builder/node_modules/tsx` (version 4.23.15, from its `package.json`; MIT, `docs/SOURCES.md`, 11 Nov 2026), on 14 Nov 2026. The files are minified; the functions are named by the names tsx gives them. J2's design read the same files on 13 Nov 2026 (`docs/design/journey-j2.md`, section 4.1).
+
+| Fact | Source |
+| --- | --- |
+| When the `tsx` command receives SIGINT or SIGTERM, it first waits about 30 ms for the program it runs (its child) to report that it received the same signal. With no report, it sends the signal to the child, and waits about 30 ms more; with still no report, it kills the child with SIGKILL and, once the child has exited, exits itself with 128 plus the signal's number | `builder/node_modules/tsx/dist/cli.mjs`, the function `relaySignalToChild` inside `relaySignals` (installed for SIGINT and SIGTERM), read 14 Nov 2026 |
+| The child reports a signal through tsx's preflight: for SIGINT and SIGTERM it puts a hidden handler first, which sends the signal's name to tsx and, if the program has no handler of its own for it, exits with 128 plus the signal's number. The hidden handler is left out of `process.listenerCount` and `process.listeners` | `builder/node_modules/tsx/dist/preflight.cjs` (`bindHiddenSignalsHandler`), read 14 Nov 2026 |
+| `tsx` exits with its child's own exit code; if the child ended by a signal, with 128 plus that signal's number | `builder/node_modules/tsx/dist/cli.mjs`, the child's `close` handler (`process.exit(l)`, with `l` set from `signalCode` when null), read 14 Nov 2026 |
+| Seen in J2's automated run: SIGTERM sent to tsx's process alone (the interface started as `npm run web` starts it) ended with tsx's exit code 0, 0.6 s after the signal, the interface having stopped cleanly | `evidence/2026-11-13-journey-j2/run-demo.txt` ("T2"), 14 Nov 2026 |
+
 ## Read and measured on 14 November 2026 for the sandbox tests' temporary folders (Node v22.23.4, vitest 5.1.0, tsx 4.23.15, npm 10.9.9)
 
 Read in the installed packages' own code in `builder/node_modules` (both MIT), because this session's network refused `vitest.dev` and `man7.org` (proxy answered 403 to the tunnel); measured on this session's machine. Used by `evidence/2026-11-14-sandbox-test-tmpdir/README.md` and gap 175.

@@ -29,6 +29,10 @@
  *   the sandbox is checked to put the service on the project's `front` network and nothing else, with `front`
  *   internal and in 0.6c's "isolated" gateway mode (`cameraNetworkProblem`); journey-jobs.ts asks both first.
  *
+ * - Package J2 (a): `stageBrokenStep` copies the deliberately broken step 03 into the sandbox's own change-set folder,
+ *   through scripts/example-1-sandbox.ts's `stageBrokenStep` unchanged, after `checkJourneyId` and the same target check
+ *   as the job's (`brokenStageTargetProblem`): never into builder/scripted or any folder but the sandbox's own.
+ *
  * Development profile only (the server profile is 0.6b's).
  */
 import { execFile } from "node:child_process";
@@ -40,8 +44,8 @@ import { runAcceptance, type AcceptanceReport, type AcceptanceRunInput } from ".
 import { RUNNER_IMAGE, runnerImageProblem } from "../acceptance/runner-image.js";
 import type { EngineRunner } from "../engine/scripted.js";
 import { appImageName, composeProjectName, dockerEnv, PROJECT_NETWORK, sandbox, toolsImageName, type Sandbox, type StreamingEnd } from "../sandbox/manager.js";
-import { buildAndStart, destroyExample1, makeExample1, portFree, type Example1 } from "../../scripts/example-1-sandbox.js";
-import { JourneyRefused, type SandboxRecord } from "./journey.js";
+import { buildAndStart, destroyExample1, makeExample1, portFree, stageBrokenStep as stageBrokenStepInto, type Example1 } from "../../scripts/example-1-sandbox.js";
+import { brokenStageTargetProblem, JourneyRefused, type SandboxRecord } from "./journey.js";
 import type { AppStream } from "../sandbox/manager.js";
 
 const run = promisify(execFile);
@@ -67,6 +71,11 @@ export interface Sandboxes {
   make(projectId: string): Promise<ProjectSandbox>;
   /** How the engine's container is started; undefined for the sandbox manager's own (`runStreaming`, service `engine`). */
   engineRunner(x: ProjectSandbox): EngineRunner | undefined;
+  /**
+   * Package J2 (a): copy the deliberately broken step 03 (builder/scripted-broken) into the sandbox's own change-set
+   * folder, and nowhere else. The job calls it just before step 3's engine is made.
+   */
+  stageBrokenStep(x: ProjectSandbox): Promise<void>;
   /** Why the app's images cannot be built now (the build's port on the machine already in use), or null. */
   portsBusy(x: ProjectSandbox): Promise<string | null>;
   /** Build the images, make the tables and sample users in the tools container, start the app. */
@@ -282,6 +291,12 @@ export function example1Sandboxes(o: { runnerImage?: string; buildProxyPort?: nu
       return { ...x, appStarted: false };
     },
     engineRunner: () => undefined,
+    async stageBrokenStep(x) {
+      checkJourneyId(x.projectId);
+      const why = brokenStageTargetProblem(x);
+      if (why) throw new JourneyRefused(`The broken step was not staged: ${why}.`);
+      stageBrokenStepInto(x);
+    },
     portsBusy: (x) => buildPortRefusal(x.buildProxyPort, "the app's images are not built and the app is not started."),
     buildAndStart: (x, log) => buildAndStart(x, log),
     cameraImageProblem: (x) => cameraImageProblem(x.sb),

@@ -1,0 +1,5 @@
+The first try's lock lines (the wrapper's output around the run: flock, then the run, then these):
+Waiting for the shared lock from 09:58:33 UTC.
+Lock held from 09:58:33 UTC.
+run exit code: 1
+Lock released at 09:59:52 UTC.
