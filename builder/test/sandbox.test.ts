@@ -53,16 +53,18 @@ async function askUntil(ask: () => Promise<string>, wanted: (answer: string) => 
 }
 
 /**
- * Removes a folder a test made, with everything in it; a folder already gone is not an error. Each folder in it is
- * opened first (mode 700), as acceptance-live.test.ts does in its afterAll, so that a folder made read-only, or the
- * socket folder (owned by 1000:1000, mode 750, when the tests run as root), does not stop the removal. Links are
- * neither followed nor changed. Added 14 Nov 2026: before, several tests in this file left their folders in the
- * temporary folder after every run (`evidence/2026-11-14-sandbox-test-tmpdir/`).
+ * Removes a folder a test made, with everything in it; a folder already gone is not an error. Each folder in it that
+ * belongs to the user running the tests is opened first (mode 700), as acceptance-live.test.ts does in its afterAll,
+ * so that a folder made read-only does not stop the removal. Another user's folder (the socket folder is 1000:1000
+ * when the tests run as root) is left as it is: root needs no opening, and anyone else could not open it; rmSync then
+ * says whether it could be removed. Links are neither followed nor changed. Added 14 Nov 2026: before, several tests
+ * in this file left their folders in the temporary folder after every run (`evidence/2026-11-14-sandbox-test-tmpdir/`).
  */
 function removeFolder(dir: string): void {
   if (!dir || !existsSync(dir)) return;
+  const me = process.getuid?.();
   const open = (d: string) => {
-    chmodSync(d, 0o700);
+    if (statSync(d).uid === me) chmodSync(d, 0o700);
     for (const e of readdirSync(d, { withFileTypes: true })) if (e.isDirectory()) open(join(d, e.name));
   };
   open(dir);
