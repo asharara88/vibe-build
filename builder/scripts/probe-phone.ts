@@ -22,6 +22,7 @@
 import { appendFileSync, readFileSync } from "node:fs";
 import http from "node:http";
 import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 const PORTS = { a: 4032, b: 4033, c: 4034 } as const;
 type Probe = keyof typeof PORTS;
@@ -140,14 +141,18 @@ export function decide(lines: LogLine[]): { decision: string; facts: string[] } 
   return { decision, facts };
 }
 
-const args = process.argv.slice(2);
-if (args[0] === "--report") {
-  const lines = readFileSync(resolve(args[1] ?? ""), "utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l) as LogLine);
-  const r = decide(lines);
-  for (const f of r.facts) console.log(f);
-  console.log(`DECISION: ${r.decision}`);
-} else if (args[0]) serve(resolve(args[0]));
-else {
-  console.error("Usage: npx tsx scripts/probe-phone.ts <log file> | --report <log file>");
-  process.exitCode = 2;
+function main(args: string[]): void {
+  if (args[0] === "--report") {
+    const lines = readFileSync(resolve(args[1] ?? ""), "utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l) as LogLine);
+    const r = decide(lines);
+    for (const f of r.facts) console.log(f);
+    console.log(`DECISION: ${r.decision}`);
+  } else if (args[0]) serve(resolve(args[0]));
+  else {
+    console.error("Usage: npx tsx scripts/probe-phone.ts <log file> | --report <log file>");
+    process.exitCode = 2;
+  }
 }
+
+/** Run only when started as a script, so that a test can import decide() without serving the pages or setting an exit code. */
+if (process.argv[1] !== undefined && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) main(process.argv.slice(2));
