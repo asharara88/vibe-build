@@ -327,7 +327,7 @@ export async function stopOnSignal(sig: StopSignal, o: StopOptions): Promise<voi
       o.log(
         halted.done
           ? `[interface stopping] The job ${job.jobId} has ended; its record says how. It is not resumed.`
-          : `[interface stopping] The job ${job.jobId} had not ended after ${seconds(waitMs)}; its project ${job.projectId} is not removed now. The next start removes it.`,
+          : `[interface stopping] The job ${job.jobId} had not ended after ${seconds(waitMs)}; its project ${job.projectId} is not removed while the job runs. The next start removes it.`,
       );
     }
     // 4 and 5. The removal, asking the lock of the database before each project, each ask bounded.
