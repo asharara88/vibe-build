@@ -6,7 +6,7 @@ Written by Claude Code. This file holds what three fresh reviewers found on the 
 
 **Result as the reviewers gave it:** no blocking finding from any of the three; 21 non-blocking findings (seven each).
 
-**What was done about each finding** is not in this file: it is in `evidence/2026-11-14-gap-180-removal-checked/README.md`, section "Review and answers", and what stays open is in row 180 of `docs/KNOWN-GAPS.md`. The fixes made after this review have not themselves been read by a reviewer.
+**What was done about each finding** is not in this file: it is in `evidence/2026-11-14-gap-180-removal-checked/README.md`, section "Review and answers", and what stays open is in row 180 of `docs/KNOWN-GAPS.md`. The fixes made after this review have not themselves been read by a reviewer. *(That sentence was written before the second round. Since then two fresh reviewers re-read those fixes: their findings are at the end of this file, under "Second round". The fixes made in answer to the second round have not been read by a reviewer: there was no third round.)*
 
 ## Reviewer 1: isolation
 
@@ -403,3 +403,119 @@ No blocking finding in my lens. Rule 8: no existing assertion, test name, time l
 - The Arabic sentence: read by me, not by a reader of Arabic (known gap 134).
 - docs/STATUS.md, docs/design/journey-j2.md and the evidence text of earlier runs: not checked for sentences that the change makes stale.
 - My first probe attempt (/tmp/claude-0/-home-user-vibe-build/121da6b0-2980-566b-82d7-1563934e4c7d/scratchpad/rev-180-rules-and-claims/probe-output.txt) failed before running anything (a file-type error of mine); the results I report are from probe.mts and probe-output-2.txt in the same folder.
+
+## Second round
+
+Added 14 November 2026 by Claude Code. Two fresh reviewers, neither of whom wrote the code, re-read the fixes made after the review above, in the working copy of the branch `tmp/gap180`, whose head was then commit `306c01b`. One read the code; one read the rules and the claims. Below is what they found, **as it was given to the agent that answered it, unedited**: every field is copied word for word, in the order given. Only the findings and the claims found overstated were passed on; a verdict or a list of what was checked and sound was not, so none is here. Paths that start `/tmp/claude-0/…/scratchpad/` are working folders on the session's machine; they are not in the repository.
+
+**Result as given:** no blocking finding; 6 non-blocking findings (2 from the code reviewer, 4 from the rules-and-claims reviewer) and 10 claims found overstated.
+
+**What was done about each** is in `evidence/2026-11-14-gap-180-removal-checked/README.md`, section "Review and answers", part "Second round". What stays open is in rows 180 and 185 of `docs/KNOWN-GAPS.md`. There was no third round: nobody has re-read the answers to this one.
+
+### Second-round reviewer 1: the code
+
+Lens, as given: `code`
+
+#### Findings
+
+##### Finding 1: If the folder itself cannot be removed after its contents went, it is left empty without its compose file; every later removal from the record is then refused, also once the cause is cured
+
+- **severity:** non_blocking
+- **file:** /tmp/claude-0/-home-user-vibe-build/121da6b0-2980-566b-82d7-1563934e4c7d/scratchpad/wt180/builder/src/orchestrator/example-1-adapter.ts
+- **line:** 263 (with the comment at 240-247, the check at 320, and destroyRecorded at 521-534)
+- **what_is_wrong:** removeSandboxFolder removes every entry but compose.yaml, then calls rmSync(dir, recursive) once. That one call removes compose.yaml and then the folder. If removing the folder itself fails (or the process ends between the two), the folder stays, empty, with no compose file. recordedSandboxRefusal then answers "the recorded folder holds no compose file" for good, and item 2(c)'s new path always throws SandboxNotRemoved for such a folder and never removes it. So the project can never be closed from the record, although Docker holds nothing of it and the folder is empty. The comment at 243-245 says a removal cut off part-way "leaves a folder that still passes recordedSandboxRefusal, and the next attempt runs in full"; that holds for an entry that cannot be removed, not for this last step. With the interface's own handle (the same process, no restart) a second "Close project" does complete once the cause is cured, because that path does not ask recordedSandboxRefusal. A smaller point in the same function: the lstatSync calls at 258 and 279 are outside `attempt`, so a failure there (Node throws ENOTDIR or EACCES even with throwIfNoEntry: false; I ran that on Node 22.23.4) is still a plain error, not SandboxNotRemoved.
+- **scenario:** Ran through the real adapter's destroyRecorded with a made-up docker program first on PATH (it lists nothing; real Docker was not asked). Made-up project j1-c0de180b0003, folder builder-acceptance-revprobe with a compose file naming it, its parent folder made unchangeable with chattr +i. Attempt 1: SandboxNotRemoved, left = ["folder ... (not removed: EPERM)"]; the folder afterwards is empty; recordedSandboxRefusal = "the recorded folder holds no compose file". Then chattr -i on the parent (cause cured). Attempts 2 and 3: SandboxNotRemoved, "The sandbox of j1-c0de180b0003 was not removed: the recorded folder holds no compose file.", the empty folder still there. Output: /tmp/claude-0/-home-user-vibe-build/121da6b0-2980-566b-82d7-1563934e4c7d/scratchpad/rev-180b-code/probe-folder-output.txt (part 3). A hand-made case: it needs the folder's own removal to fail (its parent not changeable, the folder a mount point) or the process to end in that instant.
+- **ran_it:** True
+- **suggested_fix:** Let an empty folder of the right name pass: in recordedSandboxRefusal return null for an empty directory whose name starts "builder-acceptance-", and remove it with rmdirSync, which can remove nothing but an empty folder. Or remove the compose file and the folder as two steps and, when only the folder's own removal failed, say so in `left` ("empty folder ... not removed") and accept the empty folder at the next attempt. Wrap the two lstatSync calls in the same `attempt`. Correct the comment at 243-245, or add this case to row 180's list under (g).
+
+##### Finding 2: After a removal in which Docker could not be asked, or that names the app's own container as left, the record's state and the preview screen still say the app is not running
+
+- **severity:** non_blocking
+- **file:** /tmp/claude-0/-home-user-vibe-build/121da6b0-2980-566b-82d7-1563934e4c7d/scratchpad/wt180/builder/src/orchestrator/journey.ts
+- **line:** 505 (with src/web/pages.ts 928, src/web/messages/en.json 210 "preview.app_stopped", src/orchestrator/example-1-adapter.ts 507-510, test/journey.test.ts 2437)
+- **what_is_wrong:** Every journey.sandbox.removed event sets appRunning to false in the state, also one written with removed: false whose `left` says "Docker could not be asked (...)" or names the app's container. The preview screen then prints "The app is not running any more." (pages.ts 928 has no condition on removalLeft) under the panel whose note says what was left. The new refusal sentence is careful here ("it is not known what of the project went, or whether its app is stopped", journey.ts 415); the state and the screen are not. On the handle path the adapter also sets x.appStarted = false (507) before it asks for Docker's settings (510), so when the settings are refused nothing is asked or removed, yet the handle says the app is not started; test C22 pins that (journey.test.ts 2437). The line at 505 and the flag's place are older than this round; what is new is a state the owner reaches by pressing "Close project" while the app runs, and a sentence beside it that says the opposite of the refusal. Row 180, point (k), says only that the refusal says so.
+- **scenario:** Read, not run. A project whose preview finished and whose app runs; Docker does not answer when "Close project" is pressed (or Docker refuses to remove the app's container). The answer says it is not known whether the app is stopped. The preview screen of that project then shows the red panel with "What it recorded as left: Docker could not be asked (...)" and, below it, "The app is not running any more." C17 passes over this because its made-up `left` is a network.
+- **ran_it:** False
+- **suggested_fix:** Show preview.app_stopped only when removalLeft is null; in the "removal not finished" state show nothing there, or a sentence that says the app's state is as the note above says. Add to row 180 (k) that the record's state reads the app as not running after any removal event. Optionally move x.appStarted = false below the settings check in destroy, and change C22's expectation with it (C22 was added on this branch).
+
+#### Overstated claims
+
+- **where:** /tmp/claude-0/-home-user-vibe-build/121da6b0-2980-566b-82d7-1563934e4c7d/scratchpad/wt180/builder/src/orchestrator/example-1-adapter.ts 243-245 (comment of removeSandboxFolder)
+  - **quote:** So a removal cut off part-way, or an entry that cannot be removed, leaves a folder that still passes `recordedSandboxRefusal`, and the next attempt runs in full.
+  - **what_is_shown:** True for an entry that cannot be removed (my probe, part 4, and the live test's chattr case). Not true when the folder's own removal fails after its compose file went, or the process ends in that instant: the folder is left empty and is refused at every later attempt from the record (my probe, part 3).
+- **where:** The fixer's report, item 2
+  - **quote:** compose.yaml and the folder go last, so the folder still passes recordedSandboxRefusal
+  - **what_is_shown:** The same: shown for one entry that cannot be removed; the last step (compose file, then the folder) can itself leave a folder that fails the check.
+- **where:** /tmp/claude-0/-home-user-vibe-build/121da6b0-2980-566b-82d7-1563934e4c7d/scratchpad/wt180/docs/KNOWN-GAPS.md, row 180, point (k)
+  - **quote:** When Docker could not be asked, the builder does not know what the removal removed; the refusal says so.
+  - **what_is_shown:** The refusal says so. The record's state (appRunning false after any removal event) and the preview screen ("The app is not running any more.") say the app is stopped. Read, not run.
+
+### Second-round reviewer 2: rules and claims
+
+Lens, as given: `rules-and-claims`
+
+#### Findings
+
+##### Finding 1: One of my four whole runs of test/web.test.ts was red (exit code 1, 78 of 78 passed): the tests' own database clean-up, in a second form that row 185 does not name
+
+- **severity:** non_blocking
+- **file:** /tmp/claude-0/-home-user-vibe-build/121da6b0-2980-566b-82d7-1563934e4c7d/scratchpad/wt180/builder/test/web.test.ts
+- **line:** 2191-2196 (freshDb's drop; with builder/node_modules/pg-pool/index.js 172-187 and 488-499; docs/KNOWN-GAPS.md 192)
+- **what_is_wrong:** The clean-up of each stop test is `await db.end(); await pool.query('drop database ... with (force)')`. pg-pool 3.14.0's end() resolves as soon as it has asked each connection to close; it does not wait for them. So the forced drop can reach PostgreSQL while a connection of the test's own pool is still open. PostgreSQL then ends that connection, and its last message arrives at a connection nobody listens to any more. vitest reports "Errors 1 error" and exits 1 although every test passed. Row 185 and the README name only the other form (the drop refused, "permission denied to terminate process") and say "Seen once". This round adds four tests that use the helper (C14, C15, C18, C19). The helper itself is older (pull request #49) and no product code is involved.
+- **scenario:** Ran. First whole run of test/web.test.ts: "Tests 78 passed (78), Errors 1 error", vitest exit code 1, "error: terminating connection due to administrator command" (57P01). vitest says the last test before it was C18. PostgreSQL's log has the line at 14:32:37.390 for a per-test database of my run. Output: rev-180b-rules-and-claims/run-web-whole.txt. Three more whole runs: 78 of 78, exit 0 (run-web-whole-2.txt to -4.txt). The refused-drop form also came once more, at 14:24:09.557, in a single run of C14 (see the next finding). A probe with no product code (probe/drop-race.cjs: 150 rounds of pool.end() then the forced drop, pool of 5) gave 245 such errors with no listener. So on this tree, of the fixer's two whole runs and my four, two were red, each from the clean-up and neither from an assertion. The cause of my red run is read from pg-pool and shown by the probe; that it was C18's database is vitest's attribution, not something I saw.
+- **ran_it:** True
+- **suggested_fix:** Keep this red run with the other one in the evidence. Update row 185: seen three times, in two forms, both from the forced drop made right after the pool's end. Fix the helper as a small package of its own before the whole suite is taken as evidence: wait until pg_stat_activity shows no connection to the database, or retry the drop. Do not take row 185's option "drops without force once its own pool is ended" as it stands, because the pool's end does not wait for its connections. Until then, read the cause of any red run of these two files from its output; do not just rerun.
+
+##### Finding 2: A control's verdict does not look at why its test failed: a clean-up failure counts as "failed, as it should"
+
+- **severity:** non_blocking
+- **file:** /tmp/claude-0/-home-user-vibe-build/121da6b0-2980-566b-82d7-1563934e4c7d/scratchpad/wt180/evidence/2026-11-13-journey-j2/controls-scripts/controls.py
+- **line:** 302-305 and 351-353
+- **what_is_wrong:** A control counts as "FAILED, as it should with the safeguard removed" when vitest's exit code is not 0, one test failed and none passed. Only vitest's two summary lines are kept. A test that fails in its own `finally` (the database drop of known gap 185) meets that rule, and its error takes the place of the assertion's. So the kept outputs show that each named test failed, not that it failed for its safeguard. The README's "73 of 73" and "6 of 6" rest on that.
+- **scenario:** Ran, in a scratch copy. J2-C64's replacement with test C14: the first run failed with "error: permission denied to terminate process" at web.test.ts:2195, called from the `finally` at 2549, and showed no assertion (PostgreSQL's log, 14:24:09.557, has the refused drop). The second run failed where it should (web.test.ts:2513: the count line read "1." where "0." is expected). The script would print the same verdict for both. Outputs: rev-180b-rules-and-claims/mutations-no-container.txt and mutations-c64-again.txt. For the kept run I checked the other way: PostgreSQL's log has no refused drop between 14:08:57 and 14:15:25, the window of the kept controls runs, so none of the 79 kept verdicts is that failure. My own runs of J2-C54 to J2-C79 each failed at an assertion about the safeguard named (mutations-no-container.txt, mutations-real-docker.txt). J2-C01 to J2-C53 I did not rerun.
+- **ran_it:** True
+- **suggested_fix:** Have the script keep, beside each verdict, the first failure of the test (file, line and message). Give "NOT AS EXPECTED: failed in its clean-up, run again" when that failure is at the drop. Say in row 185 that a control's verdict can be hit by it.
+
+##### Finding 3: No test or control for the condition that keeps a refused recorded folder out of Compose's removal
+
+- **severity:** non_blocking
+- **file:** /tmp/claude-0/-home-user-vibe-build/121da6b0-2980-566b-82d7-1563934e4c7d/scratchpad/wt180/builder/src/orchestrator/example-1-adapter.ts
+- **line:** 519-524 (with builder/src/sandbox/manager.ts 702-708 and 1031)
+- **what_is_wrong:** Before this round a recorded folder that failed its own check stopped the removal before any Docker command. Now Docker's side goes on, and two conditions keep the refused folder out of it: `why === null &&` before Compose's own removal (line 524), and the client folder not being taken from it (line 522). Compose's removal runs as `docker compose -f <folder>/compose.yaml ... down -v --remove-orphans`, with no project name of its own (manager.ts:704). So for a folder refused because "the recorded folder's compose file names another project", losing line 524's condition would run Compose's removal on that other project. The code as committed is right. No test or control would notice the loss: the only refused-folder test uses a folder with no compose file, where both conditions do nothing. The comment at 519 says "never read", which is shown only for that empty case. Item 11 of the brief asked for a control for every new safeguard.
+- **scenario:** Ran, in a scratch copy, with both conditions dropped (line 522 given rec.dir always, line 524 without `why === null &&`): test/removal-live.test.ts passed 7 of 7 on real Docker under the lock, and C22 passed. Output: rev-180b-rules-and-claims/mutation-refused-folder-read.txt. What Compose would then do to another project's containers and volumes is read from manager.ts, not run.
+- **ran_it:** True
+- **suggested_fix:** Add a case with a made-up docker program, as C22 has: a recorded folder whose compose file names another project and which holds a docker-client folder. Expect SandboxNotRemoved with "left as it is: the recorded folder's compose file names another project", no call starting "compose", and every call's DOCKER_CONFIG outside the folder. Add one control for each condition. Until then, list it in row 180 (l), together with the close refused when the record names no sandbox (journey.ts:1109), which has no test either.
+
+##### Finding 4: A consequence of the decided state is said nowhere: a signed-off project not yet exported can never be exported once "Close project" was refused
+
+- **severity:** non_blocking
+- **file:** /tmp/claude-0/-home-user-vibe-build/121da6b0-2980-566b-82d7-1563934e4c7d/scratchpad/wt180/builder/src/orchestrator/journey.ts
+- **line:** 1199 (before the job rules at 1200; JOB_RULES.export at 629; the closed-project refusal at 1197)
+- **what_is_wrong:** In the "removal not finished" state every job is refused before its own rule is asked, export included. A closed project starts no job either. So a signed-off project whose export was not yet made loses it for good at the first refused "Close project". The first review called export after a refused close "right" (journey reviewer, finding 2 (f)). The brief decided that export is refused, so this is not a defect of the fix. But row 180, the README's answer 2.2 and the proposed DECISIONS row and question do not say this consequence, and the proposal says it is not known whether the owner was asked.
+- **scenario:** Read, not run. Sign off; press "Close project" before "Export"; the removal leaves a network. A POST to export then gets 409 with the "removal not finished" sentence. Once the removal completes, the project is closed and export is refused as closed. C17 shows the export refusal only on a project that is not signed off.
+- **ran_it:** False
+- **suggested_fix:** Say it in one plain sentence in the DECISIONS row and in the owner's question (the proposed text in g180-proposed-records.md), and in row 180 (g) or (j). Whether an export of an already signed-off project should still be let through while its folder is whole is the owner's decision.
+
+#### Overstated claims
+
+- **where:** /tmp/claude-0/-home-user-vibe-build/121da6b0-2980-566b-82d7-1563934e4c7d/scratchpad/wt180/docs/KNOWN-GAPS.md:192 (row 185); evidence/2026-11-14-gap-180-removal-checked/README.md 99-109
+  - **quote:** Seen once
+  - **what_is_shown:** True when written. Since then the refused drop is in PostgreSQL's log a second time (14:24:09.557, a single run of C14), and the same clean-up gave a second kind of red run (exit code 1 with 78 of 78 passed, 14:32:37). The row names one form only.
+- **where:** /tmp/claude-0/-home-user-vibe-build/121da6b0-2980-566b-82d7-1563934e4c7d/scratchpad/wt180/evidence/2026-11-14-gap-180-removal-checked/README.md:46-47 (and the fixer's report)
+  - **quote:** 73 of 73 failed their tests with the safeguard removed
+  - **what_is_shown:** That each named test failed: only vitest's summary lines are kept, not what failed. PostgreSQL's log rules out the refused-drop failure for the kept run. My own runs show the assertion for J2-C54 to J2-C79 only.
+- **where:** /tmp/claude-0/-home-user-vibe-build/121da6b0-2980-566b-82d7-1563934e4c7d/scratchpad/wt180/docs/KNOWN-GAPS.md:187 (row 180, point (5))
+  - **quote:** a recorded folder that fails its own check, which it leaves exactly as it is while still doing steps 1 to 3
+  - **what_is_shown:** For such a folder the first half of step 2, Compose's own removal, is skipped (example-1-adapter.ts:524). What is still done: the settings, the removal by label, the two image removals and the four lists.
+- **where:** /tmp/claude-0/-home-user-vibe-build/121da6b0-2980-566b-82d7-1563934e4c7d/scratchpad/wt180/docs/KNOWN-GAPS.md:187 (row 180, point (3)); builder/test/journey.test.ts:2355 (C21's name)
+  - **quote:** A list that cannot be read, Docker's own failure, or no answer within 60 s is recorded as "Docker could not be asked", with Docker's own words
+  - **what_is_shown:** Docker's own words only for Docker's own failure (its last error line). For a line that cannot be read, for the time limit and for an exit with no output, the words are the builder's ("a line of Docker's list of networks could not be read", "no answer within 0.3 s", "the docker program ended with exit code 3 and said nothing"). Never the command line: that part holds in every case C21 tests.
+- **where:** /tmp/claude-0/-home-user-vibe-build/121da6b0-2980-566b-82d7-1563934e4c7d/scratchpad/wt180/builder/src/orchestrator/example-1-adapter.ts:519-520 (and the fixer's report, item 8)
+  - **quote:** a recorded folder that fails its own check is left exactly as it is, and never read
+  - **what_is_shown:** Shown on real Docker for a folder with no compose file and no client folder, where there is nothing Docker could read. The folder's own check reads its compose file to judge it. With the two conditions dropped, every test still passes (third finding).
+- **where:** /tmp/claude-0/-home-user-vibe-build/121da6b0-2980-566b-82d7-1563934e4c7d/scratchpad/wt180/builder/src/orchestrator/journey.ts:416 (the refusal of "Close project")
+  - **quote:** What could be removed of it was removed, and its app is stopped, except for what is named as left.
+  - **what_is_shown:** The handle's flag is set to false and the record marks the app as not running (journey.ts:505), whatever became of the app's container; nothing checks that the app stopped. When the thing left is the app's own container (C15's made-up case), the sentence is true only through its last clause. The branch for "Docker could not be asked" says plainly that it is not known.
+- **where:** /tmp/claude-0/-home-user-vibe-build/121da6b0-2980-566b-82d7-1563934e4c7d/scratchpad/wt180/builder/test/web.test.ts:3052 (C17's name)
+  - **quote:** the same from the record alone, as after a restart
+  - **what_is_shown:** A second Journey on the same record, without the start's recovery. A real start first marks the project interrupted (C19 shows it), and the refusals are then the interrupted project's sentences, not this one. Small.
