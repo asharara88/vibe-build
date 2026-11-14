@@ -18,6 +18,8 @@
 // photographed, the walk ending before the run sends its signal; j2c-after, that project after the next start (the
 // interrupted panel, the build and cost screens), then "Close project". Their settings (BUILDER_CAMERA_PATH,
 // BUILDER_CAMERA_PAUSE_MS, BUILDER_CAMERA_PROJECT, BUILDER_CAMERA_HOLD_REASON) are checked against fixed patterns first.
+// Package 3.2's walk, x32, is started by builder/scripts/demo-export.ts (docs/design/package-3.2.md, section 7 A): J1's
+// path to the export, its screen in English, Arabic and at 390 px, the download, and "Close project".
 import { createHash, randomBytes } from "node:crypto";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { chromium } from "/runner/node_modules/playwright-core/index.mjs";
@@ -695,7 +697,135 @@ async function runJ2cAfter() {
   check("signed out", path() === "/sign-in", path());
 }
 
-const WALKS = { j1: () => run(), j3: () => runJ3(), j2a: () => runJ2a(), "j2c-run": () => runJ2cRun(), "j2c-after": () => runJ2cAfter() };
+/* ------------------------------------------------------------------ package 3.2 (docs/design/package-3.2.md, section 7, A) */
+
+/** The export's label (EXPORT_LABEL and messages/ar.json "export.label"), word for word. */
+const EXPORT_LABEL = {
+  en: "Internal only, not for customers. The two container images it names are approved for the builder's internal development and testing only; its development-only packages are approved for development use only, never in what a customer receives. Made-up data only.",
+  ar: "للاستخدام الداخلي فقط، وليس للعملاء. صورتا الحاويات اللتان يذكرهما معتمدتان لأعمال التطوير والاختبار الداخلية للمُنشئ فقط؛ وحزمه المخصّصة للتطوير معتمدة لاستخدام التطوير فقط، ولا تدخل أبدًا فيما يتسلّمه العميل. بيانات مُختلَقة فقط.",
+};
+/** The export's checks as journey.export.written records them, in order (design section 4, items 1 to 7). */
+const EXPORT_CHECKS = ["archive_contents", "fixed_files", "images_built", "compose_config", "run_image_packages", "run_image_notices", "tools_image_packages", "licence_check"];
+const PASSED_WORD = { en: "Passed", ar: "نجح" };
+
+/**
+ * The export screen once the export is written, in one of the three ways section 7 A asks for (English, Arabic, 390 px
+ * wide): the new label word for word, and the eight checks the event records, in order, each marked passed in the
+ * page's language. Photographed as NN-export-<en|ar|phone>.png.
+ */
+async function exportScreen(id, kind) {
+  const lang = kind === "ar" ? "ar" : "en";
+  if (kind === "phone") await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`${BASE}/projects/${id}/export${lang === "ar" ? "?lang=ar" : ""}`);
+  const label = await text("[data-export-label]");
+  check(`the export screen (${kind}): the new label, word for word`, label === EXPORT_LABEL[lang], label);
+  if (lang === "ar") check("the export screen (ar): the label in English under it", (await text('p.note[lang="en"]')) === EXPORT_LABEL.en, await text('p.note[lang="en"]'));
+  const shown = await page.$$eval("ul[data-export-checks] li[data-check]", (lis) =>
+    lis.map((li) => ({ id: li.getAttribute("data-check"), passed: li.hasAttribute("data-passed"), word: (li.querySelector("strong")?.textContent ?? "").trim() })),
+  );
+  check(
+    `the export screen (${kind}): the eight checks its event records, in order, each "${PASSED_WORD[lang]}"`,
+    JSON.stringify(shown.map((c) => c.id)) === JSON.stringify(EXPORT_CHECKS) && shown.every((c) => c.passed && c.word === PASSED_WORD[lang]),
+    JSON.stringify(shown),
+  );
+  check(`the export screen (${kind}): the old words "no notices file" are gone`, !(await text("main")).includes("no notices file"));
+  const file = `01-export-${kind}.png`;
+  await page.screenshot({ path: `/shots/${file}`, fullPage: true });
+  say({ kind: "shot", file, path: path(), lang, width: kind === "phone" ? 390 : 1280 });
+  if (kind === "phone") await page.setViewportSize({ width: 1280, height: 900 });
+}
+
+/**
+ * Walk `x32` (package 3.2's automated run, scripts/demo-export.ts, section 7 A): J1's path with the builder running, to
+ * the export and its download, then "Close project". Sign in; "Leave requests (made-up)" with a $5.00 cap; the brief;
+ * the questions (the scripted customer answers them from example 1's sheet) and both confirmations; steps 1 and 2,
+ * reserved and released at $2.7216 and $3.1104; the preview; the checklist passing; sign-off; the export, its screen in
+ * English, Arabic and at 390 px; the download; the record; "Close project"; sign-out. The run checks the event, the
+ * archive and everything after the builder stops.
+ */
+async function runX32() {
+  if (!(await signIn())) return;
+  await clickAndLoad('a[href="/projects/new"]');
+  await page.fill("#name", "Leave requests (made-up)");
+  await page.fill("#cap", "5.00");
+  await page.fill("#brief", ASK);
+  await clickAndLoad('form[action="/projects"] button[type="submit"]');
+  const m = /^\/projects\/(j1-[0-9a-f]{12})\/brief$/.exec(path());
+  if (!check("the project is made, at its brief", m, path())) return;
+  const id = m[1];
+  say({ kind: "project", id, name: "Leave requests (made-up)", cap: "5.00", walk: "x32" });
+  check("the brief is shown as typed", (await text("pre[data-brief]")) === ASK, await text("pre[data-brief]"));
+  if (!(await toBuild(id))) return;
+  check("the plan has the two steps", (await page.locator("li[data-step]").count()) === 2);
+  await clickAndLoad(`form[action="/projects/${id}/confirm-plan"] button`);
+  check("plan confirmed; tests fixed as v001, stand-in test, not independent acceptance", (await text("main")).includes("Tests fixed as version v001: stand-in test, not independent acceptance."));
+
+  // Steps 1 and 2, each approved; each reservation made and released.
+  await clickAndLoad('a[data-go="build"]');
+  await clickAndLoad('button[data-build="01-data"]');
+  if (!check("step 1 built", await waitFor('[data-step="01-data"][data-step-state="finished"]', 600_000, '[data-step="01-data"][data-step-state="failed"]'), await text('[data-step="01-data"]')))
+    return stopped(91, "build-step-1", id);
+  const r1 = await text('[data-step="01-data"] [data-reserved]');
+  check("step 1: $2.7216 reserved while it ran, released, $0.00 spent", r1.includes("Reserved while it ran: $2.7216") && r1.includes("released") && r1.includes("Spent: $0.00."), r1);
+  const wrote1 = await page.locator('[data-step="01-data"] ol[data-lines] li', { hasText: "Wrote " }).count();
+  check("step 1's live lines: one line per file written (7)", wrote1 === 7, `${wrote1}`);
+  await clickAndLoad('button[data-approve="01-data"]');
+  const two = await waitFor('[data-step="02-submitter-screen"][data-step-state="finished"]', 600_000, '[data-step="02-submitter-screen"][data-step-state="failed"]');
+  if (!check("step 1 approved; step 2 built", two && (await has('[data-step="01-data"][data-approved="yes"]')), await text('[data-step="02-submitter-screen"]'))) return stopped(91, "build-step-2", id);
+  const r2 = await text('[data-step="02-submitter-screen"] [data-reserved]');
+  check("step 2: $3.1104 reserved while it ran, released, $0.00 spent", r2.includes("Reserved while it ran: $3.1104") && r2.includes("released") && r2.includes("Spent: $0.00."), r2);
+  await clickAndLoad('button[data-approve="02-submitter-screen"]');
+  check("step 2 approved; the app is being built for the preview", path() === `/projects/${id}/preview`, path());
+
+  // The preview.
+  if (!check("the preview's screenshots are there", await waitFor("[data-shots]", 1_800_000, "main p.warn"), await text("main"))) return stopped(91, "preview", id);
+  const loaded = await page.$$eval("[data-shots] img", (imgs) => imgs.map((i) => i.complete && i.naturalWidth > 0));
+  check("four screenshots of the running app, each loaded", loaded.length === 4 && loaded.every(Boolean), JSON.stringify(loaded));
+
+  // The checklist, passing; sign-off.
+  await clickAndLoad('a[data-go="acceptance"]');
+  await clickAndLoad(`form[action="/projects/${id}/acceptance"] button`);
+  if (!check("the checklist ran", await waitFor("table[data-run]", 900_000), await text("main"))) return stopped(91, "checklist", id);
+  check("item 1 passed", await has('tr[data-item="1"][data-status="passed"]'));
+  let notRun = 0;
+  for (const n of [2, 3, 4, 5, 6]) if (await has(`tr[data-item="${n}"][data-status="did not run"]`)) notRun++;
+  check("items 2 to 6: did not run (no test written yet)", notRun === 5, `${notRun} of 5`);
+  check("labelled 'stand-in test, not independent acceptance'", (await text("[data-label]")) === "stand-in test, not independent acceptance", await text("[data-label]"));
+  check("the summary as the runner's reading wrote it", (await text("[data-summary]")) === "version passed; checklist incomplete (5 of the app spec's 6 checklist items have no test)", await text("[data-summary]"));
+  check("the outcome word, as the run's record gives it: Passed", (await text('table[data-run] [data-outcome="passed"]')) === "Passed" && (await page.locator('[data-outcome]:not([data-outcome="passed"])').count()) === 0, await text("table[data-run]"));
+  await clickAndLoad(`form[action="/projects/${id}/sign-off"] button`);
+  check("signed off, labelled as a sign-off on a simulated build", (await has("[data-signed-off]")) && (await text("[data-sign-off-label]")) === "Sign-off on a simulated build, checked by a stand-in test of item 1 only: not acceptance", await text("[data-sign-off-label]"));
+
+  // The export: offered after sign-off, with the new label; made; its screen in English, Arabic and at 390 px.
+  await page.goto(`${BASE}/projects/${id}/export`);
+  check("before the export: the new label, word for word", (await text("[data-export-label]")) === EXPORT_LABEL.en, await text("[data-export-label]"));
+  await clickAndLoad(`form[action="/projects/${id}/export"] button`);
+  if (!check("the export is written", await waitFor("a[data-download]", 900_000, `p.warn[lang="en"]:not([data-export-label])`), await text("main"))) return stopped(91, "export", id);
+  for (const kind of ["en", "ar", "phone"]) await exportScreen(id, kind);
+
+  // The download, against the SHA-256 the page shows.
+  await page.goto(`${BASE}/projects/${id}/export`);
+  const shownSha = await text("table[data-export] code");
+  const [download] = await Promise.all([page.waitForEvent("download"), page.locator("a[data-download]").click()]);
+  await download.saveAs("/shots/export.tar.gz");
+  const body = readFileSync("/shots/export.tar.gz");
+  const got = createHash("sha256").update(body).digest("hex");
+  say({ kind: "export_downloaded", file: download.suggestedFilename(), bytes: body.length, sha256: got });
+  check("the downloaded export has the SHA-256 the page shows", got === shownSha, `${got} / ${shownSha}`);
+
+  // The record; "Close project"; sign-out.
+  await page.goto(`${BASE}/projects/${id}/record`);
+  const ids = await page.$$eval("tr[data-event]", (rows) => rows.map((r) => Number(r.getAttribute("data-event"))));
+  check("the record lists every event in id order", ids.length > 50 && ids.every((v, i) => i === 0 || v > ids[i - 1]), `${ids.length} events`);
+  check("the record holds journey.export.written", (await text("main")).includes("journey.export.written"));
+  say({ kind: "record", project: id, events: ids.length });
+  await clickAndLoad(`form[action="/projects/${id}/close"] button`);
+  check("the project is closed: its containers, images and folder removed", await has("[data-closed]"));
+  await clickAndLoad('form[action="/sign-out"] button');
+  check("signed out", path() === "/sign-in", path());
+}
+
+const WALKS = { j1: () => run(), j3: () => runJ3(), j2a: () => runJ2a(), "j2c-run": () => runJ2cRun(), "j2c-after": () => runJ2cAfter(), x32: () => runX32() };
 
 try {
   const name = process.env.BUILDER_CAMERA_WALK ?? "j1";
