@@ -310,6 +310,16 @@ Docker's documentation was read in its source repository on GitHub, since docs.d
 | In the acceptance runner's browser (Chrome for Testing's headless shell 153.0.8010.12), a page at `http://app:3000` is not a secure context (`isSecureContext` false), also with Chromium's `--unsafely-treat-insecure-origin-as-secure` flag, tried two ways | Measured 13 Nov 2026, `measure/05a-runner-at-http-app.txt` and `measure/05b-runner-secure-context-flag.txt` |
 | The Dockerfile's format: "The instruction is not case-sensitive"; lines that begin with `#` are comments, and "Comment lines are removed before the Dockerfile instructions are executed", also inside a step continued over several lines; "leading whitespace before comments (`#`) and instructions (such as `RUN`) are ignored"; parser directive keys "aren't case-sensitive" and may hold whitespace; the `escape` directive sets the character that continues a line. Relied on by the template's image-build test since 0.6c's review | [Dockerfile reference, in BuildKit's repository](https://raw.githubusercontent.com/moby/buildkit/master/frontend/dockerfile/docs/reference.md), sections "Format", "Parser directives" and "escape", read 13 Nov 2026 at about 13:56 UTC (the Docker documentation repository's path for this page answered 404) |
 
+## Relied on 14 November 2026 for the phone test's decision, not read again this session (re-check before relying on them)
+
+The phone test's report (`builder/scripts/probe-phone.ts`, after the review of `14787d8`) reads three browser behaviours to give a STOP. The specifications' sites, w3c.github.io and www.w3.org, did not resolve from this cloud session on 14 Nov 2026 (outside its network list), so they were not read; nothing here was measured on a phone. Each only adds a STOP: if one is wrong, the report stops where it might have gone on, never the reverse (known gap 168).
+
+| Fact relied on | Where it is defined (not read this session) | What depends on it |
+| --- | --- | --- |
+| A browser sends `Sec-Fetch-Site: same-origin` only when the request's initiator and its target have the same origin (and so on every redirect); otherwise same-site, cross-site, or none for a request the user started directly | Fetch Metadata Request Headers, `https://w3c.github.io/webappsec-fetch-metadata/` | STOP when a page's link or form to the other page arrives with same-origin |
+| A form POST carries an `Origin` header with the serialised origin of the page that sent it, or `null` for an opaque origin or under some referrer policies | Fetch Standard, `https://fetch.spec.whatwg.org/` ("origin header") | (i) needs an Origin other than null; STOP when both pages' forms to themselves carry the same Origin |
+| Cookies do not provide isolation by port: a cookie set by one port of a host is sent to the other ports of that host | RFC 6265, section 8.5, `https://www.rfc-editor.org/rfc/rfc6265#section-8.5` | Each page's own Lax cookie is required on its step 2, since a shared host also sends the other page's |
+
 ## Product documentation read on 12 November 2026 for the owner's own set-up; nothing in the repository relies on it
 
 | Fact | Source |
