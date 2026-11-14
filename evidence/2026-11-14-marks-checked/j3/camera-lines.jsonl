@@ -1,0 +1,69 @@
+{"kind":"check","name":"signed in, at the projects page","ok":true,"detail":"/projects"}
+{"kind":"check","name":"the project is made","ok":true,"detail":"/projects/j1-deaacafe0166/brief"}
+{"kind":"project","id":"j1-deaacafe0166","name":"Leave requests (made-up, J3 live)","cap":"5.00"}
+{"kind":"check","name":"step 1 built","ok":true,"detail":""}
+{"kind":"check","name":"step 2 built","ok":true,"detail":""}
+{"kind":"check","name":"the preview is made: the app runs","ok":true,"detail":"Leave requests (made-up, J3 live) Stage: Checklist BriefQuestionsProposed appBuild stepsBuildPreviewChecklistCostRecord PreviewReal The app is running in its sandbox on this machine, on the project's own private networks: only the project's own containers reach it. The live app below passes your clicks to it through short-lived containers on those networks. What the preview job didBefore the app w"}
+{"kind":"check","name":"the live app's panel, labelled: simulated build, made-up data, not yet approved for use","ok":true,"detail":"Leave requests (made-up, J3 live) Stage: Checklist BriefQuestionsProposed appBuild stepsBuildPreviewChecklistCostRecord PreviewReal The app is running in its sandbox on this machine, on the project's own private networks: only the project's own containers reach it. The live app below passes your clicks to it through short-lived containers on those networks. What the preview job didBefore the app w"}
+{"kind":"shot","file":"01-preview-live-panel-en.png","path":"/projects/j1-deaacafe0166/preview","lang":"en","width":1280}
+{"kind":"shot","file":"01-preview-live-panel-ar.png","path":"/projects/j1-deaacafe0166/preview","lang":"ar","width":1280}
+{"kind":"shot","file":"01-preview-live-panel-phone.png","path":"/projects/j1-deaacafe0166/preview","lang":"en","width":390}
+{"kind":"check","name":"the pass is shown once, on the POST's answer","ok":true,"detail":"not shown"}
+{"kind":"shot","file":"02-live-pass-en.png","path":"/projects/j1-deaacafe0166/live","lang":"en","width":1280}
+{"kind":"check","name":"Show gives the made-up employee's sign-in","ok":true,"detail":"employee@example.test"}
+{"kind":"shot","file":"03-live-sample-sign-in-en.png","path":"/projects/j1-deaacafe0166/live/show","lang":"en","width":1280}
+{"kind":"live_ready"}
+{"kind":"check","name":"the live camera finished its walk","ok":true,"detail":"no /shots/live-done after 10 minutes"}
+{"kind":"check","name":"the preview screen says the last live session closed when the owner left","ok":true,"detail":"Leave requests (made-up, J3 live) Stage: Checklist BriefQuestionsProposed appBuild stepsBuildPreviewChecklistCostRecord PreviewReal The app is running in its sandbox on this machine, on the project's own private networks: only the project's own containers reach it. The live app below passes your clicks to it through short-lived containers on those networks. What the preview job didBefore the app w"}
+{"kind":"shot","file":"04-preview-after-live-en.png","path":"/projects/j1-deaacafe0166/preview","lang":"en","width":1280}
+{"kind":"shot","file":"04-preview-after-live-ar.png","path":"/projects/j1-deaacafe0166/preview","lang":"ar","width":1280}
+{"kind":"check","name":"a second pass is shown","ok":true,"detail":""}
+{"kind":"check","name":"the checklist ran","ok":true,"detail":"Leave requests (made-up, J3 live) Stage: Checklist BriefQuestionsProposed appBuild stepsBuildPreviewChecklistCostRecord The checklist runReal The acceptance runner runs the fixed tests in its own container, against the running app. The app was used live before this run; its data changed. Run the checklist Latest checklist jobEndedRunrun-20261114t140840-621761d1Tests versionv001Runner's exit code0O"}
+{"kind":"check","name":"the checklist's screen says the app was used live and its data changed","ok":true,"detail":"Leave requests (made-up, J3 live) Stage: Checklist BriefQuestionsProposed appBuild stepsBuildPreviewChecklistCostRecord The checklist runReal The acceptance runner runs the fixed tests in its own container, against the running app. The app was used live before this run; its data changed. Run the checklist Latest checklist jobEndedRunrun-20261114t140840-621761d1Tests versionv001Runner's exit code0O"}
+{"kind":"shot","file":"05-checklist-after-live-en.png","path":"/projects/j1-deaacafe0166/acceptance","lang":"en","width":1280}
+{"kind":"shot","file":"05-checklist-after-live-ar.png","path":"/projects/j1-deaacafe0166/acceptance","lang":"ar","width":1280}
+{"kind":"check","name":"the open pass was ended by the checklist","ok":true,"detail":"Leave requests (made-up, J3 live) Stage: Checklist BriefQuestionsProposed appBuild stepsBuildPreviewChecklistCostRecord PreviewReal The app is running in its sandbox on this machine, on the project's own private networks: only the project's own containers reach it. The live app below passes your clicks to it through short-lived containers on those networks. What the preview job didBefore the app w"}
+{"kind":"check","name":"the record holds live_opened, live_entered and live_closed","ok":true,"detail":""}
+{"kind":"shot","file":"06-record-en.png","path":"/projects/j1-deaacafe0166/record","lang":"en","width":1280}
+{"kind":"check","name":"the project is closed: its containers, images and folder removed","ok":true,"detail":""}
+{"kind":"check","name":"signed out","ok":true,"detail":"/sign-in"}
+{"kind":"check","name":"nothing but 127.0.0.1:4021 was loaded","ok":true,"detail":""}
+{"kind":"done","failed":0}
+{"kind":"check","name":"before the pass: the gate, with its two labels","ok":true,"detail":"Live appSimulated build: scripted engine, sample dataMade-up data only. No customer or personal details. Removed when the project closes.Pass from the builderType the pass the builder showed after \"Open the live app\". It works once, for 2 minutes. Open the appالتطبيق المباشربناء محاكى: محرك مُبرمَج مسبقاً، بيانات نموذجيةبيانات مُختلَقة فقط. لا بيانات عملاء ولا بيانات شخصية. تُحذف عند إغلاق المشروع"}
+{"kind":"shot","file":"01-gate.png","path":"/__builder/enter","width":1280}
+{"kind":"check","name":"the pass let the browser in, at the app","ok":true,"detail":"/en/sign-in: Sample data. Everything you see here is made up. Built by the scripted engine: fixed changes, no AI model.Internal appArabicSign inWork emailPasswordSign in(globalThis[\"TURBOPACK\"] || (globalThis[\"TURBOPACK\"] = [])).push({\"otherChunks\":[\"static/chunks/3v_59l1qr_8dp.js\",\"static/chunks/0rw2d2i8bu8vx.j"}
+{"kind":"shot","file":"02-app-sign-in.png","path":"/en/sign-in","width":1280}
+{"kind":"check","name":"the app's own sample-data banner is there","ok":true,"detail":"Sample data. Everything you see here is made up. Built by the scripted engine: fixed changes, no AI model."}
+{"kind":"check","name":"signed in to the app as the made-up employee, through the preview","ok":true,"detail":"/en/home"}
+{"kind":"timing","what":"sign-in to home","ms":1005}
+{"kind":"shot","file":"03-app-home.png","path":"/en/home","width":1280}
+{"kind":"shot","file":"04-app-my-requests.png","path":"/en/my-requests","width":1280}
+{"kind":"shot","file":"05-app-new-request.png","path":"/en/my-requests/new","width":1280}
+{"kind":"check","name":"the new request was saved: the list shows it","ok":true,"detail":"Back to HomeMy requestsNew leave requestYour request was saved. Its status is Waiting.December 14, 2026 to December 16, 2026WaitingWorking days requested: 3Reason: Made-up family visit (live preview check)Sent on November 14, 2026 at 14:08 UTC"}
+{"kind":"shot","file":"06-app-request-listed.png","path":"/en/my-requests","width":1280}
+{"kind":"check","name":"the app in Arabic, right to left","ok":true,"detail":"rtl"}
+{"kind":"shot","file":"07-app-my-requests-ar.png","path":"/ar/my-requests","width":1280}
+{"kind":"shot","file":"08-app-my-requests-phone.png","path":"/en/my-requests","width":390}
+{"kind":"check","name":"the walk itself drew no content-security-policy refusal","ok":true,"detail":""}
+{"kind":"check","name":"a fetch to http://app:3161 from the app's page is refused","ok":true,"detail":"refused (TypeError)"}
+{"kind":"check","name":"a fetch to the builder's 127.0.0.1:4020 from the app's page is refused","ok":true,"detail":"refused (TypeError)"}
+{"kind":"check","name":"a fetch to an outside name from the app's page is refused","ok":true,"detail":"refused (TypeError)"}
+{"kind":"check","name":"a service worker is refused","ok":true,"detail":"refused (SecurityError)"}
+{"kind":"fact","name":"WebRTC in the app's page","value":"present (not blocked by the preview)"}
+{"kind":"fact","name":"the preview is a secure context in this browser","value":"true"}
+{"kind":"blocked","by_route":{},"note":"addresses the browser tried that the camera's own rule refused; those the policy refused never reach it"}
+{"kind":"check","name":"none of those fetches reached the network: the policy refused them before the camera's rule saw them","ok":true,"detail":"{}"}
+{"kind":"fact","name":"answer bodies read for the app's address","value":"87 of 87 (the rest were still streaming when read)"}
+{"kind":"answers","count":89,"statuses":{"200":86,"303":1,"307":2},"locations":["303 /__builder/enter -> /","307 / -> /en","307 /en -> /en/sign-in"],"cookie_names":["builder_preview","bpea5f53af_NEXT_LOCALE","bpea5f53af_better-auth.session_token"],"bodies_naming_app_3161":[]}
+{"kind":"check","name":"no answer the browser got names the app's own address (app:3161)","ok":true,"detail":""}
+{"kind":"check","name":"every cookie the browser was given carries the session's prefix or is the front's own","ok":true,"detail":"[\"builder_preview\",\"bpea5f53af_NEXT_LOCALE\",\"bpea5f53af_better-auth.session_token\"]"}
+{"kind":"check","name":"no Location the browser got leads off the preview","ok":true,"detail":"[\"/\",\"/en\",\"/en/sign-in\"]"}
+{"kind":"check","name":"signed out of the app","ok":true,"detail":"/en/sign-in"}
+{"kind":"shot","file":"09-app-signed-out.png","path":"/en/sign-in","width":1280}
+{"kind":"check","name":"left the live app","ok":true,"detail":"Live appSimulated build: scripted engine, sample dataMade-up data only. No customer or personal details. Removed when the project closes.You left the live app. Its session is closed.التطبيق المباشربناء محاكى: محرك مُبرمَج مسبقاً، بيانات نموذجيةبيانات مُختلَقة فقط. لا بيانات عملاء ولا بيانات شخصية. تُحذف عند إغلاق المشروع.غادرت التطبيق المباشر. أُغلقت جلسته."}
+{"kind":"shot","file":"10-left.png","path":"/__builder/leave","width":1280}
+{"kind":"check","name":"after leaving, the app is not reached: the gate's page","ok":true,"detail":"Live appSimulated build: scripted engine, sample dataMade-up data only. No customer or personal details. Removed when the project closes.No live app now. On the builder's preview screen, press \"Open the live app\" while the app runs.التطبيق المباشربناء محاكى: محرك مُبرمَج مسبقاً، بيانات نموذجيةبيانات مُختلَقة فقط. لا بيانات عملاء ولا بيانات شخصية. تُحذف عند إغلاق المشروع.لا يوجد تطبيق مباشر الآن. ف"}
+{"kind":"timing","what":"whole walk","ms":7872}
+{"kind":"csp","violations_seen_in_console":7,"messages":["Creating a worker from 'http://127.0.0.1:4030/sw-probe.js' violates the following Content Security Policy directive: \"worker-src 'none'\". The action has been blocked.","Connecting to 'http://app:3161/en/sign-in' violates the following Content Security Policy directive: \"connect-src 'self'\". The action has been blocked.","Fetch API cannot load http://app:3161/en/sign-in. Refused to connect because it violates the document's Content Security Policy.","Connecting to 'http://127.0.0.1:4020/' violates the following Content Security Policy directive: \"connect-src 'self'\". The action has been blocked.","Fetch API cannot load http://127.0.0.1:4020/. Refused to connect because it violates the document's Content Security Policy.","Connecting to 'https://example.com/' violates the following Content Security Policy directive: \"connect-src 'self'\". The action has been blocked.","Fetch API cannot load https://example.com/. Refused to connect because it violates the document's Content Security Policy."]}
+{"kind":"check","name":"nothing but http://127.0.0.1:4030 was loaded by the camera's own rule","ok":true,"detail":"{}"}
+{"kind":"done","failed":0}
