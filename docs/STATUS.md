@@ -2,7 +2,7 @@
 
 Read this first in every session. Update it before every session ends. Nothing else carries over between sessions.
 
-**Last updated:** 14 November 2026, after the decision on connectors.
+**Last updated:** 14 November 2026, after the decision on connectors and the screens mock-up.
 
 ## Current state
 
@@ -13,6 +13,7 @@ Read this first in every session. Update it before every session ends. Nothing e
 - **Prices and blocked documentation: read.** Hetzner and DigitalOcean prices read from their pages; Oracle, AWS and Azure UAE regions confirmed from their pages, but their price tables are drawn by a script and were not readable here. Django, PostgreSQL, Bedrock, Core42 Compass and the Codex SDK documentation read and recorded in `docs/SOURCES.md`. Still unread: the law-firm note on the UAE data law (site blocks automated requests) and OpenAI's API terms.
 
 - **Connectors and plugins: decided, 14 November 2026.** The owner asked which connectors (links that let Claude Code act inside another service) would help. Answer: none need adding. GitHub, the built-in browser and the review skills cover the walking skeleton. The owner then asked to use Lovable, chose "mock-up only", and afterwards told Claude Code to lead. Decision: no other vendor's app builder is used for this project in any form, and the list of connectors not to use here is in `docs/DECISIONS.md`. Nothing was built in Lovable and no build message was sent; Claude Code read the list of the owner's Lovable workspaces once, which is a read and spends no credits.
+- **Screens mock-up: made, 14 November 2026. Not product code.** The owner agreed to the connector decision and asked for a preview. A mock-up of the builder's own screens was made on a design canvas in the owner's Claude account: https://claude.ai/artifact/5aamHqk33hMYv8PJNcMsgn (private to the owner). Nine screens: the journey in English (ask, questions, brief, plan with the acceptance checklist, build, acceptance run, record with cost and export) and two of them in Arabic, right to left (questions, acceptance run). The content is test example 1, the leave-request app, with made-up names. Every screen carries a banner saying it is a mock-up and that nothing on it has been built or run. Money figures are left as `[COST]` and `[CAP]` because nothing is measured. It was made by Claude Code with Anthropic's design canvas, not with another vendor's app builder. The mock-up's files are not in this repository; the canvas holds them. Limits are in `docs/KNOWN-GAPS.md`, gap 17.
 
 ## What was verified, and how
 
@@ -38,6 +39,7 @@ At the end of the session a one-page test server was started inside the session 
 | First model call | Owner | Model key not yet set; monthly limit and cap figures to confirm |
 | Demo-server decision | Owner | Options with verified prices are in `docs/OPEN-DECISIONS.md` item 5; recommended Hetzner CPX32 at €30.49 per month excl. VAT |
 | Demo candidate | Owner | Undecided between D1, D2 and D3; not needed until the intake milestone |
+| Mock-up feedback | Owner | Open the link, say whether every screen shows and what to change. Claude Code could not look at the rendered page |
 | Connectors switched off | Owner | Written rule only until he switches them off; `docs/OPEN-DECISIONS.md` item 11, gap 16 |
 | Second-engine milestone (Codex SDK) | Owner, later | OpenAI account and spend need a separate yes under hard rule 4 when that milestone comes |
 
@@ -45,6 +47,6 @@ At the end of the session a one-page test server was started inside the session 
 
 | Date | What was done |
 | --- | --- |
-| 14 Nov 2026 | Listed the connectors on the owner's account (36 installed, about 22 connected) and recommended adding none. Recorded the decision not to use other vendors' app builders or the connectors holding real contact data. Confirmed pull request #1 is merged. No product code written |
+| 14 Nov 2026 | Listed the connectors on the owner's account (36 installed, about 22 connected) and recommended adding none. Recorded the decision not to use other vendors' app builders or the connectors holding real contact data. Confirmed pull request #1 is merged. Made the screens mock-up on a design canvas at the owner's request. No product code written |
 | 11 Nov 2026 (later) | The owner issued an edited handover (Decision F) and then approved the design note and answered its questions. Decisions recorded. Network hosts allowed with the owner's approval. Prices and blocked documentation re-fetched (see the design note, section 4.3 and `docs/SOURCES.md`) |
 | 11 Nov 2026 | Repository set up from the empty state. Environment measured. Task 0 documents written. Specification cut from the handover. Stage 1 design note written as a proposal. Draft pull request opened. Preview test started |
