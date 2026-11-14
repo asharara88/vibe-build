@@ -17,6 +17,7 @@ Bring these to the owner one at a time, as multiple-choice questions with a reco
 
 9. **Model key.** Create an API key in the Anthropic Console, set a monthly spending limit there, and add the key as the environment variable `BUILDER_MODEL_API_KEY` on the personal cloud environment. Steps are in `docs/design/stage-1.md`, section 9, question 7. Never paste the key into the conversation. Claim the Ultra plan's monthly API credits and link the Console organization to the plan first.
 10. **Preview test.** Say whether the page titled "builder: preview test" was shown in the Claude app during the first session.
+11. **Connectors to switch off.** In the claude.ai connector settings, switch off Lovable, Replit, Floot, Supabase, Vercel, Render, HubSpot and Gmail, so that the decision of 14 November 2026 is enforced and not only written down. Not checked: whether they can be switched off for this project alone or only for the whole account. If it is the whole account and the owner uses them elsewhere, leave them on and the written rule stands (gap 16).
 
 ## Network hosts allowed on 11 November 2026 (for the record)
 
