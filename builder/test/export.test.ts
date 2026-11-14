@@ -186,7 +186,7 @@ describe("T2 (S22): the exported app's compose file", () => {
     const script = doc.services.keys!.command!.at(-1)!;
     expect(doc.services.keys!.command).toEqual(["node", "-e", m.KEYS_SCRIPT]);
     expect(script).toContain("['db_password',18,''],['auth_secret',32,''],['sample_password',12,'Sample-']");
-    expect(script).toContain("mode:0o444");
+    expect(script).toContain("{mode: 0o444}");
     expect(script).toContain("console.log('kept '+n);continue");
     expect(Object.fromEntries(SERVICES.map((n) => [n, doc.services[n]!.depends_on ?? null]))).toEqual({
       keys: null,
