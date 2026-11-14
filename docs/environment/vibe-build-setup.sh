@@ -1,8 +1,9 @@
 #!/bin/bash
 # vibe-build: make Docker startable and fetch the two sandbox images the owner approved,
 # each at its exact digest (builder/approved-images.json; question 18 (a), 13 Nov 2026).
-# Every step may fail and every wait has a time limit, so the script cannot stop a
-# session starting or hold it up for long. It leaves Docker stopped with no stale
+# Every step may fail and every command that can wait has a time limit (14 Nov 2026: starting
+# and stopping Docker and re-tagging an image now have theirs too), so the script cannot stop a
+# session starting or hold it up for long: at most about five minutes in all. It leaves Docker stopped with no stale
 # process files, and writes one dated line per outcome to /var/log/vibe-build-setup.log.
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 log=/var/log/vibe-build-setup.log
@@ -17,14 +18,14 @@ note "setup start"
 sed -i '/^\s*ulimit .*[^e]$/ s/$/ || true/' /etc/init.d/docker || true
 
 clean_pids
-service docker start || true
+timeout -k 5 60 service docker start >/dev/null 2>&1; note "service docker start exit=$?"
 timeout 30 bash -c 'until docker info >/dev/null 2>&1; do sleep 1; done'
 
 fetch() {
   timeout -k 5 40 docker pull -q "$1" >/dev/null 2>&1 \
     || { sleep 60; timeout -k 5 40 docker pull -q "$1" >/dev/null 2>&1; }
   rc=$?
-  [ "$rc" -eq 0 ] && docker tag "$1" "${1%@*}"
+  [ "$rc" -eq 0 ] && { timeout -k 5 15 docker tag "$1" "${1%@*}" >/dev/null 2>&1; note "${1%@*} tag exit=$?"; }
   note "$1 exit=$rc"
 }
 if timeout 10 docker info >/dev/null 2>&1; then
@@ -35,7 +36,7 @@ else
   note "docker did not answer; nothing fetched"
 fi
 
-if pgrep -x dockerd >/dev/null; then service docker stop || true; fi
+if pgrep -x dockerd >/dev/null; then timeout -k 5 30 service docker stop >/dev/null 2>&1; note "service docker stop exit=$?"; fi
 clean_pids
 note "setup end"
 exit 0
