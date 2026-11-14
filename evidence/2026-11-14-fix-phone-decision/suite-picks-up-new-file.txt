@@ -1,0 +1,8 @@
+The new test file is in the test runner's own list and in the gate's scan, 2026-11-14T03:47:02Z, on 6db89da, from builder/.
+
+1. npx vitest list --filesOnly (the files npm test runs): 30 files; the new one:
+   test/probe-phone.test.ts
+
+2. The gate's scan (test/gate-scan.ts, as test/acceptance-gate.test.ts runs it on the real suite): lines that leave a test out, and test files the runner would not run:
+   runner files: 30 ; the new file among them: true
+   found: nothing
