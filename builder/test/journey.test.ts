@@ -1484,6 +1484,10 @@ describe("J3: the live app, on the journey (stand-in sandbox, the real front, a 
       sandboxes.streamNetwork = null;
     }
     expect(await listEvents(pool, id, EV.liveOpened)).toHaveLength(0);
+    // The refusal comes from inside the live job, and reaches the caller before that job's ending is written. Closing
+    // at once raced with it ("A job is running for this project"): seen once, in the whole-suite run of 14 Nov 2026 on
+    // abe41e5. The job is waited for first, as the tests around this one do.
+    await j.waitForJob();
     await j.closeProject(id);
   });
 
