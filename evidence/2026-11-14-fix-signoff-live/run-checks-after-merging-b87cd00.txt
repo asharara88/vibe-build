@@ -1,0 +1,14 @@
+Checks for wt-fix-signoff at df11bab (the integration branch at b87cd00 merged in), 2026-11-14T05:46:39Z
+TYPECHECK exit 0
+Named exceptions in use:
+  none
+RESULT: PASSED
+Lock held from 06:02:42 UTC.
+
+ Test Files  31 passed (31)
+      Tests  749 passed (749)
+   Start at  06:02:43
+   Duration  1027.15s (tests 100%)
+
+vitest exit: 0
+containers left: 0

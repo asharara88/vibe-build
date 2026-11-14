@@ -1,0 +1,53 @@
+Sign-off and the live app (after the review of 14787d8, known gap 161): the new tests, 2026-11-14T04:09:44Z. Command (from builder/, database builder_test_fxso made fresh, TMPDIR <scratchpad>/fxso-tmp): flock <scratchpad>/live-tests.lock npx vitest run test/web.test.ts -t "after the review of 14787d8" --reporter=verbose; only the tests run, the failures' first lines, and the summary are kept below.
+
+1. BEFORE the fix: builder/src as at 14787d8 (git checkout 14787d8 -- src), the tests as committed in 8460ed9. Expected: the six new tests fail (the open button offered and a POST opening after sign-off; a live session left open after sign-off, with no close recorded before it; a pass that still enters; an open asked for during the sign-off made; the sign-off recorded before a close under way), the control passes.
+   builder/src differs from 14787d8's: 0 lines of diff (0: none); from HEAD's:  3 files changed, 9 insertions(+), 73 deletions(-)
+ × test/web.test.ts > Sign-off and the live app (stand-in sandbox, the real front; after the review of 14787d8, known gap 161) > signed off, Open the live app is refused: the preview screen offers no open button and says why, in both languages; a POST made anyway is refused (409) with that reason; no live session, no live job, nothing recorded as opened (after the review of 14787d8) 917ms
+ × test/web.test.ts > Sign-off and the live app (stand-in sandbox, the real front; after the review of 14787d8, known gap 161) > a live session open when sign-off is asked, its pass shown and not used: the session is ended first and its close recorded, naming sign-off, before journey.signed_off; the pass then no longer works at the front; the export after sign-off is written as before (after the review of 14787d8) 916ms
+ × test/web.test.ts > Sign-off and the live app (stand-in sandbox, the real front; after the review of 14787d8, known gap 161) > a live session entered at the front when sign-off is asked: it is ended first (revoked at the front, its streams killed) and its close recorded before journey.signed_off; the front's cookie then no longer reaches the app and no new stream is opened (after the review of 14787d8) 967ms
+ × test/web.test.ts > Sign-off and the live app (stand-in sandbox, the real front; after the review of 14787d8, known gap 161) > Open the live app asked for while the sign-off is being recorded (its write held) waits behind it and is then refused: no pass, no live session, nothing recorded as opened; the sign-off is recorded (after the review of 14787d8) 1234ms
+ × test/web.test.ts > Sign-off and the live app (stand-in sandbox, the real front; after the review of 14787d8, known gap 161) > a sign-off asked for while Open the live app is in flight (its network check held) is refused, as while any job runs; once that open is made, a sign-off ends its session first and records the close before the sign-off (after the review of 14787d8) 789ms
+ × test/web.test.ts > Sign-off and the live app (stand-in sandbox, the real front; after the review of 14787d8, known gap 161) > a live session whose close (End the live app) is still being recorded when sign-off is asked: the sign-off waits for that record, so the close is recorded before the sign-off (after the review of 14787d8) 793ms
+ ✓ test/web.test.ts > Sign-off and the live app (stand-in sandbox, the real front; after the review of 14787d8, known gap 161) > control: before sign-off, after the checklist passed, the preview screen offers Open the live app and it opens (its pass shown, its session open, live_opened recorded); a sign-off with no live session open records no live close (after the review of 14787d8) 790ms
+AssertionError: the open button is offered after sign-off (en): expected '<!doctype html>\n<html lang="en" dir=…' not to contain 'data-live-open'
+AssertionError: expected '<!doctype html>\n<html lang="en" dir=…' not to contain 'action="/projects/j1-e667208e1489/liv…'
+AssertionError: expected '<!doctype html>\n<html lang="en" dir=…' to contain 'data-live-refused'
+AssertionError: expected '<!doctype html>\n<html lang="en" dir=…' to contain 'is signed off. The live app is not op…'
+AssertionError: the open button is offered after sign-off (?lang=ar): expected '<!doctype html>\n<html lang="ar" dir=…' not to contain 'data-live-open'
+AssertionError: ?lang=ar: expected '<!doctype html>\n<html lang="ar" dir=…' not to contain 'action="/projects/j1-e667208e1489/liv…'
+AssertionError: ?lang=ar: expected '<!doctype html>\n<html lang="ar" dir=…' to contain 'data-live-refused'
+AssertionError: ?lang=ar: expected '<!doctype html>\n<html lang="ar" dir=…' to contain 'is signed off. The live app is not op…'
+AssertionError: a pass was shown after sign-off: expected '72JA-4E5S' to be undefined
+AssertionError: a live session is open after sign-off: expected { projectId: 'j1-e667208e1489', …(9) } to be null
+AssertionError: expected 200 to be 409 // Object.is equality
+AssertionError: a live session is open after sign-off: expected { projectId: 'j1-b3474dd615db', …(9) } to be null
+AssertionError: the record's order: expected [ 'signed_off' ] to deeply equal [ …(2) ]
+AssertionError: the pass shown before sign-off still enters the live app: expected 303 to be 403 // Object.is equality
+AssertionError: expected [ { id: '148', …(5) } ] to have a length of +0 but got 1
+AssertionError: a live session is open after sign-off: expected { projectId: 'j1-8f0078af921a', …(9) } to be null
+AssertionError: streams to the app are open after sign-off: expected 1 to be +0 // Object.is equality
+AssertionError: the record's order: expected [ 'signed_off' ] to deeply equal [ …(2) ]
+AssertionError: expected undefined to match object { entered: true }
+AssertionError: a pass was shown for an open asked for while the sign-off was recorded: expected 'D4KV-BV18' to be undefined
+AssertionError: a live session is open after sign-off: expected { projectId: 'j1-04597c687fa2', …(9) } to be null
+AssertionError: expected 200 to be 409 // Object.is equality
+AssertionError: a live session is open after sign-off: expected { projectId: 'j1-a4ab76d6277b', …(9) } to be null
+AssertionError: expected [ 'signed_off' ] to deeply equal [ …(2) ]
+AssertionError: the sign-off answered while the live session's close was still being recorded: expected 'answered' to be 'waiting' // Object.is equality
+AssertionError: expected [ 'signed_off', …(1) ] to deeply equal [ …(2) ]
+ Test Files  1 failed (1)
+      Tests  6 failed | 1 passed | 46 skipped (53)
+
+2. AFTER the fix: the same command on 8460ed9 (git diff 14787d8 --stat -- src:  3 files changed, 73 insertions(+), 9 deletions(-)).
+   builder/src differs from HEAD's: 0 lines of diff (0: none)
+ ✓ test/web.test.ts > Sign-off and the live app (stand-in sandbox, the real front; after the review of 14787d8, known gap 161) > signed off, Open the live app is refused: the preview screen offers no open button and says why, in both languages; a POST made anyway is refused (409) with that reason; no live session, no live job, nothing recorded as opened (after the review of 14787d8) 907ms
+ ✓ test/web.test.ts > Sign-off and the live app (stand-in sandbox, the real front; after the review of 14787d8, known gap 161) > a live session open when sign-off is asked, its pass shown and not used: the session is ended first and its close recorded, naming sign-off, before journey.signed_off; the pass then no longer works at the front; the export after sign-off is written as before (after the review of 14787d8) 1101ms
+ ✓ test/web.test.ts > Sign-off and the live app (stand-in sandbox, the real front; after the review of 14787d8, known gap 161) > a live session entered at the front when sign-off is asked: it is ended first (revoked at the front, its streams killed) and its close recorded before journey.signed_off; the front's cookie then no longer reaches the app and no new stream is opened (after the review of 14787d8) 923ms
+ ✓ test/web.test.ts > Sign-off and the live app (stand-in sandbox, the real front; after the review of 14787d8, known gap 161) > Open the live app asked for while the sign-off is being recorded (its write held) waits behind it and is then refused: no pass, no live session, nothing recorded as opened; the sign-off is recorded (after the review of 14787d8) 1219ms
+ ✓ test/web.test.ts > Sign-off and the live app (stand-in sandbox, the real front; after the review of 14787d8, known gap 161) > a sign-off asked for while Open the live app is in flight (its network check held) is refused, as while any job runs; once that open is made, a sign-off ends its session first and records the close before the sign-off (after the review of 14787d8) 770ms
+ ✓ test/web.test.ts > Sign-off and the live app (stand-in sandbox, the real front; after the review of 14787d8, known gap 161) > a live session whose close (End the live app) is still being recorded when sign-off is asked: the sign-off waits for that record, so the close is recorded before the sign-off (after the review of 14787d8) 1144ms
+ ✓ test/web.test.ts > Sign-off and the live app (stand-in sandbox, the real front; after the review of 14787d8, known gap 161) > control: before sign-off, after the checklist passed, the preview screen offers Open the live app and it opens (its pass shown, its session open, live_opened recorded); a sign-off with no live session open records no live close (after the review of 14787d8) 794ms
+ Test Files  1 passed (1)
+      Tests  7 passed | 46 skipped (53)
+
+Working tree of builder/ after (git status --porcelain, count): 0

@@ -10,6 +10,10 @@
  * Nothing is built before both confirmations, a step only after the one before it is approved, and nothing is
  * exported before sign-off (`JOB_RULES`, `buildStepRefusal`). The jobs' bodies are in journey-jobs.ts.
  *
+ * After the review of 14787d8 (known gap 161, the owner's choice): the live app is not opened once a project is signed
+ * off (`JOB_RULES.live`), and a live session of the project is ended, its close recorded, before the sign-off is
+ * recorded (`signOff`, through the hook journey-jobs.ts attaches with the live preview).
+ *
  * SIMULATED: the analyst. The questions are fixed (intake.ts), the brief is never read or given to the engine,
  * and every project continues as test example 1. REAL: the store, the event log, the budget and step holds
  * (package 1.3), the acceptance store (package 3.1). The only engine this module makes is the ScriptedEngine
@@ -77,6 +81,13 @@ export const EV = {
   liveClosed: "journey.preview.live_closed",
 } as const;
 
+/**
+ * Why "Open the live app" is refused once the project is signed off (after the review of 14787d8, known gap 161: the
+ * owner chose to refuse the live app after sign-off).
+ */
+export const LIVE_AFTER_SIGN_OFF = "This project is signed off. The live app is not opened after sign-off, so the signed-off app is not changed through it.";
+/** The reason a live session's close carries when the sign-off ended it (after the review of 14787d8). */
+export const LIVE_CLOSED_BY_SIGN_OFF = "signed_off";
 /** The label a sign-off carries (final design, section 1, item 8). */
 export const SIGN_OFF_LABEL = "Sign-off on a simulated build, checked by a stand-in test of item 1 only: not acceptance";
 /** The label the export carries (final design, section 1, item 9). */
@@ -343,7 +354,15 @@ export const JOB_RULES: Record<JobKind, (s: JourneyState) => string | null> = {
           ? "The project is signed off; the checklist is not run again."
           : null,
   export: (s) => (s.signedOff ? null : "The project is not signed off yet. Export is offered only after sign-off."),
-  live: (s) => (!s.planConfirmed ? "The plan is not confirmed yet." : !s.appRunning ? "The app is not running: make the preview first. The live app is offered only while it runs." : scriptedOnlyProblem(s)),
+  // After the review of 14787d8 (known gap 161, the owner's choice): never after sign-off.
+  live: (s) =>
+    !s.planConfirmed
+      ? "The plan is not confirmed yet."
+      : s.signedOff
+        ? LIVE_AFTER_SIGN_OFF
+        : !s.appRunning
+          ? "The app is not running: make the preview first. The live app is offered only while it runs."
+          : scriptedOnlyProblem(s),
 };
 
 /**
@@ -568,6 +587,11 @@ export class Journey {
   private running: { projectId: string; jobId: string; done: Promise<void>; abort: AbortController } | null = null;
   /** Why the journey was halted (review bot on defb9c4), or null. Once set, nothing starts again in this process. */
   private haltedWhy: string | null = null;
+  /**
+   * After the review of 14787d8: ends a project's live session, if one is open or ending, and resolves once its close is
+   * recorded. Attached by journey-jobs.ts with the live preview (`attachLiveEnd`); without a preview there is none to end.
+   */
+  private liveEnd: ((projectId: string, reason: string) => Promise<unknown>) | null = null;
 
   constructor(private readonly o: JourneyOptions) {
     this.pool = o.pool;
@@ -775,13 +799,22 @@ export class Journey {
     });
   }
 
-  /** "Sign off", labelled as the design says: on a simulated build, checked by a stand-in test of item 1 only. */
+  /**
+   * "Sign off", labelled as the design says: on a simulated build, checked by a stand-in test of item 1 only.
+   *
+   * After the review of 14787d8 (known gap 161, the owner's choice): a live session of the project is ended first
+   * (revoked at the front, its streams killed, its close recorded with the reason "signed_off"; a close already under
+   * way is waited for), and only then is the sign-off recorded. Nothing can open a new one meanwhile, or after: an open
+   * is a `live` job, started only under this project's lock and refused once the project is signed off
+   * (`JOB_RULES.live`); and while one is in flight (its job running), the sign-off is refused below.
+   */
   signOff(projectId: string): Promise<void> {
     return this.withLock(projectId, async () => {
       const s = await this.load(projectId);
       if (this.running?.projectId === projectId) throw new JourneyRefused("A job is running for this project; wait for it to end.");
       const why = signOffRefusal(s);
       if (why) throw new JourneyRefused(why);
+      await this.liveEnd?.(projectId, LIVE_CLOSED_BY_SIGN_OFF);
       await appendEvent(this.pool, projectId, EV.signedOff, {
         label: SIGN_OFF_LABEL,
         acceptance_job: s.acceptanceRun!.jobId,
@@ -890,6 +923,11 @@ export class Journey {
       })();
       return { jobId };
     });
+  }
+
+  /** After the review of 14787d8: how a project's live session is ended before its sign-off (journey-jobs.ts, `attachPreview`). */
+  attachLiveEnd(fn: (projectId: string, reason: string) => Promise<unknown>): void {
+    this.liveEnd = fn;
   }
 
   /** Wait for the running job, if any, to end (the automated run and the tests use it). */

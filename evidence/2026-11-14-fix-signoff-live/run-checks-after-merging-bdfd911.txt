@@ -1,0 +1,16 @@
+Pre-merge checks for wt-fix-signoff at d57d9a8, 2026-11-14T05:25:17Z
+TYPECHECK exit 0
+Named exceptions in use:
+  none
+RESULT: PASSED
+Lock held from 05:28:24 UTC.
+(node:28765) Warning: Closing file descriptor 26 on garbage collection
+(node:28765) Warning: Closing file descriptor 27 on garbage collection
+
+ Test Files  30 passed (30)
+      Tests  739 passed (739)
+   Start at  05:28:25
+   Duration  1018.84s (tests 100%)
+
+vitest exit: 0
+containers left: 0

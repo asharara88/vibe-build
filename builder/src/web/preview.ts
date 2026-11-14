@@ -18,6 +18,9 @@
  * - After the review bot on af80dc9: an open is registered (`beginOpen`) before anything of it is awaited; the
  *   sign-out of the builder sign-in session that asked for it, or a new sign-in that ends that session, cancels it,
  *   and `open` refuses a cancelled open, or one whose builder session no longer reads as valid, after its last await.
+ * - After the review of 14787d8: `closeFor` ends the project's session and also waits for a close of that project
+ *   already under way (for another reason), so that whatever follows it, the sign-off among others, is recorded after
+ *   the close.
  * - Events (`journey.preview.live_entered`, `.live_closed`) go through `onEvent`; `.live_opened` is the live job's.
  * - The live camera's socket (`cameraSocket`): a folder of the runner's user 1001 (mode 750) with one socket (mode
  *   600), whose connections are passed, byte for byte, to the front's port on 127.0.0.1 (forwarder.ts).
@@ -189,6 +192,8 @@ export class LivePreview {
   private readonly streams = new Set<{ sock: net.Socket; stream: AppStream }>();
   /** Opens asked for and not yet made, each with the builder sign-in session that asked (after the review bot on af80dc9). */
   private readonly pending = new Set<PendingOpen>();
+  /** Closes under way (streams being killed, the close being recorded), each with its project (after the review of 14787d8). */
+  private readonly closing = new Set<{ projectId: string; done: Promise<void> }>();
   private timers: NodeJS.Timeout[] = [];
   private stopping = false;
   private listening: Promise<void> | null = null;
@@ -418,11 +423,16 @@ export class LivePreview {
     if (o.builderSessionValid && !o.builderSessionValid()) throw new LiveOpenCancelled("builder_session_ended");
   }
 
-  /** End the session if it is this project's (leave, app stop, project close, the checklist). */
+  /**
+   * End the session if it is this project's (leave, app stop, project close, the checklist, the sign-off). Resolves once
+   * its close is recorded; after the review of 14787d8, also once any close of this project already under way (for
+   * another reason) is. True if it ended a session itself.
+   */
   async closeFor(projectId: string, reason: string): Promise<boolean> {
-    if (this.current?.projectId !== projectId) return false;
-    await this.closeCurrent(reason);
-    return true;
+    const mine = this.current?.projectId === projectId;
+    if (mine) await this.closeCurrent(reason);
+    await Promise.all([...this.closing].filter((x) => x.projectId === projectId).map((x) => x.done));
+    return mine;
   }
 
   /**
@@ -448,8 +458,17 @@ export class LivePreview {
     for (const t of this.timers) clearTimeout(t);
     this.timers = [];
     if (tellFront) this.send({ type: "revoke", reason: /^[a-z_]{1,40}$/.test(reason) ? reason : "closed" });
-    await this.killStreams();
-    await this.event(c.projectId, LIVE_EVENTS.closed, { session: c.sessionId, reason, entered: c.entered });
+    // After the review of 14787d8: under way until its close is recorded (`closeFor` waits for it).
+    let ended!: () => void;
+    const under = { projectId: c.projectId, done: new Promise<void>((r) => (ended = r)) };
+    this.closing.add(under);
+    try {
+      await this.killStreams();
+      await this.event(c.projectId, LIVE_EVENTS.closed, { session: c.sessionId, reason, entered: c.entered });
+    } finally {
+      this.closing.delete(under);
+      ended();
+    }
   }
 
   private async killStreams(): Promise<void> {
