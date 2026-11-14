@@ -1,6 +1,6 @@
 # Questions for the owner
 
-Rules: build plan section 8, rule 11. At most six lines each, with the options and the recommendation; questions that block work come first. Numbers are kept from earlier records. Answered questions are recorded in `docs/DECISIONS.md`; the wording as first asked is in `docs/log/2026-11-13-status-before-rewrite.md`.
+Rules: build plan section 8, rule 11. At most six lines each, with the options and the recommendation; questions that block work come first. Numbers are kept from earlier records. Answered questions are recorded in `docs/DECISIONS.md`; the wording as first asked is in `docs/log/2026-11-13-status-before-rewrite.md`, and for questions 20 and 22 in this file at commit `839be17`.
 
 ## Blocking work
 
@@ -8,15 +8,15 @@ None open right now. Question 15, the browser and the runner's two base images, 
 
 ## Not blocking yet
 
-**22. Two of your sessions are working at once. Which one builds package 3.2, the export?** You told one "Then build the export, 3.2"; the other had begun 3.2's design at 10:25 UTC on 14 Nov and asked not to be doubled. Neither will start a second exporter.
-(a) **The session that began the design builds it; the other stops after pull request #49** (recommended: its design is under way, and two exporters would repeat the J2 doubling).
-(b) The session you told builds it, and the other stops its design.
-(c) One designs, then the build is split between them.
+**28. A project the interface cannot close: what should it offer?** Since 14 Nov "Close project" closes a project only when Docker lists nothing of it and its folder is gone (known gap 180's fix). If that can never happen, the project stays "removal not finished": every "Close project" and every start tries again and names what is left.
+(a) **Leave it: someone removes what is named by hand, then presses "Close project"** (recommended: assumed rare, not measured; the project's own screens show what the last try recorded as left, the Projects list does not).
+(b) Add "Close anyway", with a record of what was left. An engineer should read it first.
+(c) Let the next start give up after a number of tries and mark the project "left on the machine".
 
-**20. Which rule decides when a package is "tested"?** A rule of 12 Nov (Claude Code's) says: only when the commit a reviewer last read is the commit that is merged. Your rule of 13 Nov says: at most two review rounds. Fixes made after the last round are then merged unread, so the two pull apart. Seven merged packages and J2 are held at "built, not tested" on this (`docs/reviews/2026-11-14-state-of-merged-packages.md`).
-(a) **Your two-round rule decides: a package is tested when its "Done means" ran and passed, it had its reviews, and nothing blocking was open at the merge; fixes after the last round are shown by tests** (recommended: it is your later rule, and it is what the plan's section 3 says).
-(b) The 12 Nov rule decides: every fix is re-read before a package is called tested, whatever the number of rounds.
-(c) (a) for most code; (b) for the gateway and the cap, isolation, acceptance separation and key handling.
+**29. May a signed-off project still be exported after "Close project" was pressed?** Today, no. A closed project is not exported (as before), and since 14 Nov neither is one whose removal did not finish. So pressing "Close project" before "Export" loses the export.
+(a) **Leave it, and say so in one sentence next to "Close project"** (recommended: the smallest change).
+(b) Allow the export while the removal is not finished and the folder is whole. Needs an engineer's reading.
+(c) Refuse "Close project" on a signed-off project until it is exported or you confirm.
 
 **21. Is Vercel now allowed for a phone link?** A decision of 14 Nov, made in a session that started from `main`, says the Vercel connector is not used (outside the approved design; it can create paid resources). The status file of the session that merged J2 lists "a phone link through Vercel" as waiting on you. Both cannot stand.
 (a) **Not allowed until a price and its source are shown to you and you say yes** (recommended: hard rule 4).
@@ -61,9 +61,13 @@ Its cost: while a step runs, its whole reservation stops the cap being lowered, 
 
 Claude Code's readings and work, recorded as such, not as your decisions. Detail: `docs/log/2026-11-13-status-before-rewrite.md`, "Yours to confirm".
 
+- **Your "Fix it" of 14 Nov, as Claude Code read it** (`docs/DECISIONS.md`, 14 Nov). You named no option. Claude Code took the recommended one for two questions and removed them from the list above; their options are given in short in the decision row, and word for word in this file at commit `839be17`. Former question 22: package 3.2 is built by the session that began its design. Former question 20: a package is "tested" by the plan's own rule (its "Done means" ran and passed, it had its reviews, nothing blocking was open at its merge), not by Claude Code's stricter rule of 12 Nov. What that means: fixes made after a package's last review, some of them fixes of blocking findings, were read by no reviewer; tests show them. On that reading 3.1, 1.4b and J2 are now marked tested in the plan's progress table, each with its limits. Say so if you meant otherwise: the marks are taken back, and 3.2 goes to the session you name.
+- **Package 1.4c is not marked tested**, for two reasons that are yours to say. Something was open when it merged (known gap 145) and was closed the next day by pull request #42: does that count from that day? And is the separate recorded action `--overrun` what you meant by "package 1.5 clears the freeze" (the line on question 17 below)? If both are yes, 1.4c is marked tested, with gap 146 (one call admitted just before the freeze can still be forwarded; no test) still open.
+- **The reviews behind the three marks.** Your plan asks, for the riskiest parts, for reviewers who try to break the work, "each serious finding challenged by others". For 3.1, 1.4b and J2 such reviewers read the work and their blocking findings were fixed, but no second reviewer challenged a finding. Claude Code counted those reviews. If you read your plan's words strictly, the three go back to built until a challenged reading is made, as was done for J1 and 3.1b on 14 Nov.
+- **After a "Close project" that could not remove everything, the project is "removal not finished"**: nothing of it is built, checked, signed off or exported any more; its screens offer "Close project" again and "New project". A reviewer put this as your decision, with two options; Claude Code took one on 14 Nov without asking (the other: the project stays open). Questions 28 and 29 ask what follows from it.
 - **J2's second review (pull request #49):** Claude Code's choices in `docs/DECISIONS.md` (14 Nov, "J2's second review, built as follows"), among them the new screen sentence on what the broken-copy demonstration shows and does not show, in English and Arabic (`docs/arabic-wording-list.md`), and that a step of an interrupted project is no longer approved.
 - The reading of your words of 14 Nov ("Fix it and build properly. Merge what needs to be merged."): pull request #46 merged into `main` (documents only); `claude/stage-1` itself **not** merged into `main` (question 19).
-- **Gap 107, never put to you before:** with `--no-hold`, the journal recovery sets an unreadable line aside with no freeze and no event, so after a restart every project runs again. Package 1.4b's evidence says this "waits for the owner's yes".
+- **Gap 107, never put to you before:** with `--no-hold`, the journal recovery sets an unreadable line aside with no freeze and no event, so after a restart every project runs again. Package 1.4b's evidence says this "waits for the owner's yes". If you read this as leaving the outside review's point unmet, 1.4b's mark of 14 Nov goes back to built.
 - **J3's phone test, yours to run (two test pages, no data):** tell Claude Code "phone test"; it starts the two pages and adds "probe-a" and "probe-b" to your Claude app's preview list. Open probe-a and press its steps 1 to 6 in order (step 6 twice); open probe-b and press its steps; then say "done" and give three answers the report needs (since the fix after the review of 14787d8, 14 Nov 2026): what step 5 showed (a page saying "Port 4034 answered", or an error), whether the cached page's number stayed the same the second time, and whether probe-a opened in a private window where you are not signed in (or that you could not try). Without all three, or with a step missing, the report says "not decided" and names what to redo. *14 Nov 2026:* the Claude app on the owner's phone showed no preview list; the test is being tried from a computer at claude.ai/code instead. Claude Code reads what the pages recorded and says what the design's table decides. The live app stays "not yet approved for use" until then, and, since J3's review, off: it is turned on (`BUILDER_LIVE_PREVIEW=1`) only once the test is recorded (`evidence/2026-11-13-journey-j3/live-preview.md`, "Your phone test"; `builder/scripts/probe-phone.ts`).
 - Proof rows B7 to B14 assigned to packages 1.3 to 1.5 (B7's extra over 1.3's wording is now question 16; 1.5 is taken after 1.4).
 - The message a refused step shows, reworded from design note 5.5 for a step (package 1.3; the note of 13 Nov there).

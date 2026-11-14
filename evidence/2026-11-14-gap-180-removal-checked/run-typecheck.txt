@@ -1,0 +1,6 @@
+Known gap 180's fix: npm run typecheck on 7433518 (builder/ tree 783af9f), 2026-11-14T12:25:12Z.
+
+> builder@0.0.1 typecheck
+> tsc --noEmit
+
+exit code: 0

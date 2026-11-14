@@ -1,0 +1,6 @@
+npm run typecheck, on commit dec6725 (builder/ tree f1a4770), builder/ as committed, 2026-11-14T15:20:50Z.
+
+> builder@0.0.1 typecheck
+> tsc --noEmit
+
+exit code: 0

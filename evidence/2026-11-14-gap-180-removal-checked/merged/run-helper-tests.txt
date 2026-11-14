@@ -1,0 +1,11 @@
+Known gap 185's helper: its own tests (test/drop-test-db.test.ts), on commit dec6725 (builder/ tree f1a4770), builder/ as committed, 2026-11-14T15:20:55Z. Needs PostgreSQL only.
+
+ RUN  v5.1.0 /home/user/vibe-build/builder
+
+
+ Test Files  1 passed (1)
+      Tests  4 passed (4)
+   Start at  15:20:56
+   Duration  5.55s (tests 99%, import 1%)
+
+vitest exit code: 0

@@ -1,0 +1,3207 @@
+{
+ "run": "20261114_caf69c",
+ "database": "builder_j2_20261114_caf69c",
+ "note": "Every event of the run's database, in id order. Made-up data only. Paths are of this machine's run folder, removed after the run.",
+ "events": [
+  {
+   "id": "1",
+   "project_id": "j1-566f0b18a5cf",
+   "at": "2026-11-14T16:39:25.914Z",
+   "kind": "intake.brief_entered",
+   "step": null,
+   "payload": {
+    "text": "I need an app where staff can request leave and managers approve it",
+    "characters": 67,
+    "broken_copy": {
+     "by": "owner",
+     "step": "03-wrong-status",
+     "label": "Deliberately broken copy (package 3.1): a new leave request is saved as approved instead of waiting, and the banner says so; for the acceptance check to reject",
+     "export": "never",
+     "source": "builder/scripted-broken/example-1/03-wrong-status",
+     "sign_off": "never",
+     "manifest_sha256": "5bf3d21a8df7dfb16f814452a2404384e4853687dd795b17f3ef0c58d3048210"
+    },
+    "given_to_engine": false
+   }
+  },
+  {
+   "id": "2",
+   "project_id": "j1-566f0b18a5cf",
+   "at": "2026-11-14T16:39:26.298Z",
+   "kind": "intake.continued",
+   "step": null,
+   "payload": {
+    "example": "example-1",
+    "brief_read": false,
+    "restatement": "Staff request leave and their manager approves it, replacing email threads, so that balances are right and HR can see every request in one place.",
+    "simulated_analyst": true
+   }
+  },
+  {
+   "id": "3",
+   "project_id": "j1-566f0b18a5cf",
+   "at": "2026-11-14T16:39:26.399Z",
+   "kind": "intake.answer",
+   "step": null,
+   "payload": {
+    "by": "scripted_customer",
+    "turn": 1,
+    "answer": {
+     "option": 0
+    },
+    "question": "q01",
+    "matches_sheet": true,
+    "something_else_logged": false
+   }
+  },
+  {
+   "id": "4",
+   "project_id": "j1-566f0b18a5cf",
+   "at": "2026-11-14T16:39:26.401Z",
+   "kind": "intake.answer",
+   "step": null,
+   "payload": {
+    "by": "scripted_customer",
+    "turn": 1,
+    "answer": {
+     "option": 3
+    },
+    "question": "q02",
+    "matches_sheet": true,
+    "something_else_logged": false
+   }
+  },
+  {
+   "id": "5",
+   "project_id": "j1-566f0b18a5cf",
+   "at": "2026-11-14T16:39:26.402Z",
+   "kind": "intake.answer",
+   "step": null,
+   "payload": {
+    "by": "scripted_customer",
+    "turn": 2,
+    "answer": {
+     "option": 2
+    },
+    "question": "q03",
+    "matches_sheet": true,
+    "something_else_logged": false
+   }
+  },
+  {
+   "id": "6",
+   "project_id": "j1-566f0b18a5cf",
+   "at": "2026-11-14T16:39:26.404Z",
+   "kind": "intake.answer",
+   "step": null,
+   "payload": {
+    "by": "scripted_customer",
+    "turn": 2,
+    "answer": {
+     "something_else": "Own, team for managers, all for admin"
+    },
+    "question": "q04",
+    "matches_sheet": true,
+    "something_else_logged": true
+   }
+  },
+  {
+   "id": "7",
+   "project_id": "j1-566f0b18a5cf",
+   "at": "2026-11-14T16:39:26.405Z",
+   "kind": "intake.answer",
+   "step": null,
+   "payload": {
+    "by": "scripted_customer",
+    "turn": 2,
+    "answer": {
+     "option": 0
+    },
+    "question": "q05",
+    "matches_sheet": true,
+    "something_else_logged": false
+   }
+  },
+  {
+   "id": "8",
+   "project_id": "j1-566f0b18a5cf",
+   "at": "2026-11-14T16:39:26.407Z",
+   "kind": "intake.answer",
+   "step": null,
+   "payload": {
+    "by": "scripted_customer",
+    "turn": 3,
+    "answer": {
+     "option": 1
+    },
+    "question": "q06",
+    "matches_sheet": true,
+    "something_else_logged": false
+   }
+  },
+  {
+   "id": "9",
+   "project_id": "j1-566f0b18a5cf",
+   "at": "2026-11-14T16:39:26.408Z",
+   "kind": "intake.answer",
+   "step": null,
+   "payload": {
+    "by": "scripted_customer",
+    "turn": 3,
+    "answer": {
+     "fields": [
+      "Employee: Full name",
+      "Employee: Work email",
+      "Employee: Direct manager",
+      "Employee: Annual leave balance (days)",
+      "Leave request: Employee",
+      "Leave request: First day of leave",
+      "Leave request: Last day of leave",
+      "Leave request: Working days requested",
+      "Leave request: Reason",
+      "Leave request: Status",
+      "Leave request: Manager's note"
+     ]
+    },
+    "question": "q07",
+    "matches_sheet": true,
+    "something_else_logged": false
+   }
+  },
+  {
+   "id": "10",
+   "project_id": "j1-566f0b18a5cf",
+   "at": "2026-11-14T16:39:26.409Z",
+   "kind": "intake.answer",
+   "step": null,
+   "payload": {
+    "by": "scripted_customer",
+    "turn": 3,
+    "answer": {
+     "option": 1
+    },
+    "question": "q08",
+    "matches_sheet": true,
+    "something_else_logged": false
+   }
+  },
+  {
+   "id": "11",
+   "project_id": "j1-566f0b18a5cf",
+   "at": "2026-11-14T16:39:26.410Z",
+   "kind": "intake.answer",
+   "step": null,
+   "payload": {
+    "by": "scripted_customer",
+    "turn": 4,
+    "answer": {
+     "option": 1
+    },
+    "question": "q09",
+    "matches_sheet": true,
+    "something_else_logged": false
+   }
+  },
+  {
+   "id": "12",
+   "project_id": "j1-566f0b18a5cf",
+   "at": "2026-11-14T16:39:26.411Z",
+   "kind": "intake.answer",
+   "step": null,
+   "payload": {
+    "by": "scripted_customer",
+    "turn": 4,
+    "answer": {
+     "option": 1
+    },
+    "question": "q10",
+    "matches_sheet": true,
+    "something_else_logged": false
+   }
+  },
+  {
+   "id": "13",
+   "project_id": "j1-566f0b18a5cf",
+   "at": "2026-11-14T16:39:26.412Z",
+   "kind": "intake.answer",
+   "step": null,
+   "payload": {
+    "by": "scripted_customer",
+    "turn": 4,
+    "answer": {
+     "option": 2
+    },
+    "question": "q11",
+    "matches_sheet": true,
+    "something_else_logged": false
+   }
+  },
+  {
+   "id": "14",
+   "project_id": "j1-566f0b18a5cf",
+   "at": "2026-11-14T16:39:26.413Z",
+   "kind": "intake.answer",
+   "step": null,
+   "payload": {
+    "by": "scripted_customer",
+    "turn": 5,
+    "answer": {
+     "option": 3
+    },
+    "question": "q12",
+    "matches_sheet": true,
+    "something_else_logged": false
+   }
+  },
+  {
+   "id": "15",
+   "project_id": "j1-566f0b18a5cf",
+   "at": "2026-11-14T16:39:26.414Z",
+   "kind": "intake.answer",
+   "step": null,
+   "payload": {
+    "by": "scripted_customer",
+    "turn": 5,
+    "answer": {
+     "option": 3
+    },
+    "question": "q13",
+    "matches_sheet": true,
+    "something_else_logged": false
+   }
+  },
+  {
+   "id": "16",
+   "project_id": "j1-566f0b18a5cf",
+   "at": "2026-11-14T16:39:26.415Z",
+   "kind": "intake.answer",
+   "step": null,
+   "payload": {
+    "by": "scripted_customer",
+    "turn": 5,
+    "answer": {
+     "option": 1
+    },
+    "question": "q14",
+    "matches_sheet": true,
+    "something_else_logged": false
+   }
+  },
+  {
+   "id": "17",
+   "project_id": "j1-566f0b18a5cf",
+   "at": "2026-11-14T16:39:26.416Z",
+   "kind": "intake.answer",
+   "step": null,
+   "payload": {
+    "by": "scripted_customer",
+    "turn": 6,
+    "answer": {
+     "option": 0
+    },
+    "question": "q15",
+    "matches_sheet": true,
+    "something_else_logged": false
+   }
+  },
+  {
+   "id": "18",
+   "project_id": "j1-566f0b18a5cf",
+   "at": "2026-11-14T16:39:26.417Z",
+   "kind": "intake.answer",
+   "step": null,
+   "payload": {
+    "by": "scripted_customer",
+    "turn": 6,
+    "answer": {
+     "option": 1
+    },
+    "question": "q16",
+    "matches_sheet": true,
+    "something_else_logged": false
+   }
+  },
+  {
+   "id": "19",
+   "project_id": "j1-566f0b18a5cf",
+   "at": "2026-11-14T16:39:26.417Z",
+   "kind": "intake.answer",
+   "step": null,
+   "payload": {
+    "by": "scripted_customer",
+    "turn": 6,
+    "answer": {
+     "option": 0
+    },
+    "question": "q17",
+    "matches_sheet": true,
+    "something_else_logged": false
+   }
+  },
+  {
+   "id": "20",
+   "project_id": "j1-566f0b18a5cf",
+   "at": "2026-11-14T16:39:26.418Z",
+   "kind": "intake.answer",
+   "step": null,
+   "payload": {
+    "by": "scripted_customer",
+    "turn": 7,
+    "answer": {
+     "open_text": "A balance goes negative, or a request is approved by someone other than the employee's manager."
+    },
+    "question": "q18",
+    "matches_sheet": true,
+    "something_else_logged": false
+   }
+  },
+  {
+   "id": "21",
+   "project_id": "j1-566f0b18a5cf",
+   "at": "2026-11-14T16:39:26.419Z",
+   "kind": "intake.answer",
+   "step": null,
+   "payload": {
+    "by": "scripted_customer",
+    "turn": 8,
+    "answer": {
+     "option": 0
+    },
+    "question": "q19",
+    "matches_sheet": true,
+    "something_else_logged": false
+   }
+  },
+  {
+   "id": "22",
+   "project_id": "j1-566f0b18a5cf",
+   "at": "2026-11-14T16:39:26.420Z",
+   "kind": "intake.answer",
+   "step": null,
+   "payload": {
+    "by": "scripted_customer",
+    "turn": 8,
+    "answer": {
+     "option": 2
+    },
+    "question": "q20",
+    "matches_sheet": true,
+    "something_else_logged": false
+   }
+  },
+  {
+   "id": "23",
+   "project_id": "j1-566f0b18a5cf",
+   "at": "2026-11-14T16:39:26.601Z",
+   "kind": "journey.brief_confirmed",
+   "step": null,
+   "payload": {
+    "app_spec": "src/spec/examples/example-1-leave-request.json",
+    "later_items": 2,
+    "app_spec_sha256": "b09cc4240ad1f05a6540380ab72aca381522d6e3ce3698244270a8de1339a4b8",
+    "assumed_choices": 1,
+    "checklist_items": 6,
+    "simulated_analyst": true
+   }
+  },
+  {
+   "id": "24",
+   "project_id": "j1-566f0b18a5cf",
+   "at": "2026-11-14T16:39:27.152Z",
+   "kind": "acceptance.version.written",
+   "step": null,
+   "payload": {
+    "items": [
+     {
+      "file": "item-01.spec.ts",
+      "number": 1,
+      "sha256": "ff40239778825276ddea6ce22baee0c554c7cc9607ade18392aa5f5c65002b8d"
+     }
+    ],
+    "label": "stand-in test",
+    "version": "v001",
+    "written_by": "stand-in",
+    "app_spec_sha256": "b09cc4240ad1f05a6540380ab72aca381522d6e3ce3698244270a8de1339a4b8",
+    "checklist_items": 6,
+    "manifest_sha256": "28facc92ffab12dd63a7d26ec5c5130351ba60e218ca630fb52e4777199e2a62"
+   }
+  },
+  {
+   "id": "25",
+   "project_id": "j1-566f0b18a5cf",
+   "at": "2026-11-14T16:39:27.154Z",
+   "kind": "journey.plan_confirmed",
+   "step": null,
+   "payload": {
+    "steps": [
+     {
+      "step": "01-data",
+      "files": 4,
+      "label": "The data step: the leave-request table, the configuration that names it, and the banner sentence that labels the app as built by the scripted engine"
+     },
+     {
+      "step": "02-submitter-screen",
+      "files": 8,
+      "label": "The submitter's screen: an employee's list of their own requests, and a form to add one, with validation"
+     },
+     {
+      "step": "03-wrong-status",
+      "files": 3,
+      "label": "Deliberately broken copy (package 3.1): a new leave request is saved as approved instead of waiting, and the banner says so; for the acceptance check to reject"
+     }
+    ],
+    "broken_copy": true,
+    "stand_in_label": "stand-in test",
+    "acceptance_label": "stand-in test, not independent acceptance",
+    "acceptance_version": "v001",
+    "acceptance_written_by": "stand-in",
+    "quality_gate_after_each_step": "not done (milestone 1)",
+    "quality_check_after_each_step_and_retry": "not done (milestones 1 and 3)"
+   }
+  },
+  {
+   "id": "26",
+   "project_id": "j1-566f0b18a5cf",
+   "at": "2026-11-14T16:39:27.358Z",
+   "kind": "journey.job.started",
+   "step": "01-data",
+   "payload": {
+    "kind": "build_step",
+    "step": "01-data",
+    "job_id": "job-2f4582ef"
+   }
+  },
+  {
+   "id": "27",
+   "project_id": "j1-566f0b18a5cf",
+   "at": "2026-11-14T16:39:27.485Z",
+   "kind": "journey.sandbox.made",
+   "step": "01-data",
+   "payload": {
+    "dir": "<run folder>/tmp/builder-acceptance-m75gJU",
+    "app_url": "http://app:3161",
+    "containers": 0,
+    "compose_project": "builder_j1-566f0b18a5cf",
+    "build_proxy_port": 13161
+   }
+  },
+  {
+   "id": "28",
+   "project_id": "j1-566f0b18a5cf",
+   "at": "2026-11-14T16:39:27.489Z",
+   "kind": "step.hold_opened",
+   "step": "01-data",
+   "payload": {
+    "model": "claude-opus-5-5",
+    "turns": 4,
+    "per_turn": {
+     "model": "claude-opus-5-5",
+     "hold_usd": 0.3888,
+     "max_tokens": 16000,
+     "input_rate_is": "one-hour cache write",
+     "input_part_usd": 0.0688,
+     "output_part_usd": 0.32,
+     "fast_mode_factor": 1,
+     "price_table_date": "2026-11-11",
+     "fast_mode_because": null,
+     "long_prompt_rates": false,
+     "prompt_tokens_held": 8600,
+     "count_margin_tokens": 600,
+     "counted_prompt_tokens": 8000,
+     "input_rate_usd_per_million": 8,
+     "output_rate_usd_per_million": 20,
+     "long_prompt_threshold_tokens": null
+    },
+    "deadline_at": "2026-11-14T16:50:27.488Z",
+    "per_turn_usd": 0.3888,
+    "step_hold_id": 1,
+    "budget_before": {
+     "cap_usd": 5,
+     "spent_usd": 0,
+     "step_room_usd": 0,
+     "open_holds_usd": 0
+    },
+    "prompt_tokens": 8000,
+    "step_budget_usd": 1.5552,
+    "max_tokens_ceiling": 16000
+   }
+  },
+  {
+   "id": "29",
+   "project_id": "j1-566f0b18a5cf",
+   "at": "2026-11-14T16:39:27.507Z",
+   "kind": "engine.event",
+   "step": "01-data",
+   "payload": {
+    "at": "2026-11-14T16:39:27.502Z",
+    "text": "Scripted engine: fixed change example-1/01-data. The instruction (117 characters) is not read. No model is called.",
+    "type": "text"
+   }
+  },
+  {
+   "id": "30",
+   "project_id": "j1-566f0b18a5cf",
+   "at": "2026-11-14T16:39:27.924Z",
+   "kind": "engine.event",
+   "step": "01-data",
+   "payload": {
+    "at": "2026-11-14T16:39:27.924Z",
+    "text": "Scripted engine: The data step: the leave-request table, the configuration that names it, and the banner sentence that labels the app as built by the scripted engine (4 files).",
+    "type": "text"
+   }
+  },
+  {
+   "id": "31",
+   "project_id": "j1-566f0b18a5cf",
+   "at": "2026-11-14T16:39:27.926Z",
+   "kind": "engine.event",
+   "step": "01-data",
+   "payload": {
+    "at": "2026-11-14T16:39:27.924Z",
+    "tool": "scripted.write",
+    "type": "tool_call",
+    "input": {
+     "op": "add",
+     "path": "src/db/app-schema.ts",
+     "sha256": "89b7086a7ec0162537892c3786587354bd69df43c597a15e88934239484d5c87"
+    }
+   }
+  },
+  {
+   "id": "32",
+   "project_id": "j1-566f0b18a5cf",
+   "at": "2026-11-14T16:39:27.928Z",
+   "kind": "engine.event",
+   "step": "01-data",
+   "payload": {
+    "at": "2026-11-14T16:39:27.924Z",
+    "tool": "scripted.write",
+    "type": "tool_call",
+    "input": {
+     "op": "replace",
+     "path": "drizzle.config.ts",
+     "sha256": "ab958c36ecc0b3f1f8f4238fc2b0a6ce9a42fe733ccbf4f55c4c420b25783192"
+    }
+   }
+  },
+  {
+   "id": "33",
+   "project_id": "j1-566f0b18a5cf",
+   "at": "2026-11-14T16:39:27.929Z",
+   "kind": "engine.event",
+   "step": "01-data",
+   "payload": {
+    "at": "2026-11-14T16:39:27.925Z",
+    "tool": "scripted.write",
+    "type": "tool_call",
+    "input": {
+     "op": "replace",
+     "path": "messages/en.json",
+     "sha256": "a5baa4d2febeebcd453b1c6ddd91747cf87a027939dd301eed6a082cacb81b61"
+    }
+   }
+  },
+  {
+   "id": "34",
+   "project_id": "j1-566f0b18a5cf",
+   "at": "2026-11-14T16:39:27.931Z",
+   "kind": "engine.event",
+   "step": "01-data",
+   "payload": {
+    "at": "2026-11-14T16:39:27.928Z",
+    "tool": "scripted.write",
+    "type": "tool_call",
+    "input": {
+     "op": "replace",
+     "path": "messages/ar.json",
+     "sha256": "1138ac8b1e73cc273d50ef9c54a1087570f1523134402b38435c729de669fdf0"
+    }
+   }
+  },
+  {
+   "id": "35",
+   "project_id": "j1-566f0b18a5cf",
+   "at": "2026-11-14T16:39:28.047Z",
+   "kind": "engine.event",
+   "step": "01-data",
+   "payload": {
+    "at": "2026-11-14T16:39:28.047Z",
+    "type": "finished"
+   }
+  },
+  {
+   "id": "36",
+   "project_id": "j1-566f0b18a5cf",
+   "at": "2026-11-14T16:39:28.049Z",
+   "kind": "step.hold_closed",
+   "step": "01-data",
+   "payload": {
+    "reason": "step_ended",
+    "drawn_usd": 0,
+    "budget_usd": 1.5552,
+    "calls_drawn": 0,
+    "released_usd": 1.5552,
+    "step_hold_id": 1,
+    "still_held_usd": 0,
+    "tokens_revoked": 1,
+    "still_held_calls": 0,
+    "spent_in_step_usd": 0,
+    "overrun_not_covered_usd": 0
+   }
+  },
+  {
+   "id": "37",
+   "project_id": "j1-566f0b18a5cf",
+   "at": "2026-11-14T16:39:28.055Z",
+   "kind": "journey.job.finished",
+   "step": "01-data",
+   "payload": {
+    "ok": true,
+    "kind": "build_step",
+    "step": "01-data",
+    "turns": 4,
+    "job_id": "job-2f4582ef",
+    "changed_files": 4
+   }
+  },
+  {
+   "id": "38",
+   "project_id": "j1-566f0b18a5cf",
+   "at": "2026-11-14T16:39:29.084Z",
+   "kind": "journey.step_approved",
+   "step": "01-data",
+   "payload": {
+    "step": "01-data",
+    "job_id": "job-2f4582ef"
+   }
+  },
+  {
+   "id": "39",
+   "project_id": "j1-566f0b18a5cf",
+   "at": "2026-11-14T16:39:29.090Z",
+   "kind": "journey.job.started",
+   "step": "02-submitter-screen",
+   "payload": {
+    "kind": "build_step",
+    "step": "02-submitter-screen",
+    "job_id": "job-8850065b"
+   }
+  },
+  {
+   "id": "40",
+   "project_id": "j1-566f0b18a5cf",
+   "at": "2026-11-14T16:39:29.092Z",
+   "kind": "step.hold_opened",
+   "step": "02-submitter-screen",
+   "payload": {
+    "model": "claude-opus-5-5",
+    "turns": 8,
+    "per_turn": {
+     "model": "claude-opus-5-5",
+     "hold_usd": 0.3888,
+     "max_tokens": 16000,
+     "input_rate_is": "one-hour cache write",
+     "input_part_usd": 0.0688,
+     "output_part_usd": 0.32,
+     "fast_mode_factor": 1,
+     "price_table_date": "2026-11-11",
+     "fast_mode_because": null,
+     "long_prompt_rates": false,
+     "prompt_tokens_held": 8600,
+     "count_margin_tokens": 600,
+     "counted_prompt_tokens": 8000,
+     "input_rate_usd_per_million": 8,
+     "output_rate_usd_per_million": 20,
+     "long_prompt_threshold_tokens": null
+    },
+    "deadline_at": "2026-11-14T16:50:29.092Z",
+    "per_turn_usd": 0.3888,
+    "step_hold_id": 2,
+    "budget_before": {
+     "cap_usd": 5,
+     "spent_usd": 0,
+     "step_room_usd": 0,
+     "open_holds_usd": 0
+    },
+    "prompt_tokens": 8000,
+    "step_budget_usd": 3.1104,
+    "max_tokens_ceiling": 16000
+   }
+  },
+  {
+   "id": "41",
+   "project_id": "j1-566f0b18a5cf",
+   "at": "2026-11-14T16:39:29.104Z",
+   "kind": "engine.event",
+   "step": "02-submitter-screen",
+   "payload": {
+    "at": "2026-11-14T16:39:29.100Z",
+    "text": "Scripted engine: fixed change example-1/02-submitter-screen. The instruction (117 characters) is not read. No model is called.",
+    "type": "text"
+   }
+  },
+  {
+   "id": "42",
+   "project_id": "j1-566f0b18a5cf",
+   "at": "2026-11-14T16:39:29.481Z",
+   "kind": "engine.event",
+   "step": "02-submitter-screen",
+   "payload": {
+    "at": "2026-11-14T16:39:29.481Z",
+    "text": "Scripted engine: The submitter's screen: an employee's list of their own requests, and a form to add one, with validation (8 files).",
+    "type": "text"
+   }
+  },
+  {
+   "id": "43",
+   "project_id": "j1-566f0b18a5cf",
+   "at": "2026-11-14T16:39:29.485Z",
+   "kind": "engine.event",
+   "step": "02-submitter-screen",
+   "payload": {
+    "at": "2026-11-14T16:39:29.484Z",
+    "tool": "scripted.write",
+    "type": "tool_call",
+    "input": {
+     "op": "add",
+     "path": "src/app/[locale]/my-requests/rules.ts",
+     "sha256": "d76ce93b1e679e3273ba6ce8ae07eed8b7ccfbcb74765d1eda27931a491b6de4"
+    }
+   }
+  },
+  {
+   "id": "44",
+   "project_id": "j1-566f0b18a5cf",
+   "at": "2026-11-14T16:39:29.486Z",
+   "kind": "engine.event",
+   "step": "02-submitter-screen",
+   "payload": {
+    "at": "2026-11-14T16:39:29.484Z",
+    "tool": "scripted.write",
+    "type": "tool_call",
+    "input": {
+     "op": "add",
+     "path": "src/app/[locale]/my-requests/page.tsx",
+     "sha256": "ebb70ec0bd2439808e82cd8e93efefc705829f327d5bad643d3b8310d4901f7f"
+    }
+   }
+  },
+  {
+   "id": "45",
+   "project_id": "j1-566f0b18a5cf",
+   "at": "2026-11-14T16:39:29.489Z",
+   "kind": "engine.event",
+   "step": "02-submitter-screen",
+   "payload": {
+    "at": "2026-11-14T16:39:29.484Z",
+    "tool": "scripted.write",
+    "type": "tool_call",
+    "input": {
+     "op": "add",
+     "path": "src/app/[locale]/my-requests/new/page.tsx",
+     "sha256": "f22909bc853cdc2a9decb4326cf8cd367e69fbbba886c42998545da4373eb70d"
+    }
+   }
+  },
+  {
+   "id": "46",
+   "project_id": "j1-566f0b18a5cf",
+   "at": "2026-11-14T16:39:29.490Z",
+   "kind": "engine.event",
+   "step": "02-submitter-screen",
+   "payload": {
+    "at": "2026-11-14T16:39:29.484Z",
+    "tool": "scripted.write",
+    "type": "tool_call",
+    "input": {
+     "op": "add",
+     "path": "src/app/[locale]/my-requests/new/NewRequestForm.tsx",
+     "sha256": "6eb5d89d3b5514a506d5f38c4ee60c50f93a40b59c00c365daa117f3a2bea07d"
+    }
+   }
+  },
+  {
+   "id": "47",
+   "project_id": "j1-566f0b18a5cf",
+   "at": "2026-11-14T16:39:29.492Z",
+   "kind": "engine.event",
+   "step": "02-submitter-screen",
+   "payload": {
+    "at": "2026-11-14T16:39:29.485Z",
+    "tool": "scripted.write",
+    "type": "tool_call",
+    "input": {
+     "op": "add",
+     "path": "src/app/[locale]/my-requests/new/actions.ts",
+     "sha256": "a661302f9789a15a30dcb70777b26b4598cb10f9ae3f2c3cad20a620f0494908"
+    }
+   }
+  },
+  {
+   "id": "48",
+   "project_id": "j1-566f0b18a5cf",
+   "at": "2026-11-14T16:39:29.493Z",
+   "kind": "engine.event",
+   "step": "02-submitter-screen",
+   "payload": {
+    "at": "2026-11-14T16:39:29.485Z",
+    "tool": "scripted.write",
+    "type": "tool_call",
+    "input": {
+     "op": "replace",
+     "path": "src/app/[locale]/home/page.tsx",
+     "sha256": "5b885e59ccb293d7ae9de8d6a0e63e7fb8159e5a89c46779f94c4370ea06b139"
+    }
+   }
+  },
+  {
+   "id": "49",
+   "project_id": "j1-566f0b18a5cf",
+   "at": "2026-11-14T16:39:29.494Z",
+   "kind": "engine.event",
+   "step": "02-submitter-screen",
+   "payload": {
+    "at": "2026-11-14T16:39:29.486Z",
+    "tool": "scripted.write",
+    "type": "tool_call",
+    "input": {
+     "op": "replace",
+     "path": "messages/en.json",
+     "sha256": "6e858e817cfec7fe03877753c4d7f0d30fdeb1f724aec54d0c37426963815b7d"
+    }
+   }
+  },
+  {
+   "id": "50",
+   "project_id": "j1-566f0b18a5cf",
+   "at": "2026-11-14T16:39:29.495Z",
+   "kind": "engine.event",
+   "step": "02-submitter-screen",
+   "payload": {
+    "at": "2026-11-14T16:39:29.486Z",
+    "tool": "scripted.write",
+    "type": "tool_call",
+    "input": {
+     "op": "replace",
+     "path": "messages/ar.json",
+     "sha256": "101ec54e2a632490fc1ecb2237ba24de4931a3c9d2815ffdfb7cd00a01566475"
+    }
+   }
+  },
+  {
+   "id": "51",
+   "project_id": "j1-566f0b18a5cf",
+   "at": "2026-11-14T16:39:29.602Z",
+   "kind": "engine.event",
+   "step": "02-submitter-screen",
+   "payload": {
+    "at": "2026-11-14T16:39:29.602Z",
+    "type": "finished"
+   }
+  },
+  {
+   "id": "52",
+   "project_id": "j1-566f0b18a5cf",
+   "at": "2026-11-14T16:39:29.604Z",
+   "kind": "step.hold_closed",
+   "step": "02-submitter-screen",
+   "payload": {
+    "reason": "step_ended",
+    "drawn_usd": 0,
+    "budget_usd": 3.1104,
+    "calls_drawn": 0,
+    "released_usd": 3.1104,
+    "step_hold_id": 2,
+    "still_held_usd": 0,
+    "tokens_revoked": 1,
+    "still_held_calls": 0,
+    "spent_in_step_usd": 0,
+    "overrun_not_covered_usd": 0
+   }
+  },
+  {
+   "id": "53",
+   "project_id": "j1-566f0b18a5cf",
+   "at": "2026-11-14T16:39:29.609Z",
+   "kind": "journey.job.finished",
+   "step": "02-submitter-screen",
+   "payload": {
+    "ok": true,
+    "kind": "build_step",
+    "step": "02-submitter-screen",
+    "turns": 8,
+    "job_id": "job-8850065b",
+    "changed_files": 8
+   }
+  },
+  {
+   "id": "54",
+   "project_id": "j1-566f0b18a5cf",
+   "at": "2026-11-14T16:39:30.781Z",
+   "kind": "journey.step_approved",
+   "step": "02-submitter-screen",
+   "payload": {
+    "step": "02-submitter-screen",
+    "job_id": "job-8850065b"
+   }
+  },
+  {
+   "id": "55",
+   "project_id": "j1-566f0b18a5cf",
+   "at": "2026-11-14T16:39:30.787Z",
+   "kind": "journey.job.started",
+   "step": "03-wrong-status",
+   "payload": {
+    "kind": "build_step",
+    "step": "03-wrong-status",
+    "job_id": "job-80b007d5"
+   }
+  },
+  {
+   "id": "56",
+   "project_id": "j1-566f0b18a5cf",
+   "at": "2026-11-14T16:39:30.790Z",
+   "kind": "journey.broken_step_staged",
+   "step": "03-wrong-status",
+   "payload": {
+    "into": "<run folder>/tmp/builder-acceptance-m75gJU/engine-change-sets",
+    "step": "03-wrong-status",
+    "files": [
+     {
+      "path": "src/app/[locale]/my-requests/new/actions.ts",
+      "sha256": "4ac8df283c7d1415e415a80f8fa7a12601b7a7ab2767e9eb04f30b5e715d562f"
+     },
+     {
+      "path": "messages/en.json",
+      "sha256": "e89128d561aad750be5a0afe11d2300ec49ea48868a632bdded6f8e99ec6c126"
+     },
+     {
+      "path": "messages/ar.json",
+      "sha256": "c338b4f10e1399b6b3591b37e421e9541b5856b685c2b0fd32557c3c282bb5ac"
+     }
+    ],
+    "label": "Deliberately broken copy (package 3.1): a new leave request is saved as approved instead of waiting, and the banner says so; for the acceptance check to reject",
+    "source": "builder/scripted-broken/example-1/03-wrong-status",
+    "manifest_sha256": "5bf3d21a8df7dfb16f814452a2404384e4853687dd795b17f3ef0c58d3048210",
+    "manifest_read_from": "the sandbox's own copy, as the engine reads it"
+   }
+  },
+  {
+   "id": "57",
+   "project_id": "j1-566f0b18a5cf",
+   "at": "2026-11-14T16:39:30.791Z",
+   "kind": "step.hold_opened",
+   "step": "03-wrong-status",
+   "payload": {
+    "model": "claude-opus-5-5",
+    "turns": 3,
+    "per_turn": {
+     "model": "claude-opus-5-5",
+     "hold_usd": 0.3888,
+     "max_tokens": 16000,
+     "input_rate_is": "one-hour cache write",
+     "input_part_usd": 0.0688,
+     "output_part_usd": 0.32,
+     "fast_mode_factor": 1,
+     "price_table_date": "2026-11-11",
+     "fast_mode_because": null,
+     "long_prompt_rates": false,
+     "prompt_tokens_held": 8600,
+     "count_margin_tokens": 600,
+     "counted_prompt_tokens": 8000,
+     "input_rate_usd_per_million": 8,
+     "output_rate_usd_per_million": 20,
+     "long_prompt_threshold_tokens": null
+    },
+    "deadline_at": "2026-11-14T16:50:30.791Z",
+    "per_turn_usd": 0.3888,
+    "step_hold_id": 3,
+    "budget_before": {
+     "cap_usd": 5,
+     "spent_usd": 0,
+     "step_room_usd": 0,
+     "open_holds_usd": 0
+    },
+    "prompt_tokens": 8000,
+    "step_budget_usd": 1.1664,
+    "max_tokens_ceiling": 16000
+   }
+  },
+  {
+   "id": "58",
+   "project_id": "j1-566f0b18a5cf",
+   "at": "2026-11-14T16:39:30.802Z",
+   "kind": "engine.event",
+   "step": "03-wrong-status",
+   "payload": {
+    "at": "2026-11-14T16:39:30.798Z",
+    "text": "Scripted engine: fixed change example-1/03-wrong-status. The instruction (117 characters) is not read. No model is called.",
+    "type": "text"
+   }
+  },
+  {
+   "id": "59",
+   "project_id": "j1-566f0b18a5cf",
+   "at": "2026-11-14T16:39:31.191Z",
+   "kind": "engine.event",
+   "step": "03-wrong-status",
+   "payload": {
+    "at": "2026-11-14T16:39:31.190Z",
+    "text": "Scripted engine: Deliberately broken copy (package 3.1): a new leave request is saved as approved instead of waiting, and the banner says so; for the acceptance check to reject (3 files).",
+    "type": "text"
+   }
+  },
+  {
+   "id": "60",
+   "project_id": "j1-566f0b18a5cf",
+   "at": "2026-11-14T16:39:31.194Z",
+   "kind": "engine.event",
+   "step": "03-wrong-status",
+   "payload": {
+    "at": "2026-11-14T16:39:31.193Z",
+    "tool": "scripted.write",
+    "type": "tool_call",
+    "input": {
+     "op": "replace",
+     "path": "src/app/[locale]/my-requests/new/actions.ts",
+     "sha256": "4ac8df283c7d1415e415a80f8fa7a12601b7a7ab2767e9eb04f30b5e715d562f"
+    }
+   }
+  },
+  {
+   "id": "61",
+   "project_id": "j1-566f0b18a5cf",
+   "at": "2026-11-14T16:39:31.195Z",
+   "kind": "engine.event",
+   "step": "03-wrong-status",
+   "payload": {
+    "at": "2026-11-14T16:39:31.193Z",
+    "tool": "scripted.write",
+    "type": "tool_call",
+    "input": {
+     "op": "replace",
+     "path": "messages/en.json",
+     "sha256": "e89128d561aad750be5a0afe11d2300ec49ea48868a632bdded6f8e99ec6c126"
+    }
+   }
+  },
+  {
+   "id": "62",
+   "project_id": "j1-566f0b18a5cf",
+   "at": "2026-11-14T16:39:31.196Z",
+   "kind": "engine.event",
+   "step": "03-wrong-status",
+   "payload": {
+    "at": "2026-11-14T16:39:31.194Z",
+    "tool": "scripted.write",
+    "type": "tool_call",
+    "input": {
+     "op": "replace",
+     "path": "messages/ar.json",
+     "sha256": "c338b4f10e1399b6b3591b37e421e9541b5856b685c2b0fd32557c3c282bb5ac"
+    }
+   }
+  },
+  {
+   "id": "63",
+   "project_id": "j1-566f0b18a5cf",
+   "at": "2026-11-14T16:39:31.305Z",
+   "kind": "engine.event",
+   "step": "03-wrong-status",
+   "payload": {
+    "at": "2026-11-14T16:39:31.305Z",
+    "type": "finished"
+   }
+  },
+  {
+   "id": "64",
+   "project_id": "j1-566f0b18a5cf",
+   "at": "2026-11-14T16:39:31.307Z",
+   "kind": "step.hold_closed",
+   "step": "03-wrong-status",
+   "payload": {
+    "reason": "step_ended",
+    "drawn_usd": 0,
+    "budget_usd": 1.1664,
+    "calls_drawn": 0,
+    "released_usd": 1.1664,
+    "step_hold_id": 3,
+    "still_held_usd": 0,
+    "tokens_revoked": 1,
+    "still_held_calls": 0,
+    "spent_in_step_usd": 0,
+    "overrun_not_covered_usd": 0
+   }
+  },
+  {
+   "id": "65",
+   "project_id": "j1-566f0b18a5cf",
+   "at": "2026-11-14T16:39:31.319Z",
+   "kind": "journey.job.finished",
+   "step": "03-wrong-status",
+   "payload": {
+    "ok": true,
+    "kind": "build_step",
+    "step": "03-wrong-status",
+    "turns": 3,
+    "job_id": "job-80b007d5",
+    "changed_files": 3
+   }
+  },
+  {
+   "id": "66",
+   "project_id": "j1-566f0b18a5cf",
+   "at": "2026-11-14T16:39:33.132Z",
+   "kind": "journey.step_approved",
+   "step": "03-wrong-status",
+   "payload": {
+    "step": "03-wrong-status",
+    "job_id": "job-80b007d5"
+   }
+  },
+  {
+   "id": "67",
+   "project_id": "j1-566f0b18a5cf",
+   "at": "2026-11-14T16:39:33.138Z",
+   "kind": "journey.job.started",
+   "step": null,
+   "payload": {
+    "kind": "preview",
+    "step": null,
+    "job_id": "job-551746b3"
+   }
+  },
+  {
+   "id": "68",
+   "project_id": "j1-566f0b18a5cf",
+   "at": "2026-11-14T16:39:42.692Z",
+   "kind": "journey.preview.line",
+   "step": null,
+   "payload": {
+    "line": "App and tools images built (the template's guard check and next build ran in the build)."
+   }
+  },
+  {
+   "id": "69",
+   "project_id": "j1-566f0b18a5cf",
+   "at": "2026-11-14T16:39:50.915Z",
+   "kind": "journey.preview.line",
+   "step": null,
+   "payload": {
+    "line": "Tables created and sample users added in the tools container (3 lines from the seed)."
+   }
+  },
+  {
+   "id": "70",
+   "project_id": "j1-566f0b18a5cf",
+   "at": "2026-11-14T16:39:53.543Z",
+   "kind": "journey.preview.line",
+   "step": null,
+   "payload": {
+    "line": "Before the app was started, nothing answered at http://app:3161, asked from a container on the project's front network (EAI_AGAIN)."
+   }
+  },
+  {
+   "id": "71",
+   "project_id": "j1-566f0b18a5cf",
+   "at": "2026-11-14T16:39:59.924Z",
+   "kind": "journey.preview.line",
+   "step": null,
+   "payload": {
+    "line": "App container started and healthy."
+   }
+  },
+  {
+   "id": "72",
+   "project_id": "j1-566f0b18a5cf",
+   "at": "2026-11-14T16:39:59.926Z",
+   "kind": "journey.app.started",
+   "step": null,
+   "payload": {
+    "app_url": "http://app:3161",
+    "live_view": true,
+    "reached_from": "containers on the project's front network only; no port of the app or its database on the machine; the live preview's streams are check containers on that network, whose HTTP the builder's preview front reads on the machine"
+   }
+  },
+  {
+   "id": "73",
+   "project_id": "j1-566f0b18a5cf",
+   "at": "2026-11-14T16:40:02.091Z",
+   "kind": "journey.preview.line",
+   "step": null,
+   "payload": {
+    "line": "app camera: {\"kind\":\"signed_in\",\"at\":\"http://app:3161\",\"as\":\"employee@example.test (made-up sample user)\"}"
+   }
+  },
+  {
+   "id": "74",
+   "project_id": "j1-566f0b18a5cf",
+   "at": "2026-11-14T16:40:02.907Z",
+   "kind": "journey.preview.line",
+   "step": null,
+   "payload": {
+    "line": "app camera: {\"kind\":\"shot\",\"name\":\"app-home-en\",\"page\":\"/en/home\",\"url_path\":\"/en/home\"}"
+   }
+  },
+  {
+   "id": "75",
+   "project_id": "j1-566f0b18a5cf",
+   "at": "2026-11-14T16:40:02.918Z",
+   "kind": "journey.preview.line",
+   "step": null,
+   "payload": {
+    "line": "app camera: {\"kind\":\"banner\",\"name\":\"app-home-en\",\"text\":\"Sample data. Everything you see here is made up. Built by the scripted engine: fixed changes, no AI model. This is a deliberately broken copy, made to be rejected by the acceptance check.\"}"
+   }
+  },
+  {
+   "id": "76",
+   "project_id": "j1-566f0b18a5cf",
+   "at": "2026-11-14T16:40:03.591Z",
+   "kind": "journey.preview.line",
+   "step": null,
+   "payload": {
+    "line": "app camera: {\"kind\":\"shot\",\"name\":\"app-my-requests-en\",\"page\":\"/en/my-requests\",\"url_path\":\"/en/my-requests\"}"
+   }
+  },
+  {
+   "id": "77",
+   "project_id": "j1-566f0b18a5cf",
+   "at": "2026-11-14T16:40:03.599Z",
+   "kind": "journey.preview.line",
+   "step": null,
+   "payload": {
+    "line": "app camera: {\"kind\":\"banner\",\"name\":\"app-my-requests-en\",\"text\":\"Sample data. Everything you see here is made up. Built by the scripted engine: fixed changes, no AI model. This is a deliberately broken copy, made to be rejected by the acceptance check.\"}"
+   }
+  },
+  {
+   "id": "78",
+   "project_id": "j1-566f0b18a5cf",
+   "at": "2026-11-14T16:40:04.265Z",
+   "kind": "journey.preview.line",
+   "step": null,
+   "payload": {
+    "line": "app camera: {\"kind\":\"shot\",\"name\":\"app-home-ar\",\"page\":\"/ar/home\",\"url_path\":\"/ar/home\"}"
+   }
+  },
+  {
+   "id": "79",
+   "project_id": "j1-566f0b18a5cf",
+   "at": "2026-11-14T16:40:04.271Z",
+   "kind": "journey.preview.line",
+   "step": null,
+   "payload": {
+    "line": "app camera: {\"kind\":\"banner\",\"name\":\"app-home-ar\",\"text\":\"بيانات تجريبية. كل ما تراه هنا مُختلَق. بناه المحرّك المُبرمَج مسبقاً: تغييرات ثابتة، دون نموذج ذكاء اصطناعي. هذه نسخة معطّلة عمداً، صُنعت ليرفضها فحص القبول.\"}"
+   }
+  },
+  {
+   "id": "80",
+   "project_id": "j1-566f0b18a5cf",
+   "at": "2026-11-14T16:40:04.921Z",
+   "kind": "journey.preview.line",
+   "step": null,
+   "payload": {
+    "line": "app camera: {\"kind\":\"shot\",\"name\":\"app-my-requests-ar\",\"page\":\"/ar/my-requests\",\"url_path\":\"/ar/my-requests\"}"
+   }
+  },
+  {
+   "id": "81",
+   "project_id": "j1-566f0b18a5cf",
+   "at": "2026-11-14T16:40:04.932Z",
+   "kind": "journey.preview.line",
+   "step": null,
+   "payload": {
+    "line": "app camera: {\"kind\":\"banner\",\"name\":\"app-my-requests-ar\",\"text\":\"بيانات تجريبية. كل ما تراه هنا مُختلَق. بناه المحرّك المُبرمَج مسبقاً: تغييرات ثابتة، دون نموذج ذكاء اصطناعي. هذه نسخة معطّلة عمداً، صُنعت ليرفضها فحص القبول.\"}"
+   }
+  },
+  {
+   "id": "82",
+   "project_id": "j1-566f0b18a5cf",
+   "at": "2026-11-14T16:40:04.979Z",
+   "kind": "journey.preview.line",
+   "step": null,
+   "payload": {
+    "line": "app camera: {\"kind\":\"done\",\"code\":0}"
+   }
+  },
+  {
+   "id": "83",
+   "project_id": "j1-566f0b18a5cf",
+   "at": "2026-11-14T16:40:05.120Z",
+   "kind": "journey.screenshot",
+   "step": null,
+   "payload": {
+    "file": {
+     "path": "<run folder>/data/journey/j1-566f0b18a5cf/shots/job-551746b3/01-app-home-en.png",
+     "sha256": "c7c890bdfe4042b9a58934cfcfb29c487dbcf02dc826d90a32536b159f31f540"
+    },
+    "lang": "en",
+    "live": false,
+    "name": "app-home-en",
+    "page": "/en/home",
+    "camera": "app camera (approved runner image, project's acceptance service on its front network; no video, no trace)",
+    "job_id": "job-551746b3",
+    "caption": "Screenshot of the running app at 2026-11-14 16:40:05 UTC. Not live. Sample data.",
+    "taken_at": "2026-11-14T16:40:05.119Z"
+   }
+  },
+  {
+   "id": "84",
+   "project_id": "j1-566f0b18a5cf",
+   "at": "2026-11-14T16:40:05.122Z",
+   "kind": "journey.screenshot",
+   "step": null,
+   "payload": {
+    "file": {
+     "path": "<run folder>/data/journey/j1-566f0b18a5cf/shots/job-551746b3/02-app-my-requests-en.png",
+     "sha256": "820974580fe3243a61e52a3bb9bafe1e2948e1acbac9e7efa40ba687ccd47f6d"
+    },
+    "lang": "en",
+    "live": false,
+    "name": "app-my-requests-en",
+    "page": "/en/my-requests",
+    "camera": "app camera (approved runner image, project's acceptance service on its front network; no video, no trace)",
+    "job_id": "job-551746b3",
+    "caption": "Screenshot of the running app at 2026-11-14 16:40:05 UTC. Not live. Sample data.",
+    "taken_at": "2026-11-14T16:40:05.119Z"
+   }
+  },
+  {
+   "id": "85",
+   "project_id": "j1-566f0b18a5cf",
+   "at": "2026-11-14T16:40:05.123Z",
+   "kind": "journey.screenshot",
+   "step": null,
+   "payload": {
+    "file": {
+     "path": "<run folder>/data/journey/j1-566f0b18a5cf/shots/job-551746b3/03-app-home-ar.png",
+     "sha256": "7d914ae799940a94c93592ac788f236c72c3871d1574459adab77fca42d1a38d"
+    },
+    "lang": "ar",
+    "live": false,
+    "name": "app-home-ar",
+    "page": "/ar/home",
+    "camera": "app camera (approved runner image, project's acceptance service on its front network; no video, no trace)",
+    "job_id": "job-551746b3",
+    "caption": "Screenshot of the running app at 2026-11-14 16:40:05 UTC. Not live. Sample data.",
+    "taken_at": "2026-11-14T16:40:05.119Z"
+   }
+  },
+  {
+   "id": "86",
+   "project_id": "j1-566f0b18a5cf",
+   "at": "2026-11-14T16:40:05.124Z",
+   "kind": "journey.screenshot",
+   "step": null,
+   "payload": {
+    "file": {
+     "path": "<run folder>/data/journey/j1-566f0b18a5cf/shots/job-551746b3/04-app-my-requests-ar.png",
+     "sha256": "395e706c081e344a931ec17a643f92c32dd269197a39cad125e5caae2108262f"
+    },
+    "lang": "ar",
+    "live": false,
+    "name": "app-my-requests-ar",
+    "page": "/ar/my-requests",
+    "camera": "app camera (approved runner image, project's acceptance service on its front network; no video, no trace)",
+    "job_id": "job-551746b3",
+    "caption": "Screenshot of the running app at 2026-11-14 16:40:05 UTC. Not live. Sample data.",
+    "taken_at": "2026-11-14T16:40:05.119Z"
+   }
+  },
+  {
+   "id": "87",
+   "project_id": "j1-566f0b18a5cf",
+   "at": "2026-11-14T16:40:05.128Z",
+   "kind": "journey.job.finished",
+   "step": null,
+   "payload": {
+    "kind": "preview",
+    "job_id": "job-551746b3",
+    "screenshots": 4
+   }
+  },
+  {
+   "id": "88",
+   "project_id": "j1-566f0b18a5cf",
+   "at": "2026-11-14T16:40:06.335Z",
+   "kind": "journey.job.started",
+   "step": null,
+   "payload": {
+    "kind": "acceptance",
+    "step": null,
+    "job_id": "job-f751f1ed"
+   }
+  },
+  {
+   "id": "89",
+   "project_id": "j1-566f0b18a5cf",
+   "at": "2026-11-14T16:40:20.005Z",
+   "kind": "acceptance.run.started",
+   "step": null,
+   "payload": {
+    "label": "stand-in test",
+    "run_id": "run-20261114t164006-ca4db95a",
+    "refused": null,
+    "version": "v001",
+    "base_url": "http://app:3161",
+    "written_by": "stand-in",
+    "app_answered": true,
+    "manifest_sha256": "28facc92ffab12dd63a7d26ec5c5130351ba60e218ca630fb52e4777199e2a62",
+    "container_started": true
+   }
+  },
+  {
+   "id": "90",
+   "project_id": "j1-566f0b18a5cf",
+   "at": "2026-11-14T16:40:20.007Z",
+   "kind": "acceptance.item",
+   "step": null,
+   "payload": {
+    "why": "it ran and failed",
+    "file": "item-01.spec.ts",
+    "item": 1,
+    "step": "sees status waiting",
+    "label": "stand-in test",
+    "run_id": "run-20261114t164006-ca4db95a",
+    "status": "failed",
+    "version": "v001",
+    "screenshot": {
+     "path": "<run folder>/data/acceptance-runs/j1-566f0b18a5cf/run-20261114t164006-ca4db95a/results/test-results/item-01-item-1-stand-in-te-1c2bf-ir-list-with-status-waiting/test-failed-1.png",
+     "sha256": "7c9a52a9108907cdbd6797c79b531ed0fc7e7c0bed413587d57d3fcec056e24b"
+    },
+    "test_title": "item 1 (stand-in test): an employee signs in, submits a five-day request, and sees it in their list with status waiting",
+    "written_by": "stand-in",
+    "failure_file": {
+     "path": "<run folder>/data/acceptance-runs/j1-566f0b18a5cf/run-20261114t164006-ca4db95a/builder/item-01-failure.txt",
+     "sha256": "2f2fa59a9b126aa66dee4eaaf2fbd3e29435425257632b69075ded0960339ed8"
+    },
+    "manifest_sha256": "28facc92ffab12dd63a7d26ec5c5130351ba60e218ca630fb52e4777199e2a62"
+   }
+  },
+  {
+   "id": "91",
+   "project_id": "j1-566f0b18a5cf",
+   "at": "2026-11-14T16:40:20.008Z",
+   "kind": "acceptance.run.finished",
+   "step": null,
+   "payload": {
+    "label": "stand-in test",
+    "run_id": "run-20261114t164006-ca4db95a",
+    "outcome": "failed",
+    "summary": "version failed: item 1 failed at step \"sees status waiting\"",
+    "version": "v001",
+    "exit_code": 1,
+    "timed_out": false,
+    "written_by": "stand-in",
+    "run_problems": [],
+    "manifest_sha256": "28facc92ffab12dd63a7d26ec5c5130351ba60e218ca630fb52e4777199e2a62"
+   }
+  },
+  {
+   "id": "92",
+   "project_id": "j1-566f0b18a5cf",
+   "at": "2026-11-14T16:40:20.010Z",
+   "kind": "journey.job.finished",
+   "step": null,
+   "payload": {
+    "kind": "acceptance",
+    "label": "stand-in test, not independent acceptance",
+    "job_id": "job-f751f1ed",
+    "run_id": "run-20261114t164006-ca4db95a",
+    "refused": null,
+    "summary": "version failed: item 1 failed at step \"sees status waiting\"",
+    "version": "v001",
+    "app_used_live": false,
+    "container_started": true
+   }
+  },
+  {
+   "id": "93",
+   "project_id": "j1-566f0b18a5cf",
+   "at": "2026-11-14T16:40:39.586Z",
+   "kind": "journey.sandbox.removed",
+   "step": null,
+   "payload": {
+    "reason": "The project was closed.",
+    "interrupted": false
+   }
+  },
+  {
+   "id": "94",
+   "project_id": "j1-566f0b18a5cf",
+   "at": "2026-11-14T16:40:39.590Z",
+   "kind": "journey.closed",
+   "step": null,
+   "payload": {
+    "at_stage": "acceptance"
+   }
+  },
+  {
+   "id": "95",
+   "project_id": "j1-3a03154abc50",
+   "at": "2026-11-14T16:40:44.099Z",
+   "kind": "intake.brief_entered",
+   "step": null,
+   "payload": {
+    "text": "I need an app where staff can request leave and managers approve it",
+    "characters": 67,
+    "given_to_engine": false
+   }
+  },
+  {
+   "id": "96",
+   "project_id": "j1-3a03154abc50",
+   "at": "2026-11-14T16:40:44.196Z",
+   "kind": "intake.continued",
+   "step": null,
+   "payload": {
+    "example": "example-1",
+    "brief_read": false,
+    "restatement": "Staff request leave and their manager approves it, replacing email threads, so that balances are right and HR can see every request in one place.",
+    "simulated_analyst": true
+   }
+  },
+  {
+   "id": "97",
+   "project_id": "j1-3a03154abc50",
+   "at": "2026-11-14T16:40:44.298Z",
+   "kind": "intake.answer",
+   "step": null,
+   "payload": {
+    "by": "scripted_customer",
+    "turn": 1,
+    "answer": {
+     "option": 0
+    },
+    "question": "q01",
+    "matches_sheet": true,
+    "something_else_logged": false
+   }
+  },
+  {
+   "id": "98",
+   "project_id": "j1-3a03154abc50",
+   "at": "2026-11-14T16:40:44.300Z",
+   "kind": "intake.answer",
+   "step": null,
+   "payload": {
+    "by": "scripted_customer",
+    "turn": 1,
+    "answer": {
+     "option": 3
+    },
+    "question": "q02",
+    "matches_sheet": true,
+    "something_else_logged": false
+   }
+  },
+  {
+   "id": "99",
+   "project_id": "j1-3a03154abc50",
+   "at": "2026-11-14T16:40:44.301Z",
+   "kind": "intake.answer",
+   "step": null,
+   "payload": {
+    "by": "scripted_customer",
+    "turn": 2,
+    "answer": {
+     "option": 2
+    },
+    "question": "q03",
+    "matches_sheet": true,
+    "something_else_logged": false
+   }
+  },
+  {
+   "id": "100",
+   "project_id": "j1-3a03154abc50",
+   "at": "2026-11-14T16:40:44.302Z",
+   "kind": "intake.answer",
+   "step": null,
+   "payload": {
+    "by": "scripted_customer",
+    "turn": 2,
+    "answer": {
+     "something_else": "Own, team for managers, all for admin"
+    },
+    "question": "q04",
+    "matches_sheet": true,
+    "something_else_logged": true
+   }
+  },
+  {
+   "id": "101",
+   "project_id": "j1-3a03154abc50",
+   "at": "2026-11-14T16:40:44.304Z",
+   "kind": "intake.answer",
+   "step": null,
+   "payload": {
+    "by": "scripted_customer",
+    "turn": 2,
+    "answer": {
+     "option": 0
+    },
+    "question": "q05",
+    "matches_sheet": true,
+    "something_else_logged": false
+   }
+  },
+  {
+   "id": "102",
+   "project_id": "j1-3a03154abc50",
+   "at": "2026-11-14T16:40:44.305Z",
+   "kind": "intake.answer",
+   "step": null,
+   "payload": {
+    "by": "scripted_customer",
+    "turn": 3,
+    "answer": {
+     "option": 1
+    },
+    "question": "q06",
+    "matches_sheet": true,
+    "something_else_logged": false
+   }
+  },
+  {
+   "id": "103",
+   "project_id": "j1-3a03154abc50",
+   "at": "2026-11-14T16:40:44.307Z",
+   "kind": "intake.answer",
+   "step": null,
+   "payload": {
+    "by": "scripted_customer",
+    "turn": 3,
+    "answer": {
+     "fields": [
+      "Employee: Full name",
+      "Employee: Work email",
+      "Employee: Direct manager",
+      "Employee: Annual leave balance (days)",
+      "Leave request: Employee",
+      "Leave request: First day of leave",
+      "Leave request: Last day of leave",
+      "Leave request: Working days requested",
+      "Leave request: Reason",
+      "Leave request: Status",
+      "Leave request: Manager's note"
+     ]
+    },
+    "question": "q07",
+    "matches_sheet": true,
+    "something_else_logged": false
+   }
+  },
+  {
+   "id": "104",
+   "project_id": "j1-3a03154abc50",
+   "at": "2026-11-14T16:40:44.310Z",
+   "kind": "intake.answer",
+   "step": null,
+   "payload": {
+    "by": "scripted_customer",
+    "turn": 3,
+    "answer": {
+     "option": 1
+    },
+    "question": "q08",
+    "matches_sheet": true,
+    "something_else_logged": false
+   }
+  },
+  {
+   "id": "105",
+   "project_id": "j1-3a03154abc50",
+   "at": "2026-11-14T16:40:44.311Z",
+   "kind": "intake.answer",
+   "step": null,
+   "payload": {
+    "by": "scripted_customer",
+    "turn": 4,
+    "answer": {
+     "option": 1
+    },
+    "question": "q09",
+    "matches_sheet": true,
+    "something_else_logged": false
+   }
+  },
+  {
+   "id": "106",
+   "project_id": "j1-3a03154abc50",
+   "at": "2026-11-14T16:40:44.312Z",
+   "kind": "intake.answer",
+   "step": null,
+   "payload": {
+    "by": "scripted_customer",
+    "turn": 4,
+    "answer": {
+     "option": 1
+    },
+    "question": "q10",
+    "matches_sheet": true,
+    "something_else_logged": false
+   }
+  },
+  {
+   "id": "107",
+   "project_id": "j1-3a03154abc50",
+   "at": "2026-11-14T16:40:44.314Z",
+   "kind": "intake.answer",
+   "step": null,
+   "payload": {
+    "by": "scripted_customer",
+    "turn": 4,
+    "answer": {
+     "option": 2
+    },
+    "question": "q11",
+    "matches_sheet": true,
+    "something_else_logged": false
+   }
+  },
+  {
+   "id": "108",
+   "project_id": "j1-3a03154abc50",
+   "at": "2026-11-14T16:40:44.315Z",
+   "kind": "intake.answer",
+   "step": null,
+   "payload": {
+    "by": "scripted_customer",
+    "turn": 5,
+    "answer": {
+     "option": 3
+    },
+    "question": "q12",
+    "matches_sheet": true,
+    "something_else_logged": false
+   }
+  },
+  {
+   "id": "109",
+   "project_id": "j1-3a03154abc50",
+   "at": "2026-11-14T16:40:44.316Z",
+   "kind": "intake.answer",
+   "step": null,
+   "payload": {
+    "by": "scripted_customer",
+    "turn": 5,
+    "answer": {
+     "option": 3
+    },
+    "question": "q13",
+    "matches_sheet": true,
+    "something_else_logged": false
+   }
+  },
+  {
+   "id": "110",
+   "project_id": "j1-3a03154abc50",
+   "at": "2026-11-14T16:40:44.317Z",
+   "kind": "intake.answer",
+   "step": null,
+   "payload": {
+    "by": "scripted_customer",
+    "turn": 5,
+    "answer": {
+     "option": 1
+    },
+    "question": "q14",
+    "matches_sheet": true,
+    "something_else_logged": false
+   }
+  },
+  {
+   "id": "111",
+   "project_id": "j1-3a03154abc50",
+   "at": "2026-11-14T16:40:44.319Z",
+   "kind": "intake.answer",
+   "step": null,
+   "payload": {
+    "by": "scripted_customer",
+    "turn": 6,
+    "answer": {
+     "option": 0
+    },
+    "question": "q15",
+    "matches_sheet": true,
+    "something_else_logged": false
+   }
+  },
+  {
+   "id": "112",
+   "project_id": "j1-3a03154abc50",
+   "at": "2026-11-14T16:40:44.320Z",
+   "kind": "intake.answer",
+   "step": null,
+   "payload": {
+    "by": "scripted_customer",
+    "turn": 6,
+    "answer": {
+     "option": 1
+    },
+    "question": "q16",
+    "matches_sheet": true,
+    "something_else_logged": false
+   }
+  },
+  {
+   "id": "113",
+   "project_id": "j1-3a03154abc50",
+   "at": "2026-11-14T16:40:44.321Z",
+   "kind": "intake.answer",
+   "step": null,
+   "payload": {
+    "by": "scripted_customer",
+    "turn": 6,
+    "answer": {
+     "option": 0
+    },
+    "question": "q17",
+    "matches_sheet": true,
+    "something_else_logged": false
+   }
+  },
+  {
+   "id": "114",
+   "project_id": "j1-3a03154abc50",
+   "at": "2026-11-14T16:40:44.323Z",
+   "kind": "intake.answer",
+   "step": null,
+   "payload": {
+    "by": "scripted_customer",
+    "turn": 7,
+    "answer": {
+     "open_text": "A balance goes negative, or a request is approved by someone other than the employee's manager."
+    },
+    "question": "q18",
+    "matches_sheet": true,
+    "something_else_logged": false
+   }
+  },
+  {
+   "id": "115",
+   "project_id": "j1-3a03154abc50",
+   "at": "2026-11-14T16:40:44.324Z",
+   "kind": "intake.answer",
+   "step": null,
+   "payload": {
+    "by": "scripted_customer",
+    "turn": 8,
+    "answer": {
+     "option": 0
+    },
+    "question": "q19",
+    "matches_sheet": true,
+    "something_else_logged": false
+   }
+  },
+  {
+   "id": "116",
+   "project_id": "j1-3a03154abc50",
+   "at": "2026-11-14T16:40:44.325Z",
+   "kind": "intake.answer",
+   "step": null,
+   "payload": {
+    "by": "scripted_customer",
+    "turn": 8,
+    "answer": {
+     "option": 2
+    },
+    "question": "q20",
+    "matches_sheet": true,
+    "something_else_logged": false
+   }
+  },
+  {
+   "id": "117",
+   "project_id": "j1-3a03154abc50",
+   "at": "2026-11-14T16:40:44.518Z",
+   "kind": "journey.brief_confirmed",
+   "step": null,
+   "payload": {
+    "app_spec": "src/spec/examples/example-1-leave-request.json",
+    "later_items": 2,
+    "app_spec_sha256": "b09cc4240ad1f05a6540380ab72aca381522d6e3ce3698244270a8de1339a4b8",
+    "assumed_choices": 1,
+    "checklist_items": 6,
+    "simulated_analyst": true
+   }
+  },
+  {
+   "id": "118",
+   "project_id": "j1-3a03154abc50",
+   "at": "2026-11-14T16:40:44.618Z",
+   "kind": "acceptance.version.written",
+   "step": null,
+   "payload": {
+    "items": [
+     {
+      "file": "item-01.spec.ts",
+      "number": 1,
+      "sha256": "e0c542789db4a1fcb808f2369312c6ea5b470f66843a605f066dcc7771d24b4b"
+     }
+    ],
+    "label": "stand-in test",
+    "version": "v001",
+    "written_by": "stand-in",
+    "app_spec_sha256": "b09cc4240ad1f05a6540380ab72aca381522d6e3ce3698244270a8de1339a4b8",
+    "checklist_items": 6,
+    "manifest_sha256": "fb1601e2c55e9b4fb309476a81f5b7c219545b06e63885d421334f4e8f0097cf"
+   }
+  },
+  {
+   "id": "119",
+   "project_id": "j1-3a03154abc50",
+   "at": "2026-11-14T16:40:44.620Z",
+   "kind": "journey.plan_confirmed",
+   "step": null,
+   "payload": {
+    "steps": [
+     {
+      "step": "01-data",
+      "files": 4,
+      "label": "The data step: the leave-request table, the configuration that names it, and the banner sentence that labels the app as built by the scripted engine"
+     },
+     {
+      "step": "02-submitter-screen",
+      "files": 8,
+      "label": "The submitter's screen: an employee's list of their own requests, and a form to add one, with validation"
+     }
+    ],
+    "stand_in_label": "stand-in test",
+    "acceptance_label": "stand-in test, not independent acceptance",
+    "acceptance_version": "v001",
+    "acceptance_written_by": "stand-in",
+    "quality_gate_after_each_step": "not done (milestone 1)"
+   }
+  },
+  {
+   "id": "120",
+   "project_id": "j1-3a03154abc50",
+   "at": "2026-11-14T16:40:44.850Z",
+   "kind": "journey.job.started",
+   "step": "01-data",
+   "payload": {
+    "kind": "build_step",
+    "step": "01-data",
+    "job_id": "job-5f341754"
+   }
+  },
+  {
+   "id": "121",
+   "project_id": "j1-3a03154abc50",
+   "at": "2026-11-14T16:40:44.853Z",
+   "kind": "journey.step.paused_for_demonstration",
+   "step": "01-data",
+   "payload": {
+    "label": "Demonstration setting: the scripted engine pauses before each write, so that a stop part-way can be shown. Every step is slower.",
+    "setting": "BUILDER_DEMO_STEP_PAUSE_MS",
+    "pause_ms": 4000
+   }
+  },
+  {
+   "id": "122",
+   "project_id": "j1-3a03154abc50",
+   "at": "2026-11-14T16:40:44.964Z",
+   "kind": "journey.sandbox.made",
+   "step": "01-data",
+   "payload": {
+    "dir": "<run folder>/tmp/builder-acceptance-XDXErT",
+    "app_url": "http://app:3161",
+    "containers": 0,
+    "compose_project": "builder_j1-3a03154abc50",
+    "build_proxy_port": 13161
+   }
+  },
+  {
+   "id": "123",
+   "project_id": "j1-3a03154abc50",
+   "at": "2026-11-14T16:40:44.968Z",
+   "kind": "step.hold_opened",
+   "step": "01-data",
+   "payload": {
+    "model": "claude-opus-5-5",
+    "turns": 4,
+    "per_turn": {
+     "model": "claude-opus-5-5",
+     "hold_usd": 0.3888,
+     "max_tokens": 16000,
+     "input_rate_is": "one-hour cache write",
+     "input_part_usd": 0.0688,
+     "output_part_usd": 0.32,
+     "fast_mode_factor": 1,
+     "price_table_date": "2026-11-11",
+     "fast_mode_because": null,
+     "long_prompt_rates": false,
+     "prompt_tokens_held": 8600,
+     "count_margin_tokens": 600,
+     "counted_prompt_tokens": 8000,
+     "input_rate_usd_per_million": 8,
+     "output_rate_usd_per_million": 20,
+     "long_prompt_threshold_tokens": null
+    },
+    "deadline_at": "2026-11-14T16:51:44.967Z",
+    "per_turn_usd": 0.3888,
+    "step_hold_id": 4,
+    "budget_before": {
+     "cap_usd": 5,
+     "spent_usd": 0,
+     "step_room_usd": 0,
+     "open_holds_usd": 0
+    },
+    "prompt_tokens": 8000,
+    "step_budget_usd": 1.5552,
+    "max_tokens_ceiling": 16000
+   }
+  },
+  {
+   "id": "124",
+   "project_id": "j1-3a03154abc50",
+   "at": "2026-11-14T16:40:44.981Z",
+   "kind": "engine.event",
+   "step": "01-data",
+   "payload": {
+    "at": "2026-11-14T16:40:44.978Z",
+    "text": "Scripted engine: fixed change example-1/01-data. The instruction (117 characters) is not read. No model is called.",
+    "type": "text"
+   }
+  },
+  {
+   "id": "125",
+   "project_id": "j1-3a03154abc50",
+   "at": "2026-11-14T16:40:45.365Z",
+   "kind": "engine.event",
+   "step": "01-data",
+   "payload": {
+    "at": "2026-11-14T16:40:45.365Z",
+    "text": "Scripted engine: The data step: the leave-request table, the configuration that names it, and the banner sentence that labels the app as built by the scripted engine (4 files).",
+    "type": "text"
+   }
+  },
+  {
+   "id": "126",
+   "project_id": "j1-3a03154abc50",
+   "at": "2026-11-14T16:40:49.370Z",
+   "kind": "engine.event",
+   "step": "01-data",
+   "payload": {
+    "at": "2026-11-14T16:40:49.370Z",
+    "tool": "scripted.write",
+    "type": "tool_call",
+    "input": {
+     "op": "add",
+     "path": "src/db/app-schema.ts",
+     "sha256": "89b7086a7ec0162537892c3786587354bd69df43c597a15e88934239484d5c87"
+    }
+   }
+  },
+  {
+   "id": "127",
+   "project_id": "j1-3a03154abc50",
+   "at": "2026-11-14T16:40:53.376Z",
+   "kind": "engine.event",
+   "step": "01-data",
+   "payload": {
+    "at": "2026-11-14T16:40:53.375Z",
+    "tool": "scripted.write",
+    "type": "tool_call",
+    "input": {
+     "op": "replace",
+     "path": "drizzle.config.ts",
+     "sha256": "ab958c36ecc0b3f1f8f4238fc2b0a6ce9a42fe733ccbf4f55c4c420b25783192"
+    }
+   }
+  },
+  {
+   "id": "128",
+   "project_id": "j1-3a03154abc50",
+   "at": "2026-11-14T16:40:57.378Z",
+   "kind": "engine.event",
+   "step": "01-data",
+   "payload": {
+    "at": "2026-11-14T16:40:57.378Z",
+    "tool": "scripted.write",
+    "type": "tool_call",
+    "input": {
+     "op": "replace",
+     "path": "messages/en.json",
+     "sha256": "a5baa4d2febeebcd453b1c6ddd91747cf87a027939dd301eed6a082cacb81b61"
+    }
+   }
+  },
+  {
+   "id": "129",
+   "project_id": "j1-3a03154abc50",
+   "at": "2026-11-14T16:41:01.384Z",
+   "kind": "engine.event",
+   "step": "01-data",
+   "payload": {
+    "at": "2026-11-14T16:41:01.384Z",
+    "tool": "scripted.write",
+    "type": "tool_call",
+    "input": {
+     "op": "replace",
+     "path": "messages/ar.json",
+     "sha256": "1138ac8b1e73cc273d50ef9c54a1087570f1523134402b38435c729de669fdf0"
+    }
+   }
+  },
+  {
+   "id": "130",
+   "project_id": "j1-3a03154abc50",
+   "at": "2026-11-14T16:41:01.489Z",
+   "kind": "engine.event",
+   "step": "01-data",
+   "payload": {
+    "at": "2026-11-14T16:41:01.488Z",
+    "type": "finished"
+   }
+  },
+  {
+   "id": "131",
+   "project_id": "j1-3a03154abc50",
+   "at": "2026-11-14T16:41:01.491Z",
+   "kind": "step.hold_closed",
+   "step": "01-data",
+   "payload": {
+    "reason": "step_ended",
+    "drawn_usd": 0,
+    "budget_usd": 1.5552,
+    "calls_drawn": 0,
+    "released_usd": 1.5552,
+    "step_hold_id": 4,
+    "still_held_usd": 0,
+    "tokens_revoked": 1,
+    "still_held_calls": 0,
+    "spent_in_step_usd": 0,
+    "overrun_not_covered_usd": 0
+   }
+  },
+  {
+   "id": "132",
+   "project_id": "j1-3a03154abc50",
+   "at": "2026-11-14T16:41:01.497Z",
+   "kind": "journey.job.finished",
+   "step": "01-data",
+   "payload": {
+    "ok": true,
+    "kind": "build_step",
+    "step": "01-data",
+    "turns": 4,
+    "job_id": "job-5f341754",
+    "changed_files": 4
+   }
+  },
+  {
+   "id": "133",
+   "project_id": "j1-3a03154abc50",
+   "at": "2026-11-14T16:41:02.150Z",
+   "kind": "journey.step_approved",
+   "step": "01-data",
+   "payload": {
+    "step": "01-data",
+    "job_id": "job-5f341754"
+   }
+  },
+  {
+   "id": "134",
+   "project_id": "j1-3a03154abc50",
+   "at": "2026-11-14T16:41:02.156Z",
+   "kind": "journey.job.started",
+   "step": "02-submitter-screen",
+   "payload": {
+    "kind": "build_step",
+    "step": "02-submitter-screen",
+    "job_id": "job-c8da6e4b"
+   }
+  },
+  {
+   "id": "135",
+   "project_id": "j1-3a03154abc50",
+   "at": "2026-11-14T16:41:02.158Z",
+   "kind": "journey.step.paused_for_demonstration",
+   "step": "02-submitter-screen",
+   "payload": {
+    "label": "Demonstration setting: the scripted engine pauses before each write, so that a stop part-way can be shown. Every step is slower.",
+    "setting": "BUILDER_DEMO_STEP_PAUSE_MS",
+    "pause_ms": 4000
+   }
+  },
+  {
+   "id": "136",
+   "project_id": "j1-3a03154abc50",
+   "at": "2026-11-14T16:41:02.160Z",
+   "kind": "step.hold_opened",
+   "step": "02-submitter-screen",
+   "payload": {
+    "model": "claude-opus-5-5",
+    "turns": 8,
+    "per_turn": {
+     "model": "claude-opus-5-5",
+     "hold_usd": 0.3888,
+     "max_tokens": 16000,
+     "input_rate_is": "one-hour cache write",
+     "input_part_usd": 0.0688,
+     "output_part_usd": 0.32,
+     "fast_mode_factor": 1,
+     "price_table_date": "2026-11-11",
+     "fast_mode_because": null,
+     "long_prompt_rates": false,
+     "prompt_tokens_held": 8600,
+     "count_margin_tokens": 600,
+     "counted_prompt_tokens": 8000,
+     "input_rate_usd_per_million": 8,
+     "output_rate_usd_per_million": 20,
+     "long_prompt_threshold_tokens": null
+    },
+    "deadline_at": "2026-11-14T16:52:02.159Z",
+    "per_turn_usd": 0.3888,
+    "step_hold_id": 5,
+    "budget_before": {
+     "cap_usd": 5,
+     "spent_usd": 0,
+     "step_room_usd": 0,
+     "open_holds_usd": 0
+    },
+    "prompt_tokens": 8000,
+    "step_budget_usd": 3.1104,
+    "max_tokens_ceiling": 16000
+   }
+  },
+  {
+   "id": "137",
+   "project_id": "j1-3a03154abc50",
+   "at": "2026-11-14T16:41:02.173Z",
+   "kind": "engine.event",
+   "step": "02-submitter-screen",
+   "payload": {
+    "at": "2026-11-14T16:41:02.169Z",
+    "text": "Scripted engine: fixed change example-1/02-submitter-screen. The instruction (117 characters) is not read. No model is called.",
+    "type": "text"
+   }
+  },
+  {
+   "id": "138",
+   "project_id": "j1-3a03154abc50",
+   "at": "2026-11-14T16:41:02.516Z",
+   "kind": "engine.event",
+   "step": "02-submitter-screen",
+   "payload": {
+    "at": "2026-11-14T16:41:02.516Z",
+    "text": "Scripted engine: The submitter's screen: an employee's list of their own requests, and a form to add one, with validation (8 files).",
+    "type": "text"
+   }
+  },
+  {
+   "id": "139",
+   "project_id": "j1-3a03154abc50",
+   "at": "2026-11-14T16:41:06.526Z",
+   "kind": "engine.event",
+   "step": "02-submitter-screen",
+   "payload": {
+    "at": "2026-11-14T16:41:06.525Z",
+    "tool": "scripted.write",
+    "type": "tool_call",
+    "input": {
+     "op": "add",
+     "path": "src/app/[locale]/my-requests/rules.ts",
+     "sha256": "d76ce93b1e679e3273ba6ce8ae07eed8b7ccfbcb74765d1eda27931a491b6de4"
+    }
+   }
+  },
+  {
+   "id": "140",
+   "project_id": "j1-3a03154abc50",
+   "at": "2026-11-14T16:41:07.653Z",
+   "kind": "engine.event",
+   "step": "02-submitter-screen",
+   "payload": {
+    "at": "2026-11-14T16:41:07.653Z",
+    "type": "failed",
+    "reason": "stopped"
+   }
+  },
+  {
+   "id": "141",
+   "project_id": "j1-3a03154abc50",
+   "at": "2026-11-14T16:41:07.655Z",
+   "kind": "step.hold_closed",
+   "step": "02-submitter-screen",
+   "payload": {
+    "reason": "step_ended",
+    "drawn_usd": 0,
+    "budget_usd": 3.1104,
+    "calls_drawn": 0,
+    "released_usd": 3.1104,
+    "step_hold_id": 5,
+    "still_held_usd": 0,
+    "tokens_revoked": 1,
+    "still_held_calls": 0,
+    "spent_in_step_usd": 0,
+    "overrun_not_covered_usd": 0
+   }
+  },
+  {
+   "id": "142",
+   "project_id": "j1-3a03154abc50",
+   "at": "2026-11-14T16:41:07.661Z",
+   "kind": "journey.job.interrupted",
+   "step": "02-submitter-screen",
+   "payload": {
+    "kind": "build_step",
+    "job_id": "job-c8da6e4b",
+    "reason": "The interface stopped while this job ran: The interface was stopped on purpose (SIGTERM). The job was stopped part-way and is not resumed."
+   }
+  },
+  {
+   "id": "143",
+   "project_id": "j1-3a03154abc50",
+   "at": "2026-11-14T16:41:08.142Z",
+   "kind": "journey.sandbox.removed",
+   "step": null,
+   "payload": {
+    "reason": "The interface was stopped on purpose; this project's containers, images and folder were removed at the stop. It is not resumed.",
+    "removed": true,
+    "interrupted": true
+   }
+  },
+  {
+   "id": "144",
+   "project_id": "j1-3a03154abc50",
+   "at": "2026-11-14T16:41:12.312Z",
+   "kind": "journey.closed",
+   "step": null,
+   "payload": {
+    "at_stage": "build"
+   }
+  },
+  {
+   "id": "145",
+   "project_id": "j1-982756f5bb1d",
+   "at": "2026-11-14T16:41:14.746Z",
+   "kind": "intake.brief_entered",
+   "step": null,
+   "payload": {
+    "text": "I need an app where staff can request leave and managers approve it",
+    "characters": 67,
+    "given_to_engine": false
+   }
+  },
+  {
+   "id": "146",
+   "project_id": "j1-982756f5bb1d",
+   "at": "2026-11-14T16:41:14.845Z",
+   "kind": "intake.continued",
+   "step": null,
+   "payload": {
+    "example": "example-1",
+    "brief_read": false,
+    "restatement": "Staff request leave and their manager approves it, replacing email threads, so that balances are right and HR can see every request in one place.",
+    "simulated_analyst": true
+   }
+  },
+  {
+   "id": "147",
+   "project_id": "j1-982756f5bb1d",
+   "at": "2026-11-14T16:41:14.961Z",
+   "kind": "intake.answer",
+   "step": null,
+   "payload": {
+    "by": "scripted_customer",
+    "turn": 1,
+    "answer": {
+     "option": 0
+    },
+    "question": "q01",
+    "matches_sheet": true,
+    "something_else_logged": false
+   }
+  },
+  {
+   "id": "148",
+   "project_id": "j1-982756f5bb1d",
+   "at": "2026-11-14T16:41:14.963Z",
+   "kind": "intake.answer",
+   "step": null,
+   "payload": {
+    "by": "scripted_customer",
+    "turn": 1,
+    "answer": {
+     "option": 3
+    },
+    "question": "q02",
+    "matches_sheet": true,
+    "something_else_logged": false
+   }
+  },
+  {
+   "id": "149",
+   "project_id": "j1-982756f5bb1d",
+   "at": "2026-11-14T16:41:14.964Z",
+   "kind": "intake.answer",
+   "step": null,
+   "payload": {
+    "by": "scripted_customer",
+    "turn": 2,
+    "answer": {
+     "option": 2
+    },
+    "question": "q03",
+    "matches_sheet": true,
+    "something_else_logged": false
+   }
+  },
+  {
+   "id": "150",
+   "project_id": "j1-982756f5bb1d",
+   "at": "2026-11-14T16:41:14.965Z",
+   "kind": "intake.answer",
+   "step": null,
+   "payload": {
+    "by": "scripted_customer",
+    "turn": 2,
+    "answer": {
+     "something_else": "Own, team for managers, all for admin"
+    },
+    "question": "q04",
+    "matches_sheet": true,
+    "something_else_logged": true
+   }
+  },
+  {
+   "id": "151",
+   "project_id": "j1-982756f5bb1d",
+   "at": "2026-11-14T16:41:14.966Z",
+   "kind": "intake.answer",
+   "step": null,
+   "payload": {
+    "by": "scripted_customer",
+    "turn": 2,
+    "answer": {
+     "option": 0
+    },
+    "question": "q05",
+    "matches_sheet": true,
+    "something_else_logged": false
+   }
+  },
+  {
+   "id": "152",
+   "project_id": "j1-982756f5bb1d",
+   "at": "2026-11-14T16:41:14.967Z",
+   "kind": "intake.answer",
+   "step": null,
+   "payload": {
+    "by": "scripted_customer",
+    "turn": 3,
+    "answer": {
+     "option": 1
+    },
+    "question": "q06",
+    "matches_sheet": true,
+    "something_else_logged": false
+   }
+  },
+  {
+   "id": "153",
+   "project_id": "j1-982756f5bb1d",
+   "at": "2026-11-14T16:41:14.968Z",
+   "kind": "intake.answer",
+   "step": null,
+   "payload": {
+    "by": "scripted_customer",
+    "turn": 3,
+    "answer": {
+     "fields": [
+      "Employee: Full name",
+      "Employee: Work email",
+      "Employee: Direct manager",
+      "Employee: Annual leave balance (days)",
+      "Leave request: Employee",
+      "Leave request: First day of leave",
+      "Leave request: Last day of leave",
+      "Leave request: Working days requested",
+      "Leave request: Reason",
+      "Leave request: Status",
+      "Leave request: Manager's note"
+     ]
+    },
+    "question": "q07",
+    "matches_sheet": true,
+    "something_else_logged": false
+   }
+  },
+  {
+   "id": "154",
+   "project_id": "j1-982756f5bb1d",
+   "at": "2026-11-14T16:41:14.969Z",
+   "kind": "intake.answer",
+   "step": null,
+   "payload": {
+    "by": "scripted_customer",
+    "turn": 3,
+    "answer": {
+     "option": 1
+    },
+    "question": "q08",
+    "matches_sheet": true,
+    "something_else_logged": false
+   }
+  },
+  {
+   "id": "155",
+   "project_id": "j1-982756f5bb1d",
+   "at": "2026-11-14T16:41:14.970Z",
+   "kind": "intake.answer",
+   "step": null,
+   "payload": {
+    "by": "scripted_customer",
+    "turn": 4,
+    "answer": {
+     "option": 1
+    },
+    "question": "q09",
+    "matches_sheet": true,
+    "something_else_logged": false
+   }
+  },
+  {
+   "id": "156",
+   "project_id": "j1-982756f5bb1d",
+   "at": "2026-11-14T16:41:14.971Z",
+   "kind": "intake.answer",
+   "step": null,
+   "payload": {
+    "by": "scripted_customer",
+    "turn": 4,
+    "answer": {
+     "option": 1
+    },
+    "question": "q10",
+    "matches_sheet": true,
+    "something_else_logged": false
+   }
+  },
+  {
+   "id": "157",
+   "project_id": "j1-982756f5bb1d",
+   "at": "2026-11-14T16:41:14.972Z",
+   "kind": "intake.answer",
+   "step": null,
+   "payload": {
+    "by": "scripted_customer",
+    "turn": 4,
+    "answer": {
+     "option": 2
+    },
+    "question": "q11",
+    "matches_sheet": true,
+    "something_else_logged": false
+   }
+  },
+  {
+   "id": "158",
+   "project_id": "j1-982756f5bb1d",
+   "at": "2026-11-14T16:41:14.973Z",
+   "kind": "intake.answer",
+   "step": null,
+   "payload": {
+    "by": "scripted_customer",
+    "turn": 5,
+    "answer": {
+     "option": 3
+    },
+    "question": "q12",
+    "matches_sheet": true,
+    "something_else_logged": false
+   }
+  },
+  {
+   "id": "159",
+   "project_id": "j1-982756f5bb1d",
+   "at": "2026-11-14T16:41:14.974Z",
+   "kind": "intake.answer",
+   "step": null,
+   "payload": {
+    "by": "scripted_customer",
+    "turn": 5,
+    "answer": {
+     "option": 3
+    },
+    "question": "q13",
+    "matches_sheet": true,
+    "something_else_logged": false
+   }
+  },
+  {
+   "id": "160",
+   "project_id": "j1-982756f5bb1d",
+   "at": "2026-11-14T16:41:14.975Z",
+   "kind": "intake.answer",
+   "step": null,
+   "payload": {
+    "by": "scripted_customer",
+    "turn": 5,
+    "answer": {
+     "option": 1
+    },
+    "question": "q14",
+    "matches_sheet": true,
+    "something_else_logged": false
+   }
+  },
+  {
+   "id": "161",
+   "project_id": "j1-982756f5bb1d",
+   "at": "2026-11-14T16:41:14.976Z",
+   "kind": "intake.answer",
+   "step": null,
+   "payload": {
+    "by": "scripted_customer",
+    "turn": 6,
+    "answer": {
+     "option": 0
+    },
+    "question": "q15",
+    "matches_sheet": true,
+    "something_else_logged": false
+   }
+  },
+  {
+   "id": "162",
+   "project_id": "j1-982756f5bb1d",
+   "at": "2026-11-14T16:41:14.977Z",
+   "kind": "intake.answer",
+   "step": null,
+   "payload": {
+    "by": "scripted_customer",
+    "turn": 6,
+    "answer": {
+     "option": 1
+    },
+    "question": "q16",
+    "matches_sheet": true,
+    "something_else_logged": false
+   }
+  },
+  {
+   "id": "163",
+   "project_id": "j1-982756f5bb1d",
+   "at": "2026-11-14T16:41:14.978Z",
+   "kind": "intake.answer",
+   "step": null,
+   "payload": {
+    "by": "scripted_customer",
+    "turn": 6,
+    "answer": {
+     "option": 0
+    },
+    "question": "q17",
+    "matches_sheet": true,
+    "something_else_logged": false
+   }
+  },
+  {
+   "id": "164",
+   "project_id": "j1-982756f5bb1d",
+   "at": "2026-11-14T16:41:14.979Z",
+   "kind": "intake.answer",
+   "step": null,
+   "payload": {
+    "by": "scripted_customer",
+    "turn": 7,
+    "answer": {
+     "open_text": "A balance goes negative, or a request is approved by someone other than the employee's manager."
+    },
+    "question": "q18",
+    "matches_sheet": true,
+    "something_else_logged": false
+   }
+  },
+  {
+   "id": "165",
+   "project_id": "j1-982756f5bb1d",
+   "at": "2026-11-14T16:41:14.980Z",
+   "kind": "intake.answer",
+   "step": null,
+   "payload": {
+    "by": "scripted_customer",
+    "turn": 8,
+    "answer": {
+     "option": 0
+    },
+    "question": "q19",
+    "matches_sheet": true,
+    "something_else_logged": false
+   }
+  },
+  {
+   "id": "166",
+   "project_id": "j1-982756f5bb1d",
+   "at": "2026-11-14T16:41:14.981Z",
+   "kind": "intake.answer",
+   "step": null,
+   "payload": {
+    "by": "scripted_customer",
+    "turn": 8,
+    "answer": {
+     "option": 2
+    },
+    "question": "q20",
+    "matches_sheet": true,
+    "something_else_logged": false
+   }
+  },
+  {
+   "id": "167",
+   "project_id": "j1-982756f5bb1d",
+   "at": "2026-11-14T16:41:15.162Z",
+   "kind": "journey.brief_confirmed",
+   "step": null,
+   "payload": {
+    "app_spec": "src/spec/examples/example-1-leave-request.json",
+    "later_items": 2,
+    "app_spec_sha256": "b09cc4240ad1f05a6540380ab72aca381522d6e3ce3698244270a8de1339a4b8",
+    "assumed_choices": 1,
+    "checklist_items": 6,
+    "simulated_analyst": true
+   }
+  },
+  {
+   "id": "168",
+   "project_id": "j1-982756f5bb1d",
+   "at": "2026-11-14T16:41:15.262Z",
+   "kind": "acceptance.version.written",
+   "step": null,
+   "payload": {
+    "items": [
+     {
+      "file": "item-01.spec.ts",
+      "number": 1,
+      "sha256": "2a80bb294f1ec645d0259904e0503ee7ab739ce23b2ad6db42830639d2443742"
+     }
+    ],
+    "label": "stand-in test",
+    "version": "v001",
+    "written_by": "stand-in",
+    "app_spec_sha256": "b09cc4240ad1f05a6540380ab72aca381522d6e3ce3698244270a8de1339a4b8",
+    "checklist_items": 6,
+    "manifest_sha256": "e993bfa8976acd21e16b271108b1b78b29e4094003282282039f7e6650198ff5"
+   }
+  },
+  {
+   "id": "169",
+   "project_id": "j1-982756f5bb1d",
+   "at": "2026-11-14T16:41:15.265Z",
+   "kind": "journey.plan_confirmed",
+   "step": null,
+   "payload": {
+    "steps": [
+     {
+      "step": "01-data",
+      "files": 4,
+      "label": "The data step: the leave-request table, the configuration that names it, and the banner sentence that labels the app as built by the scripted engine"
+     },
+     {
+      "step": "02-submitter-screen",
+      "files": 8,
+      "label": "The submitter's screen: an employee's list of their own requests, and a form to add one, with validation"
+     }
+    ],
+    "stand_in_label": "stand-in test",
+    "acceptance_label": "stand-in test, not independent acceptance",
+    "acceptance_version": "v001",
+    "acceptance_written_by": "stand-in",
+    "quality_gate_after_each_step": "not done (milestone 1)"
+   }
+  },
+  {
+   "id": "170",
+   "project_id": "j1-982756f5bb1d",
+   "at": "2026-11-14T16:41:15.483Z",
+   "kind": "journey.job.started",
+   "step": "01-data",
+   "payload": {
+    "kind": "build_step",
+    "step": "01-data",
+    "job_id": "job-b3fe1595"
+   }
+  },
+  {
+   "id": "171",
+   "project_id": "j1-982756f5bb1d",
+   "at": "2026-11-14T16:41:15.486Z",
+   "kind": "journey.step.paused_for_demonstration",
+   "step": "01-data",
+   "payload": {
+    "label": "Demonstration setting: the scripted engine pauses before each write, so that a stop part-way can be shown. Every step is slower.",
+    "setting": "BUILDER_DEMO_STEP_PAUSE_MS",
+    "pause_ms": 4000
+   }
+  },
+  {
+   "id": "172",
+   "project_id": "j1-982756f5bb1d",
+   "at": "2026-11-14T16:41:15.618Z",
+   "kind": "journey.sandbox.made",
+   "step": "01-data",
+   "payload": {
+    "dir": "<run folder>/tmp/builder-acceptance-topkVf",
+    "app_url": "http://app:3161",
+    "containers": 0,
+    "compose_project": "builder_j1-982756f5bb1d",
+    "build_proxy_port": 13161
+   }
+  },
+  {
+   "id": "173",
+   "project_id": "j1-982756f5bb1d",
+   "at": "2026-11-14T16:41:15.621Z",
+   "kind": "step.hold_opened",
+   "step": "01-data",
+   "payload": {
+    "model": "claude-opus-5-5",
+    "turns": 4,
+    "per_turn": {
+     "model": "claude-opus-5-5",
+     "hold_usd": 0.3888,
+     "max_tokens": 16000,
+     "input_rate_is": "one-hour cache write",
+     "input_part_usd": 0.0688,
+     "output_part_usd": 0.32,
+     "fast_mode_factor": 1,
+     "price_table_date": "2026-11-11",
+     "fast_mode_because": null,
+     "long_prompt_rates": false,
+     "prompt_tokens_held": 8600,
+     "count_margin_tokens": 600,
+     "counted_prompt_tokens": 8000,
+     "input_rate_usd_per_million": 8,
+     "output_rate_usd_per_million": 20,
+     "long_prompt_threshold_tokens": null
+    },
+    "deadline_at": "2026-11-14T16:52:15.620Z",
+    "per_turn_usd": 0.3888,
+    "step_hold_id": 6,
+    "budget_before": {
+     "cap_usd": 5,
+     "spent_usd": 0,
+     "step_room_usd": 0,
+     "open_holds_usd": 0
+    },
+    "prompt_tokens": 8000,
+    "step_budget_usd": 1.5552,
+    "max_tokens_ceiling": 16000
+   }
+  },
+  {
+   "id": "174",
+   "project_id": "j1-982756f5bb1d",
+   "at": "2026-11-14T16:41:15.634Z",
+   "kind": "engine.event",
+   "step": "01-data",
+   "payload": {
+    "at": "2026-11-14T16:41:15.630Z",
+    "text": "Scripted engine: fixed change example-1/01-data. The instruction (117 characters) is not read. No model is called.",
+    "type": "text"
+   }
+  },
+  {
+   "id": "175",
+   "project_id": "j1-982756f5bb1d",
+   "at": "2026-11-14T16:41:15.982Z",
+   "kind": "engine.event",
+   "step": "01-data",
+   "payload": {
+    "at": "2026-11-14T16:41:15.982Z",
+    "text": "Scripted engine: The data step: the leave-request table, the configuration that names it, and the banner sentence that labels the app as built by the scripted engine (4 files).",
+    "type": "text"
+   }
+  },
+  {
+   "id": "176",
+   "project_id": "j1-982756f5bb1d",
+   "at": "2026-11-14T16:41:19.990Z",
+   "kind": "engine.event",
+   "step": "01-data",
+   "payload": {
+    "at": "2026-11-14T16:41:19.989Z",
+    "tool": "scripted.write",
+    "type": "tool_call",
+    "input": {
+     "op": "add",
+     "path": "src/db/app-schema.ts",
+     "sha256": "89b7086a7ec0162537892c3786587354bd69df43c597a15e88934239484d5c87"
+    }
+   }
+  },
+  {
+   "id": "177",
+   "project_id": "j1-982756f5bb1d",
+   "at": "2026-11-14T16:41:23.994Z",
+   "kind": "engine.event",
+   "step": "01-data",
+   "payload": {
+    "at": "2026-11-14T16:41:23.994Z",
+    "tool": "scripted.write",
+    "type": "tool_call",
+    "input": {
+     "op": "replace",
+     "path": "drizzle.config.ts",
+     "sha256": "ab958c36ecc0b3f1f8f4238fc2b0a6ce9a42fe733ccbf4f55c4c420b25783192"
+    }
+   }
+  },
+  {
+   "id": "178",
+   "project_id": "j1-982756f5bb1d",
+   "at": "2026-11-14T16:41:27.998Z",
+   "kind": "engine.event",
+   "step": "01-data",
+   "payload": {
+    "at": "2026-11-14T16:41:27.998Z",
+    "tool": "scripted.write",
+    "type": "tool_call",
+    "input": {
+     "op": "replace",
+     "path": "messages/en.json",
+     "sha256": "a5baa4d2febeebcd453b1c6ddd91747cf87a027939dd301eed6a082cacb81b61"
+    }
+   }
+  },
+  {
+   "id": "179",
+   "project_id": "j1-982756f5bb1d",
+   "at": "2026-11-14T16:41:32.003Z",
+   "kind": "engine.event",
+   "step": "01-data",
+   "payload": {
+    "at": "2026-11-14T16:41:32.002Z",
+    "tool": "scripted.write",
+    "type": "tool_call",
+    "input": {
+     "op": "replace",
+     "path": "messages/ar.json",
+     "sha256": "1138ac8b1e73cc273d50ef9c54a1087570f1523134402b38435c729de669fdf0"
+    }
+   }
+  },
+  {
+   "id": "180",
+   "project_id": "j1-982756f5bb1d",
+   "at": "2026-11-14T16:41:32.100Z",
+   "kind": "engine.event",
+   "step": "01-data",
+   "payload": {
+    "at": "2026-11-14T16:41:32.100Z",
+    "type": "finished"
+   }
+  },
+  {
+   "id": "181",
+   "project_id": "j1-982756f5bb1d",
+   "at": "2026-11-14T16:41:32.102Z",
+   "kind": "step.hold_closed",
+   "step": "01-data",
+   "payload": {
+    "reason": "step_ended",
+    "drawn_usd": 0,
+    "budget_usd": 1.5552,
+    "calls_drawn": 0,
+    "released_usd": 1.5552,
+    "step_hold_id": 6,
+    "still_held_usd": 0,
+    "tokens_revoked": 1,
+    "still_held_calls": 0,
+    "spent_in_step_usd": 0,
+    "overrun_not_covered_usd": 0
+   }
+  },
+  {
+   "id": "182",
+   "project_id": "j1-982756f5bb1d",
+   "at": "2026-11-14T16:41:32.108Z",
+   "kind": "journey.job.finished",
+   "step": "01-data",
+   "payload": {
+    "ok": true,
+    "kind": "build_step",
+    "step": "01-data",
+    "turns": 4,
+    "job_id": "job-b3fe1595",
+    "changed_files": 4
+   }
+  },
+  {
+   "id": "183",
+   "project_id": "j1-982756f5bb1d",
+   "at": "2026-11-14T16:41:32.778Z",
+   "kind": "journey.step_approved",
+   "step": "01-data",
+   "payload": {
+    "step": "01-data",
+    "job_id": "job-b3fe1595"
+   }
+  },
+  {
+   "id": "184",
+   "project_id": "j1-982756f5bb1d",
+   "at": "2026-11-14T16:41:32.785Z",
+   "kind": "journey.job.started",
+   "step": "02-submitter-screen",
+   "payload": {
+    "kind": "build_step",
+    "step": "02-submitter-screen",
+    "job_id": "job-2bd21a5e"
+   }
+  },
+  {
+   "id": "185",
+   "project_id": "j1-982756f5bb1d",
+   "at": "2026-11-14T16:41:32.787Z",
+   "kind": "journey.step.paused_for_demonstration",
+   "step": "02-submitter-screen",
+   "payload": {
+    "label": "Demonstration setting: the scripted engine pauses before each write, so that a stop part-way can be shown. Every step is slower.",
+    "setting": "BUILDER_DEMO_STEP_PAUSE_MS",
+    "pause_ms": 4000
+   }
+  },
+  {
+   "id": "186",
+   "project_id": "j1-982756f5bb1d",
+   "at": "2026-11-14T16:41:32.788Z",
+   "kind": "step.hold_opened",
+   "step": "02-submitter-screen",
+   "payload": {
+    "model": "claude-opus-5-5",
+    "turns": 8,
+    "per_turn": {
+     "model": "claude-opus-5-5",
+     "hold_usd": 0.3888,
+     "max_tokens": 16000,
+     "input_rate_is": "one-hour cache write",
+     "input_part_usd": 0.0688,
+     "output_part_usd": 0.32,
+     "fast_mode_factor": 1,
+     "price_table_date": "2026-11-11",
+     "fast_mode_because": null,
+     "long_prompt_rates": false,
+     "prompt_tokens_held": 8600,
+     "count_margin_tokens": 600,
+     "counted_prompt_tokens": 8000,
+     "input_rate_usd_per_million": 8,
+     "output_rate_usd_per_million": 20,
+     "long_prompt_threshold_tokens": null
+    },
+    "deadline_at": "2026-11-14T16:52:32.788Z",
+    "per_turn_usd": 0.3888,
+    "step_hold_id": 7,
+    "budget_before": {
+     "cap_usd": 5,
+     "spent_usd": 0,
+     "step_room_usd": 0,
+     "open_holds_usd": 0
+    },
+    "prompt_tokens": 8000,
+    "step_budget_usd": 3.1104,
+    "max_tokens_ceiling": 16000
+   }
+  },
+  {
+   "id": "187",
+   "project_id": "j1-982756f5bb1d",
+   "at": "2026-11-14T16:41:32.799Z",
+   "kind": "engine.event",
+   "step": "02-submitter-screen",
+   "payload": {
+    "at": "2026-11-14T16:41:32.795Z",
+    "text": "Scripted engine: fixed change example-1/02-submitter-screen. The instruction (117 characters) is not read. No model is called.",
+    "type": "text"
+   }
+  },
+  {
+   "id": "188",
+   "project_id": "j1-982756f5bb1d",
+   "at": "2026-11-14T16:41:33.163Z",
+   "kind": "engine.event",
+   "step": "02-submitter-screen",
+   "payload": {
+    "at": "2026-11-14T16:41:33.163Z",
+    "text": "Scripted engine: The submitter's screen: an employee's list of their own requests, and a form to add one, with validation (8 files).",
+    "type": "text"
+   }
+  },
+  {
+   "id": "189",
+   "project_id": "j1-982756f5bb1d",
+   "at": "2026-11-14T16:41:37.172Z",
+   "kind": "engine.event",
+   "step": "02-submitter-screen",
+   "payload": {
+    "at": "2026-11-14T16:41:37.172Z",
+    "tool": "scripted.write",
+    "type": "tool_call",
+    "input": {
+     "op": "add",
+     "path": "src/app/[locale]/my-requests/rules.ts",
+     "sha256": "d76ce93b1e679e3273ba6ce8ae07eed8b7ccfbcb74765d1eda27931a491b6de4"
+    }
+   }
+  },
+  {
+   "id": "190",
+   "project_id": "j1-982756f5bb1d",
+   "at": "2026-11-14T16:41:39.030Z",
+   "kind": "journey.job.interrupted",
+   "step": "02-submitter-screen",
+   "payload": {
+    "kind": "build_step",
+    "job_id": "job-2bd21a5e",
+    "reason": "The interface stopped while this job ran. It is not resumed."
+   }
+  },
+  {
+   "id": "191",
+   "project_id": "j1-982756f5bb1d",
+   "at": "2026-11-14T16:41:49.522Z",
+   "kind": "journey.sandbox.removed",
+   "step": null,
+   "payload": {
+    "reason": "Found at start: made by an interface that has since stopped. It is not resumed.",
+    "removed": true,
+    "interrupted": true
+   }
+  },
+  {
+   "id": "192",
+   "project_id": "j1-982756f5bb1d",
+   "at": "2026-11-14T16:41:49.527Z",
+   "kind": "step.hold_closed",
+   "step": "02-submitter-screen",
+   "payload": {
+    "reason": "job_interrupted",
+    "drawn_usd": 0,
+    "budget_usd": 3.1104,
+    "calls_drawn": 0,
+    "released_usd": 3.1104,
+    "step_hold_id": 7,
+    "still_held_usd": 0,
+    "tokens_revoked": 1,
+    "still_held_calls": 0,
+    "spent_in_step_usd": 0,
+    "overrun_not_covered_usd": 0
+   }
+  },
+  {
+   "id": "193",
+   "project_id": "j1-982756f5bb1d",
+   "at": "2026-11-14T16:41:52.976Z",
+   "kind": "journey.closed",
+   "step": null,
+   "payload": {
+    "at_stage": "build"
+   }
+  }
+ ]
+}

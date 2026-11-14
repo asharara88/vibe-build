@@ -1,0 +1,8 @@
+The interface's own output during the run (stdout and stderr), with this run's folder written <run folder>:
+
+Projects with a job or a sandbox left by an interface that stopped, marked interrupted and removed at start: 0.
+Live preview front listening on http://127.0.0.1:4041, as uid 1990 (no name in /etc/passwd).
+Interface listening on http://127.0.0.1:4021 (password from: env).
+[interface stopping] The interface was stopped on purpose (SIGTERM). No job was running. Every request is now answered "The interface is stopping."
+Projects with a sandbox, marked interrupted and removed at the stop: 0.
+[interface stopped] Lock released. Exit code 0.

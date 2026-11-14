@@ -1,0 +1,79 @@
+Control for known gap 185's helper, on commit 6f0c5b3 (builder/ tree f1a4770), 2026-11-14T16:45:21Z: in builder/test/drop-test-db.ts the wait is taken out, so the drop is made at once and with force, as before the fix. Tests D1, D2 and D3 must fail; D4, which does not reach PostgreSQL, still passes. The file is restored with git checkout afterwards.
+The change:  1 file changed, 2 insertions(+), 2 deletions(-)
+
+ RUN  v5.1.0 /home/user/vibe-build/builder
+
+ ❯ test/drop-test-db.test.ts (4 tests | 3 failed) 4304ms
+   ❯ the tests' own database clean-up (known gap 185) (4)
+     × D1: a pool ended a moment ago is waited for, not cut off: 40 rounds, every database gone, no connection ended by the drop, no error left for nobody 3450ms
+     × D2: while a connection is still open the database is NOT dropped; it is dropped once that connection has gone 629ms
+     × D3: when the wait is over, one last attempt is made with force, and says so 148ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/drop-test-db.test.ts > the tests' own database clean-up (known gap 185) > D1: a pool ended a moment ago is waited for, not cut off: 40 rounds, every database gone, no connection ended by the drop, no error left for nobody
+AssertionError: expected [ …(46) ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++ ]
+
+ ❯ test/drop-test-db.test.ts:63:21
+     61|       // Give a late message of the server the time to arrive before i…
+     62|       await new Promise((r) => setTimeout(r, 300));
+     63|       expect(ended).toEqual([]);
+       |                     ^
+     64|       expect(strays).toEqual([]);
+     65|     } finally {
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯
+
+ FAIL  test/drop-test-db.test.ts > the tests' own database clean-up (known gap 185) > D2: while a connection is still open the database is NOT dropped; it is dropped once that connection has gone
+AssertionError: expected true to be false // Object.is equality
+
+- Expected
++ Received
+
+- false
++ true
+
+ ❯ test/drop-test-db.test.ts:84:20
+     82|       });
+     83|       await new Promise((r) => setTimeout(r, 600));
+     84|       expect(done).toBe(false);
+       |                    ^
+     85|       expect(await exists(name)).toBe(true);
+     86|       expect(await connections(name)).toBe(1);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯
+
+ FAIL  test/drop-test-db.test.ts > the tests' own database clean-up (known gap 185) > D3: when the wait is over, one last attempt is made with force, and says so
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ test/drop-test-db.test.ts:109:24
+    107|     try {
+    108|       const r = await dropTestDatabase(admin, name, 400);
+    109|       expect(r.forced).toBe(true);
+       |                        ^
+    110|       expect(await exists(name)).toBe(false);
+    111|       // The held connection was the test role's own, so the forced dr…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/3]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  3 failed | 1 passed (4)
+   Start at  16:45:21
+   Duration  4.48s (tests 99%, import 1%)
+
+vitest exit code: 1
+(Lines of D1's difference that only repeat "error: terminating connection due to administrator command" are left out of this file; the count is in D1's message.)

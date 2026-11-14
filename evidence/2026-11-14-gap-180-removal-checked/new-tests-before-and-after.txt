@@ -1,0 +1,16 @@
+Known gap 180's fix: its tests, on 7433518 (builder/ tree 783af9f). 2026-11-14T12:12:52Z.
+
+== BEFORE: the fixed files as on claude/stage-1 at 51a1321 (git checkout origin/claude/stage-1 -- src/orchestrator/example-1-adapter.ts src/orchestrator/journey.ts src/web/pages.ts src/web/messages/en.json src/web/messages/ar.json); the test files as here
+files of builder/ differing from HEAD now: 5
+test/web.test.ts -t "C14 \(known gap 180's fix\)":  Test Files 1 failed (1)  Tests 1 failed | 74 skipped (75) 
+test/web.test.ts -t "C15 \(known gap 180's fix\)":  Test Files 1 failed (1)  Tests 1 failed | 74 skipped (75) 
+test/journey.test.ts -t "C16 \(known gap 180's fix\)":  Test Files 1 failed (1)  Tests 1 failed | 71 skipped (72) 
+test/removal-live.test.ts (real Docker; all of it): TypeError: dockerLeftovers is not a function AssertionError: expected 'containers removed: 0; folder removed' to contain 'nothing of the project left in Docker…'  Test Files 1 failed (1) 
+
+== AFTER: everything as committed at 7433518 (files of builder/ differing from HEAD: 0)
+test/web.test.ts -t "C14 \(known gap 180's fix\)":  Test Files 1 passed (1)  Tests 1 passed | 74 skipped (75) 
+test/web.test.ts -t "C15 \(known gap 180's fix\)":  Test Files 1 passed (1)  Tests 1 passed | 74 skipped (75) 
+test/journey.test.ts -t "C16 \(known gap 180's fix\)":  Test Files 1 passed (1)  Tests 1 passed | 71 skipped (72) 
+test/removal-live.test.ts (real Docker; all of it):  Test Files 1 passed (1)  Tests 3 passed (3) 
+
+Left on the machine by the live test (containers named removal-test-holder-*, networks named builder_j1-*_front): 0, 0

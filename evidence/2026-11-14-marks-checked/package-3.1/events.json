@@ -1,0 +1,318 @@
+[
+  {
+    "id": "1",
+    "at": "2026-11-14T14:03:49.913Z",
+    "kind": "acceptance.version.written",
+    "step": null,
+    "payload": {
+      "items": [
+        {
+          "file": "item-01.spec.ts",
+          "number": 1,
+          "sha256": "cef2a7b1cd7a4c05a043d6e6aad3c3b797dd7016130322b8d4c2e64b179bcfba"
+        }
+      ],
+      "label": "stand-in test",
+      "version": "v001",
+      "written_by": "stand-in",
+      "app_spec_sha256": "b09cc4240ad1f05a6540380ab72aca381522d6e3ce3698244270a8de1339a4b8",
+      "checklist_items": 6,
+      "manifest_sha256": "8e90aa73caa9d2c2b79809e676e052095862bc4881b6845157fb48a9cb723968"
+    }
+  },
+  {
+    "id": "2",
+    "at": "2026-11-14T14:04:30.898Z",
+    "kind": "acceptance.run.started",
+    "step": null,
+    "payload": {
+      "label": "stand-in test",
+      "run_id": "run-20261114t140426-e55f6d98",
+      "refused": null,
+      "version": "v001",
+      "base_url": "http://app:3141",
+      "written_by": "stand-in",
+      "app_answered": true,
+      "manifest_sha256": "8e90aa73caa9d2c2b79809e676e052095862bc4881b6845157fb48a9cb723968",
+      "container_started": true
+    }
+  },
+  {
+    "id": "3",
+    "at": "2026-11-14T14:04:30.900Z",
+    "kind": "acceptance.item",
+    "step": null,
+    "payload": {
+      "why": "ran once and passed, with its screenshot",
+      "file": "item-01.spec.ts",
+      "item": 1,
+      "step": null,
+      "label": "stand-in test",
+      "run_id": "run-20261114t140426-e55f6d98",
+      "status": "passed",
+      "version": "v001",
+      "screenshot": {
+        "path": "<scratchpad>/data31/acceptance-runs/demo_acc_mwgh7s75/run-20261114t140426-e55f6d98/results/test-results/item-01-item-1-stand-in-te-1c2bf-ir-list-with-status-waiting/attachments/item-screenshot-0e8f8c2486ac91f4cdc3a6b50823c1ddc7d42a81.png",
+        "sha256": "81b5c3329d8d0127071056d6eb39159d3c1f09955b5c60820a41e8e293b61096"
+      },
+      "test_title": "item 1 (stand-in test): an employee signs in, submits a five-day request, and sees it in their list with status waiting",
+      "written_by": "stand-in",
+      "failure_file": null,
+      "manifest_sha256": "8e90aa73caa9d2c2b79809e676e052095862bc4881b6845157fb48a9cb723968"
+    }
+  },
+  {
+    "id": "4",
+    "at": "2026-11-14T14:04:30.901Z",
+    "kind": "acceptance.run.finished",
+    "step": null,
+    "payload": {
+      "label": "stand-in test",
+      "run_id": "run-20261114t140426-e55f6d98",
+      "outcome": "passed",
+      "summary": "version passed; checklist incomplete (5 of the app spec's 6 checklist items have no test)",
+      "version": "v001",
+      "exit_code": 0,
+      "timed_out": false,
+      "written_by": "stand-in",
+      "run_problems": [],
+      "manifest_sha256": "8e90aa73caa9d2c2b79809e676e052095862bc4881b6845157fb48a9cb723968"
+    }
+  },
+  {
+    "id": "5",
+    "at": "2026-11-14T14:04:32.958Z",
+    "kind": "acceptance.run.started",
+    "step": null,
+    "payload": {
+      "label": "stand-in test",
+      "run_id": "run-20261114t140431-f640c3b1",
+      "refused": null,
+      "version": "v001",
+      "base_url": "http://app:3141",
+      "written_by": "stand-in",
+      "app_answered": true,
+      "manifest_sha256": "8e90aa73caa9d2c2b79809e676e052095862bc4881b6845157fb48a9cb723968",
+      "container_started": true
+    }
+  },
+  {
+    "id": "6",
+    "at": "2026-11-14T14:04:32.960Z",
+    "kind": "acceptance.item",
+    "step": null,
+    "payload": {
+      "why": "the run went past its time limit and its container was stopped",
+      "file": "item-01.spec.ts",
+      "item": 1,
+      "step": null,
+      "label": "stand-in test",
+      "run_id": "run-20261114t140431-f640c3b1",
+      "status": "did not run",
+      "version": "v001",
+      "screenshot": null,
+      "test_title": null,
+      "written_by": "stand-in",
+      "failure_file": null,
+      "manifest_sha256": "8e90aa73caa9d2c2b79809e676e052095862bc4881b6845157fb48a9cb723968"
+    }
+  },
+  {
+    "id": "7",
+    "at": "2026-11-14T14:04:32.961Z",
+    "kind": "acceptance.run.finished",
+    "step": null,
+    "payload": {
+      "label": "stand-in test",
+      "run_id": "run-20261114t140431-f640c3b1",
+      "outcome": "not passed",
+      "summary": "did not run: the run went past its time limit and its container was stopped",
+      "version": "v001",
+      "exit_code": 137,
+      "timed_out": true,
+      "written_by": "stand-in",
+      "run_problems": [
+        "the run went past its time limit and its container was stopped"
+      ],
+      "manifest_sha256": "8e90aa73caa9d2c2b79809e676e052095862bc4881b6845157fb48a9cb723968"
+    }
+  },
+  {
+    "id": "8",
+    "at": "2026-11-14T14:04:35.073Z",
+    "kind": "acceptance.run.started",
+    "step": null,
+    "payload": {
+      "label": "stand-in test",
+      "run_id": "run-20261114t140432-c36fe749",
+      "refused": null,
+      "version": "v001",
+      "base_url": "http://app:3141",
+      "written_by": "stand-in",
+      "app_answered": true,
+      "manifest_sha256": "8e90aa73caa9d2c2b79809e676e052095862bc4881b6845157fb48a9cb723968",
+      "container_started": true
+    }
+  },
+  {
+    "id": "9",
+    "at": "2026-11-14T14:04:35.074Z",
+    "kind": "acceptance.item",
+    "step": null,
+    "payload": {
+      "why": "the runner's container ended with exit code 137",
+      "file": "item-01.spec.ts",
+      "item": 1,
+      "step": null,
+      "label": "stand-in test",
+      "run_id": "run-20261114t140432-c36fe749",
+      "status": "did not run",
+      "version": "v001",
+      "screenshot": null,
+      "test_title": null,
+      "written_by": "stand-in",
+      "failure_file": null,
+      "manifest_sha256": "8e90aa73caa9d2c2b79809e676e052095862bc4881b6845157fb48a9cb723968"
+    }
+  },
+  {
+    "id": "10",
+    "at": "2026-11-14T14:04:35.075Z",
+    "kind": "acceptance.run.finished",
+    "step": null,
+    "payload": {
+      "label": "stand-in test",
+      "run_id": "run-20261114t140432-c36fe749",
+      "outcome": "not passed",
+      "summary": "did not run: the runner's container ended with exit code 137",
+      "version": "v001",
+      "exit_code": 137,
+      "timed_out": false,
+      "written_by": "stand-in",
+      "run_problems": [
+        "the runner's container ended with exit code 137"
+      ],
+      "manifest_sha256": "8e90aa73caa9d2c2b79809e676e052095862bc4881b6845157fb48a9cb723968"
+    }
+  },
+  {
+    "id": "11",
+    "at": "2026-11-14T14:04:58.718Z",
+    "kind": "acceptance.run.started",
+    "step": null,
+    "payload": {
+      "label": "stand-in test",
+      "run_id": "run-20261114t140458-e9282ebd",
+      "refused": "the app did not answer before the start: the project's app container is not running",
+      "version": "v001",
+      "base_url": "http://app:3141",
+      "written_by": "stand-in",
+      "app_answered": "the project's app container is not running",
+      "manifest_sha256": "8e90aa73caa9d2c2b79809e676e052095862bc4881b6845157fb48a9cb723968",
+      "container_started": false
+    }
+  },
+  {
+    "id": "12",
+    "at": "2026-11-14T14:04:58.721Z",
+    "kind": "acceptance.item",
+    "step": null,
+    "payload": {
+      "why": "the run was refused before its start: the app did not answer before the start: the project's app container is not running",
+      "file": "item-01.spec.ts",
+      "item": 1,
+      "step": null,
+      "label": "stand-in test",
+      "run_id": "run-20261114t140458-e9282ebd",
+      "status": "did not run",
+      "version": "v001",
+      "screenshot": null,
+      "test_title": null,
+      "written_by": "stand-in",
+      "failure_file": null,
+      "manifest_sha256": "8e90aa73caa9d2c2b79809e676e052095862bc4881b6845157fb48a9cb723968"
+    }
+  },
+  {
+    "id": "13",
+    "at": "2026-11-14T14:04:58.722Z",
+    "kind": "acceptance.run.finished",
+    "step": null,
+    "payload": {
+      "label": "stand-in test",
+      "run_id": "run-20261114t140458-e9282ebd",
+      "outcome": "not passed",
+      "summary": "did not run: the run was refused before its start: the app did not answer before the start: the project's app container is not running",
+      "version": "v001",
+      "exit_code": null,
+      "timed_out": false,
+      "written_by": "stand-in",
+      "run_problems": [
+        "the run was refused before its start: the app did not answer before the start: the project's app container is not running"
+      ],
+      "manifest_sha256": "8e90aa73caa9d2c2b79809e676e052095862bc4881b6845157fb48a9cb723968"
+    }
+  },
+  {
+    "id": "14",
+    "at": "2026-11-14T14:06:08.048Z",
+    "kind": "acceptance.run.started",
+    "step": null,
+    "payload": {
+      "label": "stand-in test",
+      "run_id": "run-20261114t140553-52b012a7",
+      "refused": null,
+      "version": "v001",
+      "base_url": "http://app:3141",
+      "written_by": "stand-in",
+      "app_answered": true,
+      "manifest_sha256": "8e90aa73caa9d2c2b79809e676e052095862bc4881b6845157fb48a9cb723968",
+      "container_started": true
+    }
+  },
+  {
+    "id": "15",
+    "at": "2026-11-14T14:06:08.051Z",
+    "kind": "acceptance.item",
+    "step": null,
+    "payload": {
+      "why": "it ran and failed",
+      "file": "item-01.spec.ts",
+      "item": 1,
+      "step": "sees status waiting",
+      "label": "stand-in test",
+      "run_id": "run-20261114t140553-52b012a7",
+      "status": "failed",
+      "version": "v001",
+      "screenshot": {
+        "path": "<scratchpad>/data31/acceptance-runs/demo_acc_mwgh7s75/run-20261114t140553-52b012a7/results/test-results/item-01-item-1-stand-in-te-1c2bf-ir-list-with-status-waiting/test-failed-1.png",
+        "sha256": "f02620c7b7a083cdd86257e8022a12fb41e4a9e7d5e81ba340107297e5a5140c"
+      },
+      "test_title": "item 1 (stand-in test): an employee signs in, submits a five-day request, and sees it in their list with status waiting",
+      "written_by": "stand-in",
+      "failure_file": {
+        "path": "<scratchpad>/data31/acceptance-runs/demo_acc_mwgh7s75/run-20261114t140553-52b012a7/builder/item-01-failure.txt",
+        "sha256": "bddd2c871816462fabd76b95a03bcc70804ec8f0cac98c5ffdc7efd9461c9678"
+      },
+      "manifest_sha256": "8e90aa73caa9d2c2b79809e676e052095862bc4881b6845157fb48a9cb723968"
+    }
+  },
+  {
+    "id": "16",
+    "at": "2026-11-14T14:06:08.052Z",
+    "kind": "acceptance.run.finished",
+    "step": null,
+    "payload": {
+      "label": "stand-in test",
+      "run_id": "run-20261114t140553-52b012a7",
+      "outcome": "failed",
+      "summary": "version failed: item 1 failed at step \"sees status waiting\"",
+      "version": "v001",
+      "exit_code": 1,
+      "timed_out": false,
+      "written_by": "stand-in",
+      "run_problems": [],
+      "manifest_sha256": "8e90aa73caa9d2c2b79809e676e052095862bc4881b6845157fb48a9cb723968"
+    }
+  }
+]

@@ -1,0 +1,33 @@
+Known gap 185, as seen on 14 Nov 2026 on the branch tmp/gap180: the three times the tests' own database clean-up turned a run red. Written by the agent that answered the second review round of known gap 180's fix.
+
+The clean-up. Each test of the clean stop makes a database of its own and, at its end, runs (freshDb, in test/web.test.ts and test/journey.test.ts):
+    await db.end();
+    await pool.query(`drop database if exists "<name>" with (force)`);
+The helper is older than this branch and is not changed by it.
+
+1. 14:05:56 UTC. The first fixer's first whole run of test/web.test.ts after the first review's fixes: 77 of 78, test C13 reported failed.
+   PostgreSQL's log (/var/log/postgresql/postgresql-16-main.log):
+     2026-11-14 14:05:56.207 UTC [12910] root@builder_test_g180fix ERROR:  permission denied to terminate process
+     2026-11-14 14:05:56.207 UTC [12910] root@builder_test_g180fix STATEMENT:  drop database if exists "builder_test_g180fix_st_c436ba" with (force)
+   Kept: ../run-web-whole-first-run-1-failed.txt and ../web-whole-first-run-cause.txt.
+
+2. 14:24:09 UTC. A second-round reviewer's single run of test C14, made for a control (J2-C64's replacement) in a scratch copy: test C14 reported failed, in its clean-up; no assertion shown.
+   PostgreSQL's log:
+     2026-11-14 14:24:09.557 UTC [25000] root@builder_test_g180fix_rev_rules_and_claims ERROR:  permission denied to terminate process
+     2026-11-14 14:24:09.557 UTC [25000] root@builder_test_g180fix_rev_rules_and_claims STATEMENT:  drop database if exists "builder_test_g180fix_rev_rules_and_claims_st_1e5d46" with (force)
+   Kept: sample-clean-up-failure.txt (the failure as vitest printed it, from the reviewer's output). A second run of the same control failed where it should, at the count line's assertion.
+
+3. 14:32:37 UTC. The same reviewer's first whole run of test/web.test.ts: every test passed (78 of 78), "Errors 1 error", vitest exit code 1.
+   PostgreSQL's log:
+     2026-11-14 14:32:37.390 UTC [12043] root@builder_test_g180fix_rev_rules_and_claims_st_c4e702 FATAL:  terminating connection due to administrator command
+   Kept: reviewer-run-web-whole-78-passed-exit-1.txt. Three more whole runs by the reviewer passed with exit code 0 (not kept here).
+
+Checked by the writer: the log lines above are in PostgreSQL's log, as quoted (the DETAIL lines left out); "permission denied to terminate process" is in the log twice in all, at 1 and 2.
+
+Two forms.
+- Form 1 (1 and 2): the drop itself is refused. The test is reported failed, with the clean-up's error in the place of any earlier one. Inferred, not seen: the connection PostgreSQL would not let the test role end was one of PostgreSQL's own background workers (the test role, root, is not a superuser here).
+- Form 2 (3): the drop goes through and ends a connection of the test's own pool that was still open; the server's last message reaches a connection nobody listens to any more; vitest counts it as an unhandled error. The reviewer's reading of pg-pool 3.14.0 (its end() does not wait for its connections to close) and the reviewer's probe with no product code (150 rounds of the pool's end and then the forced drop: 245 such errors) are the grounds for this. The writer did not re-run the probe or re-read the pool's code.
+
+"FATAL: terminating connection due to administrator command" is in PostgreSQL's log hundreds of times on this day: the forced drop ends a connection in many clean-ups, and nearly always something still listens. Only the one line above belongs to a red run that the writer knows of.
+
+What was not done: the helper is not changed. It is shared test code older than this branch (row 185 of docs/KNOWN-GAPS.md says what the change should be). What was done about the controls: the controls script now reads why a test failed and does not count a failure in a test's own clean-up as a control that worked (controls-read-of-sample.txt).
