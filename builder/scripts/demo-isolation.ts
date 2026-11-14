@@ -60,6 +60,22 @@
  * Development profile only. No model is called (part B's gateway is a stand-in; nothing is behind part A's gateway
  * address). No code a model wrote is run. Made-up data only. No setting's value is printed; the session proxy is
  * named by host and port only.
+ *
+ * CHANGED AFTER THE REVIEW OF 14 NOV 2026 (part A; part B's checks are as they were):
+ * - before anything is made, it reads what an interrupted earlier run left of part A's fixed-name projects, and
+ *   part A does not start on top of it;
+ * - beside each image's id it prints when the image's content was made, and says in so many words whether that was
+ *   in this run or before it (then the content came from Docker's build cache). The helper's own line, "the
+ *   template's guard check and next build ran in the build", is its fixed wording and is true only of a build that
+ *   was not taken from the cache: the line after it says which this was;
+ * - it reads what the app and tools images hold (the pages step 02 adds; the product's two tools);
+ * - it checks that nothing listens on the machine at part A's gateway port before a probe is run;
+ * - misconfiguration R1's in-place row must meet the conditions of A2's in-place row (the running app's own
+ *   container before and after, its own listener seen, no entry untried);
+ * - the docker commands it writes out for the in-place column and the database column are marked as written out
+ *   by this script from the manager's and the harness's code, not captured from the command that ran;
+ * - `which-is-which.md` says for which rows Docker was asked about the container, and for which only about the image's name;
+ * - after each removal it says whether the project's folder is gone.
  */
 import { execFile } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
@@ -94,12 +110,17 @@ import {
   destroyRealProject,
   devProbeSettings,
   ensureRunnerImage,
+  folderLeft,
   freePort,
   FRONT_STAND_IN,
+  gatewayPortProblem,
   GATEWAY_STAND_IN,
+  imageContentProblemsFrom,
+  imageContents,
   imageFacts,
   IN_PLACE_PATH,
   leftOf,
+  leftOfProjectId,
   probeComparison,
   probeInNetworkOf,
   probeInPlace,
@@ -205,25 +226,52 @@ async function realContainers(): Promise<void> {
   const tA = Date.now();
   log("==== PART A. REAL CONTAINERS OF A REAL EXAMPLE-1 PROJECT (14 Nov 2026) ====");
   log("== A1. The real images and the real project ==");
+  // After the review of 14 Nov 2026: an interrupted earlier run leaves its containers, networks, volume and images
+  // under these same names. Part A does not start on top of them.
+  const NOTHING_LEFT = "containers: none; named containers: none; networks: none; volumes: none; images: none";
+  const leftBefore: string[] = [];
+  for (const id of [REAL_PROJECT, ...[1, 2, 3, 4].map((n) => `${REAL_PROJECT}_mis${n}`)]) {
+    const said = await leftOfProjectId(id);
+    if (said !== NOTHING_LEFT) leftBefore.push(`${id}: ${said}`);
+  }
+  log(`  Before anything is made, of part A's five fixed-name projects on the machine: ${leftBefore.length ? leftBefore.join(" | ") : "nothing"}.`);
+  if (leftBefore.length) throw new Error("Something of part A's own projects was already on the machine (an interrupted earlier run leaves this); part A does not start on top of it. Remove what is named above, by name, then run this again.");
   const runner = await ensureRunnerImage();
   log(`  The acceptance runner's real image ${runner.image}: built from the approved browser zip by buildRunnerImage (from Docker's build cache when nothing changed); as approved; it carries the zip's label. Id ${runner.imageId}.`);
+  const madeAt = new Date();
   const real = await startRealProject({ projectId: REAL_PROJECT, appPort: REAL_APP_PORT, onMade: (x) => void realMade.push(x), log });
   const { x, images, appContainer } = real;
-  log(`  The door (egress, with egress-host) was started too; the product does not start it for a scripted-engine project today. Nothing listens behind this project's gateway address (127.0.0.1:${REAL_GATEWAY_PORT}).`);
+  /** The time Docker gives an image (`.Created`), against when this project was made: after it, or before it (then the image was held already, in Docker's build cache). */
+  const whenMade = (i: ImageFacts, since: Date) => {
+    const at = Date.parse(i.created ?? "");
+    if (!Number.isFinite(at)) return "Docker gave no creation time for it, so whether its content was built in this run is not known";
+    return at >= since.getTime()
+      ? `Docker dates it ${i.created}, after this project was made (${since.toISOString()}): its last step, at least, ran in this run (earlier steps may still have come from Docker's build cache)`
+      : `Docker dates it ${i.created}, ${Math.round((since.getTime() - at) / 1000)} s BEFORE this project was made (${since.toISOString()}): docker build gave the name to an image Docker already held from an earlier build of identical files (its build cache). That the guard check and next build ran in THIS run is not shown`;
+  };
+  log(`  The helper's line above ("the template's guard check and next build ran in the build") is its fixed wording. What this run shows: the app image: ${whenMade(images.app, madeAt)}. The tools image: ${whenMade(images.tools, madeAt)}.`);
+  log(`  The door (egress, with egress-host) was started too; the product does not start it for a scripted-engine project today.`);
   const ps = JSON.parse(`[${(await sandbox.ps(x.sb)).trim().split("\n").join(",")}]`) as Array<{ Service: string; State: string; Health?: string }>;
   for (const p of ps) log(`  Container ${p.Service}: ${p.State}${p.Health ? ` (${p.Health})` : ""}`);
   const howMade: Array<[string, ImageFacts, string]> = [
-    ["app", images.app, "built in this run by sandbox.build from the project's workspace (the house template after the scripted engine's steps 01 and 02), the Dockerfile's `run` stage"],
-    ["tools", images.tools, "built in this run by sandbox.build from the same workspace, the Dockerfile's `tools` stage"],
-    ["acceptance runner", images.acceptance, "built by buildRunnerImage from builder/runner and the approved browser zip; machine-wide, never removed here"],
+    ["app", images.app, `named in this run by docker build (sandbox.build) from the project's workspace (the house template after the scripted engine's steps 01 and 02), the Dockerfile's \`run\` stage; ${whenMade(images.app, madeAt)}`],
+    ["tools", images.tools, `named in this run by docker build (sandbox.build) from the same workspace, the Dockerfile's \`tools\` stage; ${whenMade(images.tools, madeAt)}`],
+    ["acceptance runner", images.acceptance, `built by buildRunnerImage from builder/runner and the approved browser zip (from Docker's build cache when nothing changed); machine-wide, never removed here; Docker dates it ${images.acceptance.created || "(no time given)"}`],
     ["approved Node image (check, engine, door)", images.node, "the approved Node image, by its digest"],
   ];
-  const imageLines = howMade.map(([what, i, how]) => `${what}: ${i.name}\n  id: ${i.id || "(not on this machine)"}\n  user: ${JSON.stringify(i.user)}; command: ${JSON.stringify(i.command).slice(0, 120)}; entrypoint: ${JSON.stringify(i.entrypoint)}; working folder: ${JSON.stringify(i.workingDir)}; labels: ${JSON.stringify(i.labels)}\n  how it was made: ${how}`);
-  files["real-images.txt"] = `${imageLines.join("\n")}\nThe running app container ${appContainer?.id.slice(0, 12)} runs image ${appContainer?.imageId}.\n`;
+  const imageLines = howMade.map(([what, i, how]) => `${what}: ${i.name}\n  id: ${i.id || "(not on this machine)"}\n  created: ${i.created || "(no time given)"}\n  user: ${JSON.stringify(i.user)}; command: ${JSON.stringify(i.command).slice(0, 120)}; entrypoint: ${JSON.stringify(i.entrypoint)}; working folder: ${JSON.stringify(i.workingDir)}; labels: ${JSON.stringify(i.labels)}\n  how it was made: ${how}`);
   for (const l of imageLines) for (const part of l.split("\n")) log(`  ${part}`);
   const notReal = realImageProblemsFrom(images);
-  log(`  Are these the real images (realImageProblemsFrom)? ${notReal.length ? `NO: ${notReal.join("; ")}` : "Yes: no problem found."}`);
+  const realnessWords = `Does any of them have the settings of a stand-in image of 13 Nov (realImageProblemsFrom; a check of settings, not proof of how an image was made)? ${notReal.length ? `YES: ${notReal.join("; ")}` : "No: no problem found."}`;
+  log(`  ${realnessWords}`);
   if (notReal.length) verdictReal = false;
+  // After the review of 14 Nov 2026: what the images hold, read in a one-off container of each.
+  const contents = await imageContents(x.sb);
+  const notHeld = imageContentProblemsFrom(contents);
+  const contentWords = `What the images hold, read in a one-off container of each service (imageContents): app ${JSON.stringify(contents.app)}; tools ${JSON.stringify(contents.tools)}. The app image holds the pages only step 02 adds, and the tools image the product's two tools: ${notHeld.length ? `NO: ${notHeld.join("; ")}` : "yes"}.`;
+  log(`  ${contentWords}`);
+  if (notHeld.length) verdictReal = false;
+  files["real-images.txt"] = `This project was made at ${madeAt.toISOString()}.\n${imageLines.join("\n")}\nThe running app container ${appContainer?.id.slice(0, 12)} runs image ${appContainer?.imageId}.\n${realnessWords}\n${contentWords}\n`;
   const sameImage = appContainer?.imageId === images.app.id;
   log(`  The running app container runs the image the build made: ${sameImage ? "yes" : "NO"} (${appContainer?.imageId}).`);
   if (!sameImage) verdictReal = false;
@@ -240,6 +288,13 @@ async function realContainers(): Promise<void> {
   log(`  Listening TCP sockets on the machine: ${machineListeners.join(", ")}`);
   log(`  Machine listeners given to the probe include the front's port ${FRONT_PORT}: ${settings.includes(`:${FRONT_PORT}"`) ? "yes" : "NO"}.`);
   if (!settings.includes(`:${FRONT_PORT}"`)) verdictReal = false;
+  // After the review of 14 Nov 2026: "nothing listens behind this project's gateway address" is checked before a probe is run.
+  const noGateway = (listeners: string[]) => {
+    const problem = gatewayPortProblem(listeners, REAL_GATEWAY_PORT);
+    if (problem) throw new Error(problem);
+  };
+  noGateway(machineListeners);
+  log(`  Nothing listens behind this project's gateway address (127.0.0.1:${REAL_GATEWAY_PORT}): checked, none of the machine's listening sockets above is on port ${REAL_GATEWAY_PORT}.`);
   const ctx = { appPort: REAL_APP_PORT, gatewayServer: /server: \(no gateway is behind the real project's address in this run\)/, frontServer: new RegExp(`server: ${FRONT_STAND_IN}`) };
   const withSocket = JSON.stringify({ ...JSON.parse(settings), sockets: ["/psock/c.sock"] });
   const machineRows = machineAddresses.length * new Set(machineListeners.map((l) => l.split(":").pop())).size;
@@ -247,7 +302,7 @@ async function realContainers(): Promise<void> {
   const containers: string[] = [];
   const userIds: Record<string, number> = {};
   /** One real column: its files, its comparison, the same conditions the live test asks, and its row of "Which is which". */
-  const column = (key: string, kind: DevContainer, label: string, word: string, lines: string[], where: { container: string; image: string; imageId?: string; how: string; dockerUser?: string; networks?: string; commands: string[] }, extra: string[]) => {
+  const column = (key: string, kind: DevContainer, label: string, word: string, lines: string[], where: { container: string; image: string; imageId?: string; how: string; dockerUser?: string; networks?: string; commands: string[]; commandsWrittenOut?: boolean }, extra: string[]) => {
     files[`real-probe-${key}.jsonl`] = lines.join("\n") + "\n";
     const report = parseProbeOutput(lines);
     const c = compareWithExpected(report, expectedOnDevelopment(kind, ctx));
@@ -262,7 +317,7 @@ async function realContainers(): Promise<void> {
     log(`     where it ran: container ${where.container}; image ${where.image} (${where.imageId ?? "not seen"}); user id ${info(report, "user id")} (the probe's own line)${where.dockerUser !== undefined ? `, Docker's user setting ${JSON.stringify(where.dockerUser)}` : ""}; networks: ${where.networks ?? "not asked"}; how the probe got in: ${where.how}`);
     if (!c.pass || extra.length) verdictReal = false;
     which.push([label, word, `real example-1 (${x.sb.projectName})`, `${where.image} (${shortId(where.imageId)})`, where.container, where.how, info(report, "user id") ?? "?", `\`${kind}\``, counts(c), !c.pass || extra.length ? "FAIL" : "PASS"]);
-    containers.push(`### ${label}\n\n- Kind: ${word}\n- Container: ${where.container}\n- Image: ${where.image}, id ${where.imageId ?? "not seen"}\n- User id the probe reported: ${info(report, "user id")}${where.dockerUser !== undefined ? `; Docker's user setting: ${JSON.stringify(where.dockerUser)}` : ""}\n- Networks, as Docker reported them: ${where.networks ?? "not asked"}\n- How the probe got in: ${where.how}\n- Compared with the list \`${kind}\`: ${c.pass && !extra.length ? "PASS" : "FAIL"} (${counts(c)})${extra.length ? `\n- Other conditions not met: ${extra.join("; ")}` : ""}\n- The docker command${where.commands.length > 1 ? "s" : ""}:\n${where.commands.map((cmd) => `  - \`${cmd.replace(/`/g, "'")}\``).join("\n")}\n`);
+    containers.push(`### ${label}\n\n- Kind: ${word}\n- Container: ${where.container}\n- Image: ${where.image}, id ${where.imageId ?? "not seen"}\n- User id the probe reported: ${info(report, "user id")}${where.dockerUser !== undefined ? `; Docker's user setting: ${JSON.stringify(where.dockerUser)}` : ""}\n- Networks, as Docker reported them: ${where.networks ?? "not asked"}\n- How the probe got in: ${where.how}\n- Compared with the list \`${kind}\`: ${c.pass && !extra.length ? "PASS" : "FAIL"} (${counts(c)})${extra.length ? `\n- Other conditions not met: ${extra.join("; ")}` : ""}\n- The docker command${where.commands.length > 1 ? "s" : ""}${where.commandsWrittenOut ? " (written out by the demonstration script from the manager's and the harness's code; NOT captured from the command that ran)" : " (captured: the arguments the sandbox manager gave to docker)"}:\n${where.commands.map((cmd) => `  - \`${cmd.replace(/`/g, "'")}\``).join("\n")}\n`);
     return { report, c };
   };
   const seenWords = (seen: SeenContainer) => (seen.whileRunning ? `${seen.networkMode === "none" || seen.networkMode === "host" ? `network mode ${seen.networkMode}` : (seen.networks ?? []).join(", ") || `network mode ${seen.networkMode}`}; read-only root: ${seen.readOnlyRoot}` : `not seen running (${seen.problem})`);
@@ -288,6 +343,7 @@ async function realContainers(): Promise<void> {
     how: `\`docker compose exec\` in the running container: the probe file written to its own ${IN_PLACE_PATH} from one base64 argument (${inPlace.encodedLength} characters), its SHA-256 read back inside (${inPlace.sha256.inside}; the repository's file: ${inPlace.sha256.repository}), run there, removed (seen gone: ${inPlace.removed})`,
     networks: appNetworks,
     commands: [`${compose} node -e <write the file from one base64 argument> ${IN_PLACE_PATH} <${inPlace.encodedLength} characters>`, `${compose} node -e <print the file's SHA-256> ${IN_PLACE_PATH}`, `${compose} node ${IN_PLACE_PATH} <settings: ${settings.length} characters, in real-probe-settings.json>`, `${compose} node -e <remove the file and say whether it is gone> ${IN_PLACE_PATH}`],
+    commandsWrittenOut: true,
   }, inPlaceExtra);
   const ownListener = `0.0.0.0:${REAL_APP_PORT}`;
   const listening = info(ran.report, "listening TCP ports seen in /proc/net") ?? "";
@@ -334,6 +390,7 @@ async function realContainers(): Promise<void> {
     imageId: images.node.id,
     how: "only the network is the database's; the image, user and files are the probe container's (the database's image has no Node)",
     commands: [`docker run --rm --name ${x.sb.projectName}-isolation-db-real --network container:<the running db container> --user 1000:1000 --cap-drop ALL --security-opt no-new-privileges:true --pids-limit 256 --memory 1g --read-only --entrypoint "" --volume <the probe>:/probe/isolation-probe.mjs:ro <the approved Node image> node /probe/isolation-probe.mjs <settings>`],
+    commandsWrittenOut: true,
   }, []);
   // The users the probes ran as.
   const users: string[] = [];
@@ -369,17 +426,20 @@ async function realContainers(): Promise<void> {
   for (const n of [1, 2, 3, 4] as const) {
     const m = REAL_MISCONFIGURATIONS[`R${n}`];
     const tM = Date.now();
+    const tM0 = new Date(tM);
     const mis = await startRealProject({ projectId: `${REAL_PROJECT}_mis${n}`, appPort: REAL_APP_PORT, edits: m.edits, build: n !== 4, onMade: (y) => void realMade.push(y) });
     try {
       const project = mis.x.sb.projectName;
       log(`  R${n}: ${m.what} (${project}; made in ${Math.round((Date.now() - tM) / 1000)} s).`);
       if (n !== 4) {
         const p = realImageProblemsFrom(mis.images);
-        log(`     its images are the real ones: ${p.length ? `NO: ${p.join("; ")}` : "yes"}`);
+        log(`     its images have the settings of the template's build, not of a stand-in of 13 Nov (realImageProblemsFrom): ${p.length ? `NO: ${p.join("; ")}` : "yes"}; the app image: ${whenMade(mis.images.app, tM0)}`);
         if (p.length) verdictReal = false;
       }
       // Read after the networks exist: an address a misconfigured network puts on the machine appears only then.
       const s = await devProbeSettings(mis.x.sb, { appPort: REAL_APP_PORT, gatewayPort: REAL_GATEWAY_PORT });
+      // Checked again before each misconfigured container is probed (R4's is put on `out` on purpose and sends one request through the door).
+      noGateway(s.machineListeners);
       if (n === 2) log(`     Machine addresses once the misconfigured data network exists: ${s.machineAddresses.join(", ")}`);
       if (n === 3) {
         const refused = await cameraNetworkProblem(mis.x.sb);
@@ -413,12 +473,22 @@ async function realContainers(): Promise<void> {
         const c2 = compareWithExpected(r2, expectedOnDevelopment("app-running", ctx));
         files["real-comparison-misconfiguration-R1-in-place.md"] = `# Misconfiguration R1: ${m.what}; the running app itself, probed in place\n\n${renderComparison("app, misconfigured, in place", c2)}\n`;
         show(`misconfiguration R1: ${m.what}; the running app itself, in place`, r2, c2);
-        const caught2 = !c2.pass && ids(c2).some((id) => /^(A|B|D1|D5|M)/.test(id)) && ip.removed && ip.sha256.inside === ip.sha256.repository;
+        // After the review of 14 Nov 2026: it must have run in the running app itself, as A2's in-place row must. A
+        // one-off container of the misconfigured service would fail the same list on the same rows.
+        const inTheApp: string[] = [];
+        if (!/^[0-9a-f]{64}$/.test(mis.appContainer?.id ?? "")) inTheApp.push(`the misconfigured project's running app container was not read (${mis.appContainer?.id})`);
+        if (ip.container.before !== mis.appContainer?.id || ip.container.after !== mis.appContainer?.id) inTheApp.push(`the container changed, or is not the running app's: ${JSON.stringify(ip.container)}, the running app is ${mis.appContainer?.id}`);
+        const seenInside = (info(r2, "listening TCP ports seen in /proc/net") ?? "").split(", ");
+        if (!seenInside.includes(`0.0.0.0:${REAL_APP_PORT}`)) inTheApp.push(`the app's own listener 0.0.0.0:${REAL_APP_PORT} is not among the listening ports seen inside (${seenInside.join(", ")})`);
+        if (c2.missing.length) inTheApp.push(`entries of the list not tried: ${c2.missing.join("; ")}`);
+        if (r2.problems.length) inTheApp.push(`reading problems: ${r2.problems.join("; ")}`);
+        log(`     in place: the same container before and after, and it is the running app's (${mis.appContainer?.id.slice(0, 12)}); its own listener seen inside; no entry of the list untried: ${inTheApp.length ? `NO: ${inTheApp.join("; ")}` : "yes"} (listening inside: ${seenInside.join(", ")})`);
+        const caught2 = !c2.pass && ids(c2).some((id) => /^(A|B|D1|D5|M)/.test(id)) && ip.removed && ip.sha256.inside === ip.sha256.repository && inTheApp.length === 0;
         if (!caught2) verdictReal = false;
         misRow(`R1: ${m.what}; the running app itself`, "real container, in place", project, mis.images.app.name, mis.appContainer?.imageId, `${project}-app-1 (${mis.appContainer?.id.slice(0, 12)}), the running container`, "`docker compose exec` in the running container (as in A2)", r2, "app-running", c2, caught2);
       }
     } finally {
-      log(`     Removed. Left of ${mis.x.sb.projectName}: ${await destroyRealProject(mis.x)}`);
+      log(`     Removed. Left of ${mis.x.sb.projectName}: ${await destroyRealProject(mis.x)}; its folder: ${folderLeft(mis.x)}`);
       realMade.splice(realMade.indexOf(mis.x), 1);
     }
   }
@@ -441,7 +511,7 @@ async function realContainers(): Promise<void> {
   log(table);
   files["real-containers.md"] =
     `# Where each real column ran (part A)\n\nWritten by scripts/demo-isolation.ts from this run. Project ${x.sb.projectName}: a real example-1 project made by makeExample1, the scripted engine's steps 01 and 02, and buildAndStart, with the door started too.\n\n` +
-    `## The images\n\n\`\`\`\n${files["real-images.txt"]}\`\`\`\n\nAre these the real images (realImageProblemsFrom)? ${notReal.length ? `No: ${notReal.join("; ")}` : "Yes: no problem found."}\n\n## The columns\n\n${containers.join("\n")}`;
+    `## The images\n\n\`\`\`\n${files["real-images.txt"]}\`\`\`\n\n## The columns\n\n${containers.join("\n")}`;
   log();
   log(`Part A took ${Math.round((Date.now() - tA) / 1000)} s.`);
   log();
@@ -642,7 +712,7 @@ try {
   files["which-is-which.md"] =
     "| Column | Kind | Project | Image (name and id) | Container | How the probe got in | User id the probe reported | List | Rows | Result |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |\n" +
     which.map((row) => `| ${row.map(esc).join(" | ")} |`).join("\n") +
-    "\n";
+    "\n\nWhere the image id comes from (said after the review of 14 Nov 2026). For the one-off containers of the real project (its app, tools, runner, live camera, check and scripted-engine rows, and R1 to R4's one-off rows), Docker was asked about the container while it ran, and the id is the one the container ran. For the two in-place rows it is the id of the image the running app container runs, as Docker reported it for that container. For the real project's database row, and for EVERY row of the stand-in projects (the door, check and misconfigurations 3 and 4 among them, whose kind reads \"real image, one-off container\"), the image shown is the one the Compose file names, read from Docker by its name: Docker was not asked which image the container ran, nor which networks it had.\n";
   log(`RESULT, real containers: ${verdictReal ? "PASS" : "FAIL"}: the probe ran inside the running app container and in one-off containers of the real app, tools and runner images (and the live camera, check, the scripted engine's container and the database's network); each matched its list, both controls got their answers, and all four misconfigurations of real containers failed their comparison${verdictReal ? "" : " (NOT ALL: see part A above)"}.`);
   log(`RESULT, placement in stand-in images (as on 13 Nov): ${verdict ? "PASS" : "FAIL"}: every container of the stand-in project matched its list (the live preview's stream and camera included), both controls got their answers, and all four misconfigurations failed their comparison${verdict ? "" : " (NOT ALL: see part B above)"}.`);
   log("NOT RUN: package 2.2's engine does not exist; this item of 0.6c's 'Done means' is open.");
@@ -662,7 +732,7 @@ try {
     }
   };
   // Part A's real projects: containers, networks, volume, the project's two images (by name) and its folder. Never the runner's image.
-  for (const x of [...realMade]) await step(`removing ${x.sb.projectName}`, async () => log(`Left of ${x.sb.projectName}: ${await destroyRealProject(x)}`));
+  for (const x of [...realMade]) await step(`removing ${x.sb.projectName}`, async () => log(`Left of ${x.sb.projectName}: ${await destroyRealProject(x)}; its folder: ${folderLeft(x)}`));
   for (const m of made) {
     await step(`removing ${m.sb.projectName}`, () => sandbox.destroy(m.sb));
     await step(`removing ${m.sb.projectName}'s images`, () => removeImages(m.sb, m.images));
