@@ -30,7 +30,7 @@
 import { execFile } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { copyFileSync, lstatSync, mkdirSync, readFileSync, realpathSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { basename, join, resolve } from "node:path";
 import { promisify } from "node:util";
 import { sha256 } from "../acceptance/store.js";
 import { dockerEnv, exportCheckImageNames, HARDENING, sandbox, type Sandbox } from "../sandbox/manager.js";
@@ -234,10 +234,80 @@ export const LISTING_SCRIPT =
 /** The template's licence check as its two commands (gap N7: the tools image has no bash). */
 export const LICENCE_CHECK_COMMAND = "node scripts/check-lock.mjs && node_modules/.bin/tsx scripts/licence/check.ts";
 
-interface Listing {
+export interface Listing {
   packages: PackageCopy[];
   unreadable: string[];
   notices: { sha256: string; bytes: number } | null;
+}
+
+/**
+ * The listing in one image, run as `user` in a container named exactly `container` (removed with `--rm`), with the
+ * hardening of `checkContainerArgs`; or why it did not run.
+ */
+export async function listImage(env: NodeJS.ProcessEnv, image: string, user: string, container: string): Promise<Listing | string> {
+  try {
+    const { stdout } = await run("docker", checkContainerArgs({ name: container, image, user, entrypoint: "node", cmd: ["-e", LISTING_SCRIPT] }), { env, maxBuffer: 20 * 1024 * 1024, timeout: 300_000 });
+    return JSON.parse(stdout) as Listing;
+  } catch (err) {
+    return `the listing did not run (${(err as Error).message.split("\n")[0]})`;
+  }
+}
+
+/**
+ * Items 5 and 6 on the image the app runs from, listed as `nobody`: the development-only packages (S17, under question
+ * 26 (a)) and the notices file (S18). Two checks; one, not passed, when the listing could not run.
+ */
+export async function runImageChecks(env: NodeJS.ProcessEnv, o: { image: string; container: string; copyNoticesSha256: string; devNames: readonly string[] }): Promise<ExportCheck[]> {
+  const inRun = await listImage(env, o.image, "nobody", o.container);
+  if (typeof inRun === "string") return [{ id: "run_image_packages", passed: false, summary: `The image the app runs from could not be listed: ${inRun}.` }];
+  return [
+    { id: "run_image_packages", ...runImageVerdict(inRun.packages, o.devNames), image: o.image, user: "nobody", named_packages: inRun.packages.length, unreadable: inRun.unreadable },
+    { id: "run_image_notices", ...noticesVerdict(inRun.notices, o.copyNoticesSha256) },
+  ];
+}
+
+/**
+ * Item 7 on the tools image, as `node`: the listing, recorded, then the template's own licence check (S19), each in a
+ * container named exactly. Two checks; one, not passed, when the listing could not run.
+ */
+export async function toolsImageChecks(env: NodeJS.ProcessEnv, o: { image: string; listContainer: string; licenceContainer: string; devNames: readonly string[] }): Promise<ExportCheck[]> {
+  const inTools = await listImage(env, o.image, "node", o.listContainer);
+  if (typeof inTools === "string") return [{ id: "tools_image_packages", passed: false, summary: `The tools image could not be listed: ${inTools}.` }];
+  const listing: ExportCheck = { id: "tools_image_packages", ...toolsImageVerdict(inTools.packages, o.devNames), image: o.image, user: "node", named_packages: inTools.packages.length, unreadable: inTools.unreadable };
+  let code: number | null = 0;
+  let output = "";
+  try {
+    const r = await run("docker", checkContainerArgs({ name: o.licenceContainer, image: o.image, user: "node", workdir: "/app", entrypoint: "sh", cmd: ["-c", LICENCE_CHECK_COMMAND] }), { env, maxBuffer: 20 * 1024 * 1024, timeout: 600_000 });
+    output = r.stdout + r.stderr;
+  } catch (err) {
+    const e = err as { code?: unknown; stdout?: string; stderr?: string };
+    code = typeof e.code === "number" ? e.code : null;
+    output = `${e.stdout ?? ""}${e.stderr ?? ""}`;
+  }
+  const licence = licenceCheckVerdict(code, output);
+  return [
+    listing,
+    { id: "licence_check", ...licence, command: LICENCE_CHECK_COMMAND, image: o.image, user: "node", output_lines: output.split("\n").filter((l) => /^RESULT:|^PROBLEM|Notices file|^Lock file check|^Packages checked/.test(l)).slice(0, 20) },
+  ];
+}
+
+/**
+ * Item 4 (S30) on an unpacked copy: `docker compose config --format json` in its folder, with only PATH and HOME set,
+ * against the same command on the template's compose.yaml alone, copied into a folder of the same name under
+ * `scratchDir` (so that Compose names both projects alike), once the two folders' paths are set aside. At export, and
+ * again before a copy is started (design section 7, C).
+ */
+export async function composeConfigCheck(copy: string, scratchDir: string, templateDir = TEMPLATE_DIR): Promise<ExportCheck> {
+  const tplFolder = join(scratchDir, "template", basename(copy));
+  mkdirSync(tplFolder, { recursive: true, mode: 0o700 });
+  copyFileSync(join(templateDir, "compose.yaml"), join(tplFolder, "compose.yaml"));
+  const plain = { PATH: process.env.PATH ?? "/usr/local/bin:/usr/bin:/bin", HOME: process.env.HOME ?? "/root" };
+  const read = async (cwd: string) => (await run("docker", ["compose", "config", "--format", "json"], { cwd, env: plain, maxBuffer: 4 * 1024 * 1024, timeout: 120_000 })).stdout;
+  try {
+    return { id: "compose_config", ...composeConfigVerdict(await read(copy), await read(tplFolder), [copy, realpathSync(copy)], [tplFolder, realpathSync(tplFolder)]) };
+  } catch (err) {
+    return { id: "compose_config", passed: false, summary: `Docker Compose could not read the copy or the template's file (${(err as Error).message.split("\n")[0]}).` };
+  }
 }
 
 /**
@@ -283,56 +353,23 @@ export async function checkExportImages(sb: Sandbox, projectId: string, p: Packe
     });
 
     // 4. What Compose reads (S30), with only PATH and HOME set.
-    const tplFolder = join(p.unpackDir, "template", p.top);
-    mkdirSync(tplFolder, { recursive: true, mode: 0o700 });
-    copyFileSync(join(templateDir, "compose.yaml"), join(tplFolder, "compose.yaml"));
-    const plain = { PATH: process.env.PATH ?? "/usr/local/bin:/usr/bin:/bin", HOME: process.env.HOME ?? "/root" };
-    const read = async (cwd: string) => (await run("docker", ["compose", "config", "--format", "json"], { cwd, env: plain, maxBuffer: 4 * 1024 * 1024, timeout: 120_000 })).stdout;
-    let composeCheck: ExportCheck;
-    try {
-      const v = composeConfigVerdict(await read(copy), await read(tplFolder), [copy, realpathSync(copy)], [tplFolder, realpathSync(tplFolder)]);
-      composeCheck = { id: "compose_config", ...v };
-    } catch (err) {
-      composeCheck = { id: "compose_config", passed: false, summary: `Docker Compose could not read the copy or the template's file (${(err as Error).message.split("\n")[0]}).` };
-    }
+    const composeCheck = await composeConfigCheck(copy, p.unpackDir, templateDir);
     checks.push(composeCheck);
     if (!composeCheck.passed) return checks;
 
     // 5 and 6. The run image, as `nobody`.
-    const listIn = async (image: string, user: string, what: string): Promise<Listing | string> => {
-      const name = `${sb.projectName}-exportcheck-${what}-${tag}`;
-      containers.push(name);
-      try {
-        const { stdout } = await run("docker", checkContainerArgs({ name, image, user, entrypoint: "node", cmd: ["-e", LISTING_SCRIPT] }), { env, maxBuffer: 20 * 1024 * 1024, timeout: 300_000 });
-        return JSON.parse(stdout) as Listing;
-      } catch (err) {
-        return `the listing did not run (${(err as Error).message.split("\n")[0]})`;
-      }
+    const name = (what: string) => {
+      const n = `${sb.projectName}-exportcheck-${what}-${tag}`;
+      containers.push(n);
+      return n;
     };
     const devNames = devOnlyNames(templateDir);
-    const inRun = await listIn(runImage, "nobody", "list-run");
-    if (typeof inRun === "string") return [...checks, { id: "run_image_packages", passed: false, summary: `The image the app runs from could not be listed: ${inRun}.` }];
-    checks.push({ id: "run_image_packages", ...runImageVerdict(inRun.packages, devNames), image: runImage, user: "nobody", named_packages: inRun.packages.length, unreadable: inRun.unreadable });
-    checks.push({ id: "run_image_notices", ...noticesVerdict(inRun.notices, sha256(readFileSync(join(copy, "THIRD-PARTY-NOTICES.md")))) });
+    const inRun = await runImageChecks(env, { image: runImage, container: name("list-run"), copyNoticesSha256: sha256(readFileSync(join(copy, "THIRD-PARTY-NOTICES.md"))), devNames });
+    checks.push(...inRun);
+    if (inRun.length < 2) return checks;
 
     // 7. The tools image, as `node`: the listing, then the template's own licence check.
-    const inTools = await listIn(toolsImage, "node", "list-tools");
-    if (typeof inTools === "string") return [...checks, { id: "tools_image_packages", passed: false, summary: `The tools image could not be listed: ${inTools}.` }];
-    checks.push({ id: "tools_image_packages", ...toolsImageVerdict(inTools.packages, devNames), image: toolsImage, user: "node", named_packages: inTools.packages.length, unreadable: inTools.unreadable });
-    const name = `${sb.projectName}-exportcheck-licences-${tag}`;
-    containers.push(name);
-    let code: number | null = 0;
-    let output = "";
-    try {
-      const r = await run("docker", checkContainerArgs({ name, image: toolsImage, user: "node", workdir: "/app", entrypoint: "sh", cmd: ["-c", LICENCE_CHECK_COMMAND] }), { env, maxBuffer: 20 * 1024 * 1024, timeout: 600_000 });
-      output = r.stdout + r.stderr;
-    } catch (err) {
-      const e = err as { code?: unknown; stdout?: string; stderr?: string };
-      code = typeof e.code === "number" ? e.code : null;
-      output = `${e.stdout ?? ""}${e.stderr ?? ""}`;
-    }
-    const licence = licenceCheckVerdict(code, output);
-    checks.push({ id: "licence_check", ...licence, command: LICENCE_CHECK_COMMAND, image: toolsImage, user: "node", output_lines: output.split("\n").filter((l) => /^RESULT:|^PROBLEM|Notices file|^Lock file check|^Packages checked/.test(l)).slice(0, 20) });
+    checks.push(...(await toolsImageChecks(env, { image: toolsImage, listContainer: name("list-tools"), licenceContainer: name("licences"), devNames })));
     return checks;
   } finally {
     for (const c of containers) await run("docker", ["rm", "-f", c], { env }).catch(() => undefined);
