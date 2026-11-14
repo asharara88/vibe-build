@@ -11,6 +11,8 @@
 // asks for one (the owner's answer to question A, 13 Nov 2026: the approved browser, no video, no trace).
 // The password is read from its file and typed into the app's sign-in form; it is never printed.
 // It prints one JSON line per photograph, then a last line; the builder reads only the files it expects.
+// Package J2: after each photograph, one more line: the text of the app's own banner (its role="note" element), its
+// first 200 characters, as the record keeps every camera line among the preview's lines.
 import { readFileSync } from "node:fs";
 
 const base = process.env.BASE_URL;
@@ -44,6 +46,9 @@ try {
     await page.waitForLoadState("networkidle");
     await page.screenshot({ path: `/shots/${s.name}.png`, fullPage: true });
     console.log(JSON.stringify({ kind: "shot", name: s.name, page: s.page, url_path: new URL(page.url()).pathname }));
+    const note = page.locator('[role="note"]').first();
+    const text = (await note.count()) > 0 ? String((await note.textContent()) ?? "").replace(/\s+/g, " ").trim().slice(0, 200) : null;
+    console.log(JSON.stringify({ kind: "banner", name: s.name, text }));
   }
   await context.close();
 } catch (err) {

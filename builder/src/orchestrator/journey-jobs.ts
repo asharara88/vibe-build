@@ -40,13 +40,18 @@
  *   sign-out of the builder sign-in session that asked for it cancels it; the preview looks at that, and at whether the
  *   sign-in session still reads as valid, with nothing awaited between that look and the session being opened; and
  *   if the session has ended by the time its opening is recorded, its pass is not returned.
+ * - Package J2 (a): a step's turn count comes from its own manifest, wherever that step is read from (`changeSetsFor`).
+ *   A build job of the broken step 03-wrong-status stages it just before its engine is made, only for a project made
+ *   as the broken copy whose earlier steps are approved (`brokenStageRefusal`, checked again here), and only into the
+ *   sandbox's own change-set folder (`brokenStageTargetProblem`). It reads the staged manifest back from that copy (what
+ *   the engine reads), refuses the step unless its SHA-256 is the one chosen, and records `journey.broken_step_staged`.
  */
-import { chmodSync, chownSync, closeSync, constants, fstatSync, mkdirSync, openSync, readSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, chownSync, closeSync, constants, fstatSync, mkdirSync, openSync, readFileSync, readSync, rmSync, writeFileSync } from "node:fs";
 import { randomBytes } from "node:crypto";
 import { join } from "node:path";
 import { RUNNER_UID } from "../acceptance/runner-image.js";
 import { openStore, sha256 } from "../acceptance/store.js";
-import { readManifest, TEMPLATE_PROTECTED_PATHS } from "../engine/scripted.js";
+import { readManifest, TEMPLATE_PROTECTED_PATHS, type Manifest } from "../engine/scripted.js";
 import { resetToLastCommit } from "../engine/project-repo.js";
 import { DEFAULT_PROFILES } from "../gateway/hold.js";
 import { appendEvent } from "../store/events.js";
@@ -55,7 +60,27 @@ import type { AppStream } from "../sandbox/manager.js";
 import { LiveOpenCancelled, type LivePreview, type OpenCancelledReason } from "../web/preview.js";
 import type { ProjectSandbox, Sandboxes } from "./example-1-adapter.js";
 import { writeExport } from "./export.js";
-import { CHANGE_SETS_DIR, diskRefusal, DISK_FLOOR_BYTES, engineEventHandler, EV, EXAMPLE, EXPORT_LABEL, freeBytes, Journey, JourneyRefused, JOURNEY_STAND_IN_LABEL, scriptedEngineFor, scriptedOnlyProblem, stillOwned, type SandboxRecord } from "./journey.js";
+import {
+  BROKEN_STEP,
+  brokenStageRefusal,
+  brokenStageTargetProblem,
+  changeSetsFor,
+  diskRefusal,
+  DISK_FLOOR_BYTES,
+  engineEventHandler,
+  EV,
+  EXAMPLE,
+  EXPORT_LABEL,
+  freeBytes,
+  Journey,
+  JourneyRefused,
+  JOURNEY_STAND_IN_LABEL,
+  scriptedEngineFor,
+  scriptedOnlyProblem,
+  stillOwned,
+  type JourneyState,
+  type SandboxRecord,
+} from "./journey.js";
 import { runBudgetedStep } from "./steps.js";
 
 /** The model whose prices size a step's reservation in J1 (final design, section 1, item 6). */
@@ -294,7 +319,14 @@ export class JourneyJobs {
         }
         stillOwned(signal);
         const sandboxNow = x;
-        const files = readManifest(CHANGE_SETS_DIR, EXAMPLE, step).files.length;
+        // Package J2: the broken step is staged here, just before its engine is made, and only here: for a build job of
+        // it, on a project made as the broken copy whose earlier steps are approved, checked again on the state the job
+        // started from. Any other step stages nothing; the broken step without those is refused.
+        const stageRefused = brokenStageRefusal(state, step);
+        if (stageRefused === null) await this.stageBroken(projectId, sandboxNow, state, step);
+        else if (step === BROKEN_STEP) throw new JourneyRefused(stageRefused);
+        stillOwned(signal);
+        const files = readManifest(changeSetsFor(step), EXAMPLE, step).files.length;
         const r = await runBudgetedStep({
           pool: this.j.pool,
           profile: DEFAULT_PROFILES.standard!,
@@ -328,6 +360,41 @@ export class JourneyJobs {
         return { step, ok: true, changed_files: r.changedFiles.length, turns: r.turns };
       },
       { step },
+    );
+  }
+
+  /**
+   * Package J2 (a), final design, section 3.3: stage the broken step for one build job of it, once `brokenStageRefusal`
+   * has passed on the state the job started from. Refused unless the sandbox's change-set folder is its own; then copied
+   * there (the adapter checks the folder again), its manifest read back from that copy and refused unless its SHA-256 is
+   * the one recorded in the project's first event, and `journey.broken_step_staged` written.
+   */
+  private async stageBroken(projectId: string, x: ProjectSandbox, state: JourneyState, step: string): Promise<void> {
+    const target = brokenStageTargetProblem(x);
+    if (target) throw new JourneyRefused(`The broken step was not staged: ${target}.`);
+    await this.o.sandboxes.stageBrokenStep(x);
+    // Read back from the sandbox's own copy: what the engine reads.
+    const body = readFileSync(join(x.changeSets, EXAMPLE, step, "manifest.json"));
+    const digest = sha256(body);
+    const chosen = state.brokenCopy!.manifest_sha256;
+    if (digest !== chosen) {
+      throw new JourneyRefused(`The staged broken step's manifest has the SHA-256 ${digest}, not ${chosen}, recorded when the project was made. Step ${state.plan.indexOf(step) + 1} was not built.`);
+    }
+    const m = JSON.parse(body.toString("utf8")) as Manifest;
+    await appendEvent(
+      this.j.pool,
+      projectId,
+      EV.brokenStepStaged,
+      {
+        step,
+        source: state.brokenCopy!.source,
+        into: x.changeSets,
+        manifest_sha256: digest,
+        manifest_read_from: "the sandbox's own copy, as the engine reads it",
+        files: m.files.map((f) => ({ path: f.path, sha256: f.sha256 })),
+        label: m.label,
+      },
+      step,
     );
   }
 

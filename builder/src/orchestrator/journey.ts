@@ -14,20 +14,27 @@
  * and every project continues as test example 1. REAL: the store, the event log, the budget and step holds
  * (package 1.3), the acceptance store (package 3.1). The only engine this module makes is the ScriptedEngine
  * (package 2.1), which calls no model; no gateway is started here, and the real-model gate stays closed.
+ *
+ * Package J2 (a), the broken copy rejected (docs/design/journey-j2.md, section 3): the demonstration
+ * (`createBrokenCopyDemo`) makes a project whose first event carries the owner's choice, `broken_copy`, written with
+ * the project's row in one transaction. Its plan, worked out from the record alone, adds the deliberately broken step
+ * 03-wrong-status (builder/scripted-broken), which journey-jobs.ts stages into the sandbox's own change-set folder just
+ * before it runs. Any trace of the broken copy in a record refuses sign-off, the export and the live app.
  */
 import { randomBytes } from "node:crypto";
-import { readFileSync, statfsSync } from "node:fs";
-import { join } from "node:path";
+import { readFileSync, realpathSync, statfsSync } from "node:fs";
+import { isAbsolute, join, resolve } from "node:path";
 import type pg from "pg";
 import type { BuildEngine, EngineEvent, StepInstruction, StepResult } from "../engine/interface.js";
 import { listSteps, readManifest, ScriptedEngine, type ScriptedEngineOptions } from "../engine/scripted.js";
 import type { RunOutcome } from "../acceptance/results.js";
-import { openStore, sha256, STAND_IN_LABEL } from "../acceptance/store.js";
+import { insideOrEqual, openStore, sha256, STAND_IN_LABEL } from "../acceptance/store.js";
 import { writeStandInVersion } from "../acceptance/stand-in.js";
 import type { AppSpec } from "../spec/app-spec.js";
 import { appendEvent, listEvents, type Event } from "../store/events.js";
 import { closeStepHold, listStepHolds } from "../store/holds.js";
 import { createProject, getProject, listProjects, type Project } from "../store/projects.js";
+import { event, inTransaction } from "../store/tx.js";
 import { answerProblem, BUILDER_DIR, loadExampleSpec, loadIntake, sameAnswer, sheetAnswer, type Answer, type Intake } from "./intake.js";
 
 export const JOURNEY_PREFIX = "j1-";
@@ -37,6 +44,112 @@ export const CHANGE_SETS_DIR = join(BUILDER_DIR, "scripted");
 export const JOURNEY_STAND_IN_LABEL = "stand-in test, not independent acceptance";
 export const MAX_BRIEF = 2_000;
 export const MAX_NAME = 100;
+/** B5's raw ask for example 1, as the new-project box is prefilled (pages.ts) and as the demonstration's brief. */
+export const EXAMPLE_1_ASK = "I need an app where staff can request leave and managers approve it";
+
+/* ------------------------------------------------------------------ J2 (a): the broken copy */
+
+/** The deliberately broken step, written in advance by Claude Code for package 3.1 (builder/scripted-broken). */
+export const BROKEN_STEP = "03-wrong-status";
+/** Where it is read from. Never copied into builder/scripted, which every project's plan reads. */
+export const BROKEN_CHANGE_SETS_DIR = join(BUILDER_DIR, "scripted-broken");
+/** The name the builder gives the demonstration's project (final design, section 3.1). */
+export const BROKEN_COPY_NAME = "Deliberately broken copy (made-up)";
+/** The New project form refuses a name that starts so (case and spacing aside). */
+export const BROKEN_COPY_NAME_PREFIX = "Deliberately broken copy";
+/** The demonstration's cap, in US dollars. */
+export const BROKEN_COPY_CAP_USD = 5;
+/** Why a project with any trace of the broken copy is not signed off or exported (final design, section 3.5). */
+export const BROKEN_COPY_REFUSAL = "A deliberately broken copy is never signed off or exported.";
+/** Why it is not offered as a live app (section 3.6). */
+export const BROKEN_LIVE_REFUSAL = "A deliberately broken copy is not offered as a live app: it was built to be rejected by the checklist.";
+/** What a broken copy's plan records about the checks the product does not make yet (HANDOVER.md, milestones 1 and 3). */
+export const NO_QUALITY_CHECK_AND_RETRY = "not done (milestones 1 and 3)";
+
+/**
+ * Whether the Projects screen offers the broken-copy demonstration (its panel and its route): the one place this is
+ * decided. The owner's answer of 14 Nov 2026: "Always on Projects (Recommended)", the button always on his Projects
+ * screen. Showing it only when a setting is on would be a change to this function alone.
+ */
+export function brokenCopyDemoShown(): boolean {
+  return true;
+}
+
+/** The change-set folder a step is read from: builder/scripted-broken for the broken step, builder/scripted for any other. */
+export function changeSetsFor(step: string): string {
+  return step === BROKEN_STEP ? BROKEN_CHANGE_SETS_DIR : CHANGE_SETS_DIR;
+}
+
+/** The owner's choice, as the demonstration records it in the project's first event (`broken_copy`). */
+export interface BrokenCopyChoice {
+  by: "owner";
+  step: string;
+  source: string;
+  label: string;
+  manifest_sha256: string;
+  sign_off: "never";
+  export: "never";
+}
+
+/** The choice for the broken step as builder/scripted-broken holds it now: its label and its manifest's SHA-256. */
+export function brokenCopyChoice(): BrokenCopyChoice {
+  const manifestFile = join(BROKEN_CHANGE_SETS_DIR, EXAMPLE, BROKEN_STEP, "manifest.json");
+  return {
+    by: "owner",
+    step: BROKEN_STEP,
+    source: `builder/scripted-broken/${EXAMPLE}/${BROKEN_STEP}`,
+    label: readManifest(BROKEN_CHANGE_SETS_DIR, EXAMPLE, BROKEN_STEP).label,
+    manifest_sha256: sha256(readFileSync(manifestFile)),
+    sign_off: "never",
+    export: "never",
+  };
+}
+
+/** A recorded choice the plan honours: the broken step, a manifest SHA-256, sign-off and export "never". */
+function honouredChoice(v: unknown): BrokenCopyChoice | null {
+  const c = v as Partial<BrokenCopyChoice> | null;
+  if (typeof c !== "object" || c === null || Array.isArray(c)) return null;
+  if (c.step !== BROKEN_STEP || typeof c.manifest_sha256 !== "string" || !/^[0-9a-f]{64}$/.test(c.manifest_sha256)) return null;
+  if (c.sign_off !== "never" || c.export !== "never") return null;
+  return c as BrokenCopyChoice;
+}
+
+/**
+ * Why the broken step may not be staged for a build job, or null (final design, section 3.3): it must be the broken
+ * step, of a project made as the broken copy (the choice honoured), with every step before it approved. Checked again
+ * inside the job, on the state it started from (`buildStepRefusal` already requires the order).
+ */
+export function brokenStageRefusal(s: Pick<JourneyState, "brokenCopy" | "plan" | "approved">, step: string): string | null {
+  if (step !== BROKEN_STEP) return "Only the deliberately broken step is staged.";
+  if (!s.brokenCopy || !s.plan.includes(BROKEN_STEP)) return "This project was not made as the deliberately broken copy, so its broken step is not staged.";
+  for (const earlier of s.plan.slice(0, s.plan.indexOf(BROKEN_STEP))) {
+    if (!s.approved.has(earlier)) return `Step ${earlier} must be built and approved before the broken step is staged.`;
+  }
+  return null;
+}
+
+/**
+ * Why the broken step may not be staged into a sandbox's change-set folder, or null (final design, section 3.3): the
+ * folder must be the sandbox's own, `engine-change-sets` inside its folder, as makeExample1 makes it, and not under
+ * builder/ (so never builder/scripted, which every project's plan reads), by its path and, if it exists, by its real path.
+ */
+export function brokenStageTargetProblem(x: { dir: string; changeSets: string }): string | null {
+  if (!isAbsolute(x.dir) || !isAbsolute(x.changeSets)) return "the sandbox's folders are not absolute paths";
+  const own = join(resolve(x.dir), "engine-change-sets");
+  if (resolve(x.changeSets) !== own || x.changeSets !== own) return `the sandbox's change-set folder is not its own folder's engine-change-sets (${x.changeSets})`;
+  const builder = realpathAsFar(BUILDER_DIR);
+  if (insideOrEqual(own, resolve(BUILDER_DIR)) || insideOrEqual(realpathAsFar(own), builder)) return `the sandbox's change-set folder is under builder/ (${x.changeSets})`;
+  return null;
+}
+
+/** A path's real path, or the path itself when it does not exist (yet). */
+function realpathAsFar(p: string): string {
+  try {
+    return realpathSync(p);
+  } catch {
+    return resolve(p);
+  }
+}
 
 /** The events the journey writes (this module and journey-jobs.ts). */
 export const EV = {
@@ -75,6 +188,8 @@ export const EV = {
   liveEntered: "journey.preview.live_entered",
   /** Package J3: a live session ended, and why. */
   liveClosed: "journey.preview.live_closed",
+  /** Package J2: the broken step copied into the sandbox's own change-set folder, just before its engine (journey-jobs.ts). */
+  brokenStepStaged: "journey.broken_step_staged",
 } as const;
 
 /** The label a sign-off carries (final design, section 1, item 8). */
@@ -119,8 +234,19 @@ export interface JourneyState {
   runningJob: JobRecord | null;
   /** A job was marked interrupted, or the sandbox was removed at start: the screen offers "Close project" or "New project", no resume. */
   interrupted: boolean;
-  /** The plan's steps, in order (the scripted change sets of example 1). */
+  /**
+   * The plan's steps, in order, from the record alone: the scripted change sets of example 1, then the broken step
+   * when the project's first event carries the owner's choice (package J2).
+   */
   plan: string[];
+  /** Package J2: the owner's choice of the broken copy, honoured only on the project's first event, `intake.brief_entered`. */
+  brokenCopy: BrokenCopyChoice | null;
+  /**
+   * Package J2: any trace of the broken copy in the record: a `broken_copy` field on any `intake.brief_entered`, a
+   * `journey.broken_step_staged`, an engine event of the broken step, a `journey.plan_confirmed` listing it, or the
+   * broken step in the plan. Sign-off, the export and the live app are refused on it; the badge is drawn from it.
+   */
+  brokenTrace: boolean;
   /** Each step's last build job. */
   stepJobs: Map<string, JobRecord>;
   /** The steps the owner approved ("Approve and build the next step"). */
@@ -165,8 +291,13 @@ export class JourneyRefused extends Error {
   }
 }
 
-/** Work out a project's state from its events, in id order. */
-export function journeyState(project: Project, events: Event[], intake: Intake, plan: readonly string[] = PLAN_STEPS): JourneyState {
+/** Work out a project's state from its events, in id order. The plan too comes from the record alone (package J2). */
+export function journeyState(project: Project, events: Event[], intake: Intake): JourneyState {
+  // Package J2: the choice is honoured only on the project's first event, written with the project in one transaction.
+  const first = events[0];
+  const brokenCopy = first?.kind === EV.briefEntered ? honouredChoice(first.payload.broken_copy) : null;
+  const plan = [...PLAN_STEPS];
+  if (brokenCopy && !plan.includes(BROKEN_STEP)) plan.push(BROKEN_STEP);
   const s: JourneyState = {
     project,
     events,
@@ -181,7 +312,9 @@ export function journeyState(project: Project, events: Event[], intake: Intake, 
     jobs: [],
     runningJob: null,
     interrupted: false,
-    plan: [...plan],
+    plan,
+    brokenCopy,
+    brokenTrace: false,
     stepJobs: new Map(),
     approved: new Set(),
     sandbox: null,
@@ -278,6 +411,7 @@ export function journeyState(project: Project, events: Event[], intake: Intake, 
   }
   // The outcome word of the last checklist job's run, from the runner's own event of that run (package 3.1b).
   if (s.acceptanceRun?.runId) s.acceptanceRun.outcome = runOutcome(events, s.acceptanceRun.runId);
+  s.brokenTrace = s.plan.includes(BROKEN_STEP) || events.some(isBrokenTrace);
   s.runningJob = s.jobs.find((j) => j.state === "running") ?? null;
   s.nextTurn = intake.turns.findIndex((t) => t.some((q) => !s.answers.has(q)));
   if (s.nextTurn === -1) s.nextTurn = null;
@@ -289,6 +423,15 @@ export function journeyState(project: Project, events: Event[], intake: Intake, 
   else if (continued) s.stage = "questions";
   else s.stage = "brief";
   return s;
+}
+
+/** Package J2: an event that is a trace of the broken copy (see `JourneyState.brokenTrace`). */
+function isBrokenTrace(e: Event): boolean {
+  if (e.kind === EV.briefEntered) return Object.prototype.hasOwnProperty.call(e.payload, "broken_copy");
+  if (e.kind === EV.brokenStepStaged) return true;
+  if (e.kind === EV.engineEvent) return e.step === BROKEN_STEP;
+  if (e.kind === EV.planConfirmed) return Array.isArray(e.payload.steps) && e.payload.steps.some((st: unknown) => st === BROKEN_STEP || (typeof st === "object" && st !== null && (st as { step?: unknown }).step === BROKEN_STEP));
+  return false;
 }
 
 /** The three outcome words of package 3.1b; anything else is not one. */
@@ -342,8 +485,17 @@ export const JOB_RULES: Record<JobKind, (s: JourneyState) => string | null> = {
         : s.signedOff
           ? "The project is signed off; the checklist is not run again."
           : null,
-  export: (s) => (s.signedOff ? null : "The project is not signed off yet. Export is offered only after sign-off."),
-  live: (s) => (!s.planConfirmed ? "The plan is not confirmed yet." : !s.appRunning ? "The app is not running: make the preview first. The live app is offered only while it runs." : scriptedOnlyProblem(s)),
+  // Package J2: a broken copy is never exported, whatever its record says of sign-off (section 3.5).
+  export: (s) => (!s.signedOff ? "The project is not signed off yet. Export is offered only after sign-off." : s.brokenTrace ? BROKEN_COPY_REFUSAL : null),
+  // Package J2: a broken copy is refused before the scripted-only check, which its record would pass (section 3.6).
+  live: (s) =>
+    !s.planConfirmed
+      ? "The plan is not confirmed yet."
+      : !s.appRunning
+        ? "The app is not running: make the preview first. The live app is offered only while it runs."
+        : s.brokenTrace
+          ? BROKEN_LIVE_REFUSAL
+          : scriptedOnlyProblem(s),
 };
 
 /**
@@ -352,8 +504,9 @@ export const JOB_RULES: Record<JobKind, (s: JourneyState) => string | null> = {
  * writes ("Scripted engine: ..." texts, `scripted.write` calls, finished, failed, blocked), of a step of the plan;
  * and for every step, its last build job finished, having written exactly the files of that step's fixed change, each
  * with the content its manifest names (SHA-256). The journey makes no other engine (journey.ts, `scriptedEngineFor`).
+ * Each step's manifest is read where that step comes from (`changeSetsFor`, package J2).
  */
-export function scriptedOnlyProblem(s: JourneyState, changeSetsDir = CHANGE_SETS_DIR): string | null {
+export function scriptedOnlyProblem(s: JourneyState): string | null {
   if (s.events.some((e) => e.kind === "model.call")) return "This project's record holds a model call: only an app built by the scripted engine may be used live.";
   for (const e of s.events) {
     if (e.kind !== EV.engineEvent) continue;
@@ -381,7 +534,7 @@ export function scriptedOnlyProblem(s: JourneyState, changeSetsDir = CHANGE_SETS
       if (typeof input?.path !== "string" || typeof input.sha256 !== "string") return `A write of step ${step} in the record names no file or no SHA-256.`;
       writes.set(input.path, input.sha256);
     }
-    const manifest = readManifest(changeSetsDir, EXAMPLE, step);
+    const manifest = readManifest(changeSetsFor(step), EXAMPLE, step);
     const want = new Map(manifest.files.map((f) => [f.path, f.sha256]));
     const same = writes.size === want.size && [...want].every(([path, digest]) => writes.get(path) === digest);
     if (!same) return `Step ${step}'s recorded writes are not exactly its fixed change's files and contents: only an app built by the scripted engine may be used live.`;
@@ -420,14 +573,20 @@ export function approveRefusal(s: JourneyState, step: string): string | null {
  * gives the outcome "passed" (package 3.1b). The summary's text is not read: a run whose record has no outcome word
  * is not read as passed, whatever its summary says (a run that did not execute is never shown as passed, and is not
  * signed off).
+ *
+ * Package J2: never once the project was interrupted (its sandbox was removed; the screen offers only "Close project"
+ * or "New project"), and never for a project with any trace of the broken copy, whatever its run's outcome reads; the
+ * checklist's own reason is given first.
  */
 export function signOffRefusal(s: JourneyState): string | null {
   if (s.stage === "stopped" || s.stage === "closed") return "This project is stopped or closed.";
   if (s.signedOff) return "This project is already signed off.";
   if (s.runningJob) return "A job of this project is running; wait for it to end.";
+  if (s.interrupted) return "This project was interrupted when the interface stopped, so it is not signed off. Close the project, or start a new one.";
   const r = s.acceptanceRun;
   if (!r) return "The checklist has not been run yet.";
   if (r.refused || r.outcome !== "passed") return "The last checklist run did not pass, so there is nothing to sign off.";
+  if (s.brokenTrace) return BROKEN_COPY_REFUSAL;
   return null;
 }
 
@@ -577,10 +736,10 @@ export class Journey {
     this.specSha256 = sha256(readFileSync(join(BUILDER_DIR, this.intake.app_spec)));
   }
 
-  /** The steps of the plan, from the scripted change sets' manifests, with what each will show. */
-  planSteps(): Array<{ step: string; label: string; files: number }> {
-    return listSteps(CHANGE_SETS_DIR, EXAMPLE).map((step) => {
-      const m = readManifest(CHANGE_SETS_DIR, EXAMPLE, step);
+  /** The steps of a project's plan (from its record, `JourneyState.plan`), each from its manifest, with what it will show. */
+  planSteps(s: Pick<JourneyState, "plan">): Array<{ step: string; label: string; files: number }> {
+    return s.plan.map((step) => {
+      const m = readManifest(changeSetsFor(step), EXAMPLE, step);
       return { step, label: m.label, files: m.files.length };
     });
   }
@@ -639,9 +798,32 @@ export class Journey {
     if (brief.trim() === "") throw new JourneyRefused("Write what you need in the box.");
     if (brief.length > MAX_BRIEF) throw new JourneyRefused(`The brief is longer than ${MAX_BRIEF.toLocaleString("en")} characters.`);
     if (CONTROL_EXCEPT_LINES.test(brief)) throw new JourneyRefused("The brief holds control characters.");
+    // Package J2: the demonstration's name is the builder's to give, with its badge and refusals (section 3.1).
+    if (name.replace(/\s+/g, " ").toLowerCase().startsWith(BROKEN_COPY_NAME_PREFIX.toLowerCase())) {
+      throw new JourneyRefused(`A name that starts "${BROKEN_COPY_NAME_PREFIX}" is kept for the broken-copy demonstration on the Projects screen. Give this project another name.`);
+    }
     const id = `${JOURNEY_PREFIX}${randomBytes(6).toString("hex")}`;
     await createProject(this.pool, { id, name, capUsd });
     await appendEvent(this.pool, id, EV.briefEntered, { text: brief, characters: brief.length, given_to_engine: false });
+    return id;
+  }
+
+  /**
+   * Package J2 (a): "Start the broken-copy demonstration". A project the builder names itself, capped at $5.00, with
+   * example 1's ask as its brief; its first event carries the owner's choice, `broken_copy`. The project's row and that
+   * event are written in one database transaction (tx.ts), so neither exists without the other. Nothing else writes
+   * `broken_copy`: `createProject` takes no choice.
+   */
+  async createBrokenCopyDemo(): Promise<string> {
+    if (this.haltedWhy !== null) throw new JourneyRefused(this.haltedWhy);
+    if (!brokenCopyDemoShown()) throw new JourneyRefused("The broken-copy demonstration is not offered in this interface.");
+    const choice = brokenCopyChoice();
+    const id = `${JOURNEY_PREFIX}${randomBytes(6).toString("hex")}`;
+    const brief = EXAMPLE_1_ASK;
+    await inTransaction(this.pool, id, async (c) => {
+      await createProject(c, { id, name: BROKEN_COPY_NAME, capUsd: BROKEN_COPY_CAP_USD });
+      await event(c, id, EV.briefEntered, { text: brief, characters: brief.length, given_to_engine: false, broken_copy: choice }, null);
+    });
     return id;
   }
 
@@ -742,12 +924,14 @@ export class Journey {
       const store = openStore(this.dataDir);
       const written = await writeStandInVersion(this.pool, store, projectId, EXAMPLE);
       await appendEvent(this.pool, projectId, EV.planConfirmed, {
-        steps: this.planSteps(),
+        steps: this.planSteps(s),
         acceptance_version: written.version,
         acceptance_label: JOURNEY_STAND_IN_LABEL,
         acceptance_written_by: "stand-in",
         stand_in_label: STAND_IN_LABEL,
         quality_gate_after_each_step: "not done (milestone 1)",
+        // Package J2: a broken copy's plan says so, and that no step is checked after it runs, nor retried.
+        ...(s.brokenCopy ? { broken_copy: true, quality_check_after_each_step_and_retry: NO_QUALITY_CHECK_AND_RETRY } : {}),
       });
     });
   }

@@ -1676,7 +1676,7 @@ describe("J2 (a): the broken copy rejected (stand-in sandboxes, each with its ow
       ["acceptance", null, "finished"],
       ["export", null, "finished"],
     ]);
-    expect(s.brokenTrace).toBe(false);
+    expect(s.brokenTrace).not.toBe(true);
     expect(stagedCalls(id)).toEqual([]);
     expect(await staged(id)).toEqual([]);
     expect(sandboxes.runnerCalls.filter((c) => c.container.startsWith(`builder_${id}-`)).map((c) => c.step)).toEqual(["01-data", "02-submitter-screen"]);

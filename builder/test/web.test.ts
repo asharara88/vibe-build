@@ -1853,6 +1853,8 @@ describe("J2 (a) interface: the broken-copy demonstration's screens (stand-in sa
   };
   const badgeShown = (html: string) => html.includes(`data-broken-badge>${esc(BADGE)}<`);
   const heading = (html: string) => /<h1>[\s\S]*?<\/h1>/.exec(html)?.[0] ?? "";
+  /** A project's row in the Projects list. */
+  const listRow = async (app: App, cookie: string, id: string) => new RegExp(`<tr data-project="${id}">[\\s\\S]*?</tr>`).exec(await page(app, "/projects", cookie))?.[0] ?? "";
 
   it("A2 and A8: the Projects screen has a panel of its own, labelled Simulated build, with one button, apart from New project; the New project form keeps its three fields; the button makes one project with the fixed name and a $5.00 cap, whose first event carries broken_copy; the badge is on its list row and every page, in English and Arabic", async () => {
     const { app, j } = await makeJobsApp();
@@ -2044,7 +2046,9 @@ describe("J2 (a) interface: the broken-copy demonstration's screens (stand-in sa
     expect(s.events.filter((e) => "broken_copy" in e.payload)).toEqual([]);
     expect(Object.keys(s.events[0]!.payload).sort()).toEqual(["characters", "given_to_engine", "text"]);
     expect(badgeShown(await page(app, `/projects/${id}/plan`, cookie))).toBe(false);
-    expect(badgeShown(await page(app, `/projects`, cookie))).toBe(false);
+    const row = await listRow(app, cookie, id);
+    expect(row).toContain(`<tr data-project="${id}">`);
+    expect(badgeShown(row)).toBe(false);
     await go(app, j, `/projects/${id}/close`, cookie);
     const projects = await projectCount();
     for (const name of [NAME, "Deliberately broken copy", "deliberately broken copy of my own (made-up)", "  Deliberately   Broken Copy, again (made-up)"]) {
@@ -2100,7 +2104,7 @@ describe("J2 (a) interface: the broken-copy demonstration's screens (stand-in sa
       await appendEvent(pool, n, EV.signedOff, { note: "forged by the test" });
       expect((await post(app, `/projects/${n}/export`, {}, { cookie })).status, what).toBe(409);
       expect(await listEvents(pool, n, EV.exportWritten), what).toEqual([]);
-      expect(badgeShown(await page(app, `/projects`, cookie)), what).toBe(true);
+      expect(badgeShown(await listRow(app, cookie, n)), what).toBe(true);
       await go(app, j, `/projects/${n}/close`, cookie);
     }
   });
