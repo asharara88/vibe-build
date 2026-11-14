@@ -315,6 +315,14 @@ export interface Expected {
    * running app's own listener (127.0.0.1) and Docker's name server (127.0.0.11) are told apart only by this.
    */
   target?: RegExp;
+  /**
+   * True when the entry allows ONE attempt only (added after the review of 14 Nov 2026). With more than one attempt
+   * that meets it (its result, its detail, its target), every one of them fails: the list cannot tell which of them
+   * is the one it allows. An attempt it covers but that does not meet it fails on its own, as before, and is not
+   * counted. Used for Docker's name server in the running app's list, where any process inside can listen at
+   * 127.0.0.11 too.
+   */
+  single?: boolean;
   /** Why design note 2.5 allows it, in a few words. */
   why: string;
 }
@@ -335,7 +343,7 @@ export interface Comparison {
 }
 
 /** How an expected answer reads in the table. */
-const describeExpected = (e: Expected) => `${e.result.source.replace(/^\^|\$$/g, "")}${e.detail ? ` (${e.detail.source})` : ""}${e.target ? `, aimed at ${targetWords(e.target)}` : ""}: ${e.why}`;
+const describeExpected = (e: Expected) => `${e.result.source.replace(/^\^|\$$/g, "")}${e.detail ? ` (${e.detail.source})` : ""}${e.target ? `, aimed at ${targetWords(e.target)}` : ""}${e.single ? ", one such attempt only" : ""}: ${e.why}`;
 /** An entry's target as plain words: 127.0.0.1:3191, or 127.0.0.11:<port>. */
 const targetWords = (t: RegExp) => t.source.replace(/^\^|\$$/g, "").replace(/\\\./g, ".").replace(/\\d\+/g, "<port>");
 
@@ -348,11 +356,14 @@ export const NO_ANSWER = "no answer (refused, timed out, name not found, no name
  * one; with `othersSilent` (a project container), every
  * other attempt must get no answer, and a result the probe could not name ("error") fails, since it would
  * otherwise pass unseen. Without it (a comparison container, a positive control), only the entries are
- * checked. Every entry must cover at least one attempt the container made.
+ * checked. Every entry must cover at least one attempt the container made. An entry marked `single` may be met by
+ * one attempt only: with more, each of them fails, and its row says how many there were.
  */
 export function compareWithExpected(report: ProbeReport, expected: Expected[], othersSilent = true): Comparison {
   const rows: ComparisonRow[] = [];
   const used = new Set<Expected>();
+  /** For each entry marked `single`, the rows of the attempts that meet it. */
+  const metSingle = new Map<Expected, ComparisonRow[]>();
   for (const a of [...report.attempts].sort(compareIds)) {
     const e = expected.find((x) => x.ids.test(a.id));
     const actual = `${cell(a)}${a.detail ? `; ${a.detail}` : ""}`;
@@ -361,10 +372,19 @@ export function compareWithExpected(report: ProbeReport, expected: Expected[], o
       const pass = e.result.test(a.result) && (!e.detail || e.detail.test(a.detail)) && (!e.detailNot || !e.detailNot.test(a.detail));
       const atTarget = !e.target || e.target.test(a.target);
       rows.push({ id: a.id, target: a.target, expected: describeExpected(e), actual, pass: pass && atTarget });
+      if (e.single && pass && atTarget) metSingle.set(e, [...(metSingle.get(e) ?? []), rows.at(-1)!]);
     } else if (othersSilent) {
       rows.push({ id: a.id, target: a.target, expected: NO_ANSWER, actual, pass: !gotAnswer(a.result) && a.result !== "error" });
     } else {
       rows.push({ id: a.id, target: a.target, expected: "not compared (comparison container)", actual, pass: true });
+    }
+  }
+  // An entry marked `single` allows one attempt: with more that meet it, each fails, since the list cannot tell which is the one it allows.
+  for (const met of metSingle.values()) {
+    if (met.length <= 1) continue;
+    for (const r of met) {
+      r.pass = false;
+      r.actual += `; ${met.length} attempts meet this entry, which allows one`;
     }
   }
   const missing = expected.filter((e) => !used.has(e)).map((e) => `${e.ids.source}: ${e.why}`);
@@ -405,11 +425,19 @@ export type DevContainer = "app" | "tools" | "db" | "runner" | "engine" | "egres
  * - "app-running", the running app container itself, probed in place: the app's list, and the app's own listener,
  *   which a one-off container of the app service never has. A listening port seen inside a container gets the id
  *   X<port> whoever listens, so this list names the address each X attempt must be aimed at: the app's own port at
- *   127.0.0.1 (it listens on every address of its own container), and Docker's name server at 127.0.0.11. Any other
- *   listening port inside fails. The exact entry comes first: the first entry that covers an attempt is used.
+ *   127.0.0.1 (it listens on every address of its own container), and Docker's name server at 127.0.0.11. The exact
+ *   entry comes first: the first entry that covers an attempt is used. Any other listening port inside fails: at an
+ *   address other than 127.0.0.11 because no entry is aimed there, and at 127.0.0.11 because the name server's entry
+ *   allows one port only (`single`, added after the review of 14 Nov 2026: any process inside the container can
+ *   listen at 127.0.0.11 too, and as first written every port there passed as the name server). With two ports at
+ *   127.0.0.11 both rows fail; the list does not know which of them is Docker's.
  * - "engine-scripted", the scripted engine's container (package 2.1), which has no network at all: an empty list.
  *   Every attempt must get no answer, not even from a name server. It is not package 2.2's engine (known gap 50).
- * In the other lists a listening port seen inside a container still passes as Docker's name server wherever it is.
+ *   An empty list has no entry that must be matched, so on its own it also passes a probe that made few attempts or
+ *   none (every other list fails then: its entries read "not tried"). It must always be used together with the
+ *   check that the attempts made are exactly the planned ones, as test L4 and the demonstration use it.
+ * In the other lists a listening port seen inside a container still passes as Docker's name server wherever it is,
+ * and however many there are.
  */
 export function expectedOnDevelopment(container: DevContainer, ctx: { appPort: number; gatewayServer: RegExp; frontServer?: RegExp }): Expected[] {
   const dns: Expected = { ids: /^X/, result: /^connected$/, why: "Docker's own name server, inside this container's own network namespace (127.0.0.11)" };
@@ -451,14 +479,16 @@ export function expectedOnDevelopment(container: DevContainer, ctx: { appPort: n
     case "egress":
       return [dns, ...onOut];
     // The run in real containers (14 Nov 2026): the running app, probed in place. Its own listener first, then
-    // Docker's name server pinned to its address, so that a third listening port inside fails.
+    // Docker's name server pinned to its address and to one port (`single`, after the review), so that a third
+    // listening port inside fails wherever it listens.
     case "app-running":
       return [
         { ids: new RegExp(`^X${ctx.appPort}$`), result: /^connected$/, target: new RegExp(`^127\\.0\\.0\\.1:${ctx.appPort}$`), why: "the app itself, listening inside its own container" },
-        { ids: /^X/, result: /^connected$/, target: /^127\.0\.0\.11:\d+$/, why: "Docker's own name server, inside this container's own network namespace" },
+        { ids: /^X/, result: /^connected$/, target: /^127\.0\.0\.11:\d+$/, single: true, why: "Docker's own name server, inside this container's own network namespace" },
         ...onData,
       ];
-    // The scripted engine's container has no network: nothing may answer, not even a name server.
+    // The scripted engine's container has no network: nothing may answer, not even a name server. Use it only
+    // together with the check that the attempts made are exactly the planned ones (see the comment above).
     case "engine-scripted":
       return [];
   }
