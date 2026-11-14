@@ -2509,8 +2509,9 @@ describe("J2 (c) interface: the clean stop and restart (stand-in sandboxes, no c
     try {
       const calls: string[] = [];
       const { j, jobs } = make(f, calls);
-      const mid = await midStep2(f, j, jobs, "Restart: clean stop (made-up)");
+      // One job at a time: the idle project first, then step 2 of the other held running.
       const quiet = await idle(j, jobs, "Idle at the stop (made-up)");
+      const mid = await midStep2(f, j, jobs, "Restart: clean stop (made-up)");
       await stopOnSignal("SIGTERM", stopOpts(j, calls, []));
       // As a crash leaves it, then the next start: a step's job left started, its reservation open.
       const after = make(f, []);
