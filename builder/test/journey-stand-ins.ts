@@ -3,29 +3,48 @@
  * that need no container. It makes a real workspace and a real history (the template copied, its first commit),
  * applies a step's fixed change on this machine as the applier would in the engine's container, and stands in
  * for the image build, the app camera and the acceptance runner. No container, no network, no model.
+ *
+ * Package J2 (final design, section 5): each stand-in sandbox has a change-set folder of its own,
+ * `engine-change-sets` inside its own folder, copied from builder/scripted as makeExample1 does
+ * (scripts/example-1-sandbox.ts); its runner reads manifests and files from that folder only, never from
+ * builder/scripted. `stageBrokenStep` copies the deliberately broken step 03 there, and nowhere else. The checklist
+ * run has a "failed" mode, written as package 3.1's runner writes a failed item (src/acceptance/runner.ts, results.ts).
  */
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { randomBytes } from "node:crypto";
+import { cpSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import net from "node:net";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import type pg from "pg";
 import type { AcceptanceReport, AcceptanceRunInput } from "../src/acceptance/runner.js";
+import { newRunFolder, sha256 } from "../src/acceptance/store.js";
 import { initProjectRepo } from "../src/engine/project-repo.js";
 import { readManifest, type EngineRunner } from "../src/engine/scripted.js";
 import type { ProjectSandbox, Sandboxes } from "../src/orchestrator/example-1-adapter.js";
 import { APP_SHOTS } from "../src/orchestrator/journey-jobs.js";
-import { CHANGE_SETS_DIR, EXAMPLE, type SandboxRecord } from "../src/orchestrator/journey.js";
+import { EXAMPLE, type SandboxRecord } from "../src/orchestrator/journey.js";
 import type { AppStream, Sandbox, StreamingEnd } from "../src/sandbox/manager.js";
 import { appendEvent } from "../src/store/events.js";
 
 const templateDir = resolve(import.meta.dirname, "..", "..", "templates", "next");
+/** builder/scripted and builder/scripted-broken: the stand-in copies from them, as makeExample1 and stageBrokenStep do. */
+const SCRIPTED_DIR = resolve(import.meta.dirname, "..", "scripted");
+const SCRIPTED_BROKEN_DIR = resolve(import.meta.dirname, "..", "scripted-broken");
+/** The deliberately broken step (builder/scripted-broken, package 3.1). */
+export const BROKEN_STEP_ID = "03-wrong-status";
+/** The summary package 3.1's results reader writes for the broken copy's run (test/acceptance-live.test.ts, run D). */
+export const FAILED_SUMMARY = 'version failed: item 1 failed at step "sees status waiting"';
+/** The step a failed item names in the stand-in's "failed" mode, as run D's runner names it. */
+export const FAILED_STEP = "sees status waiting";
 /** A one-pixel PNG, made up for the tests. */
 export const PNG_1X1 = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==", "base64");
 export const PASSED_SUMMARY = "version passed; checklist incomplete (5 of the app spec's 6 checklist items have no test)";
 
 export class StandInSandboxes implements Sandboxes {
   made: string[] = [];
-  runnerCalls: Array<{ step: string; container: string }> = [];
+  /** Each engine container asked for: its step, its name and (package J2 (c)) the applier's command, to show the pause passed or not. */
+  runnerCalls: Array<{ step: string; container: string; cmd: string[] }> = [];
   destroyed: string[] = [];
   destroyedRecorded: Array<{ projectId: string; rec: SandboxRecord }> = [];
   stoppedApps: string[] = [];
@@ -58,8 +77,11 @@ export class StandInSandboxes implements Sandboxes {
   engineHold: { started: () => void } | null = null;
   /** The engine containers killed, by name. */
   killedRunners: string[] = [];
-  /** The acceptance run's outcome: passed (item 1 passed) or did not run. */
-  acceptanceOutcome: "passed" | "did not run" = "passed";
+  /**
+   * The acceptance run's outcome: passed (item 1 passed), did not run, or (package J2) failed: item 1 failed at the
+   * step "sees status waiting", with its failure file and its screenshot, the outcome word "failed" and exit code 1.
+   */
+  acceptanceOutcome: "passed" | "did not run" | "failed" = "passed";
   /**
    * What the run's acceptance.run.finished event says its outcome word is (package 3.1b): by default the word that
    * goes with acceptanceOutcome ("passed" or "not passed"); a word of its own, or "absent" for an event with none
@@ -70,6 +92,12 @@ export class StandInSandboxes implements Sandboxes {
   acceptanceFailsAfterRun = false;
   /** The acceptance job fails before the runner has written any event (as a fault before or inside the runner would). */
   acceptanceFailsBeforeRun = false;
+  /** Package J2: when set, the next sandbox made uses this folder as its change-set folder, outside its own folder (a test of the target check). */
+  changeSetsOutside: string | null = null;
+  /** Package J2: every call of `stageBrokenStep`, with the folder it copied into. */
+  stagedBroken: Array<{ projectId: string; into: string }> = [];
+  /** Package J2: when set, the staged manifest is changed after the copy, so that its SHA-256 differs from the one chosen (a test of the read-back). */
+  stageTamper = false;
   private dirs: string[] = [];
 
   constructor(private readonly pool: pg.Pool) {}
@@ -85,15 +113,31 @@ export class StandInSandboxes implements Sandboxes {
     const repo = { gitDir: join(dir, "workspace.git"), workTree: workspace };
     await initProjectRepo(repo, "Template copy (stand-in sandbox)");
     this.made.push(projectId);
+    // Package J2: the sandbox's own change-set folder, as makeExample1 makes it: the applier and example 1's two fixed
+    // steps, copied from builder/scripted. With `changeSetsOutside` set, that folder instead (outside the sandbox's own).
+    const changeSets = this.changeSetsOutside ?? join(dir, "engine-change-sets");
+    this.changeSetsOutside = null;
+    mkdirSync(join(changeSets, EXAMPLE), { recursive: true });
+    cpSync(join(SCRIPTED_DIR, "apply.mjs"), join(changeSets, "apply.mjs"));
+    for (const step of ["01-data", "02-submitter-screen"]) cpSync(join(SCRIPTED_DIR, EXAMPLE, step), join(changeSets, EXAMPLE, step), { recursive: true });
     const sb = { dir, composeFile: join(dir, "compose.yaml"), projectName: `builder_${projectId}` } as Sandbox;
-    return { projectId, dir, workspace, changeSets: CHANGE_SETS_DIR, repo, sb, appPort: 3161, buildProxyPort: 13161, appUrl: "http://app:3161", samplePassword: "made-up-sample-password", appStarted: false };
+    return { projectId, dir, workspace, changeSets, repo, sb, appPort: 3161, buildProxyPort: 13161, appUrl: "http://app:3161", samplePassword: "made-up-sample-password", appStarted: false };
+  }
+
+  /** Package J2: copy the deliberately broken step 03 into the sandbox's change-set folder, as scripts/example-1-sandbox.ts's stageBrokenStep does. */
+  async stageBrokenStep(x: ProjectSandbox): Promise<void> {
+    this.stagedBroken.push({ projectId: x.projectId, into: x.changeSets });
+    const dest = join(x.changeSets, EXAMPLE, BROKEN_STEP_ID);
+    cpSync(join(SCRIPTED_BROKEN_DIR, EXAMPLE, BROKEN_STEP_ID), dest, { recursive: true });
+    if (this.stageTamper) writeFileSync(join(dest, "manifest.json"), `${readFileSync(join(dest, "manifest.json"), "utf8")}\n`);
   }
 
   engineRunner(x: ProjectSandbox): EngineRunner {
     return (a) => {
       const step = a.cmd[a.cmd.indexOf("--step") + 1]!;
-      this.runnerCalls.push({ step, container: a.container });
-      const m = readManifest(CHANGE_SETS_DIR, EXAMPLE, step);
+      this.runnerCalls.push({ step, container: a.container, cmd: [...a.cmd] });
+      // Package J2: from the sandbox's own change-set folder, as the engine's container reads it (mounted at /engine).
+      const m = readManifest(x.changeSets, EXAMPLE, step);
       let finish: (e: StreamingEnd) => void = () => undefined;
       const done = new Promise<StreamingEnd>((r) => (finish = r));
       const kill = async () => {
@@ -109,7 +153,7 @@ export class StandInSandboxes implements Sandboxes {
         a.onLine(JSON.stringify({ kind: "start", example: EXAMPLE, step, files: m.files.length, label: m.label }));
         for (const f of m.files) {
           mkdirSync(dirname(join(x.workspace, f.path)), { recursive: true });
-          writeFileSync(join(x.workspace, f.path), readFileSync(join(CHANGE_SETS_DIR, EXAMPLE, step, "files", f.path)));
+          writeFileSync(join(x.workspace, f.path), readFileSync(join(x.changeSets, EXAMPLE, step, "files", f.path)));
           a.onLine(JSON.stringify({ kind: "write", op: f.op, path: f.path, sha256: f.sha256 }));
         }
         if (this.extraFile) {
@@ -212,6 +256,7 @@ export class StandInSandboxes implements Sandboxes {
 
   async runAcceptance(input: AcceptanceRunInput): Promise<AcceptanceReport> {
     if (this.acceptanceFailsBeforeRun) throw new Error("stand-in: the job failed before the runner wrote any event");
+    if (this.acceptanceOutcome === "failed") return this.failedRun(input);
     const runId = `run-standin-${Date.now().toString(36)}`;
     const passed = this.acceptanceOutcome === "passed";
     const summary = passed ? PASSED_SUMMARY : "did not run: the stand-in said so";
@@ -224,6 +269,39 @@ export class StandInSandboxes implements Sandboxes {
     ];
     if (this.acceptanceFailsAfterRun) throw new Error("stand-in: the job failed after the runner wrote its events");
     return { runId, version: input.version, manifestSha256: null, writtenBy: "stand-in", refused: null, appAnswered: true, exit: passed ? { code: 0, stderrTail: "" } : null, args: null, reading: { outcome: word === "absent" ? "not passed" : word, items: [], runProblems: [], summary }, output: [], events } as unknown as AcceptanceReport;
+  }
+
+  /**
+   * Package J2: a run whose item 1 failed, as package 3.1's runner writes it (runner.ts, results.ts): the item "failed",
+   * "it ran and failed", the step it failed at, its failure file (in the run's builder folder) and its screenshot (in the
+   * run's results folder, where the interface serves it from); the outcome word "failed", exit code 1. Items 2 to 6 have
+   * no test, so no event.
+   */
+  private async failedRun(input: AcceptanceRunInput): Promise<AcceptanceReport> {
+    const runId = `run-standin-${Date.now().toString(36)}-${randomBytes(3).toString("hex")}`;
+    const folder = newRunFolder(input.store, input.projectId, runId);
+    const shot = join(folder.results, "item-01-failed.png");
+    writeFileSync(shot, PNG_1X1, { mode: 0o600 });
+    const failure = join(folder.builder, "item-01-failure.txt");
+    writeFileSync(failure, 'Made-up failure text of the stand-in runner: the list was expected to say "Waiting"; it said "Approved".\n', { mode: 0o600 });
+    const word = this.outcomeWord ?? "failed";
+    const common = { run_id: runId, version: input.version, written_by: "stand-in", label: "stand-in test" };
+    const events = [
+      await appendEvent(this.pool, input.projectId, "acceptance.run.started", { ...common, container_started: true, refused: null }),
+      await appendEvent(this.pool, input.projectId, "acceptance.item", {
+        ...common,
+        item: 1,
+        file: "item-01.spec.ts",
+        status: "failed",
+        why: "it ran and failed",
+        test_title: "item 1 (made-up title of the stand-in)",
+        step: FAILED_STEP,
+        failure_file: { path: failure, sha256: sha256(readFileSync(failure)) },
+        screenshot: { path: shot, sha256: sha256(readFileSync(shot)) },
+      }),
+      await appendEvent(this.pool, input.projectId, "acceptance.run.finished", { ...common, exit_code: 1, timed_out: false, ...(word === "absent" ? {} : { outcome: word }), summary: FAILED_SUMMARY, run_problems: [] }),
+    ];
+    return { runId, version: input.version, manifestSha256: null, writtenBy: "stand-in", runFolder: folder, refused: null, appAnswered: true, exit: { code: 1, stderrTail: "" }, args: null, reading: { outcome: word === "absent" ? "not passed" : word, items: [], runProblems: [], summary: FAILED_SUMMARY }, output: [], events } as unknown as AcceptanceReport;
   }
 
   async stopApp(x: ProjectSandbox): Promise<void> {
@@ -246,6 +324,24 @@ export class StandInSandboxes implements Sandboxes {
   removeAll(): void {
     for (const d of this.dirs) rmSync(d, { recursive: true, force: true });
   }
+}
+
+/**
+ * Package J2: what builder/scripted and builder/scripted-broken hold (each file with its SHA-256) and git's status of
+ * both folders. The tests compare them before and after: neither is ever written by the journey.
+ */
+export function changeSetFolders(): { listing: string[]; status: string } {
+  const builderDir = resolve(import.meta.dirname, "..");
+  const listing: string[] = [];
+  const walk = (dir: string, rel: string) => {
+    for (const e of readdirSync(dir, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
+      if (e.isDirectory()) walk(join(dir, e.name), `${rel}/${e.name}`);
+      else listing.push(`${rel}/${e.name} ${sha256(readFileSync(join(dir, e.name)))}`);
+    }
+  };
+  for (const top of ["scripted", "scripted-broken"]) walk(join(builderDir, top), top);
+  const status = execFileSync("git", ["-C", builderDir, "status", "--porcelain", "--untracked-files=all", "--ignored", "--", "scripted", "scripted-broken"], { encoding: "utf8" });
+  return { listing, status };
 }
 
 /** A pool that holds every write of one event kind for `ms`, so that a write left unawaited lands late. */

@@ -1,5 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
 import type pg from "pg";
+import type { Queryable } from "./tx.js";
 
 export interface Project {
   id: string;
@@ -9,14 +10,18 @@ export interface Project {
   created_at: Date;
 }
 
-export async function createProject(pool: pg.Pool, p: { id: string; name: string; capUsd: number; profile?: string }): Promise<Project> {
+/**
+ * Insert a project's row. `q` is the pool, or (package J2) a transaction's connection, so that the row and the
+ * project's first event can be written together (journey.ts, `createBrokenCopyDemo`).
+ */
+export async function createProject(q: Queryable, p: { id: string; name: string; capUsd: number; profile?: string }): Promise<Project> {
   // A cap must be a real number of dollars, 0 or more and below $100,000,000: a NaN cap would refuse no
   // call (migration 007 refuses it in the database too). Decimals beyond the fourth are still rounded by
   // the database, as before: package 1.2's tests create such caps (docs/DECISIONS.md, 13 Nov 2026).
   if (typeof p.capUsd !== "number" || !Number.isFinite(p.capUsd) || p.capUsd < 0 || p.capUsd >= 1e8) {
     throw new Error(`A project's cap must be a real number of dollars, 0 or more and below $100,000,000 (got ${typeof p.capUsd === "number" ? String(p.capUsd) : typeof p.capUsd})`);
   }
-  const r = await pool.query<Project>(
+  const r = await q.query<Project>(
     "insert into projects(id, name, profile, cap_usd) values ($1, $2, $3, $4) returning *",
     [p.id, p.name, p.profile ?? "standard", p.capUsd],
   );

@@ -102,7 +102,13 @@ export async function makeExample1(opts: { projectId: string; appPort: number; b
 
 /** Copy the deliberately broken step 03 into the sandbox's change sets, just before it runs. */
 export function stageBrokenStep(x: Example1): void {
-  cpSync(join(builderDir, "scripted-broken", EXAMPLE, "03-wrong-status"), join(x.changeSets, EXAMPLE, "03-wrong-status"), { recursive: true });
+  const into = join(x.changeSets, EXAMPLE, "03-wrong-status");
+  // After the review of pull request #49 (14 Nov 2026): whatever is already at the step's own folder is removed first.
+  // A link there, or below it (its files folder, its manifest), is unlinked and never followed, and the copy then
+  // writes only into a folder it has just made. Before, the copy followed a link inside an existing folder and wrote
+  // through it. A retry of the step stages again from the start, as before.
+  rmSync(into, { recursive: true, force: true });
+  cpSync(join(builderDir, "scripted-broken", EXAMPLE, "03-wrong-status"), into, { recursive: true });
 }
 
 /**

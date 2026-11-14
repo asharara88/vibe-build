@@ -8,6 +8,26 @@ None open right now. Question 15, the browser and the runner's two base images, 
 
 ## Not blocking yet
 
+**22. Two of your sessions are working at once. Which one builds package 3.2, the export?** You told one "Then build the export, 3.2"; the other had begun 3.2's design at 10:25 UTC on 14 Nov and asked not to be doubled. Neither will start a second exporter.
+(a) **The session that began the design builds it; the other stops after pull request #49** (recommended: its design is under way, and two exporters would repeat the J2 doubling).
+(b) The session you told builds it, and the other stops its design.
+(c) One designs, then the build is split between them.
+
+**20. Which rule decides when a package is "tested"?** A rule of 12 Nov (Claude Code's) says: only when the commit a reviewer last read is the commit that is merged. Your rule of 13 Nov says: at most two review rounds. Fixes made after the last round are then merged unread, so the two pull apart. Seven merged packages and J2 are held at "built, not tested" on this (`docs/reviews/2026-11-14-state-of-merged-packages.md`).
+(a) **Your two-round rule decides: a package is tested when its "Done means" ran and passed, it had its reviews, and nothing blocking was open at the merge; fixes after the last round are shown by tests** (recommended: it is your later rule, and it is what the plan's section 3 says).
+(b) The 12 Nov rule decides: every fix is re-read before a package is called tested, whatever the number of rounds.
+(c) (a) for most code; (b) for the gateway and the cap, isolation, acceptance separation and key handling.
+
+**21. Is Vercel now allowed for a phone link?** A decision of 14 Nov, made in a session that started from `main`, says the Vercel connector is not used (outside the approved design; it can create paid resources). The status file of the session that merged J2 lists "a phone link through Vercel" as waiting on you. Both cannot stand.
+(a) **Not allowed until a price and its source are shown to you and you say yes** (recommended: hard rule 4).
+(b) Allowed for the phone link only; you have already said so to the other session.
+(c) Not allowed at all; the phone test is done from a computer.
+
+**19. New sessions start from `main`, which holds none of the work. How should that end?** Three sessions on 14 Nov started from `main`'s out-of-date record. Since pull request #46, `main` carries a notice that sends a session here; the work itself is still only on `claude/stage-1`.
+(a) **You make `claude/stage-1` the repository's default branch in GitHub's settings** (recommended: new sessions then start on the work, and `main` keeps meaning "accepted by you").
+(b) Merge `claude/stage-1` into `main` now, marked "built, not accepted".
+(c) Leave it: the notice on `main` is enough until checkpoint 1.
+
 **16. What is package 1.3 checked against?** Built to (a); the build does not wait on your answer.
 (a) **Proof row B7 in full: a step refused before it starts, and a step that starts has its calls drawn from its reserved budget, the unused part released at its end.** Recommended: a running step cannot be starved by other spending or by a cap lowering.
 Its cost: while a step runs, its whole reservation stops the cap being lowered, there is no command to stop a running step, and a cap raise does not top up a running step.
@@ -41,6 +61,9 @@ Its cost: while a step runs, its whole reservation stops the cap being lowered, 
 
 Claude Code's readings and work, recorded as such, not as your decisions. Detail: `docs/log/2026-11-13-status-before-rewrite.md`, "Yours to confirm".
 
+- **J2's second review (pull request #49):** Claude Code's choices in `docs/DECISIONS.md` (14 Nov, "J2's second review, built as follows"), among them the new screen sentence on what the broken-copy demonstration shows and does not show, in English and Arabic (`docs/arabic-wording-list.md`), and that a step of an interrupted project is no longer approved.
+- The reading of your words of 14 Nov ("Fix it and build properly. Merge what needs to be merged."): pull request #46 merged into `main` (documents only); `claude/stage-1` itself **not** merged into `main` (question 19).
+- **Gap 107, never put to you before:** with `--no-hold`, the journal recovery sets an unreadable line aside with no freeze and no event, so after a restart every project runs again. Package 1.4b's evidence says this "waits for the owner's yes".
 - **J3's phone test, yours to run (two test pages, no data):** tell Claude Code "phone test"; it starts the two pages and adds "probe-a" and "probe-b" to your Claude app's preview list. Open probe-a and press its steps 1 to 6 in order (step 6 twice); open probe-b and press its steps; then say "done" and give three answers the report needs (since the fix after the review of 14787d8, 14 Nov 2026): what step 5 showed (a page saying "Port 4034 answered", or an error), whether the cached page's number stayed the same the second time, and whether probe-a opened in a private window where you are not signed in (or that you could not try). Without all three, or with a step missing, the report says "not decided" and names what to redo. *14 Nov 2026:* the Claude app on the owner's phone showed no preview list; the test is being tried from a computer at claude.ai/code instead. Claude Code reads what the pages recorded and says what the design's table decides. The live app stays "not yet approved for use" until then, and, since J3's review, off: it is turned on (`BUILDER_LIVE_PREVIEW=1`) only once the test is recorded (`evidence/2026-11-13-journey-j3/live-preview.md`, "Your phone test"; `builder/scripts/probe-phone.ts`).
 - Proof rows B7 to B14 assigned to packages 1.3 to 1.5 (B7's extra over 1.3's wording is now question 16; 1.5 is taken after 1.4).
 - The message a refused step shows, reworded from design note 5.5 for a step (package 1.3; the note of 13 Nov there).
@@ -77,3 +100,4 @@ Claude Code's readings and work, recorded as such, not as your decisions. Detail
 - Package J1: sign-off offered only after a checklist run that passed, and labelled as a sign-off on a simulated build checked by a stand-in test of item 1 only.
 - Package J1: the export holds the project's history and, in the exported copy only, the stand-in tests and a note; labelled internal only.
 - Package J1: a build refused below 4 GB of free disk, a floor assumed, not measured (gap 137).
+- Package J2: Claude Code's choices, each yours to overrule (`docs/DECISIONS.md`, 14 Nov): a broken copy never exported rather than labelled; sign-off and export refused on any trace of it; a stop on purpose removes your open projects' containers at the stop; the stop's limits of 30 s, 5 s and 90 s (chosen, not measured, gap 179); a demonstration pause setting, off by default (gap 181); after its review, names that only look like the demonstration's recorded, not refused (gap 182). Your answer on where the demonstration's button lives ("Always on Projects") is recorded there word for word.

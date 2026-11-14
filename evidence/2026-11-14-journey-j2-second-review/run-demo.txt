@@ -1,0 +1,236 @@
+J2's automated run, 2026-11-14T11:48:25.450Z (run 20261114_0a8e8b).
+The approved runner image builder-acceptance-runner:local is on the machine, labelled builder.browser-zip-sha256 with the approved browser zip's fingerprint (runnerImageProblem); this run neither builds nor removes it.
+Builder tree: f942582f0cab5325a9779df852f455fadb058569 (git write-tree --prefix=builder/ of the index at the start of the run); commit abe41e5.
+Free disk before: /dev/vda        252G   16G   23G  42% /
+Containers on the machine before (every one, running or not; others belong to other sessions):
+(none)
+Anything named builder_j1- before (containers, volumes, networks, images): none
+Ports 13161 and 4022 on 127.0.0.1 free before the run. The owner's interface on 4020 and the phone-test pages are not touched.
+Fresh database builder_j2_20261114_0a8e8b; fresh data folder <run folder>/data; the interface's temporary folder (its sandboxes) <run folder>/tmp. A random interface password, given to the interface in its environment and to the builder camera as a read-only file (mode 0400); not printed or kept.
+
+== Start 1: J2 (a), the broken copy rejected ==
+Start 1 (node --import tsx src/web/main.ts): process 32020, listening. Its lines: Projects with a job or a sandbox left by an interface that stopped, marked interrupted and removed at start: 0. | Live preview: off (BUILDER_LIVE_PREVIEW is not 1). Nothing listens on 127.0.0.1:4030; "Open the live app" is refused. | Interface listening on http://127.0.0.1:4022 (password from: env).
+J2 (a): the builder camera, walk j2a: docker run --rm --name j2-builder-camera-20261114_0a8e8b-1 --network host --read-only --tmpfs /tmp:rw,noexec,nosuid,size=512m --cap-drop ALL --security-opt no-new-privileges:true --pids-limit 256 --memory 1g --user runner --workdir /runner --entrypoint node --env BUILDER_CAMERA_BASE=http://127.0.0.1:4022 --env BUILDER_CAMERA_WALK=j2a --volume /home/user/vibe-build/builder/camera/builder-shots.mjs:/camera/builder-shots.mjs:ro --volume <run folder>/camera-out:/shots --volume <run folder>/secret/ui-password:/run/secrets/ui-password:ro builder-acceptance-runner:local /camera/builder-shots.mjs
+  PASSED: J2 (a), camera: signed in, at the projects page
+  PASSED: J2 (a), camera: Projects screen: a panel of its own labelled 'Simulated build', with one button, 'Start the broken-copy demonstration', apart from 'New project'
+  PASSED: J2 (a), camera: the panel says the steps are fixed changes and the checklist run on it is real
+  PASSED: J2 (a), camera: the New project form keeps its three fields: name, cap, brief
+  PASSED: J2 (a), camera: pressing the button makes one project, at its brief
+  project j1-58cf65cb9698: Deliberately broken copy (made-up), cap $5.00
+  PASSED: J2 (a), camera: the project is named 'Deliberately broken copy (made-up)', with the badge next to its name
+  PASSED: J2 (a), camera: its brief is example 1's ask
+  PASSED: J2 (a), camera: its list row: the name with the badge, a cap of $5.00
+  PASSED: J2 (a), camera: every question answered from example 1's answer sheet
+  PASSED: J2 (a), camera: brief confirmed, at the build steps
+  PASSED: J2 (a), camera: the plan lists three steps, the third 03-wrong-status
+  PASSED: J2 (a), camera: step 3 shows its manifest label and the plain sentence
+  PASSED: J2 (a), camera: the plan screen says: no quality check after a step yet, and no retry
+  PASSED: J2 (a), camera: plan confirmed; tests fixed as v001, stand-in test, not independent acceptance
+  PASSED: J2 (a), camera: the build screen says: no quality check after a step yet, and no retry
+  PASSED: J2 (a), camera: step 1 (01-data) built
+  PASSED: J2 (a), camera: step 1: $1.5552 reserved while it ran, released, $0.00 spent
+  PASSED: J2 (a), camera: step 1's approve button reads "Approve and build the next step"
+  PASSED: J2 (a), camera: step 2 (02-submitter-screen) built
+  PASSED: J2 (a), camera: step 2: $3.1104 reserved while it ran, released, $0.00 spent
+  PASSED: J2 (a), camera: step 2's approve button reads "Approve and build step 3 (the deliberately broken copy)"
+  PASSED: J2 (a), camera: step 3 (03-wrong-status) built
+  PASSED: J2 (a), camera: step 3: $1.1664 reserved while it ran, released, $0.00 spent
+  PASSED: J2 (a), camera: step 3's approve button reads "Go on to the preview with this broken step (no quality check after a step yet)"
+  PASSED: J2 (a), camera: step 3's panel shows the plain sentence
+  PASSED: J2 (a), camera: steps 1, 2 and 3 approved; the app is being built for the preview
+  PASSED: J2 (a), camera: the preview's screenshots are there
+  PASSED: J2 (a), camera: four screenshots of the running app (two English, two Arabic), each loaded
+  PASSED: J2 (a), camera: the checklist ran
+  PASSED: J2 (a), camera: the outcome word, as the run's record gives it: Failed
+  PASSED: J2 (a), camera: the summary as the runner's reading wrote it
+  PASSED: J2 (a), camera: item 1 reads Failed, with 'Failed at step: sees status waiting'
+  PASSED: J2 (a), camera: item 1's screenshot, taken by the runner, is shown
+  PASSED: J2 (a), camera: items 2 to 6: did not run (no test written yet)
+  PASSED: J2 (a), camera: labelled 'stand-in test, not independent acceptance'
+  PASSED: J2 (a), camera: no sign-off button
+  PASSED: J2 (a), camera: the sign-off panel reads 'Sign-off is offered once a checklist run has passed.' and 'A deliberately broken copy is never signed off or exported.'
+  PASSED: J2 (a), camera: the checklist screen says what the demonstration shows and what it does not (same author for the defect and the test; not defects in general)
+  PASSED: J2 (a), camera: no Export tab
+  PASSED: J2 (a), camera: cost: $0.00 spent, no freeze, an empty unreconciled list
+  PASSED: J2 (a), camera: cost: three step reservations, $1.5552, $3.1104 and $1.1664, each closed (step_ended)
+  PASSED: J2 (a), camera: the badge on every page of the project (10 screens) and in its list row, in English and Arabic
+  PASSED: J2 (a), camera: the record lists every event in id order
+  PASSED: J2 (a), camera: the project is closed: its containers, images and folder removed
+  PASSED: J2 (a), camera: signed out
+  PASSED: J2 (a), camera: nothing but 127.0.0.1:4022 was loaded
+J2 (a): the builder camera ended with exit code 0 after 74 s.
+  PASSED: J2 (a): the camera walk j2a exited with code 0 (exit code 0)
+J2 (a): the project's containers Docker listed while the camera ran (every 0.5 s; name [networks], published ports if any): 8
+  builder_j1-58cf65cb9698-egress-host-1 [host]
+  builder_j1-58cf65cb9698-db-1 [builder_j1-58cf65cb9698_data] ports: 5432/tcp
+  builder_j1-58cf65cb9698-tools-run-dda971e67064 [builder_j1-58cf65cb9698_data]
+  builder_j1-58cf65cb9698-tools-run-7945307a09a0 [builder_j1-58cf65cb9698_data]
+  builder_j1-58cf65cb9698-check-run-b2d9410efaca [builder_j1-58cf65cb9698_front]
+  builder_j1-58cf65cb9698-app-1 [builder_j1-58cf65cb9698_data,builder_j1-58cf65cb9698_front] ports: 3000/tcp
+  builder_j1-58cf65cb9698-app-camera-c7bbe3 [builder_j1-58cf65cb9698_front]
+  builder_j1-58cf65cb9698-acceptance-run-20261114t114907-c5c8e9ff [builder_j1-58cf65cb9698_front]
+  PASSED: J2 (a), J1's network checks on the app's containers: no J1 container published a port on the machine (Docker's list, every second) (8 containers seen)
+  PASSED: J2 (a), J1's network checks on the app's containers: only the door's machine side (egress-host) was on the machine's network (builder_j1-58cf65cb9698-egress-host-1 [host])
+  PASSED: J2 (a), J1's network checks on the app's containers: the app camera ran on the project's front network alone (builder_j1-58cf65cb9698-app-camera-c7bbe3 [builder_j1-58cf65cb9698_front])
+  PASSED: J2 (a), J1's network checks on the app's containers: the acceptance runner ran on the project's front network alone (builder_j1-58cf65cb9698-acceptance-run-20261114t114907-c5c8e9ff [builder_j1-58cf65cb9698_front])
+  PASSED: J2 (a), J1's network checks on the app's containers: the app was on the project's data and front networks alone (builder_j1-58cf65cb9698-app-1 [builder_j1-58cf65cb9698_data,builder_j1-58cf65cb9698_front] ports 3000/tcp)
+  PASSED: J2 (a), J1's network checks on the app's containers: every check container seen (it asks the app before a start or a run) was on the front network alone (builder_j1-58cf65cb9698-check-run-b2d9410efaca [builder_j1-58cf65cb9698_front])
+  PASSED: J2 (a), item 5: the broken copy's own message files hold the two banner sentences the run looks for
+  PASSED: J2 (a), item 2: the button made one project, "Deliberately broken copy (made-up)", with a $5.00 cap ({"name":"Deliberately broken copy (made-up)","cap_usd":"5.0000","projects_of_that_name":"1"})
+  PASSED: J2 (a), the record: the record's first event is intake.brief_entered, carrying broken_copy: by owner, the step, its source, label and manifest SHA-256, sign_off never, export never (intake.brief_entered: {"by":"owner","step":"03-wrong-status","label":"Deliberately broken copy (package 3.1): a new leave request is saved as approved instead of waiting, and the banner says so; for the acceptance check to reject","export":"never","source":"builder/scripted-broken/example-1/03-wrong-status","sign_off":"never","manifest_sha256":"5bf3d21a8df7dfb16f814452a2404384e4853687dd795b17f3ef0c58d3048210"})
+  PASSED: J2 (a), the record: journey.plan_confirmed lists the three steps (01-data, 02-submitter-screen, 03-wrong-status), the third with its label from builder/scripted-broken, and broken_copy: true (1 confirmed: ["01-data","02-submitter-screen","03-wrong-status"], broken_copy true)
+  PASSED: J2 (a), the record: steps 1, 2 and 3 each built once and approved
+  PASSED: J2 (a), the record: each step's reservation made and released, closed step_ended: $1.5552, $3.1104, $1.1664; $0.00 spent in each (01-data: 1.5552 -> step_ended released 1.5552 spent 0; 02-submitter-screen: 3.1104 -> step_ended released 3.1104 spent 0; 03-wrong-status: 1.1664 -> step_ended released 1.1664 spent 0)
+  PASSED: J2 (a), the record: exactly one journey.broken_step_staged, after step 2's approval and before step 3's first engine event, its manifest SHA-256 (read back from the sandbox's copy) the chosen one (1 staged (ids 56); step 2 approved at 54; step 3's first engine event 58; SHA-256 5bf3d21a8df7dfb16f814452a2404384e4853687dd795b17f3ef0c58d3048210)
+  PASSED: J2 (a), the record: the app camera's pictures recorded for both languages, and its banner lines: each English page carries the English sentence, each Arabic page the Arabic one (en,en,ar,ar; app-home-en: "Sample data. Everything you see here is made up. Built by the scripted engine: fixed changes, no AI model. This is a deliberately broken copy, made to be rejected by the acceptance check."; app-my-requests-en: "Sample data. Everything you see here is made up. Built by the scripted engine: fixed changes, no AI model. This is a deliberately broken copy, made to be rejected by the acceptance check."; app-home-ar: "بيانات تجريبية. كل ما تراه هنا مُختلَق. بناه المحرّك المُبرمَج مسبقاً: تغييرات ثابتة، دون نموذج ذكاء اصطناعي. هذه نسخة معطّلة عمداً، صُنعت ليرفضها فحص القبول."; app-my-requests-ar: "بيانات تجريبية. كل ما تراه هنا مُختلَق. بناه المحرّك المُبرمَج مسبقاً: تغيير)
+  PASSED: J2 (a), the record: the checklist run as its record gives it: outcome "failed", exit code 1, the version fixed at "Confirm plan", the summary 'version failed: item 1 failed at step "sees status waiting"' (1 runs: {"outcome":"failed","exit_code":1,"version":"v001","plan_version":"v001","summary":"version failed: item 1 failed at step \"sees status waiting\""})
+  PASSED: J2 (a), the record: item 1 failed at step 'sees status waiting', with the runner's screenshot; no other item has a result (item 1: failed at sees status waiting)
+  PASSED: J2 (a), the record: the failure file item 1's event names exists, its SHA-256 is the event's, and its text contains "Approved" (the text is not copied) (1099 bytes; SHA-256 the event's; "Approved" in it)
+  PASSED: J2 (a), the record: the record holds no journey.signed_off and no journey.export.written (0 signed off, 0 exports)
+  PASSED: J2 (a), the record: closed: its sandbox removed (not interrupted), and the record ends with journey.closed (last: journey.closed; removed: {"reason":"The project was closed.","interrupted":false})
+  PASSED: J2 (a), item 9: after Close project, nothing of the project is left on the machine (N) (nothing)
+J2 (a), start 1's stop: SIGTERM to process 32020 (the interface itself).
+J2 (a), start 1's stop: exited after 0.2 s with code 0. Its lines after the signal: [interface stopping] The interface was stopped on purpose (SIGTERM). No job was running. Every request is now answered "The interface is stopping." | Projects with a sandbox, marked interrupted and removed at the stop: 0. | [interface stopped] Lock released. Exit code 0.
+  PASSED: J2 (a), start 1's stop: the process exits with code 0 within 120 s of SIGTERM (code 0, 0.2 s)
+  PASSED: J2 (a), start 1's stop: the interface says "Projects with a sandbox, marked interrupted and removed at the stop: 0." (Projects with a sandbox, marked interrupted and removed at the stop: 0.)
+  PASSED: J2 (a), start 1's stop: the interface's own last line gives exit code 0, the code the process exited with ([interface stopped] Lock released. Exit code 0.)
+After start 1: Docker lists 0 containers, 0 volumes, 3 networks, 4 images; the machine 125 processes. What N matches of each of the run's projects:
+  j1-58cf65cb9698 (Deliberately broken copy (made-up)): nothing
+
+== Start 2: path T, the clean stop (SIGTERM to tsx's wrapper) ==
+Start 2 (node_modules/.bin/tsx src/web/main.ts, as npm run web starts it, BUILDER_DEMO_STEP_PAUSE_MS=4000): process 3513, listening. Its lines: Demonstration setting: the scripted engine pauses 4000 ms before each write (BUILDER_DEMO_STEP_PAUSE_MS), so that a stop part-way can be shown. Every step is slower; each build step records the pause. | Projects with a job or a sandbox left by an interface that stopped, marked interrupted and removed at start: 0. | Live preview: off (BUILDER_LIVE_PREVIEW is not 1). Nothing listens on 127.0.0.1:4030; "Open the live app" is refused. | Interface listening on http://127.0.0.1:4022 (password from: env).
+  PASSED: T, start 2: the interface prints the demonstration setting at start
+T1: the builder camera, walk j2c-run: docker run --rm --name j2-builder-camera-20261114_0a8e8b-2 --network host --read-only --tmpfs /tmp:rw,noexec,nosuid,size=512m --cap-drop ALL --security-opt no-new-privileges:true --pids-limit 256 --memory 1g --user runner --workdir /runner --entrypoint node --env BUILDER_CAMERA_BASE=http://127.0.0.1:4022 --env BUILDER_CAMERA_WALK=j2c-run --env BUILDER_CAMERA_PATH=t --env BUILDER_CAMERA_PAUSE_MS=4000 --volume /home/user/vibe-build/builder/camera/builder-shots.mjs:/camera/builder-shots.mjs:ro --volume <run folder>/camera-out:/shots --volume <run folder>/secret/ui-password:/run/secrets/ui-password:ro builder-acceptance-runner:local /camera/builder-shots.mjs
+  PASSED: T1, camera: signed in, at the projects page
+  PASSED: T1, camera: the project is made
+  project j1-54325874c1be: Restart: clean stop (made-up), cap $5.00
+  PASSED: T1, camera: a normal project: no badge
+  PASSED: T1, camera: every question answered from example 1's answer sheet
+  PASSED: T1, camera: brief confirmed, at the build steps
+  PASSED: T1, camera: the plan has the two steps
+  PASSED: T1, camera: the build screen shows the demonstration setting
+  PASSED: T1, camera: step 1 built
+  PASSED: T1, camera: step 1 approved; step 2 running part-way: the running note, the demonstration setting, at least 1 and fewer than 8 files written
+  PASSED: T1, camera: nothing but 127.0.0.1:4022 was loaded
+T1: the builder camera ended with exit code 0 after 25 s.
+  PASSED: T1: the camera walk j2c-run exited with code 0 (exit code 0)
+T1: engine containers Docker listed while the walk ran (every 0.5 s; first seen, seconds after the walk began): builder_j1-54325874c1be-engine-01-data-50395a at 2.7, builder_j1-54325874c1be-engine-02-submitter-screen-90ce5c at 19.7
+T1: step 2's scripted.write events in the record while the walk ran (count, seconds after the walk began): 0 at 1.6, 1 at 24.1
+  PASSED: T1: the record holds at least 1 and fewer than 8 scripted.write events of step 02-submitter-screen (1 written)
+  PASSED: T1: Docker lists a container whose name starts builder_j1-54325874c1be-engine-02-submitter-screen- (builder_j1-54325874c1be-engine-02-submitter-screen-90ce5c)
+T1: step 2's build job job-823ee727; journey.step.paused_for_demonstration recorded first in it: {"label":"Demonstration setting: the scripted engine pauses before each write, so that a stop part-way can be shown. Every step is slower.","setting":"BUILDER_DEMO_STEP_PAUSE_MS","pause_ms":4000}.
+T2: SIGTERM to process 3513 (tsx's wrapper, which passes it on to the interface).
+T2: exited after 0.6 s with code 0. Its lines after the signal: [interface stopping] The interface was stopped on purpose (SIGTERM). Its running job (job-823ee727, project j1-54325874c1be) is being stopped first. Every request is now answered "The interface is stopping." | [interface stopping] The job job-823ee727 has ended; its record says how. It is not resumed. | [interface stopping] Project j1-54325874c1be: its sandbox (<run folder>/tmp/builder-acceptance-5Ci8GW) was removed at the stop: its containers, images and folder. It is marked interrupted, not resumed. | Projects with a sandbox, marked interrupted and removed at the stop: 1. | [interface stopped] Lock released. Exit code 0.
+  PASSED: T2: the process exits with code 0 within 120 s of SIGTERM (code 0, 0.6 s)
+  PASSED: T2: the interface says "Projects with a sandbox, marked interrupted and removed at the stop: 1." (Projects with a sandbox, marked interrupted and removed at the stop: 1.)
+  PASSED: T2: the interface's own last line gives exit code 0, the code the process exited with ([interface stopped] Lock released. Exit code 0.)
+  PASSED: T2: the interface's lines name the job it stopped (job-823ee727) and its project
+  PASSED: T2: the interface's lines name the sandbox it removed
+  PASSED: T3: right after the exit, before any restart: nothing of P1 is left (N): no container, volume, network, image or process, and the folder gone (nothing)
+  PASSED: T4: step 2's build job was found in the record, so its record checks below are made (job-823ee727)
+  PASSED: T4: journey.job.interrupted for job-823ee727, its reason naming a stop on purpose (The interface stopped while this job ran: The interface was stopped on purpose (SIGTERM). The job was stopped part-way and is not resumed.)
+  PASSED: T4: step.hold_closed for step 02-submitter-screen with reason step_ended (the halt path) (step_ended)
+  PASSED: T4: journey.sandbox.removed with interrupted: true, removed: true and the stop's own reason ({"reason":"The interface was stopped on purpose; this project's containers, images and folder were removed at the stop. It is not resumed.","removed":true,"interrupted":true})
+  PASSED: T4: no journey.job.finished or journey.job.failed for job-823ee727, and no journey.workspace.reset (0 ended, 0 resets)
+After start 2's stop: Docker lists 0 containers, 0 volumes, 3 networks, 4 images; the machine 125 processes. What N matches of each of the run's projects:
+  j1-58cf65cb9698 (Deliberately broken copy (made-up)): nothing
+  j1-54325874c1be (Restart: clean stop (made-up)): nothing
+
+== Start 3: the restart after the clean stop; then path K, the crash (SIGKILL to the interface) ==
+Start 3 (node --import tsx src/web/main.ts, BUILDER_DEMO_STEP_PAUSE_MS=4000): process 4463, listening. Its lines: Demonstration setting: the scripted engine pauses 4000 ms before each write (BUILDER_DEMO_STEP_PAUSE_MS), so that a stop part-way can be shown. Every step is slower; each build step records the pause. | Projects with a job or a sandbox left by an interface that stopped, marked interrupted and removed at start: 0. | Live preview: off (BUILDER_LIVE_PREVIEW is not 1). Nothing listens on 127.0.0.1:4030; "Open the live app" is refused. | Interface listening on http://127.0.0.1:4022 (password from: env).
+  PASSED: T5: the restart takes the lock and prints "Projects with a job or a sandbox left by an interface that stopped, marked interrupted and removed at start: 0." (Projects with a job or a sandbox left by an interface that stopped, marked interrupted and removed at start: 0.)
+T6 and T7: the builder camera, walk j2c-after: docker run --rm --name j2-builder-camera-20261114_0a8e8b-3 --network host --read-only --tmpfs /tmp:rw,noexec,nosuid,size=512m --cap-drop ALL --security-opt no-new-privileges:true --pids-limit 256 --memory 1g --user runner --workdir /runner --entrypoint node --env BUILDER_CAMERA_BASE=http://127.0.0.1:4022 --env BUILDER_CAMERA_WALK=j2c-after --env BUILDER_CAMERA_PATH=t --env BUILDER_CAMERA_PROJECT=j1-54325874c1be --env BUILDER_CAMERA_HOLD_REASON=step_ended --volume /home/user/vibe-build/builder/camera/builder-shots.mjs:/camera/builder-shots.mjs:ro --volume <run folder>/camera-out:/shots --volume <run folder>/secret/ui-password:/run/secrets/ui-password:ro builder-acceptance-runner:local /camera/builder-shots.mjs
+  PASSED: T6 and T7, camera: signed in, at the projects page
+  PASSED: T6 and T7, camera: the project page opens its build screen, the stage it was at
+  PASSED: T6 and T7, camera: the interrupted panel, with only 'Close project' and 'New project'
+  PASSED: T6 and T7, camera: step 2 reads "Interrupted: the interface stopped while it ran.", with no build, approve or retry button
+  PASSED: T6 and T7, camera: no sign-off button on the build screen
+  PASSED: T6 and T7, camera: no sign-off button on the checklist screen
+  PASSED: T6 and T7, camera: cost: step 2 "closed (step_ended)", with the note "stopped part-way when the interface stopped; not resumed"; step 1 closed (step_ended), without it
+  PASSED: T6 and T7, camera: cost: step room $0.0000 and spent $0.00
+  PASSED: T6 and T7, camera: the record lists every event in id order
+  PASSED: T6 and T7, camera: 'Close project': the record page opens, and the record ends with journey.closed
+  PASSED: T6 and T7, camera: signed out
+  PASSED: T6 and T7, camera: nothing but 127.0.0.1:4022 was loaded
+T6 and T7: the builder camera ended with exit code 0 after 4 s.
+  PASSED: T6 and T7: the camera walk j2c-after exited with code 0 (exit code 0)
+K1: the builder camera, walk j2c-run: docker run --rm --name j2-builder-camera-20261114_0a8e8b-4 --network host --read-only --tmpfs /tmp:rw,noexec,nosuid,size=512m --cap-drop ALL --security-opt no-new-privileges:true --pids-limit 256 --memory 1g --user runner --workdir /runner --entrypoint node --env BUILDER_CAMERA_BASE=http://127.0.0.1:4022 --env BUILDER_CAMERA_WALK=j2c-run --env BUILDER_CAMERA_PATH=k --env BUILDER_CAMERA_PAUSE_MS=4000 --volume /home/user/vibe-build/builder/camera/builder-shots.mjs:/camera/builder-shots.mjs:ro --volume <run folder>/camera-out:/shots --volume <run folder>/secret/ui-password:/run/secrets/ui-password:ro builder-acceptance-runner:local /camera/builder-shots.mjs
+  PASSED: K1, camera: signed in, at the projects page
+  PASSED: K1, camera: the project is made
+  project j1-80d61079effd: Restart: crash (made-up), cap $5.00
+  PASSED: K1, camera: a normal project: no badge
+  PASSED: K1, camera: every question answered from example 1's answer sheet
+  PASSED: K1, camera: brief confirmed, at the build steps
+  PASSED: K1, camera: the plan has the two steps
+  PASSED: K1, camera: the build screen shows the demonstration setting
+  PASSED: K1, camera: step 1 built
+  PASSED: K1, camera: step 1 approved; step 2 running part-way: the running note, the demonstration setting, at least 1 and fewer than 8 files written
+  PASSED: K1, camera: nothing but 127.0.0.1:4022 was loaded
+K1: the builder camera ended with exit code 0 after 25 s.
+  PASSED: K1: the camera walk j2c-run exited with code 0 (exit code 0)
+K1: engine containers Docker listed while the walk ran (every 0.5 s; first seen, seconds after the walk began): builder_j1-80d61079effd-engine-01-data-7ce652 at 2.7, builder_j1-80d61079effd-engine-02-submitter-screen-f424a1 at 20.3
+K1: step 2's scripted.write events in the record while the walk ran (count, seconds after the walk began): 0 at 1.7, 1 at 24.2
+  PASSED: K1: the record holds at least 1 and fewer than 8 scripted.write events of step 02-submitter-screen (1 written)
+  PASSED: K1: Docker lists a container whose name starts builder_j1-80d61079effd-engine-02-submitter-screen- (builder_j1-80d61079effd-engine-02-submitter-screen-f424a1)
+K1: step 2's build job job-7d88dca3; journey.step.paused_for_demonstration recorded first in it: {"label":"Demonstration setting: the scripted engine pauses before each write, so that a stop part-way can be shown. Every step is slower.","setting":"BUILDER_DEMO_STEP_PAUSE_MS","pause_ms":4000}.
+K2: SIGKILL to process 4463 (the interface itself, started with node --import tsx).
+K2: ended after 0.2 s, signal SIGKILL.
+K2: what is left of P2 right after the kill (N), recorded as found: container builder_j1-80d61079effd-engine-02-submitter-screen-f424a1; process 5223 docker compose -f <run folder>/tmp/builder-acceptance-Kq4fvs/compose.yaml --profile tools --profile engine --profile acceptance --profile check run --rm --no-deps -T --name builder_j1-80d61079effd-engine-02-submitter-screen-f424a1 --volume <run folder>/tmp/builder-acceptance-Kq4fvs/workspace/src/auth.ts:/workspace/src/auth.ts:ro --volume <run folder>/tmp/builder-acceptance-Kq4fvs/workspace/src/lib/roles.tsx:/workspace/src/lib/roles.tsx:ro --volume <run folder>/tmp/builder-acceptance-Kq4fvs/workspace/src/lib/access.ts:/workspace/src/lib/access.ts:ro --volume <run folder>/tmp/builder-acceptance-Kq4fvs/workspace/src/app-config.ts:/workspace/src/app-config.ts:ro --volume <run folder>/tmp/builder-acceptance-Kq4fvs/workspace/src/db/schema.ts:/workspace/src/db/schema.ts:ro --volume <run folder>/tmp/builder-acceptance-Kq4fvs/workspace/scripts/check-guards.ts:/workspace/scripts/check-guards.ts:ro --volume <run folder>/tmp/builder-acceptance-Kq4fvs/workspace/package.json:/workspace/package.json:ro --volume <run folder>/tmp/builder-acceptance-Kq4fvs/workspace/package-lock.json:/workspace/package-lock.json:ro --volume <run folder>/tmp/builder-acceptance-Kq4fvs/workspace/Dockerfile:/workspace/Dockerfile:ro --volume <run folder>/tmp/builder-acceptance-Kq4fvs/workspace/.dockerignore:/workspace/.dockerignore:ro --volume <run folder>/tmp/builder-acceptance-Kq4fvs/workspace/vendor:/workspace/vendor:ro --volume <run folder>/tmp/builder-acceptance-Kq4fvs/workspace/next.config.ts:/workspace/next.config.ts:ro --volume <run folder>/tmp/builder-acceptance-Kq4fvs/workspace/tsconfig.json:/workspace/tsconfig.json:ro engine node /engine/apply.mjs --example example-1 --step 02-submitter-screen --protected ["src/auth.ts","src/lib/roles.tsx","src/lib/access.ts","src/app-config.ts","src/db/schema.ts","scripts/check-guards.ts","package.json","package-lock.json","Dockerfile",".dockerignore","vendor","next.config.ts","tsconfig.json"] --max-writes 8 --delay-ms 4000; process 5239 /usr/libexec/docker/cli-plugins/docker-compose compose -f <run folder>/tmp/builder-acceptance-Kq4fvs/compose.yaml --profile tools --profile engine --profile acceptance --profile check run --rm --no-deps -T --name builder_j1-80d61079effd-engine-02-submitter-screen-f424a1 --volume <run folder>/tmp/builder-acceptance-Kq4fvs/workspace/src/auth.ts:/workspace/src/auth.ts:ro --volume <run folder>/tmp/builder-acceptance-Kq4fvs/workspace/src/lib/roles.tsx:/workspace/src/lib/roles.tsx:ro --volume <run folder>/tmp/builder-acceptance-Kq4fvs/workspace/src/lib/access.ts:/workspace/src/lib/access.ts:ro --volume <run folder>/tmp/builder-acceptance-Kq4fvs/workspace/src/app-config.ts:/workspace/src/app-config.ts:ro --volume <run folder>/tmp/builder-acceptance-Kq4fvs/workspace/src/db/schema.ts:/workspace/src/db/schema.ts:ro --volume <run folder>/tmp/builder-acceptance-Kq4fvs/workspace/scripts/check-guards.ts:/workspace/scripts/check-guards.ts:ro --volume <run folder>/tmp/builder-acceptance-Kq4fvs/workspace/package.json:/workspace/package.json:ro --volume <run folder>/tmp/builder-acceptance-Kq4fvs/workspace/package-lock.json:/workspace/package-lock.json:ro --volume <run folder>/tmp/builder-acceptance-Kq4fvs/workspace/Dockerfile:/workspace/Dockerfile:ro --volume <run folder>/tmp/builder-acceptance-Kq4fvs/workspace/.dockerignore:/workspace/.dockerignore:ro --volume <run folder>/tmp/builder-acceptance-Kq4fvs/workspace/vendor:/workspace/vendor:ro --volume <run folder>/tmp/builder-acceptance-Kq4fvs/workspace/next.config.ts:/workspace/next.config.ts:ro --volume <run folder>/tmp/builder-acceptance-Kq4fvs/workspace/tsconfig.json:/workspace/tsconfig.json:ro engine node /engine/apply.mjs --example example-1 --step 02-submitter-screen --protected ["src/auth.ts","src/lib/roles.tsx","src/lib/access.ts","src/app-config.ts","src/db/schema.ts","scripts/check-guards.ts","package.json","package-lock.json","Dockerfile",".dockerignore","vendor","next.config.ts","tsconfig.json"] --max-writes 8 --delay-ms 4000; folder <run folder>/tmp/builder-acceptance-Kq4fvs
+  PASSED: K2: right after the kill, P2's sandbox folder is still there (the crash path is real) (<run folder>/tmp/builder-acceptance-Kq4fvs)
+After the kill, before start 4: Docker lists 1 containers, 0 volumes, 3 networks, 4 images; the machine 127 processes. What N matches of each of the run's projects:
+  j1-58cf65cb9698 (Deliberately broken copy (made-up)): nothing
+  j1-54325874c1be (Restart: clean stop (made-up)): nothing
+  j1-80d61079effd (Restart: crash (made-up)): container builder_j1-80d61079effd-engine-02-submitter-screen-f424a1; process 5223 docker compose -f <run folder>/tmp/builder-acceptance-Kq4fvs/compose.yaml --profile tools --profile engine --profile acceptance --profile check run --rm --no-deps -T --name builder_j1-80d61079effd-engine-02-submitter-screen-f424a1 --volume <run folder>/tmp/builder-acceptance-Kq4fvs/workspace/src/auth.ts:/workspace/src/auth.ts:ro --volume <run folder>/tmp/builder-acceptance-Kq4fvs/workspace/src/lib/roles.tsx:/workspace/src/lib/roles.tsx:ro --volume <run folder>/tmp/builder-acceptance-Kq4fvs/workspace/src/lib/access.ts:/workspace/src/lib/access.ts:ro --volume <run folder>/tmp/builder-acceptance-Kq4fvs/workspace/src/app-config.ts:/workspace/src/app-config.ts:ro --volume <run folder>/tmp/builder-acceptance-Kq4fvs/workspace/src/db/schema.ts:/workspace/src/db/schema.ts:ro --volume <run folder>/tmp/builder-acceptance-Kq4fvs/workspace/scripts/check-guards.ts:/workspace/scripts/check-guards.ts:ro --volume <run folder>/tmp/builder-acceptance-Kq4fvs/workspace/package.json:/workspace/package.json:ro --volume <run folder>/tmp/builder-acceptance-Kq4fvs/workspace/package-lock.json:/workspace/package-lock.json:ro --volume <run folder>/tmp/builder-acceptance-Kq4fvs/workspace/Dockerfile:/workspace/Dockerfile:ro --volume <run folder>/tmp/builder-acceptance-Kq4fvs/workspace/.dockerignore:/workspace/.dockerignore:ro --volume <run folder>/tmp/builder-acceptance-Kq4fvs/workspace/vendor:/workspace/vendor:ro --volume <run folder>/tmp/builder-acceptance-Kq4fvs/workspace/next.config.ts:/workspace/next.config.ts:ro --volume <run folder>/tmp/builder-acceptance-Kq4fvs/workspace/tsconfig.json:/workspace/tsconfig.json:ro engine node /engine/apply.mjs --example example-1 --step 02-submitter-screen --protected ["src/auth.ts","src/lib/roles.tsx","src/lib/access.ts","src/app-config.ts","src/db/schema.ts","scripts/check-guards.ts","package.json","package-lock.json","Dockerfile",".dockerignore","vendor","next.config.ts","tsconfig.json"] --max-writes 8 --delay-ms 4000; process 5239 /usr/libexec/docker/cli-plugins/docker-compose compose -f <run folder>/tmp/builder-acceptance-Kq4fvs/compose.yaml --profile tools --profile engine --profile acceptance --profile check run --rm --no-deps -T --name builder_j1-80d61079effd-engine-02-submitter-screen-f424a1 --volume <run folder>/tmp/builder-acceptance-Kq4fvs/workspace/src/auth.ts:/workspace/src/auth.ts:ro --volume <run folder>/tmp/builder-acceptance-Kq4fvs/workspace/src/lib/roles.tsx:/workspace/src/lib/roles.tsx:ro --volume <run folder>/tmp/builder-acceptance-Kq4fvs/workspace/src/lib/access.ts:/workspace/src/lib/access.ts:ro --volume <run folder>/tmp/builder-acceptance-Kq4fvs/workspace/src/app-config.ts:/workspace/src/app-config.ts:ro --volume <run folder>/tmp/builder-acceptance-Kq4fvs/workspace/src/db/schema.ts:/workspace/src/db/schema.ts:ro --volume <run folder>/tmp/builder-acceptance-Kq4fvs/workspace/scripts/check-guards.ts:/workspace/scripts/check-guards.ts:ro --volume <run folder>/tmp/builder-acceptance-Kq4fvs/workspace/package.json:/workspace/package.json:ro --volume <run folder>/tmp/builder-acceptance-Kq4fvs/workspace/package-lock.json:/workspace/package-lock.json:ro --volume <run folder>/tmp/builder-acceptance-Kq4fvs/workspace/Dockerfile:/workspace/Dockerfile:ro --volume <run folder>/tmp/builder-acceptance-Kq4fvs/workspace/.dockerignore:/workspace/.dockerignore:ro --volume <run folder>/tmp/builder-acceptance-Kq4fvs/workspace/vendor:/workspace/vendor:ro --volume <run folder>/tmp/builder-acceptance-Kq4fvs/workspace/next.config.ts:/workspace/next.config.ts:ro --volume <run folder>/tmp/builder-acceptance-Kq4fvs/workspace/tsconfig.json:/workspace/tsconfig.json:ro engine node /engine/apply.mjs --example example-1 --step 02-submitter-screen --protected ["src/auth.ts","src/lib/roles.tsx","src/lib/access.ts","src/app-config.ts","src/db/schema.ts","scripts/check-guards.ts","package.json","package-lock.json","Dockerfile",".dockerignore","vendor","next.config.ts","tsconfig.json"] --max-writes 8 --delay-ms 4000; folder <run folder>/tmp/builder-acceptance-Kq4fvs
+
+== Start 4: the restart after the crash ==
+Start 4 (node --import tsx src/web/main.ts): process 5544, listening. Its lines: Projects with a job or a sandbox left by an interface that stopped, marked interrupted and removed at start: 1. | Live preview: off (BUILDER_LIVE_PREVIEW is not 1). Nothing listens on 127.0.0.1:4030; "Open the live app" is refused. | Interface listening on http://127.0.0.1:4022 (password from: env).
+  PASSED: K3: the restart prints "Projects with a job or a sandbox left by an interface that stopped, marked interrupted and removed at start: 1." (Projects with a job or a sandbox left by an interface that stopped, marked interrupted and removed at start: 1.)
+  PASSED: K3: step 2's build job was found in the record, so its record checks below are made (job-7d88dca3)
+  PASSED: K3: journey.job.interrupted for job-7d88dca3: "The interface stopped while this job ran. It is not resumed." (The interface stopped while this job ran. It is not resumed.)
+  PASSED: K3: journey.sandbox.removed with interrupted: true, removed: true and "Found at start…" ({"reason":"Found at start: made by an interface that has since stopped. It is not resumed.","removed":true,"interrupted":true})
+  PASSED: K3: step.hold_closed for step 02-submitter-screen with reason job_interrupted (job_interrupted)
+  PASSED: K4: after the restart's recovery: nothing of P2 is left (N) (nothing)
+  PASSED: K4: again once no process names builder_j1-80d61079effd (the run waits at most 60 s): nothing of P2 is left (N) (nothing; waited until no process named it)
+K5 and K6: the builder camera, walk j2c-after: docker run --rm --name j2-builder-camera-20261114_0a8e8b-5 --network host --read-only --tmpfs /tmp:rw,noexec,nosuid,size=512m --cap-drop ALL --security-opt no-new-privileges:true --pids-limit 256 --memory 1g --user runner --workdir /runner --entrypoint node --env BUILDER_CAMERA_BASE=http://127.0.0.1:4022 --env BUILDER_CAMERA_WALK=j2c-after --env BUILDER_CAMERA_PATH=k --env BUILDER_CAMERA_PROJECT=j1-80d61079effd --env BUILDER_CAMERA_HOLD_REASON=job_interrupted --volume /home/user/vibe-build/builder/camera/builder-shots.mjs:/camera/builder-shots.mjs:ro --volume <run folder>/camera-out:/shots --volume <run folder>/secret/ui-password:/run/secrets/ui-password:ro builder-acceptance-runner:local /camera/builder-shots.mjs
+  PASSED: K5 and K6, camera: signed in, at the projects page
+  PASSED: K5 and K6, camera: the project page opens its build screen, the stage it was at
+  PASSED: K5 and K6, camera: the interrupted panel, with only 'Close project' and 'New project'
+  PASSED: K5 and K6, camera: step 2 reads "Interrupted: the interface stopped while it ran.", with no build, approve or retry button
+  PASSED: K5 and K6, camera: no sign-off button on the build screen
+  PASSED: K5 and K6, camera: no sign-off button on the checklist screen
+  PASSED: K5 and K6, camera: cost: step 2 "closed (job_interrupted)", with the note "stopped part-way when the interface stopped; not resumed"; step 1 closed (step_ended), without it
+  PASSED: K5 and K6, camera: cost: step room $0.0000 and spent $0.00
+  PASSED: K5 and K6, camera: the record lists every event in id order
+  PASSED: K5 and K6, camera: 'Close project': the record page opens, and the record ends with journey.closed
+  PASSED: K5 and K6, camera: signed out
+  PASSED: K5 and K6, camera: nothing but 127.0.0.1:4022 was loaded
+K5 and K6: the builder camera ended with exit code 0 after 4 s.
+  PASSED: K5 and K6: the camera walk j2c-after exited with code 0 (exit code 0)
+Start 4's stop: SIGTERM to process 5544 (the interface itself).
+Start 4's stop: exited after 0.2 s with code 0. Its lines after the signal: [interface stopping] The interface was stopped on purpose (SIGTERM). No job was running. Every request is now answered "The interface is stopping." | Projects with a sandbox, marked interrupted and removed at the stop: 0. | [interface stopped] Lock released. Exit code 0.
+  PASSED: Start 4's stop: the process exits with code 0 within 120 s of SIGTERM (code 0, 0.2 s)
+  PASSED: Start 4's stop: the interface says "Projects with a sandbox, marked interrupted and removed at the stop: 0." (Projects with a sandbox, marked interrupted and removed at the stop: 0.)
+  PASSED: Start 4's stop: the interface's own last line gives exit code 0, the code the process exited with ([interface stopped] Lock released. Exit code 0.)
+After start 4's stop: Docker lists 0 containers, 0 volumes, 3 networks, 4 images; the machine 123 processes. What N matches of each of the run's projects:
+  j1-58cf65cb9698 (Deliberately broken copy (made-up)): nothing
+  j1-54325874c1be (Restart: clean stop (made-up)): nothing
+  j1-80d61079effd (Restart: crash (made-up)): nothing
+
+== The whole run ==
+  PASSED: J2 (a), item 4: no other project of the run has a journey.broken_step_staged (j1-58cf65cb9698)
+  PASSED: J2 (c): the record of the run holds no journey.signed_off and no journey.export.written
+Free space on the data folder's disk, sampled every 2 s (73 samples): 22.51 GB at the start, 21.46 GB at the lowest, 22.47 GB at the end, before the clean-up (GB of 1024^3 bytes).
+Events written to events.json: 193, in id order, for 3 projects.
+  PASSED: The whole run: at the end, nothing of j1-58cf65cb9698 (Deliberately broken copy (made-up)) is left (N) (nothing)
+  PASSED: The whole run: at the end, nothing of j1-54325874c1be (Restart: clean stop (made-up)) is left (N) (nothing)
+  PASSED: The whole run: at the end, nothing of j1-80d61079effd (Restart: crash (made-up)) is left (N) (nothing)
+  PASSED: The whole run: no container of the run's builder camera (j2-builder-camera-*) is left (none)
+  PASSED: The whole run: the run folder removed and the database dropped (folder removed; database dropped)
+Containers on the machine after (every one): (none)
+Anything named builder_j1- after: none
+Ports after: 4022 free, 13161 free.
+Free disk after: /dev/vda        252G   16G   23G  42% /
+Projects the run made: j1-58cf65cb9698 (Deliberately broken copy (made-up)), j1-54325874c1be (Restart: clean stop (made-up)), j1-80d61079effd (Restart: crash (made-up)).
+Screenshots copied into the evidence folder: 41 of 41.
+Checks in all: 153 passed, 0 failed (153 counted: the builder camera's, the record's, Docker's and the machine's lists, the interface's lines and exit codes).
+Result: every check passed (exit code 0).

@@ -13,21 +13,23 @@ import { join, resolve } from "node:path";
 import type pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { openStore, sha256, STAND_IN_NOTE } from "../src/acceptance/store.js";
-import { EV, EXPORT_LABEL, Journey } from "../src/orchestrator/journey.js";
-import { JourneyJobs, REFUSAL_EXTRA } from "../src/orchestrator/journey-jobs.js";
+import { APPROVE_INTERRUPTED, EV, EXPORT_LABEL, Journey } from "../src/orchestrator/journey.js";
+import { JourneyJobs, PRICED_MODEL, REFUSAL_EXTRA } from "../src/orchestrator/journey-jobs.js";
 import { createPool } from "../src/store/db.js";
 import { appendEvent, listEvents } from "../src/store/events.js";
 import { frozenMessage, listFreezes, recordFreeze, SET_ASIDE_FREEZE_REASON } from "../src/store/freezes.js";
-import { keepHold, openHold, settleHold } from "../src/store/holds.js";
+import { getBudget, keepHold, openHold, openStepHold, settleHold } from "../src/store/holds.js";
+import { migrate } from "../src/store/migrate.js";
+import { DEFAULT_PROFILES } from "../src/gateway/hold.js";
 import { createProject } from "../src/store/projects.js";
 import { createWebApp, PUBLIC_PATHS } from "../src/web/app.js";
 import { PASSWORD_FILE, PasswordState, passwordFromSettings, Sessions, SignInLimiter, digestPassword } from "../src/web/auth.js";
 import { journeyFolder } from "../src/web/files.js";
-import { holdInstanceLock, LOCK_LOST, readSettings, SCRUBBED, stopAfterLockLost } from "../src/web/main.js";
+import { holdInstanceLock, LOCK_LOST, readSettings, SCRUBBED, stopAfterLockLost, StopFlag, stopOnSignal, stopSignalHandler, unavailableReason } from "../src/web/main.js";
 import { frontTexts, messageKeys, t } from "../src/web/pages.js";
 import { LivePreview } from "../src/web/preview.js";
 import { testPool, TEST_DB_URL, uniqueId } from "./helpers.js";
-import { PASSED_SUMMARY, StandInSandboxes } from "./journey-stand-ins.js";
+import { BROKEN_STEP_ID, changeSetFolders, FAILED_STEP, FAILED_SUMMARY, PASSED_SUMMARY, StandInSandboxes } from "./journey-stand-ins.js";
 
 const builderDir = resolve(import.meta.dirname, "..");
 const ORIGIN = "http://localhost";
@@ -1779,6 +1781,942 @@ describe("J3 interface: the live app's screens (stand-in sandbox, the real front
       await t.j.closeProject(t.id);
     }
   }, 60_000);
+});
+
+describe("J2 (a) interface: the broken-copy demonstration's screens (stand-in sandboxes with their own change-set folders, no container)", () => {
+  const BROKEN = BROKEN_STEP_ID;
+  const NAME = "Deliberately broken copy (made-up)";
+  const BADGE = "Deliberately broken copy: a defect Claude Code planted on purpose";
+  const NEVER = "A deliberately broken copy is never signed off or exported.";
+  const LIVE_REFUSED = "A deliberately broken copy is not offered as a live app: it was built to be rejected by the checklist.";
+  const NO_QUALITY_CHECK = "No quality check after a step yet, and no retry (milestones 1 and 3): only the checklist at the end checks the app.";
+  const esc = (x: string) => x.replace(/&/g, "&amp;").replace(/'/g, "&#39;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const SCREENS = ["brief", "questions", "proposal", "plan", "build", "preview", "acceptance", "export", "cost", "record"] as const;
+  let sandboxes: StandInSandboxes;
+  const previews: LivePreview[] = [];
+  beforeAll(() => {
+    sandboxes = new StandInSandboxes(pool);
+  });
+  afterAll(async () => {
+    for (const p of previews) await p.stop().catch(() => undefined);
+    sandboxes.removeAll();
+  });
+
+  /** The interface with the jobs on stand-in sandboxes; with `front`, the live preview's front on, as J3's screens test it. */
+  async function makeJobsApp(o: { front?: boolean } = {}) {
+    const box: { jobs?: JourneyJobs } = {};
+    const j = new Journey({ pool, dataDir, cleanupProject: (id, rec) => box.jobs!.cleanup(id, rec) });
+    const jobs = new JourneyJobs({ journey: j, sandboxes, measureFree: () => 50 * 1024 ** 3 });
+    box.jobs = jobs;
+    let preview: LivePreview | undefined;
+    if (o.front) {
+      const srv = net.createServer();
+      await new Promise<void>((r) => srv.listen(0, "127.0.0.1", r));
+      const port = (srv.address() as net.AddressInfo).port;
+      await new Promise((r) => srv.close(r));
+      preview = new LivePreview({ port, texts: frontTexts(), base: "/tmp", openStream: (id) => jobs.openStream(id), onEvent: async (id, kind, payload) => void (await appendEvent(pool, id, kind, payload)) });
+      await preview.start();
+      previews.push(preview);
+      jobs.attachPreview(preview);
+    }
+    const app = createWebApp({ journey: j, jobs, password: new PasswordState("env", digestPassword(PASSWORD), null), sessions: new Sessions(), limiter: new SignInLimiter(), dataDir, preview });
+    return { app, j, jobs };
+  }
+  const page = async (app: App, path: string, cookie: string) => {
+    const r = await get(app, path, cookie);
+    expect(r.status, path).toBe(200);
+    return r.text();
+  };
+  const go = async (app: App, j: Journey, path: string, cookie: string, data: Record<string, string> = {}) => {
+    const r = await post(app, path, data, { cookie });
+    expect(r.status, `${path}: ${r.status === 303 ? "" : await r.clone().text()}`).toBe(303);
+    await j.waitForJob();
+    return r.headers.get("location");
+  };
+  const idFrom = (location: string | null) => /^\/projects\/(j1-[0-9a-f]{12})\/brief$/.exec(location ?? "")![1]!;
+  /** The demonstration's button, pressed; the questions answered and both confirmations given. */
+  const demo = async (app: App, j: Journey, cookie: string, o: { confirm?: boolean } = {}) => {
+    const id = idFrom(await go(app, j, "/demonstrations/broken-copy", cookie));
+    if (o.confirm !== false) for (const a of ["continue", "answer-rest", "confirm-brief", "confirm-plan"]) await go(app, j, `/projects/${id}/${a}`, cookie);
+    return id;
+  };
+  const normal = async (app: App, j: Journey, cookie: string, data: Record<string, string> = {}) => {
+    const made = await post(app, "/projects", { name: "Leave requests (made-up, J2)", cap: "5.00", brief: "I need an app where staff can request leave and managers approve it", ...data }, { cookie });
+    expect(made.status).toBe(303);
+    const id = idFrom(made.headers.get("location"));
+    for (const a of ["continue", "answer-rest", "confirm-brief", "confirm-plan"]) await go(app, j, `/projects/${id}/${a}`, cookie);
+    return id;
+  };
+  /** Steps built and approved through the screens, then the preview (the approval of the last step starts it). */
+  const toPreview = async (app: App, j: Journey, cookie: string, id: string) => {
+    await go(app, j, `/projects/${id}/build`, cookie, { step: "01-data" });
+    for (const step of (await j.state(id)).plan) await go(app, j, `/projects/${id}/approve`, cookie, { step });
+    expect((await j.state(id)).previewFinished).toBe(true);
+  };
+  const badgeShown = (html: string) => html.includes(`data-broken-badge>${esc(BADGE)}<`);
+  const heading = (html: string) => /<h1>[\s\S]*?<\/h1>/.exec(html)?.[0] ?? "";
+  /** A project's row in the Projects list. */
+  const listRow = async (app: App, cookie: string, id: string) => new RegExp(`<tr data-project="${id}">[\\s\\S]*?</tr>`).exec(await page(app, "/projects", cookie))?.[0] ?? "";
+
+  it("A2 and A8: the Projects screen has a panel of its own, labelled Simulated build, with one button, apart from New project; the New project form keeps its three fields; the button makes one project with the fixed name and a $5.00 cap, whose first event carries broken_copy; the badge is on its list row and every page, in English and Arabic", async () => {
+    const { app, j } = await makeJobsApp();
+    const cookie = await signIn(app);
+    for (const lang of ["en", "ar"] as const) {
+      const html = await page(app, `/projects?lang=${lang}`, cookie);
+      const sections = html.split("<section ").slice(1);
+      const demoPanel = sections.filter((x) => x.includes('action="/demonstrations/broken-copy"'));
+      expect(demoPanel, lang).toHaveLength(1);
+      expect(demoPanel[0], lang).toMatch(/^class="panel sim" data-panel="simulated">/);
+      expect(demoPanel[0], lang).toContain(`<h2>${esc(t(lang, "demo.title"))}<span class="badge">`);
+      expect(demoPanel[0], lang).toContain(esc(t(lang, "demo.intro")));
+      // After J2's second review: the limit of the demonstration is on the screen, not only in the documents.
+      expect(demoPanel[0], lang).toContain(`<p class="note" data-demo-limit>${esc(t(lang, "demo.limit"))}</p>`);
+      expect(demoPanel[0], lang).toContain(`<button type="submit" class="">${esc(t(lang, "demo.button"))}</button>`);
+      expect(demoPanel[0], lang).not.toContain('href="/projects/new"');
+      expect(demoPanel[0]!.match(/<form /g), lang).toHaveLength(1);
+      expect(sections.some((x) => x.includes('href="/projects/new"')), lang).toBe(true);
+    }
+    expect(t("en", "demo.title")).toBe("Simulated build");
+    expect(t("en", "demo.button")).toBe("Start the broken-copy demonstration");
+    expect(t("en", "demo.limit")).toBe("What this shows, and what it does not: Claude Code wrote both the planted defect and the test, each knowing the other. A failed run here shows the checklist's runner rejecting this one defect. It does not show that the checklist catches defects in general.");
+    expect(t("en", "demo.intro")).toBe("Builds example 1 with one more step that Claude Code broke on purpose: a new request is saved as Approved instead of Waiting. The steps are fixed changes written in advance; no AI model is called. The checklist run on it is real. It is never signed off or exported.");
+    // The New project form: the same three fields as before.
+    const form = await page(app, "/projects/new", cookie);
+    const newForm = /<form method="post" action="\/projects">[\s\S]*?<\/form>/.exec(form)![0];
+    expect([...newForm.matchAll(/<(?:input|textarea|select)[^>]* name="([^"]+)"/g)].map((m) => m[1])).toEqual(["name", "cap", "brief"]);
+    const projects = await projectCount();
+    const id = await demo(app, j, cookie, { confirm: false });
+    expect(await projectCount()).toBe(projects + 1);
+    const s = await j.state(id);
+    expect(s.project.name).toBe(NAME);
+    expect(Number(s.project.cap_usd)).toBe(5);
+    const first = (await listEvents(pool, id))[0]!;
+    expect(first.kind).toBe(EV.briefEntered);
+    expect(first.payload.broken_copy).toMatchObject({ by: "owner", step: BROKEN, sign_off: "never", export: "never" });
+    expect(t("en", "broken.badge")).toBe(BADGE);
+    const n = await normal(app, j, cookie);
+    for (const lang of ["en", "ar"] as const) {
+      const list = await page(app, `/projects?lang=${lang}`, cookie);
+      const row = (p: string) => new RegExp(`<tr data-project="${p}">[\\s\\S]*?</tr>`).exec(list)?.[0] ?? "";
+      expect(row(id), lang).toContain(`data-broken-badge>${esc(t(lang, "broken.badge"))}<`);
+      expect(row(n), lang).not.toContain("data-broken-badge");
+      for (const screen of SCREENS) {
+        const html = await page(app, `/projects/${id}/${screen}?lang=${lang}`, cookie);
+        expect(heading(html), `${screen} ${lang}`).toContain(`data-broken-badge>${esc(t(lang, "broken.badge"))}<`);
+        expect(heading(await page(app, `/projects/${n}/${screen}?lang=${lang}`, cookie)), `${screen} ${lang}`).not.toContain("data-broken-badge");
+      }
+    }
+    await go(app, j, `/projects/${id}/close`, cookie);
+    await go(app, j, `/projects/${n}/close`, cookie);
+  });
+
+  it("A8: the broken copy through the screens: three steps, step 3's wording and the quality-check line on the plan and build screens, the approve wording, the checklist Failed with the step it failed at and its screenshot, the sign-off lines, no sign-off button and no Export tab; three reservations closed and $0.00 spent; then Close project", async () => {
+    const { app, j } = await makeJobsApp();
+    const cookie = await signIn(app);
+    const id = await demo(app, j, cookie);
+    const manifest = JSON.parse(readFileSync(join(builderDir, "scripted-broken", "example-1", BROKEN, "manifest.json"), "utf8")) as { label: string };
+    for (const lang of ["en", "ar"] as const) {
+      const plan = await page(app, `/projects/${id}/plan?lang=${lang}`, cookie);
+      expect([...plan.matchAll(/<li data-step="([^"]+)">/g)].map((m) => m[1]), lang).toEqual(["01-data", "02-submitter-screen", BROKEN]);
+      const step3 = new RegExp(`<li data-step="${BROKEN}">[\\s\\S]*?</li>`).exec(plan)![0];
+      expect(step3, lang).toContain(esc(manifest.label));
+      expect(step3, lang).toContain(`data-broken-step>${esc(t(lang, "broken.step_note"))}<`);
+      expect(plan, lang).toContain(esc(t(lang, "plan.quality_gate")));
+      expect(plan, lang).toContain(`data-no-quality-check>${esc(t(lang, "broken.no_quality_check"))}<`);
+      const build = await page(app, `/projects/${id}/build?lang=${lang}`, cookie);
+      expect(build, lang).toContain(`data-no-quality-check>${esc(t(lang, "broken.no_quality_check"))}<`);
+      expect(build, lang).toContain(esc(t(lang, "build.step_title", { n: 3, total: 3 }).replace("{step}", "")));
+    }
+    expect(t("en", "broken.no_quality_check")).toBe(NO_QUALITY_CHECK);
+    expect(t("en", "broken.step_note")).toBe("Deliberately broken copy: a new request is saved as Approved instead of Waiting. Made so that the checklist rejects it.");
+    await go(app, j, `/projects/${id}/build`, cookie, { step: "01-data" });
+    await go(app, j, `/projects/${id}/approve`, cookie, { step: "01-data" });
+    let build = await page(app, `/projects/${id}/build`, cookie);
+    expect(build).toContain(`<button type="submit" data-approve="02-submitter-screen">Approve and build step 3 (the deliberately broken copy)</button>`);
+    expect(await go(app, j, `/projects/${id}/approve`, cookie, { step: "02-submitter-screen" })).toBe(`/projects/${id}/build`);
+    build = await page(app, `/projects/${id}/build`, cookie);
+    expect(build).toContain(`data-step="${BROKEN}" data-step-state="finished" data-approved="no"`);
+    expect(build).toContain('data-reserved="$1.1664"');
+    expect(build).toContain(`<button type="submit" data-approve="${BROKEN}">Go on to the preview with this broken step (no quality check after a step yet)</button>`);
+    const ar = await page(app, `/projects/${id}/build?lang=ar`, cookie);
+    expect(ar).toContain(`data-approve="${BROKEN}">${esc(t("ar", "build.approve_after_broken"))}</button>`);
+    expect(await go(app, j, `/projects/${id}/approve`, cookie, { step: BROKEN })).toBe(`/projects/${id}/preview`);
+    expect(await page(app, `/projects/${id}/preview`, cookie)).toContain('data-shots="4"');
+    sandboxes.acceptanceOutcome = "failed";
+    try {
+      await go(app, j, `/projects/${id}/acceptance`, cookie);
+    } finally {
+      sandboxes.acceptanceOutcome = "passed";
+    }
+    const s = await j.state(id);
+    const finished = (await listEvents(pool, id, "acceptance.run.finished")).at(-1)!;
+    expect(finished.payload).toMatchObject({ outcome: "failed", exit_code: 1, summary: FAILED_SUMMARY, version: s.acceptanceVersion });
+    expect(FAILED_SUMMARY).toBe('version failed: item 1 failed at step "sees status waiting"');
+    const item = (await listEvents(pool, id, "acceptance.item")).at(-1)!;
+    const failure = item.payload.failure_file as { path: string; sha256: string };
+    expect(sha256(readFileSync(failure.path))).toBe(failure.sha256);
+    expect(readFileSync(failure.path, "utf8")).toContain("Approved");
+    for (const lang of ["en", "ar"] as const) {
+      const html = await page(app, `/projects/${id}/acceptance?lang=${lang}`, cookie);
+      expect(html.match(new RegExp(`<strong class="warn" data-outcome="failed">${t(lang, "acceptance.outcome.failed")}</strong>`, "g")) ?? [], lang).toHaveLength(2);
+      expect(html, lang).toContain(`<td lang="en" dir="ltr" data-summary>${esc(FAILED_SUMMARY)}</td>`);
+      expect(html, lang).toContain(`<th>${esc(t(lang, "acceptance.exit"))}</th><td>1</td>`);
+      const row1 = /<tr data-item="1"[\s\S]*?<\/tr>/.exec(html)![0];
+      expect(row1, lang).toContain('data-status="failed" data-shown="failed"');
+      expect(row1, lang).toContain(`<strong class="warn">${t(lang, "acceptance.status.failed")}</strong>`);
+      expect(row1, lang).toContain(`<div class="note" data-failed-step>${esc(t(lang, "acceptance.failed_at_step").split("{step}")[0]!)}<span lang="en" dir="ltr">${FAILED_STEP}</span>`);
+      expect(row1, lang).toContain(`<img src="/projects/${id}/files/${item.id}"`);
+      for (const n of [2, 3, 4, 5, 6]) expect(new RegExp(`<tr data-item="${n}" data-status="did not run" data-shown="did_not_run">`).test(html), `${lang} item ${n}`).toBe(true);
+      expect(html, lang).toContain(esc(t(lang, "acceptance.sign_off_not_yet")));
+      expect(html, lang).toContain(`data-broken-never>${esc(t(lang, "broken.never_signed_off"))}<`);
+      expect(html, lang).toContain(`<p class="note" data-demo-limit>${esc(t(lang, "demo.limit"))}</p>`);
+      expect(html, lang).not.toContain(`action="/projects/${id}/sign-off"`);
+      expect(html, lang).not.toContain(`href="/projects/${id}/export"`);
+    }
+    expect(t("en", "acceptance.failed_at_step", { step: FAILED_STEP })).toBe("Failed at step: sees status waiting");
+    expect(t("en", "broken.never_signed_off")).toBe(NEVER);
+    const shot = await get(app, `/projects/${id}/files/${item.id}`, cookie);
+    expect(shot.headers.get("content-type")).toBe("image/png");
+    const signOff = await post(app, `/projects/${id}/sign-off`, {}, { cookie });
+    expect(signOff.status).toBe(409);
+    expect(await signOff.text()).toContain("The last checklist run did not pass, so there is nothing to sign off.");
+    expect((await post(app, `/projects/${id}/export`, {}, { cookie })).status).toBe(409);
+    expect(await page(app, `/projects/${id}/export`, cookie)).toContain("data-export-not-offered");
+    for (const screen of SCREENS) expect(await page(app, `/projects/${id}/${screen}`, cookie), screen).not.toContain(`href="/projects/${id}/export"`);
+    const cost = await page(app, `/projects/${id}/cost`, cookie);
+    expect(cost).toContain('<td data-spent>$0.00</td>');
+    expect([...cost.matchAll(/<tr><td><bdi dir="ltr">([^<]+)<\/bdi><\/td><td>(\$[0-9.]+)<\/td><td>([^<]+)<\/td><\/tr>/g)].map((m) => [m[1], m[2], m[3]])).toEqual([
+      ["01-data", "$1.5552", "closed (step_ended)"],
+      ["02-submitter-screen", "$3.1104", "closed (step_ended)"],
+      [BROKEN, "$1.1664", "closed (step_ended)"],
+    ]);
+    const kinds = (await listEvents(pool, id)).map((e) => e.kind);
+    expect(kinds).not.toContain(EV.signedOff);
+    expect(kinds).not.toContain(EV.exportWritten);
+    expect(kinds.filter((k) => k === "journey.broken_step_staged")).toHaveLength(1);
+    await go(app, j, `/projects/${id}/close`, cookie);
+    expect(sandboxes.destroyed).toContain(id);
+    expect(await page(app, `/projects/${id}/record`, cookie)).toContain("data-closed");
+  });
+
+  it("A8: 'Failed at step' is shown in a failed item's row for every project, a normal one too", async () => {
+    const { app, j } = await makeJobsApp();
+    const cookie = await signIn(app);
+    const id = await normal(app, j, cookie);
+    await toPreview(app, j, cookie, id);
+    sandboxes.acceptanceOutcome = "failed";
+    try {
+      await go(app, j, `/projects/${id}/acceptance`, cookie);
+    } finally {
+      sandboxes.acceptanceOutcome = "passed";
+    }
+    const html = await page(app, `/projects/${id}/acceptance`, cookie);
+    expect(/<tr data-item="1"[\s\S]*?<\/tr>/.exec(html)![0]).toContain(`<div class="note" data-failed-step>Failed at step: <span lang="en" dir="ltr">${FAILED_STEP}</span></div>`);
+    expect(html).not.toContain("data-broken-never");
+    expect(badgeShown(html)).toBe(false);
+    await go(app, j, `/projects/${id}/close`, cookie);
+  });
+
+  it("A1b (regression guard): a normal project past both confirmations, steps 1 and 2 built and approved (the preview waited for), asks to build 03-wrong-status: 409, \"That step is not one of the plan's.\", no job starts, nothing is staged, builder/scripted is unchanged; the same with a broken_copy written later by hand", async () => {
+    const before = changeSetFolders();
+    const { app, j } = await makeJobsApp();
+    const cookie = await signIn(app);
+    const id = await normal(app, j, cookie);
+    await toPreview(app, j, cookie, id);
+    const refusedNow = async (what: string) => {
+      const started = (await listEvents(pool, id, EV.jobStarted)).length;
+      const r = await post(app, `/projects/${id}/build`, { step: BROKEN }, { cookie });
+      expect(r.status, what).toBe(409);
+      expect(await r.text(), what).toContain("That step is not one of the plan&#39;s.");
+      await j.waitForJob();
+      expect((await listEvents(pool, id, EV.jobStarted)).length, what).toBe(started);
+      expect((await listEvents(pool, id)).filter((e) => e.step === BROKEN), what).toEqual([]);
+      expect(sandboxes.stagedBroken.filter((c) => c.projectId === id), what).toEqual([]);
+    };
+    await refusedNow("a normal project");
+    const first = (await listEvents(pool, id))[0]!;
+    const choice = { by: "owner", step: BROKEN, source: "builder/scripted-broken/example-1/03-wrong-status", label: "made-up", manifest_sha256: sha256(readFileSync(join(builderDir, "scripted-broken", "example-1", BROKEN, "manifest.json"))), sign_off: "never", export: "never" };
+    await appendEvent(pool, id, EV.briefEntered, { ...first.payload, broken_copy: choice });
+    await refusedNow("a broken_copy written later by hand");
+    expect((await j.state(id)).plan).toEqual(["01-data", "02-submitter-screen"]);
+    await go(app, j, `/projects/${id}/close`, cookie);
+    expect(changeSetFolders()).toEqual(before);
+  });
+
+  it("A2b: POST /projects with extra fields (broken_copy=1, step=03-wrong-status) makes a normal project: two steps, nothing of the choice recorded, no badge (regression guard); a name that starts 'Deliberately broken copy' is refused on the New project form, and nothing is made", async () => {
+    const { app, j } = await makeJobsApp();
+    const cookie = await signIn(app);
+    const id = await normal(app, j, cookie, { broken_copy: "1", step: BROKEN });
+    const s = await j.state(id);
+    expect(s.plan).toEqual(["01-data", "02-submitter-screen"]);
+    expect(s.events.filter((e) => "broken_copy" in e.payload)).toEqual([]);
+    expect(Object.keys(s.events[0]!.payload).sort()).toEqual(["characters", "given_to_engine", "text"]);
+    expect(badgeShown(await page(app, `/projects/${id}/plan`, cookie))).toBe(false);
+    const row = await listRow(app, cookie, id);
+    expect(row).toContain(`<tr data-project="${id}">`);
+    expect(badgeShown(row)).toBe(false);
+    await go(app, j, `/projects/${id}/close`, cookie);
+    const projects = await projectCount();
+    for (const name of [NAME, "Deliberately broken copy", "deliberately broken copy of my own (made-up)", "  Deliberately   Broken Copy, again (made-up)"]) {
+      const r = await post(app, "/projects", { name, cap: "5.00", brief: "Made-up brief." }, { cookie });
+      expect(r.status, name).toBe(400);
+      const html = await r.text();
+      expect(html, name).toContain(esc('A name that starts "Deliberately broken copy" is kept for the broken-copy demonstration on the Projects screen. Give this project another name.'));
+      expect(html, name).toContain('action="/projects"');
+    }
+    expect(await projectCount()).toBe(projects);
+  });
+
+  it("A6: a broken copy whose checklist run reads 'passed' (a forged pass): no sign-off button, the warning instead, POST sign-off 409; with a forged journey.signed_off, POST export 409 and nothing exported; a normal project whose record holds only a journey.broken_step_staged, or only an engine event of step 03: the badge, sign-off and export refused", async () => {
+    const { app, j } = await makeJobsApp();
+    const cookie = await signIn(app);
+    const id = await demo(app, j, cookie);
+    await toPreview(app, j, cookie, id);
+    sandboxes.acceptanceOutcome = "passed";
+    await go(app, j, `/projects/${id}/acceptance`, cookie);
+    expect((await j.state(id)).acceptanceRun?.outcome).toBe("passed");
+    expect(t("en", "broken.passed_warning")).toBe("A checklist run passed on a deliberately broken copy: the check did not catch the planted defect. It is still not signed off.");
+    for (const lang of ["en", "ar"] as const) {
+      const html = await page(app, `/projects/${id}/acceptance?lang=${lang}`, cookie);
+      expect(html, lang).toContain(`data-broken-passed>${esc(t(lang, "broken.passed_warning"))}<`);
+      expect(html, lang).not.toContain(esc(t(lang, "acceptance.sign_off_not_yet")));
+      expect(html, lang).toContain(`data-broken-never>${esc(t(lang, "broken.never_signed_off"))}<`);
+      expect(html, lang).not.toContain(`action="/projects/${id}/sign-off"`);
+    }
+    const r = await post(app, `/projects/${id}/sign-off`, {}, { cookie });
+    expect(r.status).toBe(409);
+    expect(await r.text()).toContain(NEVER);
+    await appendEvent(pool, id, EV.signedOff, { note: "forged by the test" });
+    const e = await post(app, `/projects/${id}/export`, {}, { cookie });
+    expect(e.status).toBe(409);
+    expect(await e.text()).toContain(NEVER);
+    expect(await page(app, `/projects/${id}/export`, cookie)).not.toContain(`action="/projects/${id}/export"`);
+    expect(await listEvents(pool, id, EV.exportWritten)).toEqual([]);
+    await go(app, j, `/projects/${id}/close`, cookie);
+    for (const [what, kind, payload] of [
+      ["only a journey.broken_step_staged", "journey.broken_step_staged", { note: "forged by the test" }],
+      ["only an engine event of step 03", EV.engineEvent, { type: "text", text: "Scripted engine: made-up line of the test.", at: new Date().toISOString() }],
+    ] as const) {
+      const n = await normal(app, j, cookie);
+      await toPreview(app, j, cookie, n);
+      await go(app, j, `/projects/${n}/acceptance`, cookie);
+      expect(await page(app, `/projects/${n}/acceptance`, cookie), what).toContain(`action="/projects/${n}/sign-off"`);
+      await appendEvent(pool, n, kind, payload, BROKEN);
+      const html = await page(app, `/projects/${n}/acceptance`, cookie);
+      expect(badgeShown(heading(html)), what).toBe(true);
+      expect(html, what).not.toContain(`action="/projects/${n}/sign-off"`);
+      expect(html, what).toContain("data-broken-passed");
+      expect((await post(app, `/projects/${n}/sign-off`, {}, { cookie })).status, what).toBe(409);
+      await appendEvent(pool, n, EV.signedOff, { note: "forged by the test" });
+      expect((await post(app, `/projects/${n}/export`, {}, { cookie })).status, what).toBe(409);
+      expect(await listEvents(pool, n, EV.exportWritten), what).toEqual([]);
+      expect(badgeShown(await listRow(app, cookie, n)), what).toBe(true);
+      await go(app, j, `/projects/${n}/close`, cookie);
+    }
+  });
+
+  it("A7: a broken copy's preview screen renders with the live preview's front on: no 'Open the live app', the plain sentence instead; POST live 409", async () => {
+    const { app, j } = await makeJobsApp({ front: true });
+    const cookie = await signIn(app);
+    const id = await demo(app, j, cookie);
+    await toPreview(app, j, cookie, id);
+    for (const lang of ["en", "ar"] as const) {
+      const html = await page(app, `/projects/${id}/preview?lang=${lang}`, cookie);
+      expect(html, lang).toContain(`<p class="warn" lang="en" dir="ltr" data-live-refused>${esc(LIVE_REFUSED)}</p>`);
+      expect(html, lang).not.toContain("data-live-open");
+      expect(html, lang).toContain('data-shots="4"');
+    }
+    const r = await post(app, `/projects/${id}/live`, {}, { cookie });
+    expect(r.status).toBe(409);
+    expect(await r.text()).toContain(esc(LIVE_REFUSED));
+    expect((await listEvents(pool, id, EV.liveOpened))).toEqual([]);
+    await go(app, j, `/projects/${id}/close`, cookie);
+  });
+
+  it("A9: an interrupted project whose last checklist run passed: the interrupted panel, no sign-off button, and POST sign-off 409", async () => {
+    const { app, j } = await makeJobsApp();
+    const cookie = await signIn(app);
+    const id = await normal(app, j, cookie);
+    await toPreview(app, j, cookie, id);
+    await go(app, j, `/projects/${id}/acceptance`, cookie);
+    expect(await page(app, `/projects/${id}/acceptance`, cookie)).toContain(`action="/projects/${id}/sign-off"`);
+    // As the next start's recovery records a sandbox left by an interface that stopped (journey.ts, recoverInterrupted).
+    await appendEvent(pool, id, EV.sandboxRemoved, { reason: "Found at start: made by an interface that has since stopped. It is not resumed.", interrupted: true, removed: true });
+    for (const lang of ["en", "ar"] as const) {
+      const html = await page(app, `/projects/${id}/acceptance?lang=${lang}`, cookie);
+      // The interrupted panel: its "Close project" is the only one on this screen.
+      expect(html, lang).toContain(`<form method="post" action="/projects/${id}/close"><button type="submit">${esc(t(lang, "interrupted.close"))}</button></form>`);
+      expect(html, lang).not.toContain(`action="/projects/${id}/sign-off"`);
+    }
+    const r = await post(app, `/projects/${id}/sign-off`, {}, { cookie });
+    expect(r.status).toBe(409);
+    expect(await r.text()).toContain("This project was interrupted when the interface stopped, so it is not signed off.");
+    expect(await listEvents(pool, id, EV.signedOff)).toEqual([]);
+    await go(app, j, `/projects/${id}/close`, cookie);
+  });
+});
+
+describe("J2 (c) interface: the clean stop and restart (stand-in sandboxes, no container; each test on a database of its own)", () => {
+  const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+  const until = async (f: () => boolean | Promise<boolean>, ms: number): Promise<boolean> => {
+    const end = Date.now() + ms;
+    while (Date.now() < end) {
+      if (await f()) return true;
+      await sleep(50);
+    }
+    return f();
+  };
+  const esc = (x: string) => x.replace(/&/g, "&amp;").replace(/'/g, "&#39;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  /** The reason the record gives for a sandbox removed at a clean stop (final design, section 4.1, item 5). */
+  const AT_STOP = "The interface was stopped on purpose; this project's containers, images and folder were removed at the stop. It is not resumed.";
+  const STOPPED_PART_WAY = "stopped part-way when the interface stopped; not resumed";
+  const NO_JOB = "The interface stopped while this project's app was set up or running. Its containers are removed at the stop or at the next start; nothing is resumed. Close the project, or start a new one.";
+  const WITH_JOB = "A job of this project was interrupted when the interface stopped. It is not resumed. Close the project, or start a new one.";
+  const interruptedFor = (sig: string) => `The interface stopped while this job ran: The interface was stopped on purpose (${sig}). The job was stopped part-way and is not resumed.`;
+
+  /** A database of its own for one test (named after the test database, so builder_test_j2_… in J2's runs), migrated; dropped by `drop`. */
+  async function freshDb() {
+    const base = new URL(TEST_DB_URL);
+    const name = `${decodeURIComponent(base.pathname.slice(1))}_st_${randomBytes(3).toString("hex")}`;
+    expect(name).toMatch(/^[a-z0-9_]{1,63}$/);
+    await pool.query(`create database "${name}"`);
+    base.pathname = `/${name}`;
+    const url = base.toString();
+    const db = createPool(url);
+    await migrate(db);
+    const sandboxes = new StandInSandboxes(db);
+    return {
+      url,
+      db,
+      sandboxes,
+      drop: async () => {
+        sandboxes.removeAll();
+        await db.end();
+        await pool.query(`drop database if exists "${name}" with (force)`);
+      },
+    };
+  }
+  type Fresh = Awaited<ReturnType<typeof freshDb>>;
+
+  /** A journey and its jobs, wired as main.ts wires them; each removal is noted in `calls` once it has ended. */
+  function make(f: Fresh, calls: string[], o: { cleanupHold?: Promise<void> | null; ownership?: () => Promise<string | null>; stepPauseMs?: number } = {}) {
+    const box: { jobs?: JourneyJobs; hold: Promise<void> | null } = { hold: o.cleanupHold ?? null };
+    const j = new Journey({
+      pool: f.db,
+      dataDir,
+      ownership: o.ownership,
+      cleanupProject: async (id, rec) => {
+        if (box.hold) await box.hold;
+        await box.jobs!.cleanup(id, rec);
+        calls.push(`removed ${id}`);
+      },
+    });
+    box.jobs = new JourneyJobs({ journey: j, sandboxes: f.sandboxes, measureFree: () => 50 * 1024 ** 3, stepPauseMs: o.stepPauseMs });
+    return { j, jobs: box.jobs };
+  }
+  /** A project with its brief and plan confirmed. */
+  async function ready(j: Journey, name: string): Promise<string> {
+    const id = await j.createProject({ name, cap: "5", brief: "I need an app where staff can request leave and managers approve it" });
+    await j.continueWithExample(id);
+    await j.answerRestFromSheet(id);
+    await j.confirmBrief(id);
+    await j.confirmPlan(id);
+    return id;
+  }
+  /** Step 1 built, not approved: a project with a sandbox and no job running. */
+  async function idle(j: Journey, jobs: JourneyJobs, name: string): Promise<string> {
+    const id = await ready(j, name);
+    await jobs.buildStep(id, "01-data");
+    await j.waitForJob();
+    expect((await j.state(id)).sandbox).not.toBeNull();
+    return id;
+  }
+  /** Step 1 built and approved; step 2 running, its engine's container (the stand-in) held until it is killed. */
+  async function midStep2(f: Fresh, j: Journey, jobs: JourneyJobs, name: string): Promise<string> {
+    const id = await ready(j, name);
+    await jobs.buildStep(id, "01-data");
+    await j.waitForJob();
+    let engineStarted!: () => void;
+    const started = new Promise<void>((r) => (engineStarted = r));
+    f.sandboxes.engineHold = { started: () => engineStarted() };
+    try {
+      expect((await jobs.approve(id, "01-data")).next).toBe("build_step");
+      await started;
+    } finally {
+      f.sandboxes.engineHold = null;
+    }
+    expect(j.runningJob()?.projectId).toBe(id);
+    return id;
+  }
+  /** A job of its own that does not stop when told to (as an operation that cannot be stopped from here); `letGo` ends it. */
+  async function stubbornJob(j: Journey, jobs: JourneyJobs, name: string) {
+    const id = await ready(j, name);
+    await jobs.buildStep(id, "01-data");
+    await j.waitForJob();
+    await j.approveStep(id, "01-data");
+    let letGo!: () => void;
+    const { jobId } = await j.startJob(id, "build_step", () => new Promise((r) => (letGo = () => r({ note: "let go by the test" }))), { step: "02-submitter-screen" });
+    return { id, jobId, letGo: () => letGo() };
+  }
+  /** What stopOnSignal is given: a lock that answers held unless told otherwise; every call noted in `calls`, every line in `log`. */
+  function stopOpts(j: Journey, calls: string[], log: string[], o: { check?: () => Promise<string | null>; flag?: StopFlag; waitMs?: number; lockCheckMs?: number; deadlineMs?: number } = {}) {
+    return {
+      journey: j,
+      lock: { check: o.check ?? (async () => null), release: async () => void calls.push("lock released") },
+      flag: o.flag ?? new StopFlag(),
+      closeServer: () => void calls.push("server closed"),
+      endPool: async () => void calls.push("pool ended"),
+      log: (line: string) => void log.push(line),
+      exit: (code: number) => void calls.push(`exit ${code}`),
+      ...(o.waitMs !== undefined ? { waitMs: o.waitMs } : {}),
+      ...(o.lockCheckMs !== undefined ? { lockCheckMs: o.lockCheckMs } : {}),
+      ...(o.deadlineMs !== undefined ? { deadlineMs: o.deadlineMs } : {}),
+    };
+  }
+  const removedEvents = async (db: pg.Pool, id: string) => (await listEvents(db, id, EV.sandboxRemoved)).map((e) => e.payload);
+
+  it("C1: stopOnSignal (SIGTERM) with step 2 running: the engine's container is killed, the job recorded interrupted with the stop's reason, its reservation closed step_ended, the sandbox removed and recorded, and only then the lock released; exit 0", async () => {
+    const f = await freshDb();
+    try {
+      const calls: string[] = [];
+      const log: string[] = [];
+      const { j, jobs } = make(f, calls);
+      const id = await midStep2(f, j, jobs, "Restart: clean stop (made-up)");
+      const job = j.runningJob()!;
+      const dir = jobs.handle(id)!.dir;
+      expect(existsSync(dir)).toBe(true);
+      await stopOnSignal("SIGTERM", stopOpts(j, calls, log));
+      expect(calls).toEqual(["server closed", `removed ${id}`, "lock released", "pool ended", "exit 0"]);
+      expect(j.halted()).toBe("The interface was stopped on purpose (SIGTERM).");
+      expect(f.sandboxes.killedRunners.filter((c) => c.startsWith(`builder_${id}-engine-02-submitter-screen-`))).toHaveLength(1);
+      const s = await j.state(id);
+      expect(s.stepJobs.get("02-submitter-screen")).toMatchObject({ jobId: job.jobId, state: "interrupted", reason: interruptedFor("SIGTERM") });
+      expect(s.interrupted).toBe(true);
+      expect(s.sandbox).toBeNull();
+      const evs = await listEvents(f.db, id);
+      const two = evs.filter((e) => e.step === "02-submitter-screen");
+      expect(two.filter((e) => e.kind === "step.hold_closed").map((e) => e.payload.reason)).toEqual(["step_ended"]);
+      expect(evs.filter((e) => (e.kind === EV.jobFinished || e.kind === EV.jobFailed) && e.payload.job_id === job.jobId)).toEqual([]);
+      expect(evs.filter((e) => e.kind === EV.workspaceReset)).toEqual([]);
+      expect(await removedEvents(f.db, id)).toEqual([{ reason: AT_STOP, interrupted: true, removed: true }]);
+      // The removal is recorded after the job's end.
+      const kinds = evs.map((e) => e.kind);
+      expect(kinds.indexOf(EV.jobInterrupted)).toBeLessThan(kinds.indexOf(EV.sandboxRemoved));
+      expect(f.sandboxes.destroyed).toEqual([id]);
+      expect(existsSync(dir)).toBe(false);
+      expect((await getBudget(f.db, id)).stepRoom).toBe(0);
+      // The lines name the job stopped and the sandbox removed, and count the removals.
+      expect(log.join("\n")).toContain(`Its running job (${job.jobId}, project ${id}) is being stopped first.`);
+      expect(log.join("\n")).toContain(`The job ${job.jobId} has ended; its record says how. It is not resumed.`);
+      expect(log.join("\n")).toContain(`Project ${id}: its sandbox (${dir}) was removed at the stop`);
+      expect(log).toContain("Projects with a sandbox, marked interrupted and removed at the stop: 1.");
+    } finally {
+      await f.drop();
+    }
+  });
+
+  it("C2: at a stop on SIGINT, an idle project with a sandbox is removed and marked interrupted; a closed project whose record still names a sandbox, and a project whose id does not start j1-, are untouched; exit 0", async () => {
+    const f = await freshDb();
+    try {
+      const calls: string[] = [];
+      const log: string[] = [];
+      const { j, jobs } = make(f, calls);
+      const idleId = await idle(j, jobs, "Idle with a sandbox (made-up)");
+      // A closed project whose record still names a sandbox (as a record written by hand would).
+      const closedId = await ready(j, "Closed, sandbox still named (made-up)");
+      await appendEvent(f.db, closedId, EV.sandboxMade, { dir: "/made-up/builder-acceptance-closed" }, "01-data");
+      await appendEvent(f.db, closedId, EV.closed, { at_stage: "build" });
+      // A project not made by the journey, with a sandbox in its record.
+      const other = uniqueId("p_not_journey");
+      await createProject(f.db, { id: other, name: "Not a journey project (made-up)", capUsd: 5 });
+      await appendEvent(f.db, other, EV.sandboxMade, { dir: "/made-up/builder-acceptance-other" }, "01-data");
+      const before = { closed: (await listEvents(f.db, closedId)).length, other: (await listEvents(f.db, other)).length };
+      await stopOnSignal("SIGINT", stopOpts(j, calls, log));
+      expect(calls).toEqual(["server closed", `removed ${idleId}`, "lock released", "pool ended", "exit 0"]);
+      expect(j.halted()).toBe("The interface was stopped on purpose (SIGINT).");
+      expect(await removedEvents(f.db, idleId)).toEqual([{ reason: AT_STOP, interrupted: true, removed: true }]);
+      const s = await j.state(idleId);
+      expect(s.interrupted).toBe(true);
+      expect(s.jobs.some((x) => x.state === "interrupted")).toBe(false);
+      expect({ closed: (await listEvents(f.db, closedId)).length, other: (await listEvents(f.db, other)).length }).toEqual(before);
+      expect(f.sandboxes.destroyedRecorded).toEqual([]);
+      expect(log.join("\n")).toContain("No job was running.");
+      expect(log).toContain("Projects with a sandbox, marked interrupted and removed at the stop: 1.");
+    } finally {
+      await f.drop();
+    }
+  });
+
+  it("C12 (after J2's second review): at a stop the journey is halted before the live preview's stop is awaited; and a step of the project the stop marked interrupted is not approved afterwards, by a new interface on the same record: refused with the reason, nothing written", async () => {
+    const f = await freshDb();
+    try {
+      const calls: string[] = [];
+      const log: string[] = [];
+      const { j, jobs } = make(f, calls);
+      const idleId = await idle(j, jobs, "Idle, step 1 built and not approved (made-up)");
+      let haltedWhenThePreviewStopped: string | null = "the preview's stop was not called";
+      const preview = {
+        stop: async () => {
+          haltedWhenThePreviewStopped = j.halted();
+          calls.push("preview stopped");
+        },
+      };
+      await stopOnSignal("SIGTERM", { ...stopOpts(j, calls, log), preview });
+      expect(haltedWhenThePreviewStopped).toBe("The interface was stopped on purpose (SIGTERM).");
+      expect(calls).toEqual(["server closed", "preview stopped", `removed ${idleId}`, "lock released", "pool ended", "exit 0"]);
+      // As after a restart: a new journey on the same record. Step 1 ran to its end and was never approved.
+      const again = make(f, []);
+      const s = await again.j.state(idleId);
+      expect(s.interrupted).toBe(true);
+      expect(s.stepJobs.get("01-data")?.state).toBe("finished");
+      const before = (await listEvents(f.db, idleId)).length;
+      await expect(again.j.approveStep(idleId, "01-data")).rejects.toThrow(APPROVE_INTERRUPTED);
+      expect((await listEvents(f.db, idleId)).length).toBe(before);
+      expect(await listEvents(f.db, idleId, EV.stepApproved)).toEqual([]);
+    } finally {
+      await f.drop();
+    }
+  });
+
+  it("C3: the lock found lost before the removal (PostgreSQL ended its session): nothing is removed, a line says so, exit 1; a lock check that does not answer within its bound: the same", async () => {
+    const f = await freshDb();
+    try {
+      // The interface's real instance lock on this database, its session then ended by PostgreSQL.
+      const lock = await holdInstanceLock(f.url);
+      const calls: string[] = [];
+      const log: string[] = [];
+      const { j, jobs } = make(f, calls, { ownership: () => lock.check() });
+      const id = await idle(j, jobs, "Lock lost before the stop's removal (made-up)");
+      const ended = await f.db.query<{ ended: boolean }>(
+        `select pg_terminate_backend(l.pid, 5000) as ended from pg_locks l
+          where l.locktype = 'advisory' and l.granted and l.objsubid = 1
+            and l.database = (select oid from pg_database where datname = current_database())
+            and ((l.classid::bigint << 32) | l.objid::bigint) = ('x' || substr(md5('builder-web-interface'), 1, 16))::bit(64)::bigint`,
+      );
+      expect(ended.rows).toEqual([{ ended: true }]);
+      await stopOnSignal("SIGTERM", { ...stopOpts(j, calls, log), lock: { check: () => lock.check(), release: async () => (calls.push("lock released"), lock.release()) } });
+      expect(calls).toEqual(["server closed", "lock released", "pool ended", "exit 1"]);
+      expect(await removedEvents(f.db, id)).toEqual([]);
+      expect(f.sandboxes.destroyed).toEqual([]);
+      expect(log.join("\n")).toContain(`${LOCK_LOST} Nothing more is removed`);
+      expect(log).toContain("Projects with a sandbox, marked interrupted and removed at the stop: 0.");
+
+      // A lock check that does not answer: bounded, here at 0.3 s.
+      const calls2: string[] = [];
+      const log2: string[] = [];
+      const second = make(f, calls2);
+      const t0 = Date.now();
+      await stopOnSignal("SIGTERM", stopOpts(second.j, calls2, log2, { check: () => new Promise<string | null>(() => undefined), lockCheckMs: 300 }));
+      expect(Date.now() - t0).toBeLessThan(5000);
+      expect(calls2).toEqual(["server closed", "lock released", "pool ended", "exit 1"]);
+      expect(await removedEvents(f.db, id)).toEqual([]);
+      expect(log2.join("\n")).toContain("The instance lock was not confirmed by the database within 0.3 s. Nothing more is removed");
+    } finally {
+      await f.drop();
+    }
+  });
+
+  it("C4: a job that has not ended within the wait: its project is not removed, the other project is, a line names it, exit 1", async () => {
+    const f = await freshDb();
+    let letGo: (() => void) | undefined;
+    try {
+      const calls: string[] = [];
+      const log: string[] = [];
+      const { j, jobs } = make(f, calls);
+      const other = await idle(j, jobs, "Idle, removed at the stop (made-up)");
+      const stubborn = await stubbornJob(j, jobs, "A job that does not end in time (made-up)");
+      letGo = stubborn.letGo;
+      const t0 = Date.now();
+      await stopOnSignal("SIGTERM", stopOpts(j, calls, log, { waitMs: 500 }));
+      expect(Date.now() - t0).toBeLessThan(5000);
+      expect(calls).toEqual(["server closed", `removed ${other}`, "lock released", "pool ended", "exit 1"]);
+      expect(await removedEvents(f.db, stubborn.id)).toEqual([]);
+      expect(f.sandboxes.destroyed).toEqual([other]);
+      expect(log.join("\n")).toContain(`The job ${stubborn.jobId} had not ended after 0.5 s`);
+      expect(log.join("\n")).toContain(`Project ${stubborn.id} is left for the next start: its job ${stubborn.jobId} had not ended`);
+      expect(log).toContain("Projects with a sandbox, marked interrupted and removed at the stop: 1.");
+    } finally {
+      letGo?.();
+      await sleep(50);
+      await f.drop();
+    }
+  });
+
+  it("C13 (after the review of pull request #49): the wait for a job that will not stop counts from the halt, the live preview's stop included: with a preview whose stop takes longer than the wait, nothing more is waited after it", async () => {
+    const f = await freshDb();
+    let letGo: (() => void) | undefined;
+    try {
+      const calls: string[] = [];
+      const log: string[] = [];
+      const { j, jobs } = make(f, calls);
+      const stubborn = await stubbornJob(j, jobs, "A job that does not end, behind a slow preview (made-up)");
+      letGo = stubborn.letGo;
+      const preview = {
+        stop: async () => {
+          await sleep(2500);
+          calls.push("preview stopped");
+        },
+      };
+      const t0 = Date.now();
+      await stopOnSignal("SIGTERM", { ...stopOpts(j, calls, log, { waitMs: 2000 }), preview });
+      const took = Date.now() - t0;
+      // The preview's stop takes 2.5 s, and the 2 s wait for the job runs out inside it. A wait that began only after
+      // the preview had stopped would make the whole stop 4.5 s or more.
+      expect(took).toBeGreaterThanOrEqual(2400);
+      expect(took).toBeLessThan(3900);
+      expect(calls).toEqual(["server closed", "preview stopped", "lock released", "pool ended", "exit 1"]);
+      expect(log.join("\n")).toContain(`The job ${stubborn.jobId} had not ended after 2 s`);
+      expect(log.join("\n")).toContain(`Project ${stubborn.id} is left for the next start: its job ${stubborn.jobId} had not ended`);
+      expect(await removedEvents(f.db, stubborn.id)).toEqual([]);
+    } finally {
+      letGo?.();
+      await sleep(50);
+      await f.drop();
+    }
+  });
+
+  it("C4b: a second stop signal during the stop exits at once with code 1, saying so", async () => {
+    const f = await freshDb();
+    let letGo: (() => void) | undefined;
+    try {
+      const calls: string[] = [];
+      const log: string[] = [];
+      const { j, jobs } = make(f, calls);
+      const stubborn = await stubbornJob(j, jobs, "The stop waits on this job (made-up)");
+      letGo = stubborn.letGo;
+      const onSignal = stopSignalHandler(stopOpts(j, calls, log, { waitMs: 10_000 }));
+      const first = onSignal("SIGTERM");
+      await until(() => calls.includes("server closed"), 2000);
+      expect(calls).toEqual(["server closed"]);
+      onSignal("SIGINT");
+      // At once: nothing awaited between the second signal and the exit.
+      expect(calls).toEqual(["server closed", "exit 1"]);
+      expect(log.at(-1)).toBe("[interface stopped] A second stop signal (SIGINT) came during the stop; the interface exits now with code 1. What is left is removed at the next start.");
+      letGo();
+      await first;
+      // The process has exited: no second exit.
+      expect(calls.filter((c) => c.startsWith("exit"))).toEqual(["exit 1"]);
+    } finally {
+      letGo?.();
+      await sleep(50);
+      await f.drop();
+    }
+  });
+
+  it("C9: from the stop signal on, every request gets a plain 503, \"The interface is stopping.\", through main.ts's own hook (as a lost lock does); nothing is made", async () => {
+    const f = await freshDb();
+    let letGo: (() => void) | undefined;
+    try {
+      const calls: string[] = [];
+      const log: string[] = [];
+      const { j, jobs } = make(f, calls);
+      const flag = new StopFlag();
+      const app = createWebApp({ journey: j, jobs, password: new PasswordState("env", digestPassword(PASSWORD), null), sessions: new Sessions(), limiter: new SignInLimiter(), dataDir, unavailable: unavailableReason({ lost: () => null }, flag) });
+      const cookie = await signIn(app);
+      expect((await get(app, "/projects", cookie)).status).toBe(200);
+      const stubborn = await stubbornJob(j, jobs, "The stop waits on this job (made-up)");
+      letGo = stubborn.letGo;
+      const projectsBefore = Number((await f.db.query<{ n: string }>("select count(*)::text as n from projects")).rows[0]!.n);
+      const stopping = stopOnSignal("SIGTERM", stopOpts(j, calls, log, { flag, waitMs: 10_000 }));
+      await until(() => calls.includes("server closed"), 2000);
+      const r = await get(app, "/projects", cookie);
+      expect(r.status).toBe(503);
+      expect(r.headers.get("content-type")).toMatch(/^text\/plain/);
+      expect(await r.text()).toBe("The interface is stopping.");
+      expect((await get(app, "/sign-in")).status).toBe(503);
+      expect((await get(app, "/static/app.css")).status).toBe(503);
+      const made = await post(app, "/projects", { name: "During the stop (made-up)", cap: "5", brief: "Made-up brief." }, { cookie });
+      expect(made.status).toBe(503);
+      expect(await made.text()).toBe("The interface is stopping.");
+      expect(Number((await f.db.query<{ n: string }>("select count(*)::text as n from projects")).rows[0]!.n)).toBe(projectsBefore);
+      // The flag alone gives the 503 (no lock lost); a lost lock's reason comes first.
+      expect(unavailableReason({ lost: () => null }, new StopFlag())()).toBeNull();
+      expect(unavailableReason({ lost: () => LOCK_LOST }, flag)()).toBe(LOCK_LOST);
+      letGo();
+      await stopping;
+    } finally {
+      letGo?.();
+      await sleep(50);
+      await f.drop();
+    }
+  });
+
+  it("C11: the stop's last bound: a removal that has not ended when it comes exits 1 at once, saying so; nothing more is removed", async () => {
+    const f = await freshDb();
+    let release!: () => void;
+    const hold = new Promise<void>((r) => (release = r));
+    try {
+      const calls: string[] = [];
+      const log: string[] = [];
+      const setup = make(f, calls);
+      const a = await idle(setup.j, setup.jobs, "Its removal hangs (made-up)");
+      const b = await idle(setup.j, setup.jobs, "Would be removed next (made-up)");
+      // A second interface on the same database, whose removal does not end (as a docker program that hangs).
+      const { j } = make(f, calls, { cleanupHold: hold });
+      const t0 = Date.now();
+      const stopping = stopOnSignal("SIGTERM", stopOpts(j, calls, log, { deadlineMs: 800 }));
+      expect(await until(() => calls.includes("exit 1"), 5000)).toBe(true);
+      expect(Date.now() - t0).toBeLessThan(4000);
+      expect(calls).toEqual(["server closed", "exit 1"]);
+      expect(log.at(-1)).toBe("[interface stopped] The stop had not finished 0.8 s after SIGTERM; the interface exits now with code 1. What is left is removed at the next start.");
+      release();
+      await stopping;
+      // The removal under way ends, and nothing more is removed after the exit; no second exit.
+      expect(calls.filter((c) => c.startsWith("removed"))).toEqual([`removed ${a}`]);
+      expect(await removedEvents(f.db, b)).toEqual([]);
+      expect(calls.filter((c) => c.startsWith("exit"))).toEqual(["exit 1"]);
+    } finally {
+      release();
+      await sleep(50);
+      await f.drop();
+    }
+  });
+
+  it("C7: the interrupted panel's two wordings (a job interrupted; no job, only the app set up), and the cost screen's note on a reservation of a step stopped part-way, at a clean stop and at a start after a crash; in English and Arabic", async () => {
+    const f = await freshDb();
+    try {
+      const calls: string[] = [];
+      const { j, jobs } = make(f, calls);
+      // One job at a time: the idle project first, then step 2 of the other held running.
+      const quiet = await idle(j, jobs, "Idle at the stop (made-up)");
+      const mid = await midStep2(f, j, jobs, "Restart: clean stop (made-up)");
+      await stopOnSignal("SIGTERM", stopOpts(j, calls, []));
+      // As a crash leaves it, then the next start: a step's job left started, its reservation open.
+      const after = make(f, []);
+      const crashed = await ready(after.j, "Restart: crash (made-up)");
+      await appendEvent(f.db, crashed, EV.jobStarted, { job_id: "job-0000c7c7", kind: "build_step", step: "01-data" }, "01-data");
+      const opened = await openStepHold(f.db, { projectId: crashed, stepId: "01-data", model: PRICED_MODEL, maxTurns: 4, profile: DEFAULT_PROFILES.standard!, deadline: new Date(Date.now() + 3_600_000) });
+      expect(opened.ok).toBe(true);
+      expect(await after.j.recoverInterrupted()).toEqual([crashed]);
+      const app = createWebApp({ journey: after.j, jobs: after.jobs, password: new PasswordState("env", digestPassword(PASSWORD), null), sessions: new Sessions(), limiter: new SignInLimiter(), dataDir });
+      const cookie = await signIn(app);
+      const page = async (path: string) => {
+        const r = await get(app, path, cookie);
+        expect(r.status, path).toBe(200);
+        return r.text();
+      };
+      const rows = (html: string) => [...html.matchAll(/<tr><td><bdi dir="ltr">([^<]+)<\/bdi><\/td><td>(\$[0-9.]+)<\/td><td>([\s\S]*?)<\/td><\/tr>/g)].map((m) => [m[1], m[2], m[3]]);
+      for (const lang of ["en", "ar"] as const) {
+        const note = `<br><span class="note" data-stopped-part-way>${esc(t(lang, "cost.stopped_part_way"))}</span>`;
+        // A job of the project was interrupted: the first wording.
+        for (const id of [mid, crashed]) {
+          const html = await page(`/projects/${id}/build?lang=${lang}`);
+          expect(html, `${id} ${lang}`).toContain(esc(t(lang, "interrupted.message")));
+          expect(html, `${id} ${lang}`).not.toContain(esc(t(lang, "interrupted.no_job")));
+        }
+        // Only the app was set up (no job ran when the interface stopped): the second.
+        const q = await page(`/projects/${quiet}/build?lang=${lang}`);
+        expect(q, lang).toContain(esc(t(lang, "interrupted.no_job")));
+        expect(q, lang).not.toContain(esc(t(lang, "interrupted.message")));
+        // The cost screen: the note only on the reservation of the step stopped part-way.
+        const midCost = await page(`/projects/${mid}/cost?lang=${lang}`);
+        expect(rows(midCost), lang).toEqual([
+          ["01-data", "$1.5552", "closed (step_ended)"],
+          ["02-submitter-screen", "$3.1104", `closed (step_ended)${note}`],
+        ]);
+        expect(midCost).toContain("<td data-step-room>$0.0000</td>");
+        expect(midCost).toContain("<td data-spent>$0.00</td>");
+        expect(rows(await page(`/projects/${crashed}/cost?lang=${lang}`)), lang).toEqual([["01-data", "$1.5552", `closed (job_interrupted)${note}`]]);
+        expect(rows(await page(`/projects/${quiet}/cost?lang=${lang}`)), lang).toEqual([["01-data", "$1.5552", "closed (step_ended)"]]);
+      }
+      expect(t("en", "interrupted.no_job")).toBe(NO_JOB);
+      expect(t("en", "interrupted.message")).toBe(WITH_JOB);
+      expect(t("en", "cost.stopped_part_way")).toBe(STOPPED_PART_WAY);
+      // The build screen's line for step 2, and no build, approve or retry button.
+      const build = await page(`/projects/${mid}/build`);
+      expect(build).toContain(esc(t("en", "build.line.job_interrupted")));
+      expect(build).not.toMatch(/data-(build|approve)=/);
+    } finally {
+      await f.drop();
+    }
+  });
+
+  it("C6: the demonstration pause: BUILDER_DEMO_STEP_PAUSE_MS from 0 to 10000 (unset or 0: off); anything else refuses the start; while on, the build screen says so, in English and Arabic", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "builder-web-pause-"));
+    try {
+      const full = { BUILDER_DATABASE_URL: TEST_DB_URL, BUILDER_DATA_DIR: dir, BUILDER_UI_PASSWORD: PASSWORD };
+      expect(readSettings({ ...full }).stepPauseMs).toBe(0);
+      expect(readSettings({ ...full, BUILDER_DEMO_STEP_PAUSE_MS: "" }).stepPauseMs).toBe(0);
+      expect(readSettings({ ...full, BUILDER_DEMO_STEP_PAUSE_MS: "0" }).stepPauseMs).toBe(0);
+      expect(readSettings({ ...full, BUILDER_DEMO_STEP_PAUSE_MS: "4000" }).stepPauseMs).toBe(4000);
+      expect(readSettings({ ...full, BUILDER_DEMO_STEP_PAUSE_MS: "10000" }).stepPauseMs).toBe(10_000);
+      for (const bad of ["10001", "-1", "1.5", "4e3", " 4000", "abc", "00", "99999999"]) {
+        expect(() => readSettings({ ...full, BUILDER_DEMO_STEP_PAUSE_MS: bad }), bad).toThrow("BUILDER_DEMO_STEP_PAUSE_MS must be a whole number of milliseconds from 0 to 10000 (0 or unset: off). The interface does not start.");
+      }
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+    const f = await freshDb();
+    try {
+      for (const pause of [4000, 0]) {
+        const { j, jobs } = make(f, [], { stepPauseMs: pause });
+        const app = createWebApp({ journey: j, jobs, password: new PasswordState("env", digestPassword(PASSWORD), null), sessions: new Sessions(), limiter: new SignInLimiter(), dataDir });
+        const cookie = await signIn(app);
+        const id = await ready(j, `Pause ${pause} (made-up)`);
+        for (const lang of ["en", "ar"] as const) {
+          const html = await (await get(app, `/projects/${id}/build?lang=${lang}`, cookie)).text();
+          const line = `<p class="warn" data-step-pause="${pause}">${esc(t(lang, "build.step_pause", { ms: pause.toLocaleString("en") }))}</p>`;
+          if (pause) expect(html, lang).toContain(line);
+          else expect(html, lang).not.toContain("data-step-pause");
+        }
+        await j.closeProject(id);
+      }
+      expect(t("en", "build.step_pause", { ms: "4,000" })).toBe("Demonstration setting: the scripted engine pauses 4,000 ms before each write, so that a stop part-way can be shown.");
+    } finally {
+      await f.drop();
+    }
+  });
+
+  it("C5: the real interface (src/web/main.ts, on a database and a port of its own): SIGTERM to its node process, and SIGINT to the tsx wrapper npm run web uses, each with no project: exit 0 and \"removed at the stop: 0\"; the pause line at start only when the setting is on", { timeout: 120_000 }, async () => {
+    const f = await freshDb();
+    const dir = mkdtempSync(join(tmpdir(), "builder-web-stop-"));
+    const procs: ChildProcess[] = [];
+    const freePort = () =>
+      new Promise<number>((resolve, reject) => {
+        const srv = net.createServer();
+        srv.once("error", reject);
+        srv.listen(0, "127.0.0.1", () => {
+          const port = (srv.address() as net.AddressInfo).port;
+          srv.close(() => resolve(port));
+        });
+      });
+    const start = async (how: "node" | "tsx", extra: Record<string, string>) => {
+      const port = await freePort();
+      const previewPort = await freePort();
+      for (const p of [port, previewPort]) expect([4020, 4022, 4030, 4031, 4032, 4033, 4034]).not.toContain(p);
+      const env = { PATH: process.env.PATH ?? "", HOME: process.env.HOME ?? "/root", PGUSER: process.env.PGUSER ?? "", BUILDER_DATABASE_URL: f.url, BUILDER_DATA_DIR: dir, BUILDER_UI_PASSWORD: PASSWORD, BUILDER_UI_PORT: String(port), BUILDER_PREVIEW_PORT: String(previewPort), ...extra };
+      const child =
+        how === "node"
+          ? spawn(process.execPath, ["--import", "tsx", "src/web/main.ts"], { cwd: builderDir, env, stdio: ["ignore", "pipe", "pipe"] })
+          : spawn(join(builderDir, "node_modules", ".bin", "tsx"), ["src/web/main.ts"], { cwd: builderDir, env, stdio: ["ignore", "pipe", "pipe"] });
+      procs.push(child);
+      const out = { stdout: "", stderr: "" };
+      child.stdout!.on("data", (d: Buffer) => (out.stdout += d.toString("utf8")));
+      child.stderr!.on("data", (d: Buffer) => (out.stderr += d.toString("utf8")));
+      const exited = new Promise<number | null>((r) => child.on("exit", (code) => r(code)));
+      expect(await until(() => out.stdout.includes("Interface listening on"), 30_000), `${out.stdout}\n${out.stderr}`).toBe(true);
+      return { out, exited, child };
+    };
+    try {
+      const a = await start("node", { BUILDER_DEMO_STEP_PAUSE_MS: "4000" });
+      expect(a.out.stdout).toContain("Demonstration setting: the scripted engine pauses 4000 ms before each write (BUILDER_DEMO_STEP_PAUSE_MS), so that a stop part-way can be shown.");
+      expect(a.child.kill("SIGTERM")).toBe(true);
+      expect(await Promise.race([a.exited, sleep(30_000).then(() => "still running")]), `${a.out.stdout}\n${a.out.stderr}`).toBe(0);
+      expect(a.out.stdout).toContain("[interface stopping] The interface was stopped on purpose (SIGTERM). No job was running.");
+      expect(a.out.stdout).toContain("Projects with a sandbox, marked interrupted and removed at the stop: 0.");
+
+      const b = await start("tsx", {});
+      expect(b.out.stdout).not.toContain("Demonstration setting");
+      expect(b.child.kill("SIGINT")).toBe(true);
+      expect(await Promise.race([b.exited, sleep(30_000).then(() => "still running")]), `${b.out.stdout}\n${b.out.stderr}`).toBe(0);
+      expect(b.out.stdout).toContain("[interface stopping] The interface was stopped on purpose (SIGINT). No job was running.");
+      expect(b.out.stdout).toContain("Projects with a sandbox, marked interrupted and removed at the stop: 0.");
+    } finally {
+      for (const p of procs) if (p.exitCode === null && p.signalCode === null) p.kill("SIGKILL");
+      rmSync(dir, { recursive: true, force: true });
+      await f.drop();
+    }
+  });
 });
 
 /*
