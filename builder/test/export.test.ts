@@ -20,8 +20,11 @@
  * journey with the stand-in sandboxes of test/journey-stand-ins.ts, on the test database, as test/journey.test.ts does;
  * the stand-in's `checkExport` records the call and answers as the Docker checks would (their live proof is L1).
  * No Docker, no model.
+ *
+ * Part C, the check from the exported copy (design section 3): E17 (S31) and T8. The check itself, with Docker, is
+ * tested live in test/export-live.test.ts (L1 to L4).
  */
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { copyFileSync, cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -1122,5 +1125,180 @@ describe("Part B, the export job: one export per project, the passing run's mani
     execFileSync("tar", ["-xzf", f.path, "-C", out, `${id}/EXPORT-NOTE.txt`]);
     expect(readFileSync(join(out, id, "EXPORT-NOTE.txt"), "utf8").split("\n")[0]).toBe(NEW_LABEL);
     await j.closeProject(id);
+  });
+});
+
+// ===================================================================================================
+// Part C: the check from the exported copy (design section 3)
+// ===================================================================================================
+
+type CheckModule = typeof import("../src/export/check-from-copy.js");
+const checkModule = (): Promise<CheckModule> => import("../src/export/check-from-copy.js");
+const COPY_PROJECT = "j1-0123456789ab";
+/** The script's six values, as section 3 names them; the four last come from the export's event. */
+const CHECK_ARGS = [
+  `/made/up/exports/${COPY_PROJECT}`,
+  "--project-id",
+  COPY_PROJECT,
+  "--version",
+  "v001",
+  "--manifest-sha256",
+  "a".repeat(64),
+  "--checklist-items",
+  "6",
+  "--run-folder",
+  "/made/up/check-runs/run-1",
+];
+/** The same, without one flag and its value. */
+const withoutFlag = (flag: string) => {
+  const at = CHECK_ARGS.indexOf(flag);
+  return [...CHECK_ARGS.slice(0, at), ...CHECK_ARGS.slice(at + 2)];
+};
+
+describe("E17 (S31): the check script's reading uses the checklist count recorded in the event", () => {
+  it("the script's values: all six are needed; without --checklist-items, or with a count that is not a whole number of at least 1, it refuses", async () => {
+    const c = await checkModule();
+    expect(c.parseCheckArgs(CHECK_ARGS)).toEqual({
+      copyDir: `/made/up/exports/${COPY_PROJECT}`,
+      projectId: COPY_PROJECT,
+      version: "v001",
+      manifestSha256: "a".repeat(64),
+      checklistItems: 6,
+      runFolder: "/made/up/check-runs/run-1",
+    });
+    expect(() => c.parseCheckArgs(withoutFlag("--checklist-items"))).toThrow(/--checklist-items/);
+    for (const bad of ["0", "-1", "6.5", "six", "", "1e1"]) expect(() => c.parseCheckArgs([...withoutFlag("--checklist-items"), "--checklist-items", bad]), bad).toThrow(/--checklist-items/);
+    for (const flag of ["--project-id", "--version", "--manifest-sha256", "--run-folder"]) expect(() => c.parseCheckArgs(withoutFlag(flag)), flag).toThrow(new RegExp(flag));
+    expect(() => c.parseCheckArgs(CHECK_ARGS.slice(1)), "no copy folder").toThrow(/copy/);
+    expect(() => c.parseCheckArgs([...CHECK_ARGS, "--checklist-items", "6"]), "a flag twice").toThrow(/--checklist-items/);
+  });
+
+  it("the script itself refuses to run without --checklist-items, before anything else: exit code 2, the flag named", () => {
+    const r = spawnSync(process.execPath, ["--import", "tsx", "scripts/check-export.ts", ...withoutFlag("--checklist-items")], {
+      cwd: builderDir,
+      env: { PATH: process.env.PATH ?? "/usr/bin:/bin", HOME: process.env.HOME ?? "/root", TMPDIR: tmpdir() },
+      encoding: "utf8",
+      timeout: 60_000,
+    });
+    expect(r.status, `${r.stdout}\n${r.stderr}`).toBe(2);
+    expect(r.stderr).toMatch(/--checklist-items/);
+    expect(r.stdout).toBe("");
+  }, 70_000);
+
+  it('a made-up results folder, read with the count given: 6 gives "version passed; checklist incomplete (5 of the app spec\'s 6 checklist items have no test)"; 1 gives "version passed"', async () => {
+    const c = await checkModule();
+    const results = folder("x32c-results-");
+    const runId = "run-20261114t000000-made0up0";
+    const manifestSha256 = "b".repeat(64);
+    const manifest = {
+      version: "v001",
+      project_id: COPY_PROJECT,
+      written_by: "stand-in" as const,
+      written_by_note: "",
+      written_at: "",
+      app_spec_sha256: "a".repeat(64),
+      marker: "acceptance-marker-" + "0".repeat(32),
+      items: [{ number: 1, file: "item-01.spec.ts", sha256: "c".repeat(64), checklist: "made-up" }],
+    };
+    mkdirSync(join(results, "test-results", "item-01"), { recursive: true });
+    writeFileSync(join(results, "test-results", "item-01", "item-01-stand-in-test.png"), "made-up png");
+    const report = {
+      config: { metadata: { runId, manifestSha256 } },
+      suites: [
+        {
+          title: "item-01.spec.ts",
+          file: "item-01.spec.ts",
+          specs: [
+            {
+              title: "item 1 (stand-in test): made-up",
+              file: "item-01.spec.ts",
+              tests: [
+                {
+                  expectedStatus: "passed",
+                  status: "expected",
+                  annotations: [],
+                  results: [{ status: "passed", retry: 0, errors: [], annotations: [], steps: [], attachments: [{ name: "item-screenshot", contentType: "image/png", path: "/results/test-results/item-01/item-01-stand-in-test.png" }] }],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+      errors: [],
+    };
+    writeFileSync(join(results, "results.json"), JSON.stringify(report));
+    const facts = { resultsDir: results, runId, manifest, manifestSha256, refused: null, appAnswered: true as const, exit: { code: 0, timedOut: false } };
+    const six = c.copyReading(c.parseCheckArgs(CHECK_ARGS), facts);
+    expect(six.outcome).toBe("passed");
+    expect(six.summary).toBe("version passed; checklist incomplete (5 of the app spec's 6 checklist items have no test)");
+    const one = c.copyReading(c.parseCheckArgs([...withoutFlag("--checklist-items"), "--checklist-items", "1"]), facts);
+    expect(one.summary).toBe("version passed");
+  });
+});
+
+describe("T8: the check from the copy starts 3.1's runner from 3.1's own service definition, not a second one", () => {
+  it("the runner's docker run arguments are acceptanceService's fields and HARDENING, field by field; the forwarder's namespace in place of front is the one difference; exactly 3.1's three mounts; BASE_URL and RUN_ID only; 3.1's command", async () => {
+    const m = await import("../src/sandbox/manager.js");
+    const runner = await import("../src/acceptance/runner.js");
+    const image = await import("../src/acceptance/runner-image.js");
+    const c = await checkModule();
+    const common = { cap_drop: m.HARDENING.cap_drop, security_opt: m.HARDENING.security_opt, pids_limit: m.HARDENING.pids_limit, mem_limit: m.HARDENING.mem_limit };
+    const appUrl = "http://localhost:3191";
+    const svc = m.acceptanceService({ acceptance: { image: image.RUNNER_IMAGE, baseUrl: appUrl } }, common) as Svc & { working_dir: string; entrypoint: string[]; profiles: string[] };
+    // Every field of 3.1's service is read below: a field added there fails here until the check maps it.
+    expect(Object.keys(svc).sort()).toEqual(["cap_drop", "entrypoint", "environment", "image", "mem_limit", "networks", "pids_limit", "profiles", "pull_policy", "read_only", "security_opt", "tmpfs", "user", "working_dir"]);
+    const o = {
+      container: `${COPY_PROJECT}-copycheck-runner-made0up`,
+      forwarder: `${COPY_PROJECT}-copycheck-forwarder-made0up`,
+      appUrl,
+      runId: "run-20261114t000000-made0up0",
+      versionDir: `/made/up/exports/${COPY_PROJECT}/acceptance/v001`,
+      resultsDir: "/made/up/check-runs/run-1/results",
+      keysVolume: `${COPY_PROJECT}_keys`,
+    };
+    const args = c.runnerRunArgs(o);
+    expect(args.slice(0, 2)).toEqual(["run", "--rm"]);
+    const at = args.indexOf(svc.image!);
+    expect(at).toBeGreaterThan(2);
+    expect(args.slice(at + 1)).toEqual(runner.RUNNER_COMMAND);
+    const flags = new Map<string, Array<string | true>>();
+    const lone = new Set(["--rm", "--read-only"]);
+    for (let i = 1; i < at; i++) {
+      const f = args[i]!;
+      expect(f.startsWith("--"), f).toBe(true);
+      const v: string | true = lone.has(f) ? true : args[++i]!;
+      flags.set(f, [...(flags.get(f) ?? []), v]);
+    }
+    expect([...flags.keys()].sort()).toEqual(["--cap-drop", "--entrypoint", "--env", "--memory", "--mount", "--name", "--network", "--pids-limit", "--pull", "--read-only", "--rm", "--security-opt", "--tmpfs", "--user", "--workdir"]);
+    expect(flags.get("--name")).toEqual([o.container]);
+    expect(flags.get("--pull")).toEqual([svc.pull_policy]);
+    expect(svc.cap_drop).toEqual(m.HARDENING.cap_drop);
+    expect(flags.get("--cap-drop")).toEqual(svc.cap_drop);
+    expect(svc.security_opt).toEqual(m.HARDENING.security_opt);
+    expect(flags.get("--security-opt")).toEqual(svc.security_opt);
+    expect(flags.get("--pids-limit")).toEqual([String(svc.pids_limit)]);
+    expect(svc.pids_limit).toBe(m.HARDENING.pids_limit);
+    expect(flags.get("--memory")).toEqual([svc.mem_limit]);
+    expect(svc.mem_limit).toBe(m.HARDENING.mem_limit);
+    expect(svc.read_only).toBe(true);
+    expect(flags.get("--read-only")).toEqual([true]);
+    expect(flags.get("--tmpfs")).toEqual(svc.tmpfs);
+    expect(flags.get("--user")).toEqual([svc.user]);
+    expect(svc.entrypoint).toEqual([]);
+    expect(flags.get("--entrypoint")).toEqual([""]);
+    expect(flags.get("--workdir")).toEqual([svc.working_dir]);
+    expect(Object.keys(svc.environment!)).toEqual(["BASE_URL"]);
+    expect(flags.get("--env")).toEqual([`BASE_URL=${svc.environment!.BASE_URL}`, `RUN_ID=${o.runId}`]);
+    // The one difference: 3.1's runner is on `front`; here it shares the forwarder's namespace, on <project>_front alone (S27).
+    expect(svc.networks).toEqual(["front"]);
+    expect(flags.get("--network")).toEqual([`container:${o.forwarder}`]);
+    // Exactly 3.1's three mounts, at 3.1's places: the tests read-only, a fresh results folder, the password read-only.
+    const mounts = (flags.get("--mount") as string[]).map((s) => Object.fromEntries(s.split(",").map((kv) => (kv.includes("=") ? [kv.slice(0, kv.indexOf("=")), kv.slice(kv.indexOf("=") + 1)] : [kv, true]))));
+    expect(mounts).toEqual([
+      { type: "bind", source: o.versionDir, target: runner.RUNNER_MOUNT_TARGETS.tests, readonly: true },
+      { type: "bind", source: o.resultsDir, target: runner.RUNNER_MOUNT_TARGETS.results },
+      { type: "volume", source: o.keysVolume, target: runner.RUNNER_MOUNT_TARGETS.samplePassword, readonly: true, "volume-subpath": "sample_password" },
+    ]);
+    expect(runner.RUNNER_MOUNT_TARGETS).toEqual({ tests: "/acceptance", results: "/results", samplePassword: "/run/secrets/sample-password" });
   });
 });
