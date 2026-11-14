@@ -504,3 +504,7 @@ Docker volumes: 4 before, 4 after; new: none; gone: none
 Docker networks: 3 before, 3 after; new: none; gone: none
 Result: baseline every named test passed; controls: 75 run, 75 failed their tests as they should.
 Probes: 5 run; a test saw the removal in 0; no test saw it in P1, P2, P3, P4, P5.
+
+Note added after the run: P2's 817 s include about 11 minutes spent waiting for the shared lock, which a process not of
+this run held (a listener left running by another measurement, `<scratchpad>/d32-edge`, 15:52 to about 16:05 UTC); once it
+was gone, P2 ran as the others did. Nothing of this run touched that process.
