@@ -3,6 +3,15 @@
  * written (design, "checks the implementer must run", item 3). Nothing here is a test: it only records what
  * this machine's Docker does, so that the code is written to what was measured.
  *
+ * CORRECTION, 14 Nov 2026, after the review of that day; the words above are left as first written. That is what
+ * the design asked for, not what happened. This script was STARTED first (it waited for the shared lock from
+ * 12:03:02 UTC), but the numbers that are kept come from its fourth try (12:25:13 to 12:29:54 UTC), and the code was
+ * written while it waited and while its first three tries were repaired: the two new lists at 12:03:55, the new
+ * unit tests at 12:12:32, the new live test file at 12:17:11, the controls script at 12:24:34 (the reviewer's reading
+ * of the files' times). M6 (measure-seen.mts, 12:31:20) was measured WITH the new harness function it is about.
+ * What holds: every measurement was finished before the new tests were first run (12:33:21) and before the first
+ * commit (12:32:46).
+ *
  * Usage (from builder/ of a copy made by checks/make-run-copy.sh, under the shared lock):
  *   npx tsx ../evidence/2026-11-14-package-0.6c-real-containers/measurements/measure-first.mts <output folder> [<the worktree's builder folder>]
  *
