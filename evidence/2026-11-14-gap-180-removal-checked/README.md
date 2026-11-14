@@ -250,3 +250,7 @@ Row 180 of `docs/KNOWN-GAPS.md` lists it, (a) to (r). In short:
 - A signed-off project that was not exported yet cannot be exported once "Close project" was pressed.
 - The record's own state marks the app as not running after every removal event, also one that could not ask Docker.
 - A whole run of the two test files can be red from the tests' own database clean-up (row 185): that helper is not changed.
+
+## Added after the merge into pull request #51's branch (14 November 2026)
+
+The whole suite, J2's automated run and every control were repeated on the code pull request #51 merges, and the tests' own database clean-up was changed (row 185), so the last line above no longer holds for that code. Results and files: [`merged/README.md`](merged/README.md). In short: the whole suite 814 of 814; 87 of 87 controls; J2's automated run 153 of 153; the two test files whole, three runs each, 78 of 78 with exit code 0 every time.

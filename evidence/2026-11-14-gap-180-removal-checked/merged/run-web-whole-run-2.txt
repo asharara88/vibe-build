@@ -1,0 +1,13 @@
+test/web.test.ts whole, run 2 of 3, on commit dec6725 (builder/ tree f1a4770), builder/ as committed. Database builder_test_f51, fresh. Under the shared lock. Each run is kept; none is replaced.
+Lock held from 15:29:46 UTC.
+
+ RUN  v5.1.0 /home/user/vibe-build/builder
+
+
+ Test Files  1 passed (1)
+      Tests  78 passed (78)
+   Start at  15:29:47
+   Duration  57.45s (tests 99%)
+
+vitest exit code: 0
+Lock released at 15:30:44 UTC.

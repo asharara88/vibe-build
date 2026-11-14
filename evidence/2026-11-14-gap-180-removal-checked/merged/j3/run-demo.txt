@@ -1,0 +1,95 @@
+J3's automated run, 2026-11-14T16:43:23.978Z (run 20261114_0aa3a7).
+The approved runner image builder-acceptance-runner:local is on the machine, labelled builder.browser-zip-sha256 with the approved browser zip's fingerprint (runnerImageProblem); this run neither builds nor removes it.
+Builder tree: f1a47703f86a3ff10773d29c3903b964aa32acce (git write-tree --prefix=builder/ of the index at the start of the run).
+Free disk before: /dev/vda        252G   23G   16G  60% /
+Containers on the machine before (every one; others belong to other sessions):
+(none)
+Journey containers, images, volumes and networks before: none
+Ports 13161, 4021 and 4041 on 127.0.0.1 free before the run. The owner's interface on 4020 is not touched.
+Fresh database builder_j3_20261114_0aa3a7; fresh data folder. A random interface password, given to the interface in its environment and to the builder camera as a read-only file; not printed or kept.
+The interface started: Live preview front listening on http://127.0.0.1:4041, as uid 1990 (no name in /etc/passwd). Interface listening on http://127.0.0.1:4021 (password from: env).
+The camera socket (preview.ts, cameraSocket): a folder of the runner's user (mode 750), one socket (mode 600), passed byte for byte to 127.0.0.1:4041.
+The builder camera: docker run --rm --name j3-builder-camera-20261114_0aa3a7 --network host --read-only --tmpfs /tmp:rw,noexec,nosuid,size=512m --cap-drop ALL --security-opt no-new-privileges:true --pids-limit 256 --memory 1g --user runner --workdir /runner --entrypoint node --env BUILDER_CAMERA_BASE=http://127.0.0.1:4021 --env BUILDER_CAMERA_WALK=j3 --volume /home/user/vibe-build/builder/camera/builder-shots.mjs:/camera/builder-shots.mjs:ro --volume <run folder>/camera-out:/shots --volume <run folder>/secret/ui-password:/run/secrets/ui-password:ro builder-acceptance-runner:local /camera/builder-shots.mjs
+  PASSED: builder camera: signed in, at the projects page
+  PASSED: builder camera: the project is made
+  PASSED: builder camera: step 1 built
+  PASSED: builder camera: step 2 built
+  PASSED: builder camera: the preview is made: the app runs
+  PASSED: builder camera: the live app's panel, labelled: simulated build, made-up data, not yet approved for use
+  PASSED: builder camera: the pass is shown once, on the POST's answer
+  PASSED: builder camera: Show gives the made-up employee's sign-in
+The pass and the sample password were taken from the builder camera's folder (and removed there) and given to the live camera as read-only files.
+  PASSED: live camera: before the pass: the gate, with its two labels
+  PASSED: live camera: the pass let the browser in, at the app
+  PASSED: live camera: the app's own sample-data banner is there
+  PASSED: live camera: signed in to the app as the made-up employee, through the preview
+  live camera: {"kind":"timing","what":"sign-in to home","ms":926}
+  PASSED: live camera: the new request was saved: the list shows it
+  PASSED: live camera: the app in Arabic, right to left
+  PASSED: live camera: the walk itself drew no content-security-policy refusal
+  PASSED: live camera: a fetch to http://app:3161 from the app's page is refused
+  PASSED: live camera: a fetch to the builder's 127.0.0.1:4020 from the app's page is refused
+  PASSED: live camera: a fetch to an outside name from the app's page is refused
+  PASSED: live camera: a service worker is refused
+  live camera: {"kind":"fact","name":"WebRTC in the app's page","value":"present (not blocked by the preview)"}
+  live camera: {"kind":"fact","name":"the preview is a secure context in this browser","value":"true"}
+  live camera: {"kind":"blocked","by_route":{},"note":"addresses the browser tried that the camera's own rule refused; those the policy refused never reach it"}
+  PASSED: live camera: none of those fetches reached the network: the policy refused them before the camera's rule saw them
+  live camera: {"kind":"fact","name":"answer bodies read for the app's address","value":"86 of 87 (the rest were still streaming when read)"}
+  live camera: {"kind":"answers","count":89,"statuses":{"200":86,"303":1,"307":2},"locations":["303 /__builder/enter -> /","307 / -> /en","307 /en -> /en/sign-in"],"cookie_names":["builder_preview","bpd0945095_NEXT_LOCALE","bpd0945095_better-auth.session_token"],"bodies_naming_app_3161":[]}
+  PASSED: live camera: no answer the browser got names the app's own address (app:3161)
+  PASSED: live camera: every cookie the browser was given carries the session's prefix or is the front's own
+  PASSED: live camera: no Location the browser got leads off the preview
+  PASSED: live camera: signed out of the app
+  PASSED: live camera: left the live app
+  PASSED: live camera: after leaving, the app is not reached: the gate's page
+  live camera: {"kind":"timing","what":"whole walk","ms":12871}
+  live camera: {"kind":"csp","violations_seen_in_console":7,"messages":["Creating a worker from 'http://127.0.0.1:4030/sw-probe.js' violates the following Content Security Policy directive: \"worker-src 'none'\". The action has been blocked.","Connecting to 'http://app:3161/en/sign-in' violates the following Content Security Policy directive: \"connect-src 'self'\". The action has been blocked.","Fetch API cannot load http://app:3161/en/sign-in. Refused to connect because it violates the document's Content Security Policy.","Connecting to 'http://127.0.0.1:4020/' violates the following Content Security Polic
+  PASSED: live camera: nothing but http://127.0.0.1:4030 was loaded by the camera's own rule
+The live camera ended with exit code 0 after 14 s.
+  PASSED: builder camera: the live camera finished its walk
+  PASSED: builder camera: the preview screen says the last live session closed when the owner left
+  PASSED: builder camera: a second pass is shown
+  PASSED: builder camera: the checklist ran
+  PASSED: builder camera: the checklist's screen says the app was used live and its data changed
+  PASSED: builder camera: the open pass was ended by the checklist
+  PASSED: builder camera: the record holds live_opened, live_entered and live_closed
+  PASSED: builder camera: the project is closed: its containers, images and folder removed
+  PASSED: builder camera: signed out
+  PASSED: builder camera: nothing but 127.0.0.1:4021 was loaded
+The builder camera ended with exit code 0.
+Journey containers Docker listed while the cameras ran (sampled every second; name [networks], published ports if any): 16
+  builder_j1-a6067d394385-egress-host-1 [host]
+  builder_j1-a6067d394385-db-1 [builder_j1-a6067d394385_data] ports: 5432/tcp
+  builder_j1-a6067d394385-tools-run-b774f33b194b [builder_j1-a6067d394385_data]
+  builder_j1-a6067d394385-tools-run-c6d0f3a7cfdc [builder_j1-a6067d394385_data]
+  builder_j1-a6067d394385-check-run-8fd60f6e43f1 [builder_j1-a6067d394385_front]
+  builder_j1-a6067d394385-app-1 [builder_j1-a6067d394385_data,builder_j1-a6067d394385_front] ports: 3000/tcp
+  builder_j1-a6067d394385-app-camera-7edbdb [builder_j1-a6067d394385_front]
+  builder_j1-a6067d394385-live-camera-dd2c37 [builder_j1-a6067d394385_front]
+  builder_j1-a6067d394385-live-6b0aa045 [builder_j1-a6067d394385_front]
+  builder_j1-a6067d394385-live-2641e6b8 [builder_j1-a6067d394385_front]
+  builder_j1-a6067d394385-live-6b8a1886 [builder_j1-a6067d394385_front]
+  builder_j1-a6067d394385-live-f896928f [builder_j1-a6067d394385_front]
+  builder_j1-a6067d394385-live-373a7300 [builder_j1-a6067d394385_front]
+  builder_j1-a6067d394385-live-85534063 [builder_j1-a6067d394385_front]
+  builder_j1-a6067d394385-check-run-b07c2ee2427d [builder_j1-a6067d394385_front]
+  builder_j1-a6067d394385-acceptance-run-20261114t164418-b76eee30 [builder_j1-a6067d394385_front]
+  PASSED: no J1 container published a port on the machine (Docker's list, every second)
+  PASSED: only the door's machine side (egress-host) was on the machine's network
+  PASSED: the app camera ran on the project's front network alone
+  PASSED: the acceptance runner ran on the project's front network alone
+  PASSED: the app was on the project's data and front networks alone
+  PASSED: every check container seen (it asks the app before a start or a run) was on the front network alone
+  PASSED: the live camera ran on the project's front network alone
+  PASSED: every stream to the app (a check container) seen was on the project's front network alone, publishing no port
+Screenshots copied into the evidence folder: 20 (builder camera 10, live camera 10).
+Events written to events.json: 91, in id order. live_opened 2, live_entered 1, live_closed 2 (reasons: leave, checklist).
+Journey containers, images, volumes and networks left when the interface stopped: none
+Sandbox folders left in the temporary folder, removed: none. Short folders of previews in /tmp after the stop: none.
+Run folder removed: yes. Database builder_j3_20261114_0aa3a7 dropped.
+Containers on the machine after (every one): (none)
+Ports after: 4021 free, 4041 free, 13161 free.
+Free disk after: /dev/vda        252G   23G   16G  60% /
+Checks in all (both cameras', the record's and Docker's list): 46 passed, 0 failed.
+Result: every check passed (exit code 0).

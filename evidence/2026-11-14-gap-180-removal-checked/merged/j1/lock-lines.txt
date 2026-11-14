@@ -1,0 +1,4 @@
+The run's lock lines (flock, then the run, then these), on commit dec6725 (builder/ tree f1a4770), builder/ as committed; working tree of builder/: 0 changed files:
+Lock held from 16:41:54 UTC.
+run exit code: 0
+Lock released at 16:43:23 UTC.
