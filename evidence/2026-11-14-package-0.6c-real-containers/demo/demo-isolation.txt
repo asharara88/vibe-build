@@ -1,0 +1,931 @@
+The demonstration: part A in real containers, part B in stand-in images. Under the shared lock.
+On a copy of commit 51d6cc0 (git archive; node_modules as real folders), started 2026-11-14T13:37:08Z.
+Command, from builder/: flock <scratchpad>/live-tests.lock npx tsx scripts/demo-isolation.ts <this evidence folder>/demo
+
+Lock held from 13:37:08 UTC.
+Package 0.6c: the development profile's network boundary, from inside every project container, compared with design note 2.5's lists.
+Part A: the real containers of a real example-1 project. Part B: placement, in stand-in images, as on 13 Nov. Package 2.2's engine does not exist and is in neither.
+The session proxy, as the machine side is given it: 127.0.0.1:38369 (host and port only).
+Free disk before the run: 17.2 GB (df -k /).
+Docker objects before the run (the whole machine, shared with other sessions):
+  containers: none
+  networks: bridge, host, none
+  volumes: none
+  images: builder-acceptance-runner:local, node:22-alpine, postgres:16-alpine, ubuntu:<none>
+
+Listening on the machine for both parts: the canary on every address of the machine, port 46861; a stand-in preview front on 127.0.0.1:4041 (server: preview-front-stand-in); a stand-in gateway on 127.0.0.1:35271 (server: gateway-stand-in), used by part B only.
+
+==== PART A. REAL CONTAINERS OF A REAL EXAMPLE-1 PROJECT (14 Nov 2026) ====
+== A1. The real images and the real project ==
+  The acceptance runner's real image builder-acceptance-runner:local: built from the approved browser zip by buildRunnerImage (from Docker's build cache when nothing changed); as approved; it carries the zip's label. Id sha256:2e1340795a27782bde30b20f6f815aa87c3eda7634112a8a2e91d48ee44843e1.
+  App and tools images built (the template's guard check and next build ran in the build).
+  Tables created and sample users added in the tools container (3 lines from the seed).
+  Before the app was started, nothing answered at http://app:3191, asked from a container on the project's front network (EAI_AGAIN).
+  App container started and healthy.
+  The door (egress, with egress-host) was started too; the product does not start it for a scripted-engine project today. Nothing listens behind this project's gateway address (127.0.0.1:4010).
+  Container app: running (healthy)
+  Container db: running (healthy)
+  Container egress: running (healthy)
+  Container egress-host: running (healthy)
+  app: builder_p_iso06c_real_demo-app:latest
+    id: sha256:bdf5679a7d1e739b32a4cde688361decab89a0a16d5836993162b32ab9af0f1a
+    user: "app"; command: ["node","server.js"]; entrypoint: ["docker-entrypoint.sh"]; working folder: "/app"; labels: {}
+    how it was made: built in this run by sandbox.build from the project's workspace (the house template after the scripted engine's steps 01 and 02), the Dockerfile's `run` stage
+  tools: builder_p_iso06c_real_demo-tools:latest
+    id: sha256:1556da4e2e4f7c5d8a54f13acf900ce0dbe10569efcb3d24d76c05ba9cfdf388
+    user: "node"; command: ["node","-e","console.error('The tools image runs one named command at a time, e.g. drizzle-kit push or the seed.'); pro; entrypoint: []; working folder: "/app"; labels: {}
+    how it was made: built in this run by sandbox.build from the same workspace, the Dockerfile's `tools` stage
+  acceptance runner: builder-acceptance-runner:local
+    id: sha256:2e1340795a27782bde30b20f6f815aa87c3eda7634112a8a2e91d48ee44843e1
+    user: "runner"; command: ["/bin/bash"]; entrypoint: []; working folder: "/runner"; labels: {"builder.browser-zip-sha256":"a9da028861a0cf789ff25c2fed45f5f1aaf969ed9247835b6a7821a4f7af9d1d","builder.never-pushed":"true","builder.package":"3.1","org.opencontainers.image.version":"24.04"}
+    how it was made: built by buildRunnerImage from builder/runner and the approved browser zip; machine-wide, never removed here
+  approved Node image (check, engine, door): node:22-alpine@sha256:0e1754758c2df4cfa3e68d59e2e1b7374bb7fd9ea6328eaaacf15cc934af8202
+    id: sha256:0e1754758c2df4cfa3e68d59e2e1b7374bb7fd9ea6328eaaacf15cc934af8202
+    user: ""; command: ["node"]; entrypoint: ["docker-entrypoint.sh"]; working folder: "/"; labels: {}
+    how it was made: the approved Node image, by its digest
+  Are these the real images (realImageProblemsFrom)? Yes: no problem found.
+  The running app container runs the image the build made: yes (sha256:bdf5679a7d1e739b32a4cde688361decab89a0a16d5836993162b32ab9af0f1a).
+
+== A2. The probe inside each real container, compared with its list ==
+  Every address the machine holds: 172.17.0.1, 192.0.2.2
+  Listening TCP sockets on the machine: 0.0.0.0:2024, 0.0.0.0:46861, 127.0.0.1:34803, 127.0.0.1:35271, 127.0.0.1:38369, 127.0.0.1:4041, 127.0.0.1:43013, 127.0.0.1:5432
+  Machine listeners given to the probe include the front's port 4041: yes.
+  -- app, the running container itself (real container, in place): 56 attempts; 5 got an answer (a connection opened, an HTTP status, a proxy's answer, or an address found); compared with its list: PASS (56 rows PASS, 0 FAIL)
+     network interfaces that are up and running, with their addresses (as Node lists them): lo (127.0.0.1); eth0 (172.18.0.2); eth1 (172.19.0.1)
+     name servers in /etc/resolv.conf: 127.0.0.11
+     IPv4 routes (/proc/net/route): to 172.18.0.0/16 via 0.0.0.0 on eth0; to 172.19.0.0/16 via 0.0.0.0 on eth1
+     a default route (a way to any address): no
+     packet forwarding (/proc/sys/net/ipv4/ip_forward): 1
+     IPv6 in this network namespace (/proc/net/if_inet6): absent: this kernel has no IPv6 here
+     answered: X3191 127.0.0.1:3191: connected
+     answered: X44161 127.0.0.11:44161: connected
+     answered: D3 db: found 1 address; 172.18.0.1
+     answered: Pdb:5432 db:5432: connected
+     answered: Papp:3191 app:3191: connected
+     where it ran: container builder_p_iso06c_real_demo-app-1 (4c0e0c1e4e80), the one buildAndStart started; the same before and after the probe; image builder_p_iso06c_real_demo-app:latest (sha256:bdf5679a7d1e739b32a4cde688361decab89a0a16d5836993162b32ab9af0f1a); user id 100 (the probe's own line); networks: builder_p_iso06c_real_demo_data builder_p_iso06c_real_demo_front ; user setting "app"; read-only root: true; how the probe got in: `docker compose exec` in the running container: the probe file written to its own /tmp/isolation-probe.mjs from one base64 argument (59316 characters), its SHA-256 read back inside (3afbd7d85547d1a9dd650e11a198eb590a3db83b9fe413009ecd063dd746c084; the repository's file: 3afbd7d85547d1a9dd650e11a198eb590a3db83b9fe413009ecd063dd746c084), run there, removed (seen gone: true)
+     listening TCP ports seen inside the running app: 0.0.0.0:3191, 127.0.0.11:44161; its own listener 0.0.0.0:3191 among them: yes
+  -- app, a one-off container of the real image (real image, one-off container): 55 attempts; 4 got an answer (a connection opened, an HTTP status, a proxy's answer, or an address found); compared with its list: PASS (55 rows PASS, 0 FAIL)
+     network interfaces that are up and running, with their addresses (as Node lists them): lo (127.0.0.1); eth0 (172.18.0.3); eth1 (172.19.0.2)
+     name servers in /etc/resolv.conf: 127.0.0.11
+     IPv4 routes (/proc/net/route): to 172.18.0.0/16 via 0.0.0.0 on eth0; to 172.19.0.0/16 via 0.0.0.0 on eth1
+     a default route (a way to any address): no
+     packet forwarding (/proc/sys/net/ipv4/ip_forward): 1
+     IPv6 in this network namespace (/proc/net/if_inet6): absent: this kernel has no IPv6 here
+     answered: X33063 127.0.0.11:33063: connected
+     answered: D3 db: found 1 address; 172.18.0.1
+     answered: Pdb:5432 db:5432: connected
+     answered: Papp:3191 app:3191: connected
+     where it ran: container builder_p_iso06c_real_demo-isolation-app-real, a one-off container of the app service (`docker compose run --rm --no-deps`), removed when the probe ended; image builder_p_iso06c_real_demo-app:latest (sha256:bdf5679a7d1e739b32a4cde688361decab89a0a16d5836993162b32ab9af0f1a); user id 100 (the probe's own line), Docker's user setting "app"; networks: builder_p_iso06c_real_demo_data, builder_p_iso06c_real_demo_front; read-only root: true; how the probe got in: the probe mounted read-only at /probe as the container's command, in place of the service's own
+  -- tools, a one-off container of the real image (real image, one-off container): 55 attempts; 4 got an answer (a connection opened, an HTTP status, a proxy's answer, or an address found); compared with its list: PASS (55 rows PASS, 0 FAIL)
+     network interfaces that are up and running, with their addresses (as Node lists them): lo (127.0.0.1); eth0 (172.18.0.3)
+     name servers in /etc/resolv.conf: 127.0.0.11
+     IPv4 routes (/proc/net/route): to 172.18.0.0/16 via 0.0.0.0 on eth0
+     a default route (a way to any address): no
+     packet forwarding (/proc/sys/net/ipv4/ip_forward): 1
+     IPv6 in this network namespace (/proc/net/if_inet6): absent: this kernel has no IPv6 here
+     answered: X35595 127.0.0.11:35595: connected
+     answered: D3 db: found 1 address; 172.18.0.1
+     answered: Pdb:5432 db:5432: connected
+     answered: Papp:3191 app:3191: connected
+     where it ran: container builder_p_iso06c_real_demo-isolation-tools-real, a one-off container of the tools service (`docker compose run --rm --no-deps`), removed when the probe ended; image builder_p_iso06c_real_demo-tools:latest (sha256:1556da4e2e4f7c5d8a54f13acf900ce0dbe10569efcb3d24d76c05ba9cfdf388); user id 1000 (the probe's own line), Docker's user setting "node"; networks: builder_p_iso06c_real_demo_data; read-only root: true; how the probe got in: the probe mounted read-only at /probe as the container's command, in place of the service's own
+  -- runner (package 3.1), a one-off container of the real image (real image, one-off container): 55 attempts; 2 got an answer (a connection opened, an HTTP status, a proxy's answer, or an address found); compared with its list: PASS (55 rows PASS, 0 FAIL)
+     network interfaces that are up and running, with their addresses (as Node lists them): lo (127.0.0.1); eth0 (172.19.0.2)
+     name servers in /etc/resolv.conf: 127.0.0.11
+     IPv4 routes (/proc/net/route): to 172.19.0.0/16 via 0.0.0.0 on eth0
+     a default route (a way to any address): no
+     packet forwarding (/proc/sys/net/ipv4/ip_forward): 1
+     IPv6 in this network namespace (/proc/net/if_inet6): absent: this kernel has no IPv6 here
+     answered: X46657 127.0.0.11:46657: connected
+     answered: Papp:3191 app:3191: connected
+     where it ran: container builder_p_iso06c_real_demo-isolation-runner-real, a one-off container of the acceptance service (`docker compose run --rm --no-deps`), removed when the probe ended; image builder-acceptance-runner:local (sha256:2e1340795a27782bde30b20f6f815aa87c3eda7634112a8a2e91d48ee44843e1); user id 1001 (the probe's own line), Docker's user setting "runner"; networks: builder_p_iso06c_real_demo_front; read-only root: true; how the probe got in: the probe mounted read-only at /probe as the container's command, in place of the service's own
+  -- the live camera: the runner's service with the camera socket at /psock, the real runner image (real image, one-off container): 56 attempts; 3 got an answer (a connection opened, an HTTP status, a proxy's answer, or an address found); compared with its list: PASS (56 rows PASS, 0 FAIL)
+     network interfaces that are up and running, with their addresses (as Node lists them): lo (127.0.0.1); eth0 (172.19.0.2)
+     name servers in /etc/resolv.conf: 127.0.0.11
+     IPv4 routes (/proc/net/route): to 172.19.0.0/16 via 0.0.0.0 on eth0
+     a default route (a way to any address): no
+     packet forwarding (/proc/sys/net/ipv4/ip_forward): 1
+     IPv6 in this network namespace (/proc/net/if_inet6): absent: this kernel has no IPv6 here
+     answered: X45509 127.0.0.11:45509: connected
+     answered: Papp:3191 app:3191: connected
+     answered: U1 /psock/c.sock: HTTP 200; server: preview-front-stand-in
+     where it ran: container builder_p_iso06c_real_demo-isolation-camera-real, a one-off container of the acceptance service (`docker compose run --rm --no-deps`), removed when the probe ended; image builder-acceptance-runner:local (sha256:2e1340795a27782bde30b20f6f815aa87c3eda7634112a8a2e91d48ee44843e1); user id 1001 (the probe's own line), Docker's user setting "runner"; networks: builder_p_iso06c_real_demo_front; read-only root: true; how the probe got in: the probe mounted read-only at /probe as the container's command, in place of the service's own
+  -- a live preview stream, check (real image, one-off container): 55 attempts; 2 got an answer (a connection opened, an HTTP status, a proxy's answer, or an address found); compared with its list: PASS (55 rows PASS, 0 FAIL)
+     network interfaces that are up and running, with their addresses (as Node lists them): lo (127.0.0.1); eth0 (172.19.0.2)
+     name servers in /etc/resolv.conf: 127.0.0.11
+     IPv4 routes (/proc/net/route): to 172.19.0.0/16 via 0.0.0.0 on eth0
+     a default route (a way to any address): no
+     packet forwarding (/proc/sys/net/ipv4/ip_forward): 1
+     IPv6 in this network namespace (/proc/net/if_inet6): absent: this kernel has no IPv6 here
+     answered: X36325 127.0.0.11:36325: connected
+     answered: Papp:3191 app:3191: connected
+     where it ran: container builder_p_iso06c_real_demo-isolation-check-real, a one-off container of the check service (`docker compose run --rm --no-deps`), removed when the probe ended; image node:22-alpine@sha256:0e1754758c2df4cfa3e68d59e2e1b7374bb7fd9ea6328eaaacf15cc934af8202 (sha256:0e1754758c2df4cfa3e68d59e2e1b7374bb7fd9ea6328eaaacf15cc934af8202); user id 1000 (the probe's own line), Docker's user setting "node"; networks: builder_p_iso06c_real_demo_front; read-only root: true; how the probe got in: the probe mounted read-only at /probe as the container's command, in place of the service's own
+  -- the scripted engine's container (package 2.1; no network; NOT package 2.2's engine) (real image, one-off container): 54 attempts; 0 got an answer (a connection opened, an HTTP status, a proxy's answer, or an address found); compared with its list: PASS (54 rows PASS, 0 FAIL)
+     network interfaces that are up and running, with their addresses (as Node lists them): lo (127.0.0.1)
+     name servers in /etc/resolv.conf: 8.8.8.8, 8.8.4.4
+     IPv4 routes (/proc/net/route): none
+     a default route (a way to any address): no
+     packet forwarding (/proc/sys/net/ipv4/ip_forward): 1
+     IPv6 in this network namespace (/proc/net/if_inet6): absent: this kernel has no IPv6 here
+     where it ran: container builder_p_iso06c_real_demo-isolation-engine-scripted-real, a one-off container of the engine service (`docker compose run --rm --no-deps`), removed when the probe ended; image node:22-alpine@sha256:0e1754758c2df4cfa3e68d59e2e1b7374bb7fd9ea6328eaaacf15cc934af8202 (sha256:0e1754758c2df4cfa3e68d59e2e1b7374bb7fd9ea6328eaaacf15cc934af8202); user id 1000 (the probe's own line), Docker's user setting "node"; networks: network mode none; read-only root: true; how the probe got in: the probe mounted read-only at /probe as the container's command, in place of the service's own
+  -- db: the probe in the running database container's network (network namespace only): 55 attempts; 6 got an answer (a connection opened, an HTTP status, a proxy's answer, or an address found); compared with its list: PASS (55 rows PASS, 0 FAIL)
+     network interfaces that are up and running, with their addresses (as Node lists them): lo (127.0.0.1); eth0 (172.18.0.1)
+     name servers in /etc/resolv.conf: 127.0.0.11
+     IPv4 routes (/proc/net/route): to 172.18.0.0/16 via 0.0.0.0 on eth0
+     a default route (a way to any address): no
+     packet forwarding (/proc/sys/net/ipv4/ip_forward): 1
+     IPv6 in this network namespace (/proc/net/if_inet6): absent: this kernel has no IPv6 here
+     answered: C5 127.0.0.1:5432: connected
+     answered: C7 127.0.0.1:5432: connected
+     answered: X44999 127.0.0.11:44999: connected
+     answered: D3 db: found 1 address; 172.18.0.1
+     answered: Pdb:5432 db:5432: connected
+     answered: Papp:3191 app:3191: connected
+     where it ran: container builder_p_iso06c_real_demo-isolation-db-real, a container of the approved Node image sharing the running database container's network (`docker run --network container:<db>`); image node:22-alpine@sha256:0e1754758c2df4cfa3e68d59e2e1b7374bb7fd9ea6328eaaacf15cc934af8202 (sha256:0e1754758c2df4cfa3e68d59e2e1b7374bb7fd9ea6328eaaacf15cc934af8202); user id 1000 (the probe's own line); networks: not asked; how the probe got in: only the network is the database's; the image, user and files are the probe container's (the database's image has no Node)
+  User ids the probes reported: app-running 100; app 100; tools 1000; runner 1001; camera 1001; check 1000; engine-scripted 1000; db 1000. As they should be (app and tools unprivileged, in place equal to one-off, runner and camera 1001): yes.
+
+== A3. Positive controls (not project containers), with the real project's settings: they must reach the canary ==
+  -- comparison: the machine's own network (real project's settings): 60 attempts; 30 got an answer (a connection opened, an HTTP status, a proxy's answer, or an address found); compared with its list: PASS (60 rows PASS, 0 FAIL)
+     network interfaces that are up and running, with their addresses (as Node lists them): lo (127.0.0.1); eth0 (192.0.2.2)
+     name servers in /etc/resolv.conf: 8.8.8.8, 8.8.4.4
+     IPv4 routes (/proc/net/route): to 0.0.0.0/0 via 192.0.2.1 on eth0; to 172.17.0.0/16 via 0.0.0.0 on docker0; to 192.0.2.0/24 via 0.0.0.0 on eth0
+     a default route (a way to any address): yes
+     packet forwarding (/proc/sys/net/ipv4/ip_forward): 1
+     IPv6 in this network namespace (/proc/net/if_inet6): absent: this kernel has no IPv6 here
+     answered: A1 registry.npmjs.org:443: certificate not trusted
+     answered: A2 registry.npmjs.org:80: HTTP 301; server: cloudflare; location: https://registry.npmjs.org/-/ping
+     answered: A3 example.com:443: certificate not trusted
+     answered: A4 example.com:80: HTTP 200; server: cloudflare
+     answered: A5 github.com:80: HTTP 301; location: https://github.com/
+     answered: B1 1.1.1.1:443: connected
+     answered: B2 172.66.147.243:80: connected
+     answered: B3 172.66.147.243:80: HTTP 200; server: cloudflare
+     answered: B4 169.254.169.254:80: HTTP 403; x-deny-reason: private_dest_ip; says: "Destination IP is in a private/reserved range"
+     answered: C5 127.0.0.1:5432: connected
+     answered: C7 127.0.0.1:5432: connected
+     answered: C9 127.0.0.1:38369: connected
+     answered: X2024 127.0.0.1:2024: connected
+     answered: X4041 127.0.0.1:4041: connected
+     answered: X34803 127.0.0.1:34803: connected
+     answered: X35271 127.0.0.1:35271: connected
+     answered: X43013 127.0.0.1:43013: connected
+     answered: X46861 127.0.0.1:46861: connected
+     answered: M172.17.0.1:2024 172.17.0.1:2024: connected
+     answered: M172.17.0.1:46861 172.17.0.1:46861: connected
+     answered: M192.0.2.2:2024 192.0.2.2:2024: connected
+     answered: M192.0.2.2:46861 192.0.2.2:46861: connected
+     answered: D1 registry.npmjs.org: found 12 addresses; 104.16.3.34, 104.16.5.34, 104.16.6.34
+     answered: D2 example.com: found 2 addresses; 172.66.147.243, 104.20.23.154
+     answered: D5 registry.npmjs.org @1.1.1.1: found 12 addresses; 104.16.3.34, 104.16.5.34, 104.16.6.34
+     answered: D6 example.com @1.1.1.1: found 2 addresses; 172.66.147.243, 104.20.23.154
+     answered: F1 registry.npmjs.org:443: proxy answered 200
+     answered: F2 github.com:443: proxy answered 200
+     answered: F3 example.com:443: proxy answered 200
+     answered: F4 github.com:443: certificate not trusted; the proxy answered 200; the error came after
+  -- comparison: Docker's default network (real project's settings): 54 attempts; 17 got an answer (a connection opened, an HTTP status, a proxy's answer, or an address found); compared with its list: PASS (54 rows PASS, 0 FAIL)
+     network interfaces that are up and running, with their addresses (as Node lists them): lo (127.0.0.1); eth0 (172.17.0.2)
+     name servers in /etc/resolv.conf: 8.8.8.8, 8.8.4.4
+     IPv4 routes (/proc/net/route): to 0.0.0.0/0 via 172.17.0.1 on eth0; to 172.17.0.0/16 via 0.0.0.0 on eth0
+     a default route (a way to any address): yes
+     packet forwarding (/proc/sys/net/ipv4/ip_forward): 1
+     IPv6 in this network namespace (/proc/net/if_inet6): absent: this kernel has no IPv6 here
+     answered: A1 registry.npmjs.org:443: certificate not trusted
+     answered: A2 registry.npmjs.org:80: HTTP 301; server: cloudflare; location: https://registry.npmjs.org/-/ping
+     answered: A3 example.com:443: certificate not trusted
+     answered: A4 example.com:80: HTTP 200; server: cloudflare
+     answered: A5 github.com:80: HTTP 301; location: https://github.com/
+     answered: B1 1.1.1.1:443: connected
+     answered: B2 172.66.147.243:80: connected
+     answered: B3 172.66.147.243:80: HTTP 200; server: cloudflare
+     answered: B4 169.254.169.254:80: HTTP 403; x-deny-reason: private_dest_ip; says: "Destination IP is in a private/reserved range"
+     answered: M172.17.0.1:2024 172.17.0.1:2024: connected
+     answered: M172.17.0.1:46861 172.17.0.1:46861: connected
+     answered: M192.0.2.2:2024 192.0.2.2:2024: connected
+     answered: M192.0.2.2:46861 192.0.2.2:46861: connected
+     answered: D1 registry.npmjs.org: found 12 addresses; 104.16.3.34, 104.16.5.34, 104.16.6.34
+     answered: D2 example.com: found 2 addresses; 172.66.147.243, 104.20.23.154
+     answered: D5 registry.npmjs.org @1.1.1.1: found 12 addresses; 104.16.3.34, 104.16.5.34, 104.16.6.34
+     answered: D6 example.com @1.1.1.1: found 2 addresses; 172.66.147.243, 104.20.23.154
+
+== A4. Four deliberate misconfigurations of real containers: each must FAIL its comparison ==
+  R1: the real app also on an ordinary bridge (a way out) (builder_p_iso06c_real_demo_mis1; made in 22 s).
+     its images are the real ones: yes
+  -- misconfiguration R1: the real app also on an ordinary bridge (a way out); the app service's one-off container, image builder_p_iso06c_real_demo_mis1-app:latest: 66 attempts; 23 got an answer (a connection opened, an HTTP status, a proxy's answer, or an address found); compared with its list: FAIL (47 rows PASS, 19 FAIL)
+     network interfaces that are up and running, with their addresses (as Node lists them): lo (127.0.0.1); eth0 (172.21.0.3); eth1 (172.23.0.3); eth2 (172.22.0.2)
+     name servers in /etc/resolv.conf: 127.0.0.11
+     IPv4 routes (/proc/net/route): to 0.0.0.0/0 via 172.23.0.1 on eth1; to 172.21.0.0/16 via 0.0.0.0 on eth0; to 172.22.0.0/16 via 0.0.0.0 on eth2; to 172.23.0.0/16 via 0.0.0.0 on eth1
+     a default route (a way to any address): yes
+     packet forwarding (/proc/sys/net/ipv4/ip_forward): 1
+     IPv6 in this network namespace (/proc/net/if_inet6): absent: this kernel has no IPv6 here
+     answered: A1 registry.npmjs.org:443: certificate not trusted
+     answered: A2 registry.npmjs.org:80: HTTP 301; server: cloudflare; location: https://registry.npmjs.org/-/ping
+     answered: A3 example.com:443: certificate not trusted
+     answered: A4 example.com:80: HTTP 200; server: cloudflare
+     answered: A5 github.com:80: HTTP 301; location: https://github.com/
+     answered: B1 1.1.1.1:443: connected
+     answered: B2 172.66.147.243:80: connected
+     answered: B3 172.66.147.243:80: HTTP 200; server: cloudflare
+     answered: B4 169.254.169.254:80: HTTP 403; x-deny-reason: private_dest_ip; says: "Destination IP is in a private/reserved range"
+     answered: X35073 127.0.0.11:35073: connected
+     answered: M172.17.0.1:2024 172.17.0.1:2024: connected
+     answered: M172.17.0.1:46861 172.17.0.1:46861: connected
+     answered: M172.23.0.1:2024 172.23.0.1:2024: connected
+     answered: M172.23.0.1:46861 172.23.0.1:46861: connected
+     answered: M192.0.2.2:2024 192.0.2.2:2024: connected
+     answered: M192.0.2.2:46861 192.0.2.2:46861: connected
+     answered: D1 registry.npmjs.org: found 12 addresses; 104.16.3.34, 104.16.5.34, 104.16.6.34
+     answered: D2 example.com: found 2 addresses; 172.66.147.243, 104.20.23.154
+     answered: D3 db: found 1 address; 172.21.0.1
+     answered: D5 registry.npmjs.org @1.1.1.1: found 12 addresses; 104.16.3.34, 104.16.5.34, 104.16.6.34
+     answered: D6 example.com @1.1.1.1: found 2 addresses; 172.66.147.243, 104.20.23.154
+     answered: Pdb:5432 db:5432: connected
+     answered: Papp:3191 app:3191: connected
+     FAIL A1 registry.npmjs.org:443: expected no answer (refused, timed out, name not found, no name server, network unreachable); got certificate not trusted (SELF_SIGNED_CERT_IN_CHAIN)
+     FAIL A2 registry.npmjs.org:80: expected no answer (refused, timed out, name not found, no name server, network unreachable); got HTTP 301; server: cloudflare; location: https://registry.npmjs.org/-/ping
+     FAIL A3 example.com:443: expected no answer (refused, timed out, name not found, no name server, network unreachable); got certificate not trusted (SELF_SIGNED_CERT_IN_CHAIN)
+     FAIL A4 example.com:80: expected no answer (refused, timed out, name not found, no name server, network unreachable); got HTTP 200; server: cloudflare
+     FAIL A5 github.com:80: expected no answer (refused, timed out, name not found, no name server, network unreachable); got HTTP 301; location: https://github.com/
+     FAIL B1 1.1.1.1:443: expected no answer (refused, timed out, name not found, no name server, network unreachable); got connected
+     FAIL B2 172.66.147.243:80: expected no answer (refused, timed out, name not found, no name server, network unreachable); got connected
+     FAIL B3 172.66.147.243:80: expected no answer (refused, timed out, name not found, no name server, network unreachable); got HTTP 200; server: cloudflare
+     FAIL B4 169.254.169.254:80: expected no answer (refused, timed out, name not found, no name server, network unreachable); got HTTP 403; x-deny-reason: private_dest_ip; says: "Destination IP is in a private/reserved range"
+     FAIL M172.17.0.1:2024 172.17.0.1:2024: expected no answer (refused, timed out, name not found, no name server, network unreachable); got connected
+     FAIL M172.17.0.1:46861 172.17.0.1:46861: expected no answer (refused, timed out, name not found, no name server, network unreachable); got connected
+     FAIL M172.23.0.1:2024 172.23.0.1:2024: expected no answer (refused, timed out, name not found, no name server, network unreachable); got connected
+     FAIL M172.23.0.1:46861 172.23.0.1:46861: expected no answer (refused, timed out, name not found, no name server, network unreachable); got connected
+     FAIL M192.0.2.2:2024 192.0.2.2:2024: expected no answer (refused, timed out, name not found, no name server, network unreachable); got connected
+     FAIL M192.0.2.2:46861 192.0.2.2:46861: expected no answer (refused, timed out, name not found, no name server, network unreachable); got connected
+     FAIL D1 registry.npmjs.org: expected no answer (refused, timed out, name not found, no name server, network unreachable); got found 12 addresses; 104.16.3.34, 104.16.5.34, 104.16.6.34
+     FAIL D2 example.com: expected no answer (refused, timed out, name not found, no name server, network unreachable); got found 2 addresses; 172.66.147.243, 104.20.23.154
+     FAIL D5 registry.npmjs.org @1.1.1.1: expected no answer (refused, timed out, name not found, no name server, network unreachable); got found 12 addresses; 104.16.3.34, 104.16.5.34, 104.16.6.34
+     FAIL D6 example.com @1.1.1.1: expected no answer (refused, timed out, name not found, no name server, network unreachable); got found 2 addresses; 172.66.147.243, 104.20.23.154
+     ran in the real image (sha256:33264944876e20762fd484468667f1093d88fb33a36efdf344f7fddd9779a35b, seen while it ran): yes; what must give it away is among the failing rows: yes
+  -- misconfiguration R1: the real app also on an ordinary bridge (a way out); the running app itself, in place: 67 attempts; 24 got an answer (a connection opened, an HTTP status, a proxy's answer, or an address found); compared with its list: FAIL (48 rows PASS, 19 FAIL)
+     network interfaces that are up and running, with their addresses (as Node lists them): lo (127.0.0.1); eth0 (172.21.0.2); eth1 (172.23.0.2); eth2 (172.22.0.1)
+     name servers in /etc/resolv.conf: 127.0.0.11
+     IPv4 routes (/proc/net/route): to 0.0.0.0/0 via 172.23.0.1 on eth1; to 172.21.0.0/16 via 0.0.0.0 on eth0; to 172.22.0.0/16 via 0.0.0.0 on eth2; to 172.23.0.0/16 via 0.0.0.0 on eth1
+     a default route (a way to any address): yes
+     packet forwarding (/proc/sys/net/ipv4/ip_forward): 1
+     IPv6 in this network namespace (/proc/net/if_inet6): absent: this kernel has no IPv6 here
+     answered: A1 registry.npmjs.org:443: certificate not trusted
+     answered: A2 registry.npmjs.org:80: HTTP 301; server: cloudflare; location: https://registry.npmjs.org/-/ping
+     answered: A3 example.com:443: certificate not trusted
+     answered: A4 example.com:80: HTTP 200; server: cloudflare
+     answered: A5 github.com:80: HTTP 301; location: https://github.com/
+     answered: B1 1.1.1.1:443: connected
+     answered: B2 172.66.147.243:80: connected
+     answered: B3 172.66.147.243:80: HTTP 200; server: cloudflare
+     answered: B4 169.254.169.254:80: HTTP 403; x-deny-reason: private_dest_ip; says: "Destination IP is in a private/reserved range"
+     answered: X3191 127.0.0.1:3191: connected
+     answered: X44895 127.0.0.11:44895: connected
+     answered: M172.17.0.1:2024 172.17.0.1:2024: connected
+     answered: M172.17.0.1:46861 172.17.0.1:46861: connected
+     answered: M172.23.0.1:2024 172.23.0.1:2024: connected
+     answered: M172.23.0.1:46861 172.23.0.1:46861: connected
+     answered: M192.0.2.2:2024 192.0.2.2:2024: connected
+     answered: M192.0.2.2:46861 192.0.2.2:46861: connected
+     answered: D1 registry.npmjs.org: found 12 addresses; 104.16.3.34, 104.16.5.34, 104.16.6.34
+     answered: D2 example.com: found 2 addresses; 172.66.147.243, 104.20.23.154
+     answered: D3 db: found 1 address; 172.21.0.1
+     answered: D5 registry.npmjs.org @1.1.1.1: found 12 addresses; 104.16.3.34, 104.16.5.34, 104.16.6.34
+     answered: D6 example.com @1.1.1.1: found 2 addresses; 172.66.147.243, 104.20.23.154
+     answered: Pdb:5432 db:5432: connected
+     answered: Papp:3191 app:3191: connected
+     FAIL A1 registry.npmjs.org:443: expected no answer (refused, timed out, name not found, no name server, network unreachable); got certificate not trusted (SELF_SIGNED_CERT_IN_CHAIN)
+     FAIL A2 registry.npmjs.org:80: expected no answer (refused, timed out, name not found, no name server, network unreachable); got HTTP 301; server: cloudflare; location: https://registry.npmjs.org/-/ping
+     FAIL A3 example.com:443: expected no answer (refused, timed out, name not found, no name server, network unreachable); got certificate not trusted (SELF_SIGNED_CERT_IN_CHAIN)
+     FAIL A4 example.com:80: expected no answer (refused, timed out, name not found, no name server, network unreachable); got HTTP 200; server: cloudflare
+     FAIL A5 github.com:80: expected no answer (refused, timed out, name not found, no name server, network unreachable); got HTTP 301; location: https://github.com/
+     FAIL B1 1.1.1.1:443: expected no answer (refused, timed out, name not found, no name server, network unreachable); got connected
+     FAIL B2 172.66.147.243:80: expected no answer (refused, timed out, name not found, no name server, network unreachable); got connected
+     FAIL B3 172.66.147.243:80: expected no answer (refused, timed out, name not found, no name server, network unreachable); got HTTP 200; server: cloudflare
+     FAIL B4 169.254.169.254:80: expected no answer (refused, timed out, name not found, no name server, network unreachable); got HTTP 403; x-deny-reason: private_dest_ip; says: "Destination IP is in a private/reserved range"
+     FAIL M172.17.0.1:2024 172.17.0.1:2024: expected no answer (refused, timed out, name not found, no name server, network unreachable); got connected
+     FAIL M172.17.0.1:46861 172.17.0.1:46861: expected no answer (refused, timed out, name not found, no name server, network unreachable); got connected
+     FAIL M172.23.0.1:2024 172.23.0.1:2024: expected no answer (refused, timed out, name not found, no name server, network unreachable); got connected
+     FAIL M172.23.0.1:46861 172.23.0.1:46861: expected no answer (refused, timed out, name not found, no name server, network unreachable); got connected
+     FAIL M192.0.2.2:2024 192.0.2.2:2024: expected no answer (refused, timed out, name not found, no name server, network unreachable); got connected
+     FAIL M192.0.2.2:46861 192.0.2.2:46861: expected no answer (refused, timed out, name not found, no name server, network unreachable); got connected
+     FAIL D1 registry.npmjs.org: expected no answer (refused, timed out, name not found, no name server, network unreachable); got found 12 addresses; 104.16.3.34, 104.16.5.34, 104.16.6.34
+     FAIL D2 example.com: expected no answer (refused, timed out, name not found, no name server, network unreachable); got found 2 addresses; 172.66.147.243, 104.20.23.154
+     FAIL D5 registry.npmjs.org @1.1.1.1: expected no answer (refused, timed out, name not found, no name server, network unreachable); got found 12 addresses; 104.16.3.34, 104.16.5.34, 104.16.6.34
+     FAIL D6 example.com @1.1.1.1: expected no answer (refused, timed out, name not found, no name server, network unreachable); got found 2 addresses; 172.66.147.243, 104.20.23.154
+     Removed. Left of builder_p_iso06c_real_demo_mis1: containers: none; named containers: none; networks: none; volumes: none; images: none
+  R2: the data network internal, but without the isolated gateway mode (builder_p_iso06c_real_demo_mis2; made in 22 s).
+     its images are the real ones: yes
+     Machine addresses once the misconfigured data network exists: 172.17.0.1, 172.21.0.1, 192.0.2.2
+  -- misconfiguration R2: the data network internal, but without the isolated gateway mode; the tools service's one-off container, image builder_p_iso06c_real_demo_mis2-tools:latest: 66 attempts; 6 got an answer (a connection opened, an HTTP status, a proxy's answer, or an address found); compared with its list: FAIL (64 rows PASS, 2 FAIL)
+     network interfaces that are up and running, with their addresses (as Node lists them): lo (127.0.0.1); eth0 (172.21.0.4)
+     name servers in /etc/resolv.conf: 127.0.0.11
+     IPv4 routes (/proc/net/route): to 172.21.0.0/16 via 0.0.0.0 on eth0
+     a default route (a way to any address): no
+     packet forwarding (/proc/sys/net/ipv4/ip_forward): 1
+     IPv6 in this network namespace (/proc/net/if_inet6): absent: this kernel has no IPv6 here
+     answered: X44665 127.0.0.11:44665: connected
+     answered: M172.21.0.1:2024 172.21.0.1:2024: connected
+     answered: M172.21.0.1:46861 172.21.0.1:46861: connected
+     answered: D3 db: found 1 address; 172.21.0.2
+     answered: Pdb:5432 db:5432: connected
+     answered: Papp:3191 app:3191: connected
+     FAIL M172.21.0.1:2024 172.21.0.1:2024: expected no answer (refused, timed out, name not found, no name server, network unreachable); got connected
+     FAIL M172.21.0.1:46861 172.21.0.1:46861: expected no answer (refused, timed out, name not found, no name server, network unreachable); got connected
+     ran in the real image (sha256:a1d74a2395310f28951bcba690becb943dc9c84784355f0f7abfda789c089d52, seen while it ran): yes; what must give it away is among the failing rows: yes
+     Removed. Left of builder_p_iso06c_real_demo_mis2: containers: none; named containers: none; networks: none; volumes: none; images: none
+  R3: the real runner also on the data network (builder_p_iso06c_real_demo_mis3; made in 22 s).
+     its images are the real ones: yes
+     the builder's own check before the camera runs (cameraNetworkProblem): Compose puts the acceptance service on data, front, not on the project's front network alone
+  -- misconfiguration R3: the real runner also on the data network; the acceptance service's one-off container, image builder-acceptance-runner:local: 57 attempts; 4 got an answer (a connection opened, an HTTP status, a proxy's answer, or an address found); compared with its list: FAIL (55 rows PASS, 2 FAIL)
+     network interfaces that are up and running, with their addresses (as Node lists them): lo (127.0.0.1); eth0 (172.21.0.3); eth1 (172.22.0.2)
+     name servers in /etc/resolv.conf: 127.0.0.11
+     IPv4 routes (/proc/net/route): to 172.21.0.0/16 via 0.0.0.0 on eth0; to 172.22.0.0/16 via 0.0.0.0 on eth1
+     a default route (a way to any address): no
+     packet forwarding (/proc/sys/net/ipv4/ip_forward): 1
+     IPv6 in this network namespace (/proc/net/if_inet6): absent: this kernel has no IPv6 here
+     answered: X38845 127.0.0.11:38845: connected
+     answered: D3 db: found 1 address; 172.21.0.1
+     answered: Pdb:5432 db:5432: connected
+     answered: Papp:3191 app:3191: connected
+     FAIL D3 db: expected no answer (refused, timed out, name not found, no name server, network unreachable); got found 1 address; 172.21.0.1
+     FAIL Pdb:5432 db:5432: expected no answer (refused, timed out, name not found, no name server, network unreachable); got connected
+     ran in the real image (sha256:2e1340795a27782bde30b20f6f815aa87c3eda7634112a8a2e91d48ee44843e1, seen while it ran): yes; what must give it away is among the failing rows: yes
+     Removed. Left of builder_p_iso06c_real_demo_mis3: containers: none; named containers: none; networks: none; volumes: none; images: none
+  R4: the scripted engine's container given the out network (builder_p_iso06c_real_demo_mis4; made in 4 s).
+  -- misconfiguration R4: the scripted engine's container given the out network; the engine service's one-off container, image node:22-alpine@sha256:0e1754758c2df4cfa3e68d59e2e1b7374bb7fd9ea6328eaaacf15cc934af8202: 57 attempts; 9 got an answer (a connection opened, an HTTP status, a proxy's answer, or an address found); compared with its list: FAIL (48 rows PASS, 9 FAIL)
+     network interfaces that are up and running, with their addresses (as Node lists them): lo (127.0.0.1); eth0 (172.21.0.2)
+     name servers in /etc/resolv.conf: 127.0.0.11
+     IPv4 routes (/proc/net/route): to 172.21.0.0/16 via 0.0.0.0 on eth0
+     a default route (a way to any address): no
+     packet forwarding (/proc/sys/net/ipv4/ip_forward): 1
+     IPv6 in this network namespace (/proc/net/if_inet6): absent: this kernel has no IPv6 here
+     answered: X42407 127.0.0.11:42407: connected
+     answered: E1 registry.npmjs.org:443: proxy answered 200
+     answered: E2 registry.npmjs.org:443: HTTP 200; server: cloudflare
+     answered: E3 example.com:443: proxy answered 403; says: "egress refused: example.com is not an allowed host"
+     answered: E4 registry.npmjs.org:80: HTTP 405; says: "agent-proxy relay: this proxy only accepts HTTPS CONNECT tunnels. Plain-HTTP/absolute-form requests are not su"
+     answered: E5 example.com:80: HTTP 403; says: "egress refused: example.com is not an allowed host"
+     answered: W1 egress:4010: connection reset
+     answered: Pegress:3128 egress:3128: connected
+     answered: Pegress:4010 egress:4010: connected
+     FAIL X42407 127.0.0.11:42407: expected no answer (refused, timed out, name not found, no name server, network unreachable); got connected
+     FAIL E1 registry.npmjs.org:443: expected no answer (refused, timed out, name not found, no name server, network unreachable); got proxy answered 200
+     FAIL E2 registry.npmjs.org:443: expected no answer (refused, timed out, name not found, no name server, network unreachable); got HTTP 200; server: cloudflare
+     FAIL E3 example.com:443: expected no answer (refused, timed out, name not found, no name server, network unreachable); got proxy answered 403; says: "egress refused: example.com is not an allowed host"
+     FAIL E4 registry.npmjs.org:80: expected no answer (refused, timed out, name not found, no name server, network unreachable); got HTTP 405; says: "agent-proxy relay: this proxy only accepts HTTPS CONNECT tunnels. Plain-HTTP/absolute-form requests are not su"
+     FAIL E5 example.com:80: expected no answer (refused, timed out, name not found, no name server, network unreachable); got HTTP 403; says: "egress refused: example.com is not an allowed host"
+     FAIL W1 egress:4010: expected no answer (refused, timed out, name not found, no name server, network unreachable); got connection reset (ECONNRESET)
+     FAIL Pegress:3128 egress:3128: expected no answer (refused, timed out, name not found, no name server, network unreachable); got connected
+     FAIL Pegress:4010 egress:4010: expected no answer (refused, timed out, name not found, no name server, network unreachable); got connected
+     ran in the real image (sha256:0e1754758c2df4cfa3e68d59e2e1b7374bb7fd9ea6328eaaacf15cc934af8202, seen while it ran): yes; what must give it away is among the failing rows: yes
+     Removed. Left of builder_p_iso06c_real_demo_mis4: containers: none; named containers: none; networks: none; volumes: none; images: none
+
+== A5. The real project's machine side and door: their own logs ==
+  egress-host: {"at":"2026-11-14T13:37:15.922Z","listening":"/sock/egress.sock","kind":"egress proxy","allow":["registry.npmjs.org"],"upstream":"127.0.0.1:38369"}
+  egress-host: {"at":"2026-11-14T13:37:15.924Z","listening":"/sock/gateway.sock","kind":"gateway forwarder","to":"127.0.0.1:4010"}
+  egress-host: {"at":"2026-11-14T13:37:15.930Z","listening":"127.0.0.1:43013","kind":"egress proxy for the image build","allow":["registry.npmjs.org"],"upstream":"127.0.0.1:38369"}
+  egress-host: 0 decisions logged. The image build's install step (npm ci) reaches the registry only through this side's loopback port; no request came, so that step fetched nothing in this build (inferred: Docker took it from its build cache).
+  door: 0 connections forwarded (no real container of this project is on the out network); 0 errors.
+
+== A6. Every attempt in the real containers, one row each, one column per container (results only; the comparisons are in the files) ==
+| Id | Target | What | app, the running container itself (real container, in place) | app, a one-off container of the real image (real image, one-off container) | tools, a one-off container of the real image (real image, one-off container) | runner (package 3.1), a one-off container of the real image (real image, one-off container) | the live camera: the runner's service with the camera socket at /psock, the real runner image (real image, one-off container) | a live preview stream, check (real image, one-off container) | the scripted engine's container (package 2.1; no network; NOT package 2.2's engine) (real image, one-off container) | db: the probe in the running database container's network (network namespace only) | comparison: the machine's own network (real project's settings) | comparison: Docker's default network (real project's settings) |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| A1 | registry.npmjs.org:443 | a host the egress list allows, HTTPS | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | certificate not trusted (SELF_SIGNED_CERT_IN_CHAIN) | certificate not trusted (SELF_SIGNED_CERT_IN_CHAIN) |
+| A2 | registry.npmjs.org:80 | a host the egress list allows, plain HTTP | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | HTTP 301 | HTTP 301 |
+| A3 | example.com:443 | a host the egress list refuses, HTTPS | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | certificate not trusted (SELF_SIGNED_CERT_IN_CHAIN) | certificate not trusted (SELF_SIGNED_CERT_IN_CHAIN) |
+| A4 | example.com:80 | a host the egress list refuses, plain HTTP | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | HTTP 200 | HTTP 200 |
+| A5 | github.com:80 | another host the egress list refuses, plain HTTP | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | HTTP 301 | HTTP 301 |
+| B1 | 1.1.1.1:443 | a public address, HTTPS port | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | connected | connected |
+| B2 | differs by container: see each cell | differs by container: see each cell | network unreachable (ENETUNREACH); this container: 93.184.215.14:80, the address given for example.com (not checked), HTTP port | network unreachable (ENETUNREACH); this container: 93.184.215.14:80, the address given for example.com (not checked), HTTP port | network unreachable (ENETUNREACH); this container: 93.184.215.14:80, the address given for example.com (not checked), HTTP port | network unreachable (ENETUNREACH); this container: 93.184.215.14:80, the address given for example.com (not checked), HTTP port | network unreachable (ENETUNREACH); this container: 93.184.215.14:80, the address given for example.com (not checked), HTTP port | network unreachable (ENETUNREACH); this container: 93.184.215.14:80, the address given for example.com (not checked), HTTP port | network unreachable (ENETUNREACH); this container: 93.184.215.14:80, the address given for example.com (not checked), HTTP port | network unreachable (ENETUNREACH); this container: 93.184.215.14:80, the address given for example.com (not checked), HTTP port | connected; this container: 172.66.147.243:80, example.com's address, HTTP port | connected; this container: 172.66.147.243:80, example.com's address, HTTP port |
+| B3 | differs by container: see each cell | differs by container: see each cell | network unreachable (ENETUNREACH); this container: 93.184.215.14:80, the address given for example.com (not checked), plain HTTP | network unreachable (ENETUNREACH); this container: 93.184.215.14:80, the address given for example.com (not checked), plain HTTP | network unreachable (ENETUNREACH); this container: 93.184.215.14:80, the address given for example.com (not checked), plain HTTP | network unreachable (ENETUNREACH); this container: 93.184.215.14:80, the address given for example.com (not checked), plain HTTP | network unreachable (ENETUNREACH); this container: 93.184.215.14:80, the address given for example.com (not checked), plain HTTP | network unreachable (ENETUNREACH); this container: 93.184.215.14:80, the address given for example.com (not checked), plain HTTP | network unreachable (ENETUNREACH); this container: 93.184.215.14:80, the address given for example.com (not checked), plain HTTP | network unreachable (ENETUNREACH); this container: 93.184.215.14:80, the address given for example.com (not checked), plain HTTP | HTTP 200; this container: 172.66.147.243:80, example.com's address, plain HTTP | HTTP 200; this container: 172.66.147.243:80, example.com's address, plain HTTP |
+| B4 | 169.254.169.254:80 | the cloud's machine-information address (link-local) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | HTTP 403 | HTTP 403 |
+| C1 | 1.1.1.1:22 | an outside address, port 22 (remote login) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | refused (ECONNREFUSED) | refused (ECONNREFUSED) |
+| C2 | 1.1.1.1:25 | an outside address, port 25 (mail) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | refused (ECONNREFUSED) | refused (ECONNREFUSED) |
+| C3 | 1.1.1.1:53 | an outside address, port 53 (name service over TCP) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | refused (ECONNREFUSED) | refused (ECONNREFUSED) |
+| C4 | 1.1.1.1:8080 | an outside address, port 8080 | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | refused (ECONNREFUSED) | refused (ECONNREFUSED) |
+| C5 | 127.0.0.1:5432 | the builder's own database (PostgreSQL) | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | connected, at its own loopback address | connected | refused (ECONNREFUSED), at its own loopback address |
+| C6 | 127.0.0.1:4010 | the model gateway's port | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED) | refused (ECONNREFUSED), at its own loopback address |
+| C7 | 127.0.0.1:5432 | the project's database | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | connected, at its own loopback address | connected | refused (ECONNREFUSED), at its own loopback address |
+| C8 | 127.0.0.1:3128 | the project's egress proxy | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED) | refused (ECONNREFUSED), at its own loopback address |
+| C9 | 127.0.0.1:38369 | the cloud session's proxy | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | connected | refused (ECONNREFUSED), at its own loopback address |
+| X2024 | 127.0.0.1:2024 | another listening port, seen inside the container | not tried | not tried | not tried | not tried | not tried | not tried | not tried | not tried | connected | not tried |
+| X3191 | 127.0.0.1:3191 | another listening port, seen inside the container | connected, at its own loopback address | not tried | not tried | not tried | not tried | not tried | not tried | not tried | not tried | not tried |
+| X4041 | 127.0.0.1:4041 | another listening port, seen inside the container | not tried | not tried | not tried | not tried | not tried | not tried | not tried | not tried | connected | not tried |
+| X33063 | 127.0.0.11:33063 | another listening port, seen inside the container | not tried | connected, at its own loopback address | not tried | not tried | not tried | not tried | not tried | not tried | not tried | not tried |
+| X34803 | 127.0.0.1:34803 | another listening port, seen inside the container | not tried | not tried | not tried | not tried | not tried | not tried | not tried | not tried | connected | not tried |
+| X35271 | 127.0.0.1:35271 | another listening port, seen inside the container | not tried | not tried | not tried | not tried | not tried | not tried | not tried | not tried | connected | not tried |
+| X35595 | 127.0.0.11:35595 | another listening port, seen inside the container | not tried | not tried | connected, at its own loopback address | not tried | not tried | not tried | not tried | not tried | not tried | not tried |
+| X36325 | 127.0.0.11:36325 | another listening port, seen inside the container | not tried | not tried | not tried | not tried | not tried | connected, at its own loopback address | not tried | not tried | not tried | not tried |
+| X43013 | 127.0.0.1:43013 | another listening port, seen inside the container | not tried | not tried | not tried | not tried | not tried | not tried | not tried | not tried | connected | not tried |
+| X44161 | 127.0.0.11:44161 | another listening port, seen inside the container | connected, at its own loopback address | not tried | not tried | not tried | not tried | not tried | not tried | not tried | not tried | not tried |
+| X44999 | 127.0.0.11:44999 | another listening port, seen inside the container | not tried | not tried | not tried | not tried | not tried | not tried | not tried | connected, at its own loopback address | not tried | not tried |
+| X45509 | 127.0.0.11:45509 | another listening port, seen inside the container | not tried | not tried | not tried | not tried | connected, at its own loopback address | not tried | not tried | not tried | not tried | not tried |
+| X46657 | 127.0.0.11:46657 | another listening port, seen inside the container | not tried | not tried | not tried | connected, at its own loopback address | not tried | not tried | not tried | not tried | not tried | not tried |
+| X46861 | 127.0.0.1:46861 | another listening port, seen inside the container | not tried | not tried | not tried | not tried | not tried | not tried | not tried | not tried | connected | not tried |
+| M172.17.0.1:2024 | 172.17.0.1:2024 | a machine address, and port 2024, listening on the machine at 0.0.0.0 (every address) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | connected | connected |
+| M172.17.0.1:4041 | 172.17.0.1:4041 | a machine address, and port 4041, listening on the machine at 127.0.0.1 (loopback only) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | refused (ECONNREFUSED) | refused (ECONNREFUSED) |
+| M172.17.0.1:5432 | 172.17.0.1:5432 | a machine address, and port 5432, listening on the machine at 127.0.0.1 (loopback only) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | refused (ECONNREFUSED) | refused (ECONNREFUSED) |
+| M172.17.0.1:34803 | 172.17.0.1:34803 | a machine address, and port 34803, listening on the machine at 127.0.0.1 (loopback only) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | refused (ECONNREFUSED) | refused (ECONNREFUSED) |
+| M172.17.0.1:35271 | 172.17.0.1:35271 | a machine address, and port 35271, listening on the machine at 127.0.0.1 (loopback only) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | refused (ECONNREFUSED) | refused (ECONNREFUSED) |
+| M172.17.0.1:38369 | 172.17.0.1:38369 | a machine address, and port 38369, listening on the machine at 127.0.0.1 (loopback only) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | refused (ECONNREFUSED) | refused (ECONNREFUSED) |
+| M172.17.0.1:43013 | 172.17.0.1:43013 | a machine address, and port 43013, listening on the machine at 127.0.0.1 (loopback only) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | refused (ECONNREFUSED) | refused (ECONNREFUSED) |
+| M172.17.0.1:46861 | 172.17.0.1:46861 | a machine address, and port 46861, listening on the machine at 0.0.0.0 (every address) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | connected | connected |
+| M192.0.2.2:2024 | 192.0.2.2:2024 | a machine address, and port 2024, listening on the machine at 0.0.0.0 (every address) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | connected | connected |
+| M192.0.2.2:4041 | 192.0.2.2:4041 | a machine address, and port 4041, listening on the machine at 127.0.0.1 (loopback only) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | refused (ECONNREFUSED) | refused (ECONNREFUSED) |
+| M192.0.2.2:5432 | 192.0.2.2:5432 | a machine address, and port 5432, listening on the machine at 127.0.0.1 (loopback only) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | refused (ECONNREFUSED) | refused (ECONNREFUSED) |
+| M192.0.2.2:34803 | 192.0.2.2:34803 | a machine address, and port 34803, listening on the machine at 127.0.0.1 (loopback only) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | refused (ECONNREFUSED) | refused (ECONNREFUSED) |
+| M192.0.2.2:35271 | 192.0.2.2:35271 | a machine address, and port 35271, listening on the machine at 127.0.0.1 (loopback only) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | refused (ECONNREFUSED) | refused (ECONNREFUSED) |
+| M192.0.2.2:38369 | 192.0.2.2:38369 | a machine address, and port 38369, listening on the machine at 127.0.0.1 (loopback only) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | refused (ECONNREFUSED) | refused (ECONNREFUSED) |
+| M192.0.2.2:43013 | 192.0.2.2:43013 | a machine address, and port 43013, listening on the machine at 127.0.0.1 (loopback only) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | refused (ECONNREFUSED) | refused (ECONNREFUSED) |
+| M192.0.2.2:46861 | 192.0.2.2:46861 | a machine address, and port 46861, listening on the machine at 0.0.0.0 (every address) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | connected | connected |
+| D1 | registry.npmjs.org | an outside name the egress list allows | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | found 12 addresses | found 12 addresses |
+| D2 | example.com | an outside name the egress list refuses | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | found 2 addresses | found 2 addresses |
+| D3 | db | an internal-looking name: the database's name on the server profile | found 1 address | found 1 address | found 1 address | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | found 1 address | name not found (ENOTFOUND) | name not found (ENOTFOUND) |
+| D4 | metadata.google.internal | an internal-looking name: the cloud's machine-information service | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | name not found (ENOTFOUND) | name not found (ENOTFOUND) |
+| D5 | registry.npmjs.org @1.1.1.1 | an allowed name, asking an outside name server directly | no name server answered (ECONNREFUSED) | no name server answered (ECONNREFUSED) | no name server answered (ECONNREFUSED) | no name server answered (ECONNREFUSED) | no name server answered (ECONNREFUSED) | no name server answered (ECONNREFUSED) | no name server answered (ECONNREFUSED) | no name server answered (ECONNREFUSED) | found 12 addresses | found 12 addresses |
+| D6 | example.com @1.1.1.1 | a refused name, asking an outside name server directly | no name server answered (ECONNREFUSED) | no name server answered (ECONNREFUSED) | no name server answered (ECONNREFUSED) | no name server answered (ECONNREFUSED) | no name server answered (ECONNREFUSED) | no name server answered (ECONNREFUSED) | no name server answered (ECONNREFUSED) | no name server answered (ECONNREFUSED) | found 2 addresses | found 2 addresses |
+| E1 | registry.npmjs.org:443 | an allowed host, tunnel | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | name not found (ENOTFOUND) | name not found (ENOTFOUND) |
+| E2 | registry.npmjs.org:443 | an allowed host, HTTPS inside the tunnel | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | name not found (ENOTFOUND) | name not found (ENOTFOUND) |
+| E3 | example.com:443 | a refused host, tunnel | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | name not found (ENOTFOUND) | name not found (ENOTFOUND) |
+| E4 | registry.npmjs.org:80 | an allowed host, plain HTTP | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | name not found (ENOTFOUND) | name not found (ENOTFOUND) |
+| E5 | example.com:80 | a refused host, plain HTTP | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | name not found (ENOTFOUND) | name not found (ENOTFOUND) |
+| W1 | egress:4010 | the model gateway, at the door's gateway port | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | name not found (ENOTFOUND) | name not found (ENOTFOUND) |
+| F1 | registry.npmjs.org:443 | a host the egress list allows | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | proxy answered 200 | refused (ECONNREFUSED), at its own loopback address |
+| F2 | github.com:443 | a host the egress list refuses | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | proxy answered 200 | refused (ECONNREFUSED), at its own loopback address |
+| F3 | example.com:443 | another host the egress list refuses | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | proxy answered 200 | refused (ECONNREFUSED), at its own loopback address |
+| F4 | github.com:443 | a host the egress list refuses, HTTPS inside the tunnel | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | certificate not trusted (SELF_SIGNED_CERT_IN_CHAIN) | refused (ECONNREFUSED), at its own loopback address |
+| Papp:3191 | app:3191 | the project's app service, by its name | connected | connected | connected | connected | connected | connected | no name server answered (EAI_AGAIN) | connected | name not found (ENOTFOUND) | name not found (ENOTFOUND) |
+| Pdb:5432 | db:5432 | the project's db service, by its name | connected | connected | connected | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | connected | name not found (ENOTFOUND) | name not found (ENOTFOUND) |
+| Pegress:3128 | egress:3128 | the project's egress service, by its name | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | name not found (ENOTFOUND) | name not found (ENOTFOUND) |
+| Pegress:4010 | egress:4010 | the project's egress service, by its name | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | name not found (ENOTFOUND) | name not found (ENOTFOUND) |
+| U1 | /psock/c.sock | a Unix socket mounted into the container (the live camera's) | not tried | not tried | not tried | not tried | HTTP 200 | not tried | not tried | not tried | not tried | not tried |
+
+Part A took 396 s.
+
+==== PART B. PLACEMENT, IN STAND-IN IMAGES (as on 13 Nov 2026) ====
+== 1. The project, as the sandbox manager writes it ==
+  network data: {"internal":true,"enable_ipv6":false,"driver_opts":{"com.docker.network.bridge.gateway_mode_ipv4":"isolated"}}
+  network front: {"internal":true,"enable_ipv6":false,"driver_opts":{"com.docker.network.bridge.gateway_mode_ipv4":"isolated"}}
+  network out: {"internal":true,"enable_ipv6":false,"driver_opts":{"com.docker.network.bridge.gateway_mode_ipv4":"isolated"}}
+  app         network: data, front; user: the image's own; read-only root: true; capabilities dropped: ALL
+  tools       network: data; user: the image's own; read-only root: true; capabilities dropped: ALL
+  engine      network: out; user: node; read-only root: true; capabilities dropped: ALL
+  acceptance  network: front; user: runner; read-only root: true; capabilities dropped: ALL
+  check       network: front; user: node; read-only root: true; capabilities dropped: ALL
+  db          network: data; user: the image's own; read-only root: false; capabilities dropped: ALL
+  egress      network: out; user: 1000:1000; read-only root: true; capabilities dropped: ALL
+  egress-host network: host; user: 1000:1000; read-only root: true; capabilities dropped: ALL
+  Stand-in gateway on the machine at 127.0.0.1:35271 (server: gateway-stand-in); the canary on every address of the machine, port 46861.
+  Package J3: a stand-in preview front on 127.0.0.1:4041 (server: preview-front-stand-in), listening before the machine is read; the camera socket's folder (the runner's user, mode 750) leads only to it.
+  Container app: running (healthy)
+  Container db: running (healthy)
+  Container egress: running (healthy)
+  Container egress-host: running (healthy)
+
+== 2. Read on the machine (read-only; nothing is connected to here) ==
+  Every address the machine holds (/proc/net/fib_trie, and /proc/net/if_inet6 where there is IPv6; loopback left out): 172.17.0.1, 192.0.2.2
+  Listening TCP sockets on the machine (/proc/net/tcp): 0.0.0.0:2024, 0.0.0.0:46861, 127.0.0.1:34803, 127.0.0.1:35271, 127.0.0.1:38369, 127.0.0.1:4041, 127.0.0.1:43013, 127.0.0.1:43049, 127.0.0.1:5432
+  Settings given to the probe: {"sessionProxy":"127.0.0.1:38369","projectDbPort":5432,"egressPort":3128,"gatewayPort":35271,"builderDbPort":5432,"exampleAddress":"93.184.215.14","timeoutMs":3000,"bridgeGateway":null,"machineListeners":["0.0.0.0:2024","0.0.0.0:46861","127.0.0.1:34803","127.0.0.1:35271","127.0.0.1:38369","127.0.0.1:4041","127.0.0.1:43013","127.0.0.1:43049","127.0.0.1:5432"],"machineAddresses":["172.17.0.1","192.0.2.2"],"egressHost":"egress","gatewayVia":"egress:4010","peers":["db:5432","app:3171","egress:3128","egress:4010"]}
+
+== 3. The probe in each container of the stand-in project, compared with its list ==
+  Machine listeners given to the probe include the front's port 4041: yes.
+  -- app (stand-in image) (data, front): 57 attempts; 4 got an answer (a connection opened, an HTTP status, a proxy's answer, or an address found); compared with its list: PASS (57 rows PASS, 0 FAIL)
+     network interfaces that are up and running, with their addresses (as Node lists them): lo (127.0.0.1); eth0 (172.23.0.2); eth1 (172.21.0.3)
+     name servers in /etc/resolv.conf: 127.0.0.11
+     IPv4 routes (/proc/net/route): to 172.21.0.0/16 via 0.0.0.0 on eth1; to 172.23.0.0/16 via 0.0.0.0 on eth0
+     a default route (a way to any address): no
+     packet forwarding (/proc/sys/net/ipv4/ip_forward): 1
+     IPv6 in this network namespace (/proc/net/if_inet6): absent: this kernel has no IPv6 here
+     answered: X35215 127.0.0.11:35215: connected
+     answered: D3 db: found 1 address; 172.21.0.1
+     answered: Pdb:5432 db:5432: connected
+     answered: Papp:3171 app:3171: connected
+  -- tools (stand-in image) (data): 57 attempts; 4 got an answer (a connection opened, an HTTP status, a proxy's answer, or an address found); compared with its list: PASS (57 rows PASS, 0 FAIL)
+     network interfaces that are up and running, with their addresses (as Node lists them): lo (127.0.0.1); eth0 (172.21.0.3)
+     name servers in /etc/resolv.conf: 127.0.0.11
+     IPv4 routes (/proc/net/route): to 172.21.0.0/16 via 0.0.0.0 on eth0
+     a default route (a way to any address): no
+     packet forwarding (/proc/sys/net/ipv4/ip_forward): 1
+     IPv6 in this network namespace (/proc/net/if_inet6): absent: this kernel has no IPv6 here
+     answered: X41341 127.0.0.11:41341: connected
+     answered: D3 db: found 1 address; 172.21.0.1
+     answered: Pdb:5432 db:5432: connected
+     answered: Papp:3171 app:3171: connected
+  -- db (data; the probe in its network namespace): 57 attempts; 6 got an answer (a connection opened, an HTTP status, a proxy's answer, or an address found); compared with its list: PASS (57 rows PASS, 0 FAIL)
+     network interfaces that are up and running, with their addresses (as Node lists them): lo (127.0.0.1); eth0 (172.21.0.1)
+     name servers in /etc/resolv.conf: 127.0.0.11
+     IPv4 routes (/proc/net/route): to 172.21.0.0/16 via 0.0.0.0 on eth0
+     a default route (a way to any address): no
+     packet forwarding (/proc/sys/net/ipv4/ip_forward): 1
+     IPv6 in this network namespace (/proc/net/if_inet6): absent: this kernel has no IPv6 here
+     answered: C5 127.0.0.1:5432: connected
+     answered: C7 127.0.0.1:5432: connected
+     answered: X46849 127.0.0.11:46849: connected
+     answered: D3 db: found 1 address; 172.21.0.1
+     answered: Pdb:5432 db:5432: connected
+     answered: Papp:3171 app:3171: connected
+  -- runner (stand-in image) (front): 57 attempts; 2 got an answer (a connection opened, an HTTP status, a proxy's answer, or an address found); compared with its list: PASS (57 rows PASS, 0 FAIL)
+     network interfaces that are up and running, with their addresses (as Node lists them): lo (127.0.0.1); eth0 (172.23.0.2)
+     name servers in /etc/resolv.conf: 127.0.0.11
+     IPv4 routes (/proc/net/route): to 172.23.0.0/16 via 0.0.0.0 on eth0
+     a default route (a way to any address): no
+     packet forwarding (/proc/sys/net/ipv4/ip_forward): 1
+     IPv6 in this network namespace (/proc/net/if_inet6): absent: this kernel has no IPv6 here
+     answered: X36809 127.0.0.11:36809: connected
+     answered: Papp:3171 app:3171: connected
+  -- engine service placed as package 2.2 would place it (placement only; no such engine exists) (out): 57 attempts; 9 got an answer (a connection opened, an HTTP status, a proxy's answer, or an address found); compared with its list: PASS (57 rows PASS, 0 FAIL)
+     network interfaces that are up and running, with their addresses (as Node lists them): lo (127.0.0.1); eth0 (172.22.0.2)
+     name servers in /etc/resolv.conf: 127.0.0.11
+     IPv4 routes (/proc/net/route): to 172.22.0.0/16 via 0.0.0.0 on eth0
+     a default route (a way to any address): no
+     packet forwarding (/proc/sys/net/ipv4/ip_forward): 1
+     IPv6 in this network namespace (/proc/net/if_inet6): absent: this kernel has no IPv6 here
+     answered: X33973 127.0.0.11:33973: connected
+     answered: E1 registry.npmjs.org:443: proxy answered 200
+     answered: E2 registry.npmjs.org:443: HTTP 200; server: cloudflare
+     answered: E3 example.com:443: proxy answered 403; says: "egress refused: example.com is not an allowed host"
+     answered: E4 registry.npmjs.org:80: HTTP 405; says: "agent-proxy relay: this proxy only accepts HTTPS CONNECT tunnels. Plain-HTTP/absolute-form requests are not su"
+     answered: E5 example.com:80: HTTP 403; says: "egress refused: example.com is not an allowed host"
+     answered: W1 egress:4010: HTTP 200; server: gateway-stand-in
+     answered: Pegress:3128 egress:3128: connected
+     answered: Pegress:4010 egress:4010: connected
+  -- the door, egress (out): 57 attempts; 9 got an answer (a connection opened, an HTTP status, a proxy's answer, or an address found); compared with its list: PASS (57 rows PASS, 0 FAIL)
+     network interfaces that are up and running, with their addresses (as Node lists them): lo (127.0.0.1); eth0 (172.22.0.2)
+     name servers in /etc/resolv.conf: 127.0.0.11
+     IPv4 routes (/proc/net/route): to 172.22.0.0/16 via 0.0.0.0 on eth0
+     a default route (a way to any address): no
+     packet forwarding (/proc/sys/net/ipv4/ip_forward): 1
+     IPv6 in this network namespace (/proc/net/if_inet6): absent: this kernel has no IPv6 here
+     answered: X36857 127.0.0.11:36857: connected
+     answered: E1 registry.npmjs.org:443: proxy answered 200
+     answered: E2 registry.npmjs.org:443: HTTP 200; server: cloudflare
+     answered: E3 example.com:443: proxy answered 403; says: "egress refused: example.com is not an allowed host"
+     answered: E4 registry.npmjs.org:80: HTTP 405; says: "agent-proxy relay: this proxy only accepts HTTPS CONNECT tunnels. Plain-HTTP/absolute-form requests are not su"
+     answered: E5 example.com:80: HTTP 403; says: "egress refused: example.com is not an allowed host"
+     answered: W1 egress:4010: HTTP 200; server: gateway-stand-in
+     answered: Pegress:3128 egress:3128: connected
+     answered: Pegress:4010 egress:4010: connected
+  -- a live preview stream, check (front): 57 attempts; 2 got an answer (a connection opened, an HTTP status, a proxy's answer, or an address found); compared with its list: PASS (57 rows PASS, 0 FAIL)
+     network interfaces that are up and running, with their addresses (as Node lists them): lo (127.0.0.1); eth0 (172.23.0.2)
+     name servers in /etc/resolv.conf: 127.0.0.11
+     IPv4 routes (/proc/net/route): to 172.23.0.0/16 via 0.0.0.0 on eth0
+     a default route (a way to any address): no
+     packet forwarding (/proc/sys/net/ipv4/ip_forward): 1
+     IPv6 in this network namespace (/proc/net/if_inet6): absent: this kernel has no IPv6 here
+     answered: X38301 127.0.0.11:38301: connected
+     answered: Papp:3171 app:3171: connected
+  -- camera (stand-in runner image): the runner's service with the camera socket at /psock (front): 58 attempts; 3 got an answer (a connection opened, an HTTP status, a proxy's answer, or an address found); compared with its list: PASS (58 rows PASS, 0 FAIL)
+     network interfaces that are up and running, with their addresses (as Node lists them): lo (127.0.0.1); eth0 (172.23.0.2)
+     name servers in /etc/resolv.conf: 127.0.0.11
+     IPv4 routes (/proc/net/route): to 172.23.0.0/16 via 0.0.0.0 on eth0
+     a default route (a way to any address): no
+     packet forwarding (/proc/sys/net/ipv4/ip_forward): 1
+     IPv6 in this network namespace (/proc/net/if_inet6): absent: this kernel has no IPv6 here
+     answered: X43937 127.0.0.11:43937: connected
+     answered: Papp:3171 app:3171: connected
+     answered: U1 /psock/c.sock: HTTP 200; server: preview-front-stand-in
+
+== 4. Positive controls (not project containers): the same settings must reach the canary ==
+  -- comparison: the machine's own network: 62 attempts; 31 got an answer (a connection opened, an HTTP status, a proxy's answer, or an address found); compared with its list: PASS (62 rows PASS, 0 FAIL)
+     network interfaces that are up and running, with their addresses (as Node lists them): lo (127.0.0.1); eth0 (192.0.2.2)
+     name servers in /etc/resolv.conf: 8.8.8.8, 8.8.4.4
+     IPv4 routes (/proc/net/route): to 0.0.0.0/0 via 192.0.2.1 on eth0; to 172.17.0.0/16 via 0.0.0.0 on docker0; to 192.0.2.0/24 via 0.0.0.0 on eth0
+     a default route (a way to any address): yes
+     packet forwarding (/proc/sys/net/ipv4/ip_forward): 1
+     IPv6 in this network namespace (/proc/net/if_inet6): absent: this kernel has no IPv6 here
+     answered: A1 registry.npmjs.org:443: certificate not trusted
+     answered: A2 registry.npmjs.org:80: HTTP 301; server: cloudflare; location: https://registry.npmjs.org/-/ping
+     answered: A3 example.com:443: certificate not trusted
+     answered: A4 example.com:80: HTTP 200; server: cloudflare
+     answered: A5 github.com:80: HTTP 301; location: https://github.com/
+     answered: B1 1.1.1.1:443: connected
+     answered: B2 172.66.147.243:80: connected
+     answered: B3 172.66.147.243:80: HTTP 200; server: cloudflare
+     answered: B4 169.254.169.254:80: HTTP 403; x-deny-reason: private_dest_ip; says: "Destination IP is in a private/reserved range"
+     answered: C5 127.0.0.1:5432: connected
+     answered: C6 127.0.0.1:35271: connected
+     answered: C7 127.0.0.1:5432: connected
+     answered: C9 127.0.0.1:38369: connected
+     answered: X2024 127.0.0.1:2024: connected
+     answered: X4041 127.0.0.1:4041: connected
+     answered: X34803 127.0.0.1:34803: connected
+     answered: X43013 127.0.0.1:43013: connected
+     answered: X43049 127.0.0.1:43049: connected
+     answered: X46861 127.0.0.1:46861: connected
+     answered: M172.17.0.1:2024 172.17.0.1:2024: connected
+     answered: M172.17.0.1:46861 172.17.0.1:46861: connected
+     answered: M192.0.2.2:2024 192.0.2.2:2024: connected
+     answered: M192.0.2.2:46861 192.0.2.2:46861: connected
+     answered: D1 registry.npmjs.org: found 12 addresses; 104.16.2.34, 104.16.7.34, 104.16.9.34
+     answered: D2 example.com: found 2 addresses; 104.20.23.154, 172.66.147.243
+     answered: D5 registry.npmjs.org @1.1.1.1: found 12 addresses; 104.16.2.34, 104.16.7.34, 104.16.9.34
+     answered: D6 example.com @1.1.1.1: found 2 addresses; 104.20.23.154, 172.66.147.243
+     answered: F1 registry.npmjs.org:443: proxy answered 200
+     answered: F2 github.com:443: proxy answered 200
+     answered: F3 example.com:443: proxy answered 200
+     answered: F4 github.com:443: certificate not trusted; the proxy answered 200; the error came after
+  -- comparison: Docker's default network: 56 attempts; 17 got an answer (a connection opened, an HTTP status, a proxy's answer, or an address found); compared with its list: PASS (56 rows PASS, 0 FAIL)
+     network interfaces that are up and running, with their addresses (as Node lists them): lo (127.0.0.1); eth0 (172.17.0.2)
+     name servers in /etc/resolv.conf: 8.8.8.8, 8.8.4.4
+     IPv4 routes (/proc/net/route): to 0.0.0.0/0 via 172.17.0.1 on eth0; to 172.17.0.0/16 via 0.0.0.0 on eth0
+     a default route (a way to any address): yes
+     packet forwarding (/proc/sys/net/ipv4/ip_forward): 1
+     IPv6 in this network namespace (/proc/net/if_inet6): absent: this kernel has no IPv6 here
+     answered: A1 registry.npmjs.org:443: certificate not trusted
+     answered: A2 registry.npmjs.org:80: HTTP 301; server: cloudflare; location: https://registry.npmjs.org/-/ping
+     answered: A3 example.com:443: certificate not trusted
+     answered: A4 example.com:80: HTTP 200; server: cloudflare
+     answered: A5 github.com:80: HTTP 301; location: https://github.com/
+     answered: B1 1.1.1.1:443: connected
+     answered: B2 104.20.23.154:80: connected
+     answered: B3 104.20.23.154:80: HTTP 200; server: cloudflare
+     answered: B4 169.254.169.254:80: HTTP 403; x-deny-reason: private_dest_ip; says: "Destination IP is in a private/reserved range"
+     answered: M172.17.0.1:2024 172.17.0.1:2024: connected
+     answered: M172.17.0.1:46861 172.17.0.1:46861: connected
+     answered: M192.0.2.2:2024 192.0.2.2:2024: connected
+     answered: M192.0.2.2:46861 192.0.2.2:46861: connected
+     answered: D1 registry.npmjs.org: found 12 addresses; 104.16.2.34, 104.16.7.34, 104.16.9.34
+     answered: D2 example.com: found 2 addresses; 104.20.23.154, 172.66.147.243
+     answered: D5 registry.npmjs.org @1.1.1.1: found 12 addresses; 104.16.2.34, 104.16.7.34, 104.16.9.34
+     answered: D6 example.com @1.1.1.1: found 2 addresses; 104.20.23.154, 172.66.147.243
+
+== 5. Four deliberate misconfigurations, in stand-in images: each must FAIL its comparison ==
+  -- misconfiguration 1: the app (stand-in image) also on an ordinary bridge (a way out): 66 attempts; 23 got an answer (a connection opened, an HTTP status, a proxy's answer, or an address found); compared with its list: FAIL (47 rows PASS, 19 FAIL)
+     network interfaces that are up and running, with their addresses (as Node lists them): lo (127.0.0.1); eth0 (172.24.0.3); eth1 (172.25.0.3); eth2 (172.26.0.2)
+     name servers in /etc/resolv.conf: 127.0.0.11
+     IPv4 routes (/proc/net/route): to 0.0.0.0/0 via 172.25.0.1 on eth1; to 172.24.0.0/16 via 0.0.0.0 on eth0; to 172.25.0.0/16 via 0.0.0.0 on eth1; to 172.26.0.0/16 via 0.0.0.0 on eth2
+     a default route (a way to any address): yes
+     packet forwarding (/proc/sys/net/ipv4/ip_forward): 1
+     IPv6 in this network namespace (/proc/net/if_inet6): absent: this kernel has no IPv6 here
+     answered: A1 registry.npmjs.org:443: certificate not trusted
+     answered: A2 registry.npmjs.org:80: HTTP 301; server: cloudflare; location: https://registry.npmjs.org/-/ping
+     answered: A3 example.com:443: certificate not trusted
+     answered: A4 example.com:80: HTTP 200; server: cloudflare
+     answered: A5 github.com:80: HTTP 301; location: https://github.com/
+     answered: B1 1.1.1.1:443: connected
+     answered: B2 104.20.23.154:80: connected
+     answered: B3 104.20.23.154:80: HTTP 200; server: cloudflare
+     answered: B4 169.254.169.254:80: HTTP 403; x-deny-reason: private_dest_ip; says: "Destination IP is in a private/reserved range"
+     answered: X45945 127.0.0.11:45945: connected
+     answered: M172.17.0.1:2024 172.17.0.1:2024: connected
+     answered: M172.17.0.1:46861 172.17.0.1:46861: connected
+     answered: M172.25.0.1:2024 172.25.0.1:2024: connected
+     answered: M172.25.0.1:46861 172.25.0.1:46861: connected
+     answered: M192.0.2.2:2024 192.0.2.2:2024: connected
+     answered: M192.0.2.2:46861 192.0.2.2:46861: connected
+     answered: D1 registry.npmjs.org: found 12 addresses; 104.16.2.34, 104.16.7.34, 104.16.9.34
+     answered: D2 example.com: found 2 addresses; 104.20.23.154, 172.66.147.243
+     answered: D3 db: found 1 address; 172.24.0.1
+     answered: D5 registry.npmjs.org @1.1.1.1: found 12 addresses; 104.16.2.34, 104.16.7.34, 104.16.9.34
+     answered: D6 example.com @1.1.1.1: found 2 addresses; 104.20.23.154, 172.66.147.243
+     answered: Pdb:5432 db:5432: connected
+     answered: Papp:3171 app:3171: connected
+     FAIL A1 registry.npmjs.org:443: expected no answer (refused, timed out, name not found, no name server, network unreachable); got certificate not trusted (SELF_SIGNED_CERT_IN_CHAIN)
+     FAIL A2 registry.npmjs.org:80: expected no answer (refused, timed out, name not found, no name server, network unreachable); got HTTP 301; server: cloudflare; location: https://registry.npmjs.org/-/ping
+     FAIL A3 example.com:443: expected no answer (refused, timed out, name not found, no name server, network unreachable); got certificate not trusted (SELF_SIGNED_CERT_IN_CHAIN)
+     FAIL A4 example.com:80: expected no answer (refused, timed out, name not found, no name server, network unreachable); got HTTP 200; server: cloudflare
+     FAIL A5 github.com:80: expected no answer (refused, timed out, name not found, no name server, network unreachable); got HTTP 301; location: https://github.com/
+     FAIL B1 1.1.1.1:443: expected no answer (refused, timed out, name not found, no name server, network unreachable); got connected
+     FAIL B2 104.20.23.154:80: expected no answer (refused, timed out, name not found, no name server, network unreachable); got connected
+     FAIL B3 104.20.23.154:80: expected no answer (refused, timed out, name not found, no name server, network unreachable); got HTTP 200; server: cloudflare
+     FAIL B4 169.254.169.254:80: expected no answer (refused, timed out, name not found, no name server, network unreachable); got HTTP 403; x-deny-reason: private_dest_ip; says: "Destination IP is in a private/reserved range"
+     FAIL M172.17.0.1:2024 172.17.0.1:2024: expected no answer (refused, timed out, name not found, no name server, network unreachable); got connected
+     FAIL M172.17.0.1:46861 172.17.0.1:46861: expected no answer (refused, timed out, name not found, no name server, network unreachable); got connected
+     FAIL M172.25.0.1:2024 172.25.0.1:2024: expected no answer (refused, timed out, name not found, no name server, network unreachable); got connected
+     FAIL M172.25.0.1:46861 172.25.0.1:46861: expected no answer (refused, timed out, name not found, no name server, network unreachable); got connected
+     FAIL M192.0.2.2:2024 192.0.2.2:2024: expected no answer (refused, timed out, name not found, no name server, network unreachable); got connected
+     FAIL M192.0.2.2:46861 192.0.2.2:46861: expected no answer (refused, timed out, name not found, no name server, network unreachable); got connected
+     FAIL D1 registry.npmjs.org: expected no answer (refused, timed out, name not found, no name server, network unreachable); got found 12 addresses; 104.16.2.34, 104.16.7.34, 104.16.9.34
+     FAIL D2 example.com: expected no answer (refused, timed out, name not found, no name server, network unreachable); got found 2 addresses; 104.20.23.154, 172.66.147.243
+     FAIL D5 registry.npmjs.org @1.1.1.1: expected no answer (refused, timed out, name not found, no name server, network unreachable); got found 12 addresses; 104.16.2.34, 104.16.7.34, 104.16.9.34
+     FAIL D6 example.com @1.1.1.1: expected no answer (refused, timed out, name not found, no name server, network unreachable); got found 2 addresses; 104.20.23.154, 172.66.147.243
+  Machine addresses once the misconfigured data network exists: 172.17.0.1, 172.25.0.1, 172.27.0.1, 192.0.2.2
+  -- misconfiguration 2: data internal without the isolated gateway mode (tools, stand-in image): 75 attempts; 6 got an answer (a connection opened, an HTTP status, a proxy's answer, or an address found); compared with its list: FAIL (73 rows PASS, 2 FAIL)
+     network interfaces that are up and running, with their addresses (as Node lists them): lo (127.0.0.1); eth0 (172.27.0.4)
+     name servers in /etc/resolv.conf: 127.0.0.11
+     IPv4 routes (/proc/net/route): to 172.27.0.0/16 via 0.0.0.0 on eth0
+     a default route (a way to any address): no
+     packet forwarding (/proc/sys/net/ipv4/ip_forward): 1
+     IPv6 in this network namespace (/proc/net/if_inet6): absent: this kernel has no IPv6 here
+     answered: X36261 127.0.0.11:36261: connected
+     answered: M172.27.0.1:2024 172.27.0.1:2024: connected
+     answered: M172.27.0.1:46861 172.27.0.1:46861: connected
+     answered: D3 db: found 1 address; 172.27.0.2
+     answered: Pdb:5432 db:5432: connected
+     answered: Papp:3171 app:3171: connected
+     FAIL M172.27.0.1:2024 172.27.0.1:2024: expected no answer (refused, timed out, name not found, no name server, network unreachable); got connected
+     FAIL M172.27.0.1:46861 172.27.0.1:46861: expected no answer (refused, timed out, name not found, no name server, network unreachable); got connected
+  misconfiguration 3 (the stream container (check) also on out): the builder's own check before a live session (streamNetworkProblem): Compose puts the check service on front, out, not on the project's front network alone
+  -- misconfiguration 3: the stream container (check) also on out: 79 attempts; 10 got an answer (a connection opened, an HTTP status, a proxy's answer, or an address found); compared with its list: FAIL (71 rows PASS, 8 FAIL)
+     network interfaces that are up and running, with their addresses (as Node lists them): lo (127.0.0.1); eth0 (172.30.0.2); eth1 (172.29.0.2)
+     name servers in /etc/resolv.conf: 127.0.0.11
+     IPv4 routes (/proc/net/route): to 172.29.0.0/16 via 0.0.0.0 on eth1; to 172.30.0.0/16 via 0.0.0.0 on eth0
+     a default route (a way to any address): no
+     packet forwarding (/proc/sys/net/ipv4/ip_forward): 1
+     IPv6 in this network namespace (/proc/net/if_inet6): absent: this kernel has no IPv6 here
+     answered: X42915 127.0.0.11:42915: connected
+     answered: E1 registry.npmjs.org:443: proxy answered 200
+     answered: E2 registry.npmjs.org:443: HTTP 200; server: cloudflare
+     answered: E3 example.com:443: proxy answered 403; says: "egress refused: example.com is not an allowed host"
+     answered: E4 registry.npmjs.org:80: HTTP 405; says: "agent-proxy relay: this proxy only accepts HTTPS CONNECT tunnels. Plain-HTTP/absolute-form requests are not su"
+     answered: E5 example.com:80: HTTP 403; says: "egress refused: example.com is not an allowed host"
+     answered: W1 egress:4010: HTTP 200; server: gateway-stand-in
+     answered: Papp:3171 app:3171: connected
+     answered: Pegress:3128 egress:3128: connected
+     answered: Pegress:4010 egress:4010: connected
+     FAIL E1 registry.npmjs.org:443: expected no answer (refused, timed out, name not found, no name server, network unreachable); got proxy answered 200
+     FAIL E2 registry.npmjs.org:443: expected no answer (refused, timed out, name not found, no name server, network unreachable); got HTTP 200; server: cloudflare
+     FAIL E3 example.com:443: expected no answer (refused, timed out, name not found, no name server, network unreachable); got proxy answered 403; says: "egress refused: example.com is not an allowed host"
+     FAIL E4 registry.npmjs.org:80: expected no answer (refused, timed out, name not found, no name server, network unreachable); got HTTP 405; says: "agent-proxy relay: this proxy only accepts HTTPS CONNECT tunnels. Plain-HTTP/absolute-form requests are not su"
+     FAIL E5 example.com:80: expected no answer (refused, timed out, name not found, no name server, network unreachable); got HTTP 403; says: "egress refused: example.com is not an allowed host"
+     FAIL W1 egress:4010: expected no answer (refused, timed out, name not found, no name server, network unreachable); got HTTP 200; server: gateway-stand-in
+     FAIL Pegress:3128 egress:3128: expected no answer (refused, timed out, name not found, no name server, network unreachable); got connected
+     FAIL Pegress:4010 egress:4010: expected no answer (refused, timed out, name not found, no name server, network unreachable); got connected
+  misconfiguration 4 (the stream container (check) on the machine's network): the builder's own check before a live session (streamNetworkProblem): Compose puts the check service on network_mode "host", not on the project's front network
+  -- misconfiguration 4: the stream container (check) on the machine's network: 85 attempts; 36 got an answer (a connection opened, an HTTP status, a proxy's answer, or an address found); compared with its list: FAIL (55 rows PASS, 30 FAIL)
+     network interfaces that are up and running, with their addresses (as Node lists them): lo (127.0.0.1); eth0 (192.0.2.2); br-7734761e4681 (172.25.0.1); br-76f5ae4cf0ff (172.27.0.1)
+     name servers in /etc/resolv.conf: 8.8.8.8, 8.8.4.4
+     IPv4 routes (/proc/net/route): to 0.0.0.0/0 via 192.0.2.1 on eth0; to 172.17.0.0/16 via 0.0.0.0 on docker0; to 172.25.0.0/16 via 0.0.0.0 on br-7734761e4681; to 172.27.0.0/16 via 0.0.0.0 on br-76f5ae4cf0ff; to 192.0.2.0/24 via 0.0.0.0 on eth0
+     a default route (a way to any address): yes
+     packet forwarding (/proc/sys/net/ipv4/ip_forward): 1
+     IPv6 in this network namespace (/proc/net/if_inet6): absent: this kernel has no IPv6 here
+     answered: A1 registry.npmjs.org:443: certificate not trusted
+     answered: A2 registry.npmjs.org:80: HTTP 301; server: cloudflare; location: https://registry.npmjs.org/-/ping
+     answered: A3 example.com:443: certificate not trusted
+     answered: A4 example.com:80: HTTP 200; server: cloudflare
+     answered: A5 github.com:80: HTTP 301; location: https://github.com/
+     answered: B1 1.1.1.1:443: connected
+     answered: B2 172.66.147.243:80: connected
+     answered: B3 172.66.147.243:80: HTTP 200; server: cloudflare
+     answered: B4 169.254.169.254:80: HTTP 403; x-deny-reason: private_dest_ip; says: "Destination IP is in a private/reserved range"
+     answered: C5 127.0.0.1:5432: connected
+     answered: C6 127.0.0.1:35271: connected
+     answered: C7 127.0.0.1:5432: connected
+     answered: C9 127.0.0.1:38369: connected
+     answered: X2024 127.0.0.1:2024: connected
+     answered: X4041 127.0.0.1:4041: connected
+     answered: X34803 127.0.0.1:34803: connected
+     answered: X40475 127.0.0.1:40475: connected
+     answered: X43013 127.0.0.1:43013: connected
+     answered: X43049 127.0.0.1:43049: connected
+     answered: X46861 127.0.0.1:46861: connected
+     answered: M172.17.0.1:2024 172.17.0.1:2024: connected
+     answered: M172.17.0.1:46861 172.17.0.1:46861: connected
+     answered: M172.25.0.1:2024 172.25.0.1:2024: connected
+     answered: M172.25.0.1:46861 172.25.0.1:46861: connected
+     answered: M172.27.0.1:2024 172.27.0.1:2024: connected
+     answered: M172.27.0.1:46861 172.27.0.1:46861: connected
+     answered: M192.0.2.2:2024 192.0.2.2:2024: connected
+     answered: M192.0.2.2:46861 192.0.2.2:46861: connected
+     answered: D1 registry.npmjs.org: found 12 addresses; 104.16.0.34, 104.16.3.34, 104.16.4.34
+     answered: D2 example.com: found 2 addresses; 104.20.23.154, 172.66.147.243
+     answered: D5 registry.npmjs.org @1.1.1.1: found 12 addresses; 104.16.0.34, 104.16.3.34, 104.16.4.34
+     answered: D6 example.com @1.1.1.1: found 2 addresses; 104.20.23.154, 172.66.147.243
+     answered: F1 registry.npmjs.org:443: proxy answered 200
+     answered: F2 github.com:443: proxy answered 200
+     answered: F3 example.com:443: proxy answered 200
+     answered: F4 github.com:443: certificate not trusted; the proxy answered 200; the error came after
+     FAIL A1 registry.npmjs.org:443: expected no answer (refused, timed out, name not found, no name server, network unreachable); got certificate not trusted (SELF_SIGNED_CERT_IN_CHAIN)
+     FAIL A2 registry.npmjs.org:80: expected no answer (refused, timed out, name not found, no name server, network unreachable); got HTTP 301; server: cloudflare; location: https://registry.npmjs.org/-/ping
+     FAIL A3 example.com:443: expected no answer (refused, timed out, name not found, no name server, network unreachable); got certificate not trusted (SELF_SIGNED_CERT_IN_CHAIN)
+     FAIL A4 example.com:80: expected no answer (refused, timed out, name not found, no name server, network unreachable); got HTTP 200; server: cloudflare
+     FAIL A5 github.com:80: expected no answer (refused, timed out, name not found, no name server, network unreachable); got HTTP 301; location: https://github.com/
+     FAIL B1 1.1.1.1:443: expected no answer (refused, timed out, name not found, no name server, network unreachable); got connected
+     FAIL B2 172.66.147.243:80: expected no answer (refused, timed out, name not found, no name server, network unreachable); got connected
+     FAIL B3 172.66.147.243:80: expected no answer (refused, timed out, name not found, no name server, network unreachable); got HTTP 200; server: cloudflare
+     FAIL B4 169.254.169.254:80: expected no answer (refused, timed out, name not found, no name server, network unreachable); got HTTP 403; x-deny-reason: private_dest_ip; says: "Destination IP is in a private/reserved range"
+     FAIL C5 127.0.0.1:5432: expected no answer (refused, timed out, name not found, no name server, network unreachable); got connected
+     FAIL C6 127.0.0.1:35271: expected no answer (refused, timed out, name not found, no name server, network unreachable); got connected
+     FAIL C7 127.0.0.1:5432: expected no answer (refused, timed out, name not found, no name server, network unreachable); got connected
+     FAIL C9 127.0.0.1:38369: expected no answer (refused, timed out, name not found, no name server, network unreachable); got connected
+     FAIL M172.17.0.1:2024 172.17.0.1:2024: expected no answer (refused, timed out, name not found, no name server, network unreachable); got connected
+     FAIL M172.17.0.1:46861 172.17.0.1:46861: expected no answer (refused, timed out, name not found, no name server, network unreachable); got connected
+     FAIL M172.25.0.1:2024 172.25.0.1:2024: expected no answer (refused, timed out, name not found, no name server, network unreachable); got connected
+     FAIL M172.25.0.1:46861 172.25.0.1:46861: expected no answer (refused, timed out, name not found, no name server, network unreachable); got connected
+     FAIL M172.27.0.1:2024 172.27.0.1:2024: expected no answer (refused, timed out, name not found, no name server, network unreachable); got connected
+     FAIL M172.27.0.1:46861 172.27.0.1:46861: expected no answer (refused, timed out, name not found, no name server, network unreachable); got connected
+     FAIL M192.0.2.2:2024 192.0.2.2:2024: expected no answer (refused, timed out, name not found, no name server, network unreachable); got connected
+     FAIL M192.0.2.2:46861 192.0.2.2:46861: expected no answer (refused, timed out, name not found, no name server, network unreachable); got connected
+     FAIL D1 registry.npmjs.org: expected no answer (refused, timed out, name not found, no name server, network unreachable); got found 12 addresses; 104.16.0.34, 104.16.3.34, 104.16.4.34
+     FAIL D2 example.com: expected no answer (refused, timed out, name not found, no name server, network unreachable); got found 2 addresses; 104.20.23.154, 172.66.147.243
+     FAIL D5 registry.npmjs.org @1.1.1.1: expected no answer (refused, timed out, name not found, no name server, network unreachable); got found 12 addresses; 104.16.0.34, 104.16.3.34, 104.16.4.34
+     FAIL D6 example.com @1.1.1.1: expected no answer (refused, timed out, name not found, no name server, network unreachable); got found 2 addresses; 104.20.23.154, 172.66.147.243
+     FAIL F1 registry.npmjs.org:443: expected no answer (refused, timed out, name not found, no name server, network unreachable); got proxy answered 200
+     FAIL F2 github.com:443: expected no answer (refused, timed out, name not found, no name server, network unreachable); got proxy answered 200
+     FAIL F3 example.com:443: expected no answer (refused, timed out, name not found, no name server, network unreachable); got proxy answered 200
+     FAIL F4 github.com:443: expected no answer (refused, timed out, name not found, no name server, network unreachable); got certificate not trusted (SELF_SIGNED_CERT_IN_CHAIN); the proxy answered 200; the error came after
+     FAIL Papp:3171 app:3171: expected connected: the project's app, on the front network (a stream's only peer); got name not found (ENOTFOUND)
+
+== 6. The machine side's log (the egress proxy's decisions, the gateway forwarder) and the door's ==
+  egress-host: {"at":"2026-11-14T13:43:47.362Z","listening":"/sock/egress.sock","kind":"egress proxy","allow":["registry.npmjs.org"],"upstream":"127.0.0.1:38369"}
+  egress-host: {"at":"2026-11-14T13:43:47.364Z","listening":"/sock/gateway.sock","kind":"gateway forwarder","to":"127.0.0.1:35271"}
+  egress-host: {"at":"2026-11-14T13:43:47.371Z","listening":"127.0.0.1:43049","kind":"egress proxy for the image build","allow":["registry.npmjs.org"],"upstream":"127.0.0.1:38369"}
+  egress-host: {"at":"2026-11-14T13:46:41.214Z","method":"CONNECT","host":"registry.npmjs.org","port":443,"decision":"allowed"}
+  egress-host: {"at":"2026-11-14T13:46:41.474Z","method":"CONNECT","host":"registry.npmjs.org","port":443,"decision":"allowed"}
+  egress-host: {"at":"2026-11-14T13:46:41.935Z","method":"CONNECT","host":"example.com","port":443,"decision":"refused"}
+  egress-host: {"at":"2026-11-14T13:46:41.939Z","method":"GET","host":"registry.npmjs.org","port":80,"decision":"allowed"}
+  egress-host: {"at":"2026-11-14T13:46:41.950Z","method":"GET","host":"example.com","port":80,"decision":"refused"}
+  egress-host: {"at":"2026-11-14T13:46:41.953Z","listen":"/sock/gateway.sock","from":"socket","to":"127.0.0.1:35271","decision":"forwarded"}
+  egress-host: {"at":"2026-11-14T13:46:45.962Z","listen":"/sock/gateway.sock","from":"socket","to":"127.0.0.1:35271","decision":"forwarded"}
+  egress-host: {"at":"2026-11-14T13:47:06.562Z","method":"CONNECT","host":"registry.npmjs.org","port":443,"decision":"allowed"}
+  egress-host: {"at":"2026-11-14T13:47:06.828Z","method":"CONNECT","host":"registry.npmjs.org","port":443,"decision":"allowed"}
+  egress-host: {"at":"2026-11-14T13:47:07.291Z","method":"CONNECT","host":"example.com","port":443,"decision":"refused"}
+  egress-host: {"at":"2026-11-14T13:47:07.294Z","method":"GET","host":"registry.npmjs.org","port":80,"decision":"allowed"}
+  egress-host: {"at":"2026-11-14T13:47:07.299Z","method":"GET","host":"example.com","port":80,"decision":"refused"}
+  egress-host: {"at":"2026-11-14T13:47:07.301Z","listen":"/sock/gateway.sock","from":"socket","to":"127.0.0.1:35271","decision":"forwarded"}
+  egress-host: {"at":"2026-11-14T13:47:11.307Z","listen":"/sock/gateway.sock","from":"socket","to":"127.0.0.1:35271","decision":"forwarded"}
+  door: 16 connections forwarded, from 172.22.0.2; 0 errors.
+
+== 7. Every attempt in the stand-in project, one row each, one column per container (results only; the comparisons are in the files) ==
+| Id | Target | What | app (stand-in image) (data, front) | tools (stand-in image) (data) | db (data; the probe in its network namespace) | runner (stand-in image) (front) | engine service placed as package 2.2 would place it (placement only; no such engine exists) (out) | the door, egress (out) | a live preview stream, check (front) | camera (stand-in runner image): the runner's service with the camera socket at /psock (front) | comparison: the machine's own network | comparison: Docker's default network |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| A1 | registry.npmjs.org:443 | a host the egress list allows, HTTPS | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | certificate not trusted (SELF_SIGNED_CERT_IN_CHAIN) | certificate not trusted (SELF_SIGNED_CERT_IN_CHAIN) |
+| A2 | registry.npmjs.org:80 | a host the egress list allows, plain HTTP | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | HTTP 301 | HTTP 301 |
+| A3 | example.com:443 | a host the egress list refuses, HTTPS | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | certificate not trusted (SELF_SIGNED_CERT_IN_CHAIN) | certificate not trusted (SELF_SIGNED_CERT_IN_CHAIN) |
+| A4 | example.com:80 | a host the egress list refuses, plain HTTP | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | HTTP 200 | HTTP 200 |
+| A5 | github.com:80 | another host the egress list refuses, plain HTTP | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | HTTP 301 | HTTP 301 |
+| B1 | 1.1.1.1:443 | a public address, HTTPS port | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | connected | connected |
+| B2 | differs by container: see each cell | differs by container: see each cell | network unreachable (ENETUNREACH); this container: 93.184.215.14:80, the address given for example.com (not checked), HTTP port | network unreachable (ENETUNREACH); this container: 93.184.215.14:80, the address given for example.com (not checked), HTTP port | network unreachable (ENETUNREACH); this container: 93.184.215.14:80, the address given for example.com (not checked), HTTP port | network unreachable (ENETUNREACH); this container: 93.184.215.14:80, the address given for example.com (not checked), HTTP port | network unreachable (ENETUNREACH); this container: 93.184.215.14:80, the address given for example.com (not checked), HTTP port | network unreachable (ENETUNREACH); this container: 93.184.215.14:80, the address given for example.com (not checked), HTTP port | network unreachable (ENETUNREACH); this container: 93.184.215.14:80, the address given for example.com (not checked), HTTP port | network unreachable (ENETUNREACH); this container: 93.184.215.14:80, the address given for example.com (not checked), HTTP port | connected; this container: 172.66.147.243:80, example.com's address, HTTP port | connected; this container: 104.20.23.154:80, example.com's address, HTTP port |
+| B3 | differs by container: see each cell | differs by container: see each cell | network unreachable (ENETUNREACH); this container: 93.184.215.14:80, the address given for example.com (not checked), plain HTTP | network unreachable (ENETUNREACH); this container: 93.184.215.14:80, the address given for example.com (not checked), plain HTTP | network unreachable (ENETUNREACH); this container: 93.184.215.14:80, the address given for example.com (not checked), plain HTTP | network unreachable (ENETUNREACH); this container: 93.184.215.14:80, the address given for example.com (not checked), plain HTTP | network unreachable (ENETUNREACH); this container: 93.184.215.14:80, the address given for example.com (not checked), plain HTTP | network unreachable (ENETUNREACH); this container: 93.184.215.14:80, the address given for example.com (not checked), plain HTTP | network unreachable (ENETUNREACH); this container: 93.184.215.14:80, the address given for example.com (not checked), plain HTTP | network unreachable (ENETUNREACH); this container: 93.184.215.14:80, the address given for example.com (not checked), plain HTTP | HTTP 200; this container: 172.66.147.243:80, example.com's address, plain HTTP | HTTP 200; this container: 104.20.23.154:80, example.com's address, plain HTTP |
+| B4 | 169.254.169.254:80 | the cloud's machine-information address (link-local) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | HTTP 403 | HTTP 403 |
+| C1 | 1.1.1.1:22 | an outside address, port 22 (remote login) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | refused (ECONNREFUSED) | refused (ECONNREFUSED) |
+| C2 | 1.1.1.1:25 | an outside address, port 25 (mail) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | refused (ECONNREFUSED) | refused (ECONNREFUSED) |
+| C3 | 1.1.1.1:53 | an outside address, port 53 (name service over TCP) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | refused (ECONNREFUSED) | refused (ECONNREFUSED) |
+| C4 | 1.1.1.1:8080 | an outside address, port 8080 | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | refused (ECONNREFUSED) | refused (ECONNREFUSED) |
+| C5 | 127.0.0.1:5432 | the builder's own database (PostgreSQL) | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | connected, at its own loopback address | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | connected | refused (ECONNREFUSED), at its own loopback address |
+| C6 | 127.0.0.1:35271 | the model gateway's port | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | connected | refused (ECONNREFUSED), at its own loopback address |
+| C7 | 127.0.0.1:5432 | the project's database | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | connected, at its own loopback address | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | connected | refused (ECONNREFUSED), at its own loopback address |
+| C8 | 127.0.0.1:3128 | the project's egress proxy | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED) | refused (ECONNREFUSED), at its own loopback address |
+| C9 | 127.0.0.1:38369 | the cloud session's proxy | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | connected | refused (ECONNREFUSED), at its own loopback address |
+| X2024 | 127.0.0.1:2024 | another listening port, seen inside the container | not tried | not tried | not tried | not tried | not tried | not tried | not tried | not tried | connected | not tried |
+| X4041 | 127.0.0.1:4041 | another listening port, seen inside the container | not tried | not tried | not tried | not tried | not tried | not tried | not tried | not tried | connected | not tried |
+| X33973 | 127.0.0.11:33973 | another listening port, seen inside the container | not tried | not tried | not tried | not tried | connected, at its own loopback address | not tried | not tried | not tried | not tried | not tried |
+| X34803 | 127.0.0.1:34803 | another listening port, seen inside the container | not tried | not tried | not tried | not tried | not tried | not tried | not tried | not tried | connected | not tried |
+| X35215 | 127.0.0.11:35215 | another listening port, seen inside the container | connected, at its own loopback address | not tried | not tried | not tried | not tried | not tried | not tried | not tried | not tried | not tried |
+| X36809 | 127.0.0.11:36809 | another listening port, seen inside the container | not tried | not tried | not tried | connected, at its own loopback address | not tried | not tried | not tried | not tried | not tried | not tried |
+| X36857 | 127.0.0.11:36857 | another listening port, seen inside the container | not tried | not tried | not tried | not tried | not tried | connected, at its own loopback address | not tried | not tried | not tried | not tried |
+| X38301 | 127.0.0.11:38301 | another listening port, seen inside the container | not tried | not tried | not tried | not tried | not tried | not tried | connected, at its own loopback address | not tried | not tried | not tried |
+| X41341 | 127.0.0.11:41341 | another listening port, seen inside the container | not tried | connected, at its own loopback address | not tried | not tried | not tried | not tried | not tried | not tried | not tried | not tried |
+| X43013 | 127.0.0.1:43013 | another listening port, seen inside the container | not tried | not tried | not tried | not tried | not tried | not tried | not tried | not tried | connected | not tried |
+| X43049 | 127.0.0.1:43049 | another listening port, seen inside the container | not tried | not tried | not tried | not tried | not tried | not tried | not tried | not tried | connected | not tried |
+| X43937 | 127.0.0.11:43937 | another listening port, seen inside the container | not tried | not tried | not tried | not tried | not tried | not tried | not tried | connected, at its own loopback address | not tried | not tried |
+| X46849 | 127.0.0.11:46849 | another listening port, seen inside the container | not tried | not tried | connected, at its own loopback address | not tried | not tried | not tried | not tried | not tried | not tried | not tried |
+| X46861 | 127.0.0.1:46861 | another listening port, seen inside the container | not tried | not tried | not tried | not tried | not tried | not tried | not tried | not tried | connected | not tried |
+| M172.17.0.1:2024 | 172.17.0.1:2024 | a machine address, and port 2024, listening on the machine at 0.0.0.0 (every address) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | connected | connected |
+| M172.17.0.1:4041 | 172.17.0.1:4041 | a machine address, and port 4041, listening on the machine at 127.0.0.1 (loopback only) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | refused (ECONNREFUSED) | refused (ECONNREFUSED) |
+| M172.17.0.1:5432 | 172.17.0.1:5432 | a machine address, and port 5432, listening on the machine at 127.0.0.1 (loopback only) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | refused (ECONNREFUSED) | refused (ECONNREFUSED) |
+| M172.17.0.1:34803 | 172.17.0.1:34803 | a machine address, and port 34803, listening on the machine at 127.0.0.1 (loopback only) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | refused (ECONNREFUSED) | refused (ECONNREFUSED) |
+| M172.17.0.1:35271 | 172.17.0.1:35271 | a machine address, and port 35271, listening on the machine at 127.0.0.1 (loopback only) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | refused (ECONNREFUSED) | refused (ECONNREFUSED) |
+| M172.17.0.1:38369 | 172.17.0.1:38369 | a machine address, and port 38369, listening on the machine at 127.0.0.1 (loopback only) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | refused (ECONNREFUSED) | refused (ECONNREFUSED) |
+| M172.17.0.1:43013 | 172.17.0.1:43013 | a machine address, and port 43013, listening on the machine at 127.0.0.1 (loopback only) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | refused (ECONNREFUSED) | refused (ECONNREFUSED) |
+| M172.17.0.1:43049 | 172.17.0.1:43049 | a machine address, and port 43049, listening on the machine at 127.0.0.1 (loopback only) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | refused (ECONNREFUSED) | refused (ECONNREFUSED) |
+| M172.17.0.1:46861 | 172.17.0.1:46861 | a machine address, and port 46861, listening on the machine at 0.0.0.0 (every address) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | connected | connected |
+| M192.0.2.2:2024 | 192.0.2.2:2024 | a machine address, and port 2024, listening on the machine at 0.0.0.0 (every address) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | connected | connected |
+| M192.0.2.2:4041 | 192.0.2.2:4041 | a machine address, and port 4041, listening on the machine at 127.0.0.1 (loopback only) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | refused (ECONNREFUSED) | refused (ECONNREFUSED) |
+| M192.0.2.2:5432 | 192.0.2.2:5432 | a machine address, and port 5432, listening on the machine at 127.0.0.1 (loopback only) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | refused (ECONNREFUSED) | refused (ECONNREFUSED) |
+| M192.0.2.2:34803 | 192.0.2.2:34803 | a machine address, and port 34803, listening on the machine at 127.0.0.1 (loopback only) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | refused (ECONNREFUSED) | refused (ECONNREFUSED) |
+| M192.0.2.2:35271 | 192.0.2.2:35271 | a machine address, and port 35271, listening on the machine at 127.0.0.1 (loopback only) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | refused (ECONNREFUSED) | refused (ECONNREFUSED) |
+| M192.0.2.2:38369 | 192.0.2.2:38369 | a machine address, and port 38369, listening on the machine at 127.0.0.1 (loopback only) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | refused (ECONNREFUSED) | refused (ECONNREFUSED) |
+| M192.0.2.2:43013 | 192.0.2.2:43013 | a machine address, and port 43013, listening on the machine at 127.0.0.1 (loopback only) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | refused (ECONNREFUSED) | refused (ECONNREFUSED) |
+| M192.0.2.2:43049 | 192.0.2.2:43049 | a machine address, and port 43049, listening on the machine at 127.0.0.1 (loopback only) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | refused (ECONNREFUSED) | refused (ECONNREFUSED) |
+| M192.0.2.2:46861 | 192.0.2.2:46861 | a machine address, and port 46861, listening on the machine at 0.0.0.0 (every address) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | network unreachable (ENETUNREACH) | connected | connected |
+| D1 | registry.npmjs.org | an outside name the egress list allows | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | found 12 addresses | found 12 addresses |
+| D2 | example.com | an outside name the egress list refuses | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | found 2 addresses | found 2 addresses |
+| D3 | db | an internal-looking name: the database's name on the server profile | found 1 address | found 1 address | found 1 address | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | name not found (ENOTFOUND) | name not found (ENOTFOUND) |
+| D4 | metadata.google.internal | an internal-looking name: the cloud's machine-information service | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | name not found (ENOTFOUND) | name not found (ENOTFOUND) |
+| D5 | registry.npmjs.org @1.1.1.1 | an allowed name, asking an outside name server directly | no name server answered (ECONNREFUSED) | no name server answered (ECONNREFUSED) | no name server answered (ECONNREFUSED) | no name server answered (ECONNREFUSED) | no name server answered (ECONNREFUSED) | no name server answered (ECONNREFUSED) | no name server answered (ECONNREFUSED) | no name server answered (ECONNREFUSED) | found 12 addresses | found 12 addresses |
+| D6 | example.com @1.1.1.1 | a refused name, asking an outside name server directly | no name server answered (ECONNREFUSED) | no name server answered (ECONNREFUSED) | no name server answered (ECONNREFUSED) | no name server answered (ECONNREFUSED) | no name server answered (ECONNREFUSED) | no name server answered (ECONNREFUSED) | no name server answered (ECONNREFUSED) | no name server answered (ECONNREFUSED) | found 2 addresses | found 2 addresses |
+| E1 | registry.npmjs.org:443 | an allowed host, tunnel | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | proxy answered 200 | proxy answered 200 | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | name not found (ENOTFOUND) | name not found (ENOTFOUND) |
+| E2 | registry.npmjs.org:443 | an allowed host, HTTPS inside the tunnel | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | HTTP 200 | HTTP 200 | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | name not found (ENOTFOUND) | name not found (ENOTFOUND) |
+| E3 | example.com:443 | a refused host, tunnel | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | proxy answered 403 | proxy answered 403 | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | name not found (ENOTFOUND) | name not found (ENOTFOUND) |
+| E4 | registry.npmjs.org:80 | an allowed host, plain HTTP | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | HTTP 405 | HTTP 405 | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | name not found (ENOTFOUND) | name not found (ENOTFOUND) |
+| E5 | example.com:80 | a refused host, plain HTTP | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | HTTP 403 | HTTP 403 | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | name not found (ENOTFOUND) | name not found (ENOTFOUND) |
+| W1 | egress:4010 | the model gateway, at the door's gateway port | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | HTTP 200 | HTTP 200 | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | name not found (ENOTFOUND) | name not found (ENOTFOUND) |
+| F1 | registry.npmjs.org:443 | a host the egress list allows | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | proxy answered 200 | refused (ECONNREFUSED), at its own loopback address |
+| F2 | github.com:443 | a host the egress list refuses | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | proxy answered 200 | refused (ECONNREFUSED), at its own loopback address |
+| F3 | example.com:443 | another host the egress list refuses | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | proxy answered 200 | refused (ECONNREFUSED), at its own loopback address |
+| F4 | github.com:443 | a host the egress list refuses, HTTPS inside the tunnel | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | refused (ECONNREFUSED), at its own loopback address | certificate not trusted (SELF_SIGNED_CERT_IN_CHAIN) | refused (ECONNREFUSED), at its own loopback address |
+| Papp:3171 | app:3171 | the project's app service, by its name | connected | connected | connected | connected | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | connected | connected | name not found (ENOTFOUND) | name not found (ENOTFOUND) |
+| Pdb:5432 | db:5432 | the project's db service, by its name | connected | connected | connected | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | name not found (ENOTFOUND) | name not found (ENOTFOUND) |
+| Pegress:3128 | egress:3128 | the project's egress service, by its name | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | connected | connected | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | name not found (ENOTFOUND) | name not found (ENOTFOUND) |
+| Pegress:4010 | egress:4010 | the project's egress service, by its name | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | connected | connected | no name server answered (EAI_AGAIN) | no name server answered (EAI_AGAIN) | name not found (ENOTFOUND) | name not found (ENOTFOUND) |
+| U1 | /psock/c.sock | a Unix socket mounted into the container (the live camera's) | not tried | not tried | not tried | not tried | not tried | not tried | not tried | HTTP 200 | not tried | not tried |
+
+Part B took 383 s.
+
+RESULT, real containers: PASS: the probe ran inside the running app container and in one-off containers of the real app, tools and runner images (and the live camera, check, the scripted engine's container and the database's network); each matched its list, both controls got their answers, and all four misconfigurations of real containers failed their comparison.
+RESULT, placement in stand-in images (as on 13 Nov): PASS: every container of the stand-in project matched its list (the live preview's stream and camera included), both controls got their answers, and all four misconfigurations failed their comparison.
+NOT RUN: package 2.2's engine does not exist; this item of 0.6c's 'Done means' is open.
+Left of builder_p_iso06c_real_demo: containers: none; named containers: none; networks: none; volumes: none; images: none
+Left of builder_p_iso06c_demo: containers: none; named containers: none; networks: none; volumes: none; images: none
+Left of builder_p_iso06c_demo_mis1: containers: none; named containers: none; networks: none; volumes: none; images: none
+Left of builder_p_iso06c_demo_mis2: containers: none; named containers: none; networks: none; volumes: none; images: none
+Left of builder_p_iso06c_demo_mis3: containers: none; named containers: none; networks: none; volumes: none; images: none
+Left of builder_p_iso06c_demo_mis4: containers: none; named containers: none; networks: none; volumes: none; images: none
+The acceptance runner's image builder-acceptance-runner:local is still on the machine: sha256:2e1340795a27782bde30b20f6f815aa87c3eda7634112a8a2e91d48ee44843e1
+Docker objects after the run (the whole machine, shared with other sessions):
+  containers: none
+  networks: bridge, host, none
+  volumes: none
+  images: builder-acceptance-runner:local, node:22-alpine, postgres:16-alpine, ubuntu:<none>
+The probe's own lines, the comparisons, the tables, the logs and the Docker object lists were written to the output folder (72 files).
+Whole run: 859 s.
+exit code: 0
+Lock released at 13:51:28 UTC.

@@ -1,0 +1,38 @@
+The licence check. No dependency is added by this change.
+On a copy of commit 51d6cc0 (git archive; node_modules as real folders), started 2026-11-14T13:24:05Z.
+Command, from builder/: npm run check:licences
+
+
+> builder@0.0.1 check:licences
+> bash scripts/check-licences.sh
+
+Licence check for builder
+Rule: licence-rule.json
+Packages checked: 191 installed on this machine, and 67 more that the lock file lists for other machines (judged by the licence the lock file records). Shipped, that is not development-only: 17.
+Permitted licences: MIT, Apache-2.0, BSD-2-Clause, BSD-3-Clause, ISC, 0BSD, BlueOak-1.0.0, CC0-1.0, Python-2.0, PostgreSQL, Unlicense
+Named exceptions in use:
+  lightningcss-android-arm64@1.33.0 (build package of lightningcss) | MPL-2.0 | approved 2026-11-12 for development use | development only
+  lightningcss-darwin-arm64@1.33.0 (build package of lightningcss) | MPL-2.0 | approved 2026-11-12 for development use | development only
+  lightningcss-darwin-x64@1.33.0 (build package of lightningcss) | MPL-2.0 | approved 2026-11-12 for development use | development only
+  lightningcss-freebsd-x64@1.33.0 (build package of lightningcss) | MPL-2.0 | approved 2026-11-12 for development use | development only
+  lightningcss-linux-arm-gnueabihf@1.33.0 (build package of lightningcss) | MPL-2.0 | approved 2026-11-12 for development use | development only
+  lightningcss-linux-arm64-gnu@1.33.0 (build package of lightningcss) | MPL-2.0 | approved 2026-11-12 for development use | development only
+  lightningcss-linux-arm64-musl@1.33.0 (build package of lightningcss) | MPL-2.0 | approved 2026-11-12 for development use | development only
+  lightningcss-linux-x64-gnu@1.33.0 (build package of lightningcss) | MPL-2.0 | approved 2026-11-12 for development use | development only
+  lightningcss-linux-x64-musl@1.33.0 (build package of lightningcss) | MPL-2.0 | approved 2026-11-12 for development use | development only
+  lightningcss-win32-arm64-msvc@1.33.0 (build package of lightningcss) | MPL-2.0 | approved 2026-11-12 for development use | development only
+  lightningcss-win32-x64-msvc@1.33.0 (build package of lightningcss) | MPL-2.0 | approved 2026-11-12 for development use | development only
+  lightningcss@1.33.0 | MPL-2.0 | approved 2026-11-12 for development use | development only
+  spdx-exceptions@2.5.0 | CC-BY-3.0 | approved 2026-11-12 for development use | development only
+  spdx-ranges@2.1.1 | (MIT AND CC-BY-3.0) | approved 2026-11-12 for development use | development only
+Notices file THIRD-PARTY-NOTICES.md is up to date.
+RESULT: PASSED
+
+Licence check for builder/runner
+Rule: licence-rule.json
+Packages checked: 3 installed on this machine, and 0 more that the lock file lists for other machines (judged by the licence the lock file records). Shipped, that is not development-only: 3.
+Permitted licences: MIT, Apache-2.0, BSD-2-Clause, BSD-3-Clause, ISC, 0BSD, BlueOak-1.0.0, CC0-1.0, Python-2.0, PostgreSQL, Unlicense
+Named exceptions in use:
+  none
+RESULT: PASSED
+exit code: 0
