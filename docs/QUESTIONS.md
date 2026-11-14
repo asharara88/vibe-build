@@ -8,6 +8,28 @@ None open right now. Question 15, the browser and the runner's two base images, 
 
 ## Not blocking yet
 
+*Questions 23 to 27 come from package 3.2's design (`docs/design/package-3.2.md`, section 10; added 14 Nov 2026). The build goes ahead on the recommendations; 3.2 cannot be marked tested until 23 to 25 are answered.*
+
+**23. On this machine, may the exported app's own start install its packages from the copies the builder downloaded here before it stopped?** Here, a build off the machine's own network cannot download packages (measured: it fails after 141 s); with one change to the template's build file, the copy's own command installed everything from the builder's earlier downloads (measured, 10 s).
+(a) **Yes, and the evidence says so plainly; on another machine the same command downloads them** (recommended: the only way the documented command works here).
+(b) No: 3.2's start waits for a clean machine (milestone 6). (c) Build the images the builder's way, then start without `--build` (not the documented command).
+
+**24. May "the check passes from the exported copy" be shown with the builder's own check code and checklist runner, and the stand-in test?** The test files come from the copy, unchanged; the runner and its browser cannot travel with it (you approved the browser "never given to anyone").
+(a) **Yes, labelled "stand-in test, not independent acceptance", and run again when package 3.2b's test exists** (recommended).
+(b) No: 3.2 stays "built, not tested" until milestone 6.
+
+**25. May your own builder (the one on 4020) keep running while the run stops the builder that made the export?**
+(a) **Yes, untouched and unused, and named in the evidence; the run shows the exported app cannot reach the machine's addresses** (recommended: stopping yours would remove your open projects' containers, as J2 showed).
+(b) No: you stop it for the run, and the run is made again if already made.
+
+**26. For an internal export, what does "the development packages are absent" mean?** (A condition of your licence approval of 12 Nov.) Measured: none in the app's own folder of the image it runs from; one inside that image's base npm; five in the tools image the copy runs at each start to make its tables.
+(a) **Absent from the app's own folder; every other copy listed on each export; reported as "checked under this reading", never as the condition met** (recommended for internal exports; customers wait for an engineer or a lawyer).
+(b) Absent from everything the copy builds and runs: more work, not measured.
+
+**27. Does package 3.2 settle anything for customers?** Two of your decisions left customer questions "for 3.2", and the design note says the customer "receives and can run the same checks".
+(a) **No: 3.2's export stays internal, and all three move to milestone 6, with a clean machine and an engineer's or a lawyer's reading** (recommended: nothing in 3.2 goes to a customer).
+(b) Ask them now, as part of 3.2.
+
 **22. Two of your sessions are working at once. Which one builds package 3.2, the export?** You told one "Then build the export, 3.2"; the other had begun 3.2's design at 10:25 UTC on 14 Nov and asked not to be doubled. Neither will start a second exporter.
 (a) **The session that began the design builds it; the other stops after pull request #49** (recommended: its design is under way, and two exporters would repeat the J2 doubling).
 (b) The session you told builds it, and the other stops its design.
