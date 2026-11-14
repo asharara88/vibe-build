@@ -23,7 +23,7 @@ import { initProjectRepo } from "../src/engine/project-repo.js";
 import { readManifest, type EngineRunner } from "../src/engine/scripted.js";
 import type { ProjectSandbox, Sandboxes } from "../src/orchestrator/example-1-adapter.js";
 import { APP_SHOTS } from "../src/orchestrator/journey-jobs.js";
-import { EXAMPLE, type SandboxRecord } from "../src/orchestrator/journey.js";
+import { EXAMPLE, SandboxNotRemoved, type SandboxRecord } from "../src/orchestrator/journey.js";
 import type { AppStream, Sandbox, StreamingEnd } from "../src/sandbox/manager.js";
 import { appendEvent } from "../src/store/events.js";
 
@@ -47,6 +47,8 @@ export class StandInSandboxes implements Sandboxes {
   runnerCalls: Array<{ step: string; container: string; cmd: string[] }> = [];
   destroyed: string[] = [];
   destroyedRecorded: Array<{ projectId: string; rec: SandboxRecord }> = [];
+  /** Known gap 180's fix: what a removal leaves, as the real adapter reports it (it throws, and keeps the folder); null: nothing. */
+  notRemoved: string[] | null = null;
   stoppedApps: string[] = [];
   started: string[] = [];
   /** A file the next step also writes, which its fixed change does not name: the step then fails. */
@@ -310,6 +312,7 @@ export class StandInSandboxes implements Sandboxes {
   }
 
   async destroy(x: ProjectSandbox): Promise<string> {
+    if (this.notRemoved) throw new SandboxNotRemoved(x.projectId, this.notRemoved);
     this.destroyed.push(x.projectId);
     x.appStarted = false;
     rmSync(x.dir, { recursive: true, force: true });
@@ -317,6 +320,7 @@ export class StandInSandboxes implements Sandboxes {
   }
 
   async destroyRecorded(projectId: string, rec: SandboxRecord): Promise<string> {
+    if (this.notRemoved) throw new SandboxNotRemoved(projectId, this.notRemoved);
     this.destroyedRecorded.push({ projectId, rec });
     return "stand-in";
   }

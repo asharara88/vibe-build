@@ -236,6 +236,9 @@ export const APPROVE_INTERRUPTED = "This project was interrupted when the interf
 export const REMOVED_AT_STOP = "The interface was stopped on purpose; this project's containers, images and folder were removed at the stop. It is not resumed.";
 /** Why it was written at start, for a sandbox left by an interface that stopped (a crash, or a stop that left it). */
 export const FOUND_AT_START = "Found at start: made by an interface that has since stopped. It is not resumed.";
+/** The same two, when the removal left something (`removed: false`; known gap 180's fix): the reason does not say "removed". */
+export const NOT_REMOVED_AT_STOP = "The interface was stopped on purpose; not everything of this project could be removed at the stop. The next start tries again. It is not resumed.";
+export const NOT_REMOVED_AT_START = "Found at start: made by an interface that has since stopped. Not everything of it could be removed; the next start tries again. It is not resumed.";
 
 /** Package J2 (c): what the removal at a clean stop did (`Journey.removeAtStop`). */
 export interface StopRemoval {
@@ -296,6 +299,8 @@ export interface JourneyState {
   runningJob: JobRecord | null;
   /** A job was marked interrupted, or the sandbox was removed at start: the screen offers "Close project" or "New project", no resume. */
   interrupted: boolean;
+  /** Known gap 180's fix: what the last removal of this project's sandbox left in Docker's lists, when it did not complete; else null. */
+  removalLeft: string[] | null;
   /**
    * The plan's steps, in order, from the record alone: the scripted change sets of example 1, then the broken step
    * when the project's first event carries the owner's choice (package J2).
@@ -353,6 +358,27 @@ export class JourneyRefused extends Error {
   }
 }
 
+/**
+ * A project's sandbox was not removed in full (known gap 180, fixed 14 Nov 2026): after the removal, Docker still lists
+ * something of the project, or Docker could not be asked. `left` names each thing, as Docker lists it. The sandbox's
+ * folder is kept when this is thrown, so that the next attempt has what it needs.
+ */
+export class SandboxNotRemoved extends Error {
+  constructor(
+    readonly projectId: string,
+    readonly left: string[],
+  ) {
+    super(`Not everything of project ${projectId} was removed. Left, as Docker lists it: ${left.join("; ")}.`);
+    this.name = "SandboxNotRemoved";
+  }
+}
+
+/** Why `journey.sandbox.removed` was written with `removed: false` at "Close project": the project stays open. */
+export const CLOSE_NOT_REMOVED = "\"Close project\" was asked, and not everything of the project could be removed. The project is not closed.";
+/** What the owner is told then. */
+export const closeNotRemovedRefusal = (left: string[]) =>
+  `The project was not closed: not everything of it could be removed (left: ${left.join("; ")}). Nothing else was changed. Press "Close project" again; if this repeats, restart the interface, which removes what a stopped interface left.`;
+
 /** Work out a project's state from its events, in id order. The plan too comes from the record alone (package J2). */
 export function journeyState(project: Project, events: Event[], intake: Intake): JourneyState {
   // Package J2: the choice is honoured only on the project's first event, written with the project in one transaction.
@@ -374,6 +400,7 @@ export function journeyState(project: Project, events: Event[], intake: Intake):
     jobs: [],
     runningJob: null,
     interrupted: false,
+    removalLeft: null,
     plan,
     brokenCopy,
     brokenTrace: false,
@@ -424,6 +451,8 @@ export function journeyState(project: Project, events: Event[], intake: Intake):
       case EV.sandboxRemoved:
         // A removal that failed (`removed: false`) leaves the sandbox recorded, so the next start tries again.
         if (p.removed !== false) s.sandbox = null;
+        // Known gap 180's fix: what that removal left, as its event names it, for the screen; cleared by a removal that completed.
+        s.removalLeft = p.removed === false ? (Array.isArray(p.left) ? p.left.map((x) => String(x)) : ["not named in the record"]) : null;
         s.appRunning = false;
         s.appStartedEventId = null;
         if (p.interrupted === true) s.interrupted = true;
@@ -1015,7 +1044,17 @@ export class Journey {
       const s = await this.load(projectId);
       if (s.stage === "closed") return;
       if (this.running?.projectId === projectId) throw new JourneyRefused("A job is running for this project; wait for it to end.");
-      await this.o.cleanupProject?.(projectId, s.sandbox);
+      try {
+        await this.o.cleanupProject?.(projectId, s.sandbox);
+      } catch (err) {
+        // Known gap 180's fix: a removal that left something does not close the project. It is recorded, the project
+        // stays open with its sandbox still named, and the owner is told what was left. Any other error is thrown on
+        // as before.
+        if (!(err instanceof SandboxNotRemoved)) throw err;
+        if (s.sandbox) await appendEvent(this.pool, projectId, EV.sandboxRemoved, { reason: CLOSE_NOT_REMOVED, interrupted: false, removed: false, left: err.left });
+        this.o.onFault?.("A project was not closed: not everything of it could be removed.", { project: projectId, left: err.left });
+        throw new JourneyRefused(closeNotRemovedRefusal(err.left));
+      }
       if (s.sandbox) await appendEvent(this.pool, projectId, EV.sandboxRemoved, { reason: "The project was closed.", interrupted: false });
       await appendEvent(this.pool, projectId, EV.closed, { at_stage: s.stage });
     });
@@ -1229,16 +1268,20 @@ export class Journey {
         await appendEvent(this.pool, r.id, EV.jobInterrupted, { job_id: j.jobId, kind: j.kind, reason: "The interface stopped while this job ran. It is not resumed." }, j.step);
       }
       let removed = true;
+      let leftBehind: string[] | null = null;
       try {
         await this.o.cleanupProject?.(r.id, leftSandbox);
       } catch (err) {
         removed = false;
+        if (err instanceof SandboxNotRemoved) leftBehind = err.left;
         this.o.onFault?.("A project's containers could not be removed after an interruption.", { project: r.id, error: err instanceof Error ? err.message : String(err) });
       }
       if (leftSandbox) {
-        await appendEvent(this.pool, r.id, EV.sandboxRemoved, { reason: at === "stop" ? REMOVED_AT_STOP : FOUND_AT_START, interrupted: true, removed });
+        // Known gap 180's fix: with something left, the record says `removed: false` and names it; the sandbox stays
+        // recorded (journeyState), so the next start tries again.
+        await appendEvent(this.pool, r.id, EV.sandboxRemoved, { reason: at === "stop" ? (removed ? REMOVED_AT_STOP : NOT_REMOVED_AT_STOP) : removed ? FOUND_AT_START : NOT_REMOVED_AT_START, interrupted: true, removed, ...(leftBehind ? { left: leftBehind } : {}) });
         if (removed) out.removed.push({ projectId: r.id, dir: leftSandbox.dir });
-        else out.left.push({ projectId: r.id, why: `its sandbox (${leftSandbox.dir}) could not be removed; the next start tries again` });
+        else out.left.push({ projectId: r.id, why: `its sandbox (${leftSandbox.dir}) could not be removed${leftBehind ? ` (left: ${leftBehind.join("; ")})` : ""}; the next start tries again` });
       }
       // The reservation of a step whose job was interrupted is closed (package 1.3's close, as at a step's end):
       // nothing runs that step any more, so the cost panel must not go on showing its room as reserved (review of

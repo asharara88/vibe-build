@@ -1,6 +1,6 @@
 /**
  * The thin adapter between the journey and example 1's sandbox (package J1; final design, section 4,
- * "Sandboxes"). It calls `makeExample1`, `buildAndStart`, `destroyExample1` and `portFree` from
+ * "Sandboxes"). It calls `makeExample1`, `buildAndStart` and `portFree` from
  * scripts/example-1-sandbox.ts unchanged, and the sandbox manager's `runStreaming`, `destroy` and
  * `removeImage`. Since package 0.6c it uses 0.6c's development-profile sandbox as it is:
  *
@@ -44,8 +44,9 @@ import { runAcceptance, type AcceptanceReport, type AcceptanceRunInput } from ".
 import { RUNNER_IMAGE, runnerImageProblem } from "../acceptance/runner-image.js";
 import type { EngineRunner } from "../engine/scripted.js";
 import { appImageName, composeProjectName, dockerEnv, PROJECT_NETWORK, sandbox, toolsImageName, type Sandbox, type StreamingEnd } from "../sandbox/manager.js";
-import { buildAndStart, destroyExample1, makeExample1, portFree, stageBrokenStep as stageBrokenStepInto, type Example1 } from "../../scripts/example-1-sandbox.js";
-import { brokenStageTargetProblem, JourneyRefused, type SandboxRecord } from "./journey.js";
+import { buildAndStart, makeExample1, portFree, stageBrokenStep as stageBrokenStepInto, type Example1 } from "../../scripts/example-1-sandbox.js";
+import { parseImages, parseNameLabel, projectLeftovers } from "../../scripts/journey-restart-checks.js";
+import { brokenStageTargetProblem, JourneyRefused, SandboxNotRemoved, type SandboxRecord } from "./journey.js";
 import type { AppStream } from "../sandbox/manager.js";
 
 const run = promisify(execFile);
@@ -113,6 +114,55 @@ export interface Sandboxes {
   destroy(x: ProjectSandbox): Promise<string>;
   /** The same, for a sandbox this process holds no handle to (left by an interface that stopped). */
   destroyRecorded(projectId: string, rec: SandboxRecord): Promise<string>;
+}
+
+/**
+ * What Docker still lists of a journey project: its containers, volumes and networks (by the Compose project's name
+ * or label) and its images, matched as J2's automated run matches them (`projectLeftovers`, rule N, without the
+ * processes and the folder). If Docker cannot be asked, that is said as one line: a list that could not be read is not
+ * read as "nothing left".
+ */
+export async function dockerLeftovers(projectId: string, env: NodeJS.ProcessEnv = plainDockerEnv()): Promise<string[]> {
+  checkJourneyId(projectId);
+  const label = '{{.Label "com.docker.compose.project"}}';
+  try {
+    const [containers, volumes, networks, images] = await Promise.all([
+      run("docker", ["ps", "-a", "--format", `{{.Names}}\t${label}`], { env }),
+      run("docker", ["volume", "ls", "--format", `{{.Name}}\t${label}`], { env }),
+      run("docker", ["network", "ls", "--format", `{{.Name}}\t${label}`], { env }),
+      run("docker", ["image", "ls", "--format", "{{.Repository}}:{{.Tag}}"], { env }),
+    ]);
+    const seen = { containers: parseNameLabel(containers.stdout), volumes: parseNameLabel(volumes.stdout), networks: parseNameLabel(networks.stdout), images: parseImages(images.stdout) };
+    return projectLeftovers(projectId, seen, [], { path: null, exists: false });
+  } catch (err) {
+    return [`Docker's lists could not be read (${(err instanceof Error ? err.message : String(err)).split("\n")[0]!.slice(0, 200)})`];
+  }
+}
+
+/**
+ * The end of every removal of a journey project's sandbox (known gap 180's fix, 14 Nov 2026): whatever is left of its
+ * Compose project is removed by its label, then its two images; then Docker's own lists are read. Only if they hold
+ * nothing of the project is its folder removed. Otherwise the folder is kept and `SandboxNotRemoved` is thrown, naming
+ * what is left: the caller records `removed: false`, and a later start, or a second "Close project", tries again.
+ */
+async function sweepAndCheck(projectId: string, dir: string): Promise<string> {
+  checkJourneyId(projectId);
+  const name = composeProjectName(projectId);
+  const env = plainDockerEnv();
+  const list = async (what: string[]) => (await run("docker", what, { env }).catch(() => ({ stdout: "" }))).stdout.split("\n").filter(Boolean);
+  const label = `label=com.docker.compose.project=${name}`;
+  const ids = await list(["ps", "-aq", "--filter", label]);
+  if (ids.length) await run("docker", ["rm", "-f", ...ids], { env }).catch(() => undefined);
+  const volumes = await list(["volume", "ls", "-q", "--filter", label]);
+  if (volumes.length) await run("docker", ["volume", "rm", "-f", ...volumes], { env }).catch(() => undefined);
+  const networks = await list(["network", "ls", "-q", "--filter", label]);
+  if (networks.length) await run("docker", ["network", "rm", ...networks], { env }).catch(() => undefined);
+  for (const image of [appImageName(projectId), toolsImageName(projectId)]) await run("docker", ["image", "rm", "-f", image], { env }).catch(() => undefined);
+  const left = await dockerLeftovers(projectId, env);
+  if (left.length) throw new SandboxNotRemoved(projectId, left);
+  rmSync(dir, { recursive: true, force: true });
+  if (existsSync(dir)) throw new SandboxNotRemoved(projectId, [`folder ${dir}`]);
+  return `containers removed by the sweep: ${ids.length}; nothing of the project left in Docker's lists; folder removed`;
 }
 
 /** Only a journey project's id: "j1-" and 12 hexadecimal characters, so its Compose name starts "builder_j1-". */
@@ -329,7 +379,11 @@ export function example1Sandboxes(o: { runnerImage?: string; buildProxyPort?: nu
     async destroy(x) {
       checkJourneyId(x.projectId);
       x.appStarted = false;
-      return destroyExample1(x);
+      // Known gap 180's fix (14 Nov 2026): Compose's own removal, as before, then the same sweep and the same check as
+      // for a recorded sandbox. Before, this path removed the folder and returned whatever Docker had said.
+      await sandbox.destroy(x.sb).catch(() => undefined);
+      await sandbox.removeImage(x.sb).catch(() => undefined);
+      return sweepAndCheck(x.projectId, x.dir);
     },
     async destroyRecorded(projectId, rec) {
       checkJourneyId(projectId);
@@ -346,19 +400,7 @@ export function example1Sandboxes(o: { runnerImage?: string; buildProxyPort?: nu
         await sandbox.destroy(sb).catch(() => undefined);
         await sandbox.removeImage(sb).catch(() => undefined);
       }
-      // Whatever is left of the Compose project (its folder may be gone), by its label, then its two images.
-      const env = plainDockerEnv();
-      const list = async (what: string[]) => (await run("docker", what, { env }).catch(() => ({ stdout: "" }))).stdout.split("\n").filter(Boolean);
-      const label = `label=com.docker.compose.project=${name}`;
-      const ids = await list(["ps", "-aq", "--filter", label]);
-      if (ids.length) await run("docker", ["rm", "-f", ...ids], { env }).catch(() => undefined);
-      const volumes = await list(["volume", "ls", "-q", "--filter", label]);
-      if (volumes.length) await run("docker", ["volume", "rm", "-f", ...volumes], { env }).catch(() => undefined);
-      const networks = await list(["network", "ls", "-q", "--filter", label]);
-      if (networks.length) await run("docker", ["network", "rm", ...networks], { env }).catch(() => undefined);
-      for (const image of [appImageName(projectId), toolsImageName(projectId)]) await run("docker", ["image", "rm", "-f", image], { env }).catch(() => undefined);
-      rmSync(rec.dir, { recursive: true, force: true });
-      return `containers removed: ${ids.length}; folder ${existsSync(rec.dir) ? "still there" : "removed"}`;
+      return sweepAndCheck(projectId, rec.dir);
     },
   };
 }

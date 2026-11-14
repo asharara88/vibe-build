@@ -364,8 +364,18 @@ function projectPage(lang: Lang, s: JourneyState, here: Screen, title: string, b
 <p class="note">${t(lang, "col.stage")}: <strong data-stage="${s.stage}">${stageName(lang, s.stage)}</strong></p>
 ${tabs(lang, s, here)}
 ${s.interrupted && s.stage !== "closed" ? interruptedPanel(lang, s) : ""}
+${!s.interrupted && s.stage !== "closed" ? removalLeftNote(lang, s) : ""}
 ${body}`,
   );
+}
+
+/**
+ * Known gap 180's fix: when the last removal of the project's containers did not complete, the screen says so and
+ * names what Docker still lists, in place of leaving "removed" to be understood.
+ */
+function removalLeftNote(lang: Lang, s: JourneyState): Html | "" {
+  if (!s.removalLeft) return "";
+  return html`<p class="warn" data-removal-left>${t(lang, "removal.left", { left: s.removalLeft.join("; ") })}</p>`;
 }
 
 function interruptedPanel(lang: Lang, s: JourneyState): Html {
@@ -377,6 +387,7 @@ function interruptedPanel(lang: Lang, s: JourneyState): Html {
     "real",
     t(lang, "error.title"),
     html`<p class="warn">${t(lang, jobInterrupted ? "interrupted.message" : "interrupted.no_job")}</p>
+${removalLeftNote(lang, s)}
 <div class="actions"><form method="post" action="/projects/${s.project.id}/close"><button type="submit">${t(lang, "interrupted.close")}</button></form><a href="/projects/new">${t(lang, "projects.new")}</a></div>`,
   );
 }
