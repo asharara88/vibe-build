@@ -1,0 +1,13 @@
+The one failure of the whole-suite run on abe41e5 (test/journey.test.ts, "is refused when Compose does not read the check service as on front alone"): a race in the test, shown on purpose. 2026-11-14T11:51:49Z.
+
+1. The test as committed at abe41e5, the code as committed (10 runs of the test alone):
+     10  Tests 1 passed | 70 skipped (71) 
+
+2. The test as committed, with a 300 ms delay put before a job's ending is written (src/orchestrator/journey.ts, in startJob; not committed):
+JourneyRefused: A job is running for this project; wait for it to end.  Tests 1 failed | 70 skipped (71) 
+
+3. The same delay, and the test waiting for the job to end before it closes the project (await j.waitForJob()):
+ Tests 1 passed | 70 skipped (71) 
+
+4. The delay taken out again (git checkout of journey.ts; files of builder/ differing from HEAD:  M builder/test/journey.test.ts ), the test with its wait (10 runs):
+     10  Tests 1 passed | 70 skipped (71) 

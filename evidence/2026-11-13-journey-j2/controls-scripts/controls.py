@@ -75,7 +75,8 @@ CONTROLS = [
   [(J, "A9:"), (W, "A9:")]),
  # ---------------------------------------------------------------- J2 (c): section 6's controls table
  ("J2-C18", "the halt in stopOnSignal (the journey not halted; the running job not told to stop)", MAIN,
-  [("    const halted = await within(o.journey.halt(why), waitMs);", "    const halted = await within(Promise.resolve(), waitMs);")],
+  # Text as it stands since the second review's reordering (the halt before the live preview's stop).
+  [("    const halting = o.journey.halt(why);\n", "    const halting: Promise<void> = Promise.resolve();\n")],
   [(W, "C1: stopOnSignal")]),
  ("J2-C19", "removal before release (the lock released before the removal)", MAIN,
   [("    // 4 and 5. The removal, asking the lock of the database before each project, each ask bounded.\n", "    await o.lock.release().catch(() => undefined);\n    // 4 and 5. The removal, asking the lock of the database before each project, each ask bounded.\n"),
@@ -134,7 +135,7 @@ CONTROLS = [
   [("    o.flag.set();\n", "")],
   [(W, "C9: from the stop signal on")]),
  ("J2-C37", "the wait for the running job not bounded (the stop waits for the halt however long)", MAIN,
-  [("    const halted = await within(o.journey.halt(why), waitMs);", "    const halted = { done: true as const, value: await o.journey.halt(why) };")],
+  [("    const halted = await within(halting, waitUntil - Date.now());", "    const halted = { done: true as const, value: await halting };")],
   [(W, "C4: a job that has not ended within the wait")]),
  ("J2-C38", "the removal loop does not stop once the process has exited (goOn not read)", JOURNEY,
   [("      if (o.goOn && !o.goOn()) break;\n", "")],
@@ -161,6 +162,34 @@ CONTROLS = [
  ("J2-C45", "the real path read as far as the path exists (back to: the path itself when it does not exist yet)", JOURNEY,
   [("      if (up === head) return whole;\n", "      if (up === head || true) return whole;\n")],
   [(J, "A4b")]),
+ # ---------------------------------------------------------------- after J2's second review (14 Nov 2026, pull request #49)
+ ("J2-C46", "second review: approval of a step of an interrupted project not refused", JOURNEY,
+  [("  if (s.interrupted) return APPROVE_INTERRUPTED;\n", "")],
+  [(W, "C12 \\(after J2's second review\\)")]),
+ ("J2-C47", "second review: the live preview stopped before the journey is halted, as before that review", MAIN,
+  [("    const halting = o.journey.halt(why);\n    halting.catch(() => undefined);\n    await o.preview?.stop().catch(() => undefined);\n",
+    "    await o.preview?.stop().catch(() => undefined);\n    const halting = o.journey.halt(why);\n    halting.catch(() => undefined);\n")],
+  [(W, "C12 \\(after J2's second review\\)")]),
+ ("J2-C48", "second review: the target check does not look for a link at the folders the copy goes through", JOURNEY,
+  [("    if (seen?.isSymbolicLink()) return", "    if (false) return")],
+  [(J, "A4c \\(after J2's second review\\)")]),
+ ("J2-C49", "second review: the real adapter's own target check before the copy (stageBrokenStep copies whatever it is given)", "src/orchestrator/example-1-adapter.ts",
+  [("      const why = brokenStageTargetProblem(x);\n      if (why) throw new JourneyRefused(`The broken step was not staged: ${why}.`);\n      stageBrokenStepInto(x);", "      stageBrokenStepInto(x);")],
+  [(J, "A4c \\(after J2's second review\\)")]),
+ ("J2-C50", "second review: N's process rule matches the Compose name only, not the sandbox's folder", "scripts/journey-restart-checks.ts",
+  [("if (p.args.includes(compose) || (folder.path !== null && p.args.includes(folder.path))) out.push(", "if (p.args.includes(compose)) out.push(")],
+  [(J, "C8 \\(regression guard\\)")]),
+ ("J2-C51", "second review: the demonstration's limit not shown on the panel or on the checklist screen", PAGES,
+  [('<p class="note" data-demo-limit>${t(lang, "demo.limit")}</p><div class="actions">', '<div class="actions">'),
+   ('<p class="note" data-demo-limit>${t(lang, "demo.limit")}</p>` : ""}`,', '` : ""}`,')],
+  [(W, "A2 and A8:"), (W, "A8: the broken copy through the screens")]),
+ # ---------------------------------------------------------------- after the fresh review of pull request #49 itself
+ ("J2-C52", "review of #49: the copy does not first remove what is at the step's own folder (a link inside it is followed)", "scripts/example-1-sandbox.ts",
+  [("  rmSync(into, { recursive: true, force: true });\n", "")],
+  [(J, "A4c \\(after J2's second review\\)")]),
+ ("J2-C53", "review of #49: the wait for the job starts again after the live preview's stop, instead of counting from the halt", MAIN,
+  [("    const halted = await within(halting, waitUntil - Date.now());", "    const halted = await within(halting, waitMs);")],
+  [(W, "C13 \\(after the review of pull request #49\\)")]),
 ]
 
 def run(cmd):

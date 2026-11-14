@@ -287,9 +287,10 @@ const seconds = (ms: number) => `${Number((ms / 1000).toFixed(1))} s`;
 
 /**
  * Package J2 (c): the clean stop on SIGTERM or SIGINT (final design, section 4.1), shaped like `stopAfterLockLost` so
- * that it can be tested without a process. In order: no new work (the flag: every request a plain 503), the server and
- * the live preview stopped; the journey halted with the stop's reason (the running job told to stop); a wait of at most
- * `waitMs` for that job and for each project's action in progress; then every sandbox left in this database removed and
+ * that it can be tested without a process. In order: no new work (the flag: every request a plain 503), the server
+ * closed; the journey halted with the stop's reason (the running job told to stop), then the live preview stopped
+ * (this order since J2's second review); a wait of at most `waitMs`, counted from the halt, for that job and for each
+ * project's action in progress; then every sandbox left in this database removed and
  * recorded (`Journey.removeAtStop`), the instance lock asked of the database before each, each ask bounded at
  * `lockCheckMs`: a lock lost or not confirmed ends the removal, and nothing more is removed. Then the lock is released,
  * the pool ended, and the process exits: 0 only if every open project was removed, else 1, with a line naming each
@@ -314,15 +315,20 @@ export async function stopOnSignal(sig: StopSignal, o: StopOptions): Promise<voi
   }, deadlineMs);
   try {
     const why = stoppedOnPurpose(sig);
-    // 1. No new work: every request gets a plain 503 from now on; then the server and the live preview stop.
+    // 1. No new work: every request gets a plain 503 from now on, and the server closes.
     o.flag.set();
     const job = o.journey.runningJob();
     o.log(`[interface stopping] ${why} ${job ? `Its running job (${job.jobId}, project ${job.projectId}) is being stopped first.` : "No job was running."} Every request is now answered "${STOPPING}"`);
     o.closeServer();
-    await o.preview?.stop().catch(() => undefined);
     // 2 and 3. The journey halted, and a bounded wait for the running job (each project's action is waited for below).
+    // After J2's review (14 Nov 2026): halted before the live preview is stopped, not after. The halt is set, and the
+    // running job told to stop, at once; a request already in flight can then start no job while the preview's stop,
+    // which takes seconds, is awaited. The wait for the job counts from here, the preview's stop included.
     const waitUntil = Date.now() + waitMs;
-    const halted = await within(o.journey.halt(why), waitMs);
+    const halting = o.journey.halt(why);
+    halting.catch(() => undefined);
+    await o.preview?.stop().catch(() => undefined);
+    const halted = await within(halting, waitUntil - Date.now());
     if (job) {
       o.log(
         halted.done

@@ -1,0 +1,56 @@
+J2, second review: the whole suite, live tests included, on abe41e5 (builder/ tree f942582), working tree of builder/: 0 changed files. Database builder_test_j2r_full, fresh. TMPDIR <scratchpad>/t1. Command: flock <scratchpad>/live-tests.lock npx vitest run (BUILDER_BROWSER_CACHE=<scratchpad>/bcache).
+Free disk before: /dev/vda        252G   16G   23G  42% /
+Containers on this machine before (docker ps -a, count): 0
+Lock held from 11:30:36 UTC.
+
+ RUN  v5.1.0 /home/user/vibe-build/builder
+
+ ❯ test/journey.test.ts (71 tests | 1 failed) 26100ms
+   ❯ J3: the live app, on the journey (stand-in sandbox, the real front, a stand-in app on this machine's loopback address) (7)
+     × is refused when Compose does not read the check service as on front alone 448ms
+{"at":"2026-11-14T11:47:49.796Z","method":"CONNECT","host":"registry.example.test","port":443,"decision":"allowed"}
+(node:31214) Warning: Closing file descriptor 25 on garbage collection
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:31214) [DEP0137] DeprecationWarning: Closing a FileHandle object on garbage collection is deprecated. Please close FileHandle objects explicitly using FileHandle.prototype.close(). In the future, an error will be thrown if a file descriptor is closed during garbage collection.
+(node:31214) Warning: Closing file descriptor 24 on garbage collection
+(node:31214) Warning: Closing file descriptor 26 on garbage collection
+(node:31214) Warning: Closing file descriptor 27 on garbage collection
+(node:31214) Warning: Closing file descriptor 28 on garbage collection
+(node:31214) Warning: Closing file descriptor 29 on garbage collection
+(node:31214) Warning: Closing file descriptor 24 on garbage collection
+(node:31214) Warning: Closing file descriptor 25 on garbage collection
+(node:31214) Warning: Closing file descriptor 26 on garbage collection
+(node:31214) Warning: Closing file descriptor 28 on garbage collection
+(node:31214) Warning: Closing file descriptor 25 on garbage collection
+(node:31214) Warning: Closing file descriptor 26 on garbage collection
+(node:31214) Warning: Closing file descriptor 27 on garbage collection
+(node:31214) Warning: Closing file descriptor 28 on garbage collection
+(node:31214) Warning: Closing file descriptor 25 on garbage collection
+(node:31214) Warning: Closing file descriptor 26 on garbage collection
+(node:31214) Warning: Closing file descriptor 27 on garbage collection
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/journey.test.ts > J3: the live app, on the journey (stand-in sandbox, the real front, a stand-in app on this machine's loopback address) > is refused when Compose does not read the check service as on front alone
+JourneyRefused: A job is running for this project; wait for it to end.
+ ❯ src/orchestrator/journey.ts:1017:56
+    1015|       const s = await this.load(projectId);
+    1016|       if (s.stage === "closed") return;
+    1017|       if (this.running?.projectId === projectId) throw new JourneyRefu…
+       |                                                        ^
+    1018|       await this.o.cleanupProject?.(projectId, s.sandbox);
+    1019|       if (s.sandbox) await appendEvent(this.pool, projectId, EV.sandbo…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed | 30 passed (31)
+      Tests  1 failed | 789 passed (790)
+   Start at  11:30:37
+   Duration  1061.92s (tests 100%)
+
+vitest exit code: 1
+Lock released at 11:48:19 UTC.
+Containers on this machine after (docker ps -a, count): 0
+Folders left in TMPDIR: builder-acceptance-standin-EhvuTZ builder-acceptance-standin-TlDxN8 builder-acceptance-standin-YEaaTb builder-acceptance-standin-i7w1y6 builder-acceptance-standin-jnIiKO builder-acceptance-standin-p9xqOQ node-compile-cache tsx-0 
+Free disk after: /dev/vda        252G   16G   23G  42% /
