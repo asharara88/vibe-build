@@ -1,5 +1,35 @@
 # Status
 
+> ## Stop: this file is out of date. Read this box first (added 14 November 2026)
+>
+> **Everything below this box says "nothing is built". That is true of the `main` branch only.** A branch is a named line of history in the repository; `main` is the one a new session starts from.
+>
+> The work done since 11 November is on a different branch, **`claude/stage-1`**. It is 445 commits ahead of `main` (at commit `bdfd911`, last changed 14 November 2026, 05:05 UTC) and has never been merged into `main`. It has its own `docs/STATUS.md`, `docs/BUILD-PLAN.md` and `docs/QUESTIONS.md`, and those are the current ones.
+>
+> **What went wrong.** A session that starts from `main` reads this file, is told nothing is built, and is sent to start work that already exists. That happened twice on 14 November 2026: in the session behind pull request #44, and in this one, which was asked to "start the walking skeleton".
+>
+> **What this session did.** It wrote no product code. It compared the task it was given with `claude/stage-1`, wrote this box, and asked the owner which line of work to continue.
+>
+> **The four parts this session was asked to start, and where they already are on `claude/stage-1`:**
+>
+> | Part asked for | On `claude/stage-1` | Its own record says |
+> | --- | --- | --- |
+> | Starter app, Next.js, English and Arabic | Exists: `templates/next/` (57 files, `messages/en.json` and `messages/ar.json`) | Role guard, licence rule and Arabic wording list marked tested |
+> | Starter app, Django | **Not built.** Waiting on the owner: its database driver `psycopg` is under the LGPL-3.0 licence, which is not permissive (that branch's question 3) | Parked |
+> | Sandbox manager, two profiles | Exists: `builder/src/sandbox/`, both profiles named in `manager.ts` | Development profile tested. Server profile not started: it waits for a server |
+> | Model gateway with meter and cap | Exists: `builder/src/gateway/`, the cap built as "holds" (money set aside before each call) | Tested against a stand-in provider only. No real model call. Spend $0.00 |
+> | Project store and append-only event log, PostgreSQL | Exists: `builder/src/store/`, twelve migrations; updates and deletes of events are refused by the database | Tested |
+>
+> That branch also holds work beyond today's task: a scripted stand-in for the build engine, an acceptance runner, the builder's own screens and a live preview. Its record says 692 of 692 tests passed on 13 November.
+>
+> **Checked by this session, and how:** the branch's file list, its migrations, its `manager.ts` and its documents were read at `bdfd911`. Its type check was run and passed. The open pull requests were listed: #39, #42, #43 and #45 point at `claude/stage-1`; #44 points at `main`.
+>
+> **Not checked by this session:** its tests. They were started and cut off after seven minutes without a result, and the containers and folders they left were removed. Its licence check was run and reported "FAILED", giving as its reason that packages in a sub-folder were not installed; this session had not done that set-up and did not look further, so this is not evidence for or against the check. Everything in the right-hand column of the table is that branch's own claim, not this session's finding.
+>
+> **Also not on `claude/stage-1` yet:** the decision of 14 November 2026 on connectors (no other vendor's app builder; the Supabase, Vercel, Render, HubSpot and Gmail connectors not used). It is only in pull request #44, against `main`.
+>
+> **Waiting on the owner:** which line of work continues. Until that is answered, do not start product code from `main`.
+
 Read this first in every session. Update it before every session ends. Nothing else carries over between sessions.
 
 **Last updated:** 11 November 2026, after the owner's decisions on the design note.
