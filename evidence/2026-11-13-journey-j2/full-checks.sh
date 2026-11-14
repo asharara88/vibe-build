@@ -3,12 +3,12 @@
 # included), each under the shared lock; then the typecheck and the licence check. Written as J3's
 # evidence/2026-11-13-journey-j3/after-bot/full-suite.sh. Run from anywhere; writes into evidence/2026-11-13-journey-j2/.
 # Usage: full-checks.sh [controls|suite|static|all]
-S=/tmp/claude-0/-home-user-vibe-build/1f0c18f2-22e7-56d9-a04f-5fb87e17b90b/scratchpad
-W=$S/wt-j2
+S=/tmp/claude-0/-home-user-vibe-build/121da6b0-2980-566b-82d7-1563934e4c7d/scratchpad
+W=/home/user/vibe-build
 D=$W/evidence/2026-11-13-journey-j2
 WHAT=${1:-all}
 cd $W/builder || exit 1
-export TMPDIR=$S/j2full-tmp BUILDER_BROWSER_CACHE=$S/p31-cache
+export TMPDIR=$S/t1 BUILDER_BROWSER_CACHE=$S/bcache
 export NO_COLOR=1 FORCE_COLOR=0
 unset BUILDER_DATA_DIR BUILDER_MODEL_API_KEY BUILDER_UI_PASSWORD BUILDER_DATABASE_URL BUILDER_DEMO_STEP_PAUSE_MS BUILDER_LIVE_PREVIEW
 mkdir -p $TMPDIR

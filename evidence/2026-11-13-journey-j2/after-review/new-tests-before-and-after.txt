@@ -1,0 +1,16 @@
+J2, after its review: the two new tests (A4b in test/journey.test.ts, C12 in test/web.test.ts), first with src/ as committed at ac4e992 (before the fixes: git stash of src/ only), then with the fixes. 2026-11-14T10:22:30Z.
+
+== BEFORE the fixes (src/ as at ac4e992; the tests as changed)
+0
+     × A4b (after J2's review): the target check refuses a link at any folder the copy goes through (engine-change-sets, its example-1, the step's own folder), so the broken step is never copied through a link to somewhere else; plain folders pass 16ms
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+AssertionError: expected null to be 'a folder the broken step would be cop…' // Object.is equality
+      Tests  1 failed | 68 skipped (69)
+     × C12 (after J2's review): at a stop the journey is halted before the live preview's stop is awaited; and a step of the project the stop marked interrupted is not approved afterwards, by a new interface on the same record: refused with the reason, nothin
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+AssertionError: expected null to be 'The interface was stopped on purpose …' // Object.is equality
+      Tests  1 failed | 71 skipped (72)
+
+== AFTER the fixes (src/ changed: 2 files)
+      Tests  1 passed | 68 skipped (69)
+      Tests  1 passed | 71 skipped (72)
