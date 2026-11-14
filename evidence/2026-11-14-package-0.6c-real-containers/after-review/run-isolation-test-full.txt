@@ -1,0 +1,68 @@
+test/isolation.test.ts in full: its unit tests and its existing live tests (0.6a's engine container; 0.6c's stand-in project of 13 Nov), which must pass unchanged. Under the shared lock.
+On a copy of commit 00c9a2f (git archive; node_modules as real folders), started 2026-11-14T15:22:37Z.
+Command, from builder/: flock <scratchpad>/live-tests.lock node node_modules/vitest/vitest.mjs run test/isolation.test.ts --reporter=verbose
+
+Before: 0 containers; images: builder-acceptance-runner:local node:22-alpine postgres:16-alpine ubuntu:<none> 
+Lock held from 15:23:27 UTC.
+
+ RUN  v5.1.0 <scratchpad>/run06c/builder
+
+ ✓ test/isolation.test.ts > isolation probe: its own settings and words (unit) > reads its settings, and refuses a session proxy given with anything but host and port 10ms
+ ✓ test/isolation.test.ts > isolation probe: its own settings and words (unit) > names each failure by its error code, and every name it can give is one the report accepts 2ms
+ ✓ test/isolation.test.ts > isolation probe: its own settings and words (unit) > finds the listening ports in /proc/net/tcp text (made-up sample in the kernel's format) 1ms
+ ✓ test/isolation.test.ts > isolation probe: its own settings and words (unit) > lists UDP sockets with no remote end and abstract Unix sockets (made-up samples in the kernel's format) 2ms
+ ✓ test/isolation.test.ts > isolation probe: its own settings and words (unit) > lists every network interface in a /sys/class/net folder, up or down, with its state (made-up folder) 6ms
+ ✓ test/isolation.test.ts > isolation probe: its own settings and words (unit) > plans every attempt once, aims host attempts at the loopback address, and tries the session proxy only when given 4ms
+ ✓ test/isolation.test.ts > isolation probe: its own settings and words (unit) > group G: one TCP attempt per port listening on the machine, at the gateway address of Docker's default network, with the address each port listens on as read on the machine 3ms
+ ✓ test/isolation.test.ts > isolation probe, package 0.6c additions (unit) > group M: every machine address crossed with every port listening on the machine; E through the egress host named; W1 at the door's gateway port; P by service name 4ms
+ ✓ test/isolation.test.ts > isolation probe, package 0.6c additions (unit) > package J3, group U: each Unix socket mounted at /psock is asked for a page, last; nothing else is taken as a socket 3ms
+ ✓ test/isolation.test.ts > isolation probe, package 0.6c additions (unit) > refuses malformed new settings 2ms
+ ✓ test/isolation.test.ts > isolation probe, package 0.6c additions (unit) > reads routes and IPv6 state from the kernel's text (made-up samples in its format) 1ms
+ ✓ test/isolation.test.ts > isolation probe, package 0.6c additions (unit) > reads the machine's addresses from the kernel's tables: loopback and IPv6 link-local left out, each once (made-up samples in their format) 1ms
+ ✓ test/isolation.test.ts > isolation probe, package 0.6c additions (unit) > orders ids by group, then naturally within a group 9ms
+ ✓ test/isolation.test.ts > isolation harness: comparing a container's attempts with its expected list (unit, package 0.6c) > passes only when every listed answer came, from whom the list says, and nothing else answered 2ms
+ ✓ test/isolation.test.ts > isolation harness: comparing a container's attempts with its expected list (unit, package 0.6c) > compares who answered, not only that something did: a 403 that is not the egress proxy's own refusal fails, and so does a gateway answer from another server 1ms
+ ✓ test/isolation.test.ts > isolation harness: comparing a container's attempts with its expected list (unit, package 0.6c) > an unnamed error, an unfinished run, or a stray line fails the comparison 0ms
+ ✓ test/isolation.test.ts > isolation harness: comparing a container's attempts with its expected list (unit, package 0.6c) > the positive controls must get their answers; the comparison containers' other attempts are not compared 1ms
+ ✓ test/isolation.test.ts > isolation harness: lists and helpers for the real-container run (unit) > the running app's list: its own listener at 127.0.0.1 and Docker's name server at 127.0.0.11 pass; a third listening port fails; without its own listener's row the list reads not tried 2ms
+ ✓ test/isolation.test.ts > isolation harness: lists and helpers for the real-container run (unit) > the scripted engine's list is empty: all silent passes; one connected row, one listening port inside, or one unnamed error each fails 1ms
+ ✓ test/isolation.test.ts > isolation harness: lists and helpers for the real-container run (unit) > an entry's target, when given, must match the address the attempt was aimed at; an entry without one behaves as before 0ms
+ ✓ test/isolation.test.ts > isolation harness: lists and helpers for the real-container run (unit) > each real misconfiguration's edits match the Compose file makeExample1 itself writes exactly once; an edit whose text is found no times, or twice, is refused 145ms
+ ✓ test/isolation.test.ts > isolation harness: lists and helpers for the real-container run (unit) > probeInPlace does not run a file whose fingerprint inside differs from the repository's, refuses an encoded file over the size guard, and still asks for the file's removal after a failure 9ms
+ ✓ test/isolation.test.ts > isolation harness: lists and helpers for the real-container run (unit) > realImageProblemsFrom: nothing for the images as the template's Dockerfile and the runner's build state them; each of the three stand-in images of 13 Nov is named 1ms
+ ✓ test/isolation.test.ts > isolation harness: lists and helpers for the real-container run (unit) > removeImages refuses a name that is not the sandbox's own project's, before Docker is asked anything 1ms
+ ✓ test/isolation.test.ts > isolation harness: after the review of the real-container run (unit) > the running app's list: a second listening port at 127.0.0.11 fails, both rows, since only one can be Docker's name server; an entry not marked single takes any number, as before 1ms
+ ✓ test/isolation.test.ts > isolation harness: after the review of the real-container run (unit) > the preview front's stand-in, on a port that is taken, fails at once in plain words; portTakenProblem names a taken port and says nothing of a free one 4ms
+ ✓ test/isolation.test.ts > isolation harness: after the review of the real-container run (unit) > removeImages takes only the three names a project's own images can have, and refuses those of a project whose id is this id, a dash, and more; ownContainerIds leaves that project's containers alone 1ms
+ ✓ test/isolation.test.ts > isolation harness: after the review of the real-container run (unit) > destroyRealProject removes the project's folder even when Docker does not answer, and passes Docker's failure on 103ms
+ ✓ test/isolation.test.ts > isolation harness: after the review of the real-container run (unit) > gatewayPortProblem names every listener on the machine at the gateway's port, and says nothing when there is none 0ms
+ ✓ test/isolation.test.ts > isolation harness: after the review of the real-container run (unit) > imageContentProblemsFrom: nothing when every path is there; an image that has only the real one's settings is named; imageContents asks one container of each service and takes anything else for not there 1ms
+ ✓ test/isolation.test.ts > isolation probe: its attempts, against made-up servers on the loopback address (unit) > sends the HTTPS request of a tunnel attempt inside the proxy's tunnel, never straight to the target (review finding 8) 38ms
+ ✓ test/isolation.test.ts > isolation probe: its attempts, against made-up servers on the loopback address (unit) > an HTTP answer whose body is held open is still that HTTP status, settled once the headers came (review finding 10) 1309ms
+ ✓ test/isolation.test.ts > isolation probe: its attempts, against made-up servers on the loopback address (unit) > a proxy that closes the connection without answering a CONNECT has its own result, at once, not 'timed out' 3ms
+ ✓ test/isolation.test.ts > isolation probe: its attempts, against made-up servers on the loopback address (unit) > a server that accepts the connection and never answers: 'connected, then no answer within the limit', counted as an answer, not 'timed out'; over HTTPS, the detail says whether the secure handshake finished 2211ms
+ ✓ test/isolation.test.ts > isolation probe: its attempts, against made-up servers on the loopback address (unit) > a proxy that answers 200 to a CONNECT and then says nothing: the tunnel attempt is 'connected, then no answer within the limit', with the proxy's 200 in its detail, and, where the secure connection inside the tunnel opened, that too 1319ms
+ ✓ test/isolation.test.ts > isolation probe: reading what it prints (unit) > the harness passes the machine's listening sockets to the probe, and refuses plainly when there are more than the probe takes (64) 1ms
+ ✓ test/isolation.test.ts > isolation probe: reading what it prints (unit) > reads a complete run, and counts which attempts got an answer 1ms
+ ✓ test/isolation.test.ts > isolation probe: reading what it prints (unit) > an answer (a connection opened, an HTTP status, a proxy's answer, or an address found) is told apart from a failure; every result given only after a connection opened is an answer (review finding 11) 0ms
+ ✓ test/isolation.test.ts > isolation probe: reading what it prints (unit) > never drops a line it does not understand: an unfinished run, a wrong count, an unknown result, a stray line and a stop are all problems 0ms
+ ✓ test/isolation.test.ts > isolation probe: reading what it prints (unit) > takes the session proxy's host and port from its setting, never a user name or password 0ms
+ ✓ test/isolation.test.ts > isolation probe: reading what it prints (unit) > draws one row per attempt in the probe's order and one column per container, 'not tried' where a container did not make it 2ms
+ ✓ test/isolation.test.ts > isolation probe: reading what it prints (unit) > marks attempts aimed at the container's own loopback address however the session proxy is written: 127.0.0.1, localhost or [::1] 1ms
+ ✓ test/isolation.test.ts > isolation probe: reading what it prints (unit) > when containers give an attempt different targets (B2 and B3 can), the row says so and each cell gives its own target and description 0ms
+ ✓ test/isolation.test.ts > isolation probe: live, the engine container (development profile) > from inside the engine container, which has no network, every attempt fails, outside and on the host alike 20638ms
+ ✓ test/isolation.test.ts > isolation: live, every project container on the development profile, compared with its expected list (package 0.6c) > each project container (app, tools, db, runner, the door, the engine as package 2.2 would place it, and package J3's stream container and live camera) reaches exactly what its list allows, in stand-in images for the app, tools and runner 280011ms
+ ✓ test/isolation.test.ts > isolation: live, every project container on the development profile, compared with its expected list (package 0.6c) > the builder's check that the right app answers (package 3.1) asks from a container on `front`: it gets the app; the machine itself cannot even look the app's name up 1559ms
+ ✓ test/isolation.test.ts > isolation: live, every project container on the development profile, compared with its expected list (package 0.6c) > the positive controls: from the machine's own network and from Docker's default network, the same settings reach the harness's listener (so the targets and ports are right) 2323ms
+ ✓ test/isolation.test.ts > isolation: live, every project container on the development profile, compared with its expected list (package 0.6c) > deliberate misconfiguration 1: the app given a way out (also on an ordinary bridge) fails the app's comparison 4864ms
+ ✓ test/isolation.test.ts > isolation: live, every project container on the development profile, compared with its expected list (package 0.6c) > deliberate misconfiguration 2: the data network made internal without the isolated gateway mode fails the comparison (the machine is reached at that network's address) 40216ms
+ ✓ test/isolation.test.ts > isolation: live, every project container on the development profile, compared with its expected list (package 0.6c) > everything made is removed 22721ms
+
+ Test Files  1 passed (1)
+      Tests  50 passed (50)
+   Start at  15:23:28
+   Duration  378.37s (tests 100%)
+
+exit code: 0
+Lock released at 15:29:46 UTC.
+After: 0 containers; images: builder-acceptance-runner:local node:22-alpine postgres:16-alpine ubuntu:<none> 

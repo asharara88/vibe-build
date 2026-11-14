@@ -1,0 +1,4 @@
+containers: none
+networks: bridge, host, none
+volumes: none
+images: builder-acceptance-runner:local, node:22-alpine, postgres:16-alpine, ubuntu:<none>

@@ -1,0 +1,7 @@
+M0b, measured at the end of the work (2026-11-14T14:08:59Z): the same check as M0, on the worktree as it is now.
+What changed since M0: at 12:31:17 UTC on 14 Nov both module entries of this worktree (builder/node_modules and builder/runner/node_modules) were replaced by real folders. Not by this change: none of its commands renames or removes them. The other worktree on this machine changed in the same way 0.3 s later, and that session's own script then records 'builder/node_modules a real folder'. M0 itself was measured before that, at 12:17 and 12:25 UTC, when they were links.
+Now: builder/node_modules is a real folder, changed 2026-11-14 12:31:17 UTC; builder/runner/node_modules is a real folder, changed 2026-11-14 12:31:17 UTC.
+The builder's folder of the worktree mounted read-only at /builder in a container of the approved Node image (no network, user 1000, read-only root), then node --import tsx -e ..., as the door's containers start:
+tsx loaded
+exit code of the container: 0
+The live runs of this change were all started from a copy of the commit all the same (the copies of 13:23 UTC and later were made from these real folders). Whether the tests also pass when started from the worktree itself was not tried.

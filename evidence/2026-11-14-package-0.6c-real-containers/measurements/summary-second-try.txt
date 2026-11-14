@@ -1,0 +1,39 @@
+Measurements before the code, package 0.6c in real containers. Started 2026-11-14T12:12:16.206Z.
+Runner image builder-acceptance-runner:local: built in 4.3 s; id before the build sha256:3023fa59d29d0cdd8971add30052fc9c95384f4777c11fae7ed9d23aaaf7ef3c; id after sha256:88fbbc30fd6392428ef75855b50e56ee5e9e5b1c2c8dd11a81e33d4fc4b7803e; problems []; label problem null; user "1001 runner".
+Scripted engine, step 01-data: ok
+Scripted engine, step 02-submitter-screen: ok
+FAILED: Command failed: docker compose -f <scratchpad>/t06c/builder-acceptance-5wOKZb/compose.yaml up -d --wait egress-host
+ Container builder_p_iso06c_real_m-egress-host-1 Creating 
+ Container builder_p_iso06c_real_m-egress-host-1 Created 
+ Container builder_p_iso06c_real_m-egress-host-1 Starting 
+ Container builder_p_iso06c_real_m-egress-host-1 Started 
+ Container builder_p_iso06c_real_m-egress-host-1 Waiting 
+container builder_p_iso06c_real_m-egress-host-1 exited (1)
+
+ Container builder_p_iso06c_real_m-egress-host-1 Creating 
+ Container builder_p_iso06c_real_m-egress-host-1 Created 
+ Container builder_p_iso06c_real_m-egress-host-1 Starting 
+ Container builder_p_iso06c_real_m-egress-host-1 Started 
+ Container builder_p_iso06c_real_m-egress-host-1 Waiting 
+container builder_p_iso06c_real_m-egress-host-1 exited (1)
+
+Error: Command failed: docker compose -f <scratchpad>/t06c/builder-acceptance-5wOKZb/compose.yaml up -d --wait egress-host
+ Container builder_p_iso06c_real_m-egress-host-1 Creating 
+ Container builder_p_iso06c_real_m-egress-host-1 Created 
+ Container builder_p_iso06c_real_m-egress-host-1 Starting 
+ Container builder_p_iso06c_real_m-egress-host-1 Started 
+ Container builder_p_iso06c_real_m-egress-host-1 Waiting 
+container builder_p_iso06c_real_m-egress-host-1 exited (1)
+
+    at genericNodeError (node:internal/errors:983:15)
+    at wrappedFn (node:internal/errors:537:14)
+    at ChildProcess.exithandler (node:child_process:417:12)
+    at ChildProcess.emit (node:events:519:28)
+    at maybeClose (node:internal/child_process:1101:16)
+    at ChildProcess._handle.onexit (node:internal/child_process:304:5)
+M5: leftOf after destroyExample1 (the project's folder, with its Docker client folder, is removed by then).
+leftOf before: containers: builder_p_iso06c_real_m-egress-host-1; named containers: builder_p_iso06c_real_m-egress-host-1; networks: none; volumes: none; images: none
+destroyExample1: containers of the project left: none; temporary folder removed
+leftOf after: containers: none; named containers: none; networks: none; volumes: none; images: none
+the runner image is still on the machine: sha256:88fbbc30fd6392428ef75855b50e56ee5e9e5b1c2c8dd11a81e33d4fc4b7803e
+Finished 2026-11-14T12:12:23.575Z.

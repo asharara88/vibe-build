@@ -1,0 +1,23 @@
+import json, sys, glob, os
+d = sys.argv[1]
+for f in sorted(glob.glob(os.path.join(d, sys.argv[2]))):
+    info = {}; att = []; end = None; errs = []; other = 0
+    for line in open(f):
+        line = line.strip()
+        if not line: continue
+        try: o = json.loads(line)
+        except Exception: other += 1; continue
+        k = o.get('kind')
+        if k == 'info': info[o['name']] = o['value']
+        elif k == 'attempt': att.append(o)
+        elif k == 'end': end = o['attempts']
+        elif k == 'error': errs.append(o.get('reason'))
+        else: other += 1
+    ans = [a for a in att if a['result'] not in ('refused','timed out','name not found','no name server','network unreachable','error') and not a['result'].startswith('not ')]
+    print('==', os.path.basename(f))
+    print('   attempts', len(att), 'end', end, 'errors', errs, 'other', other)
+    for n in ['user id','network interfaces that are up and running, with their addresses (as Node lists them)','every network interface in /sys/class/net, up or down (name and state only)','name servers in /etc/resolv.conf','listening TCP ports seen in /proc/net','settings that name a proxy or a certificate (names only)','a copy of the session certificate inside','a default route (a way to any address)']:
+        print('   ', n[:40], '=>', info.get(n))
+    from collections import Counter
+    print('    results:', dict(Counter(a['result'] for a in att)))
+    print('    answered-ish:', [(a['id'], a['target'], a['result']) for a in att if a['result'] in ('connected',) or a['result'].startswith(('HTTP','found','proxy'))])

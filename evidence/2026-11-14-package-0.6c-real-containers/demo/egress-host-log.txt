@@ -1,0 +1,17 @@
+{"at":"2026-11-14T13:43:47.362Z","listening":"/sock/egress.sock","kind":"egress proxy","allow":["registry.npmjs.org"],"upstream":"127.0.0.1:38369"}
+{"at":"2026-11-14T13:43:47.364Z","listening":"/sock/gateway.sock","kind":"gateway forwarder","to":"127.0.0.1:35271"}
+{"at":"2026-11-14T13:43:47.371Z","listening":"127.0.0.1:43049","kind":"egress proxy for the image build","allow":["registry.npmjs.org"],"upstream":"127.0.0.1:38369"}
+{"at":"2026-11-14T13:46:41.214Z","method":"CONNECT","host":"registry.npmjs.org","port":443,"decision":"allowed"}
+{"at":"2026-11-14T13:46:41.474Z","method":"CONNECT","host":"registry.npmjs.org","port":443,"decision":"allowed"}
+{"at":"2026-11-14T13:46:41.935Z","method":"CONNECT","host":"example.com","port":443,"decision":"refused"}
+{"at":"2026-11-14T13:46:41.939Z","method":"GET","host":"registry.npmjs.org","port":80,"decision":"allowed"}
+{"at":"2026-11-14T13:46:41.950Z","method":"GET","host":"example.com","port":80,"decision":"refused"}
+{"at":"2026-11-14T13:46:41.953Z","listen":"/sock/gateway.sock","from":"socket","to":"127.0.0.1:35271","decision":"forwarded"}
+{"at":"2026-11-14T13:46:45.962Z","listen":"/sock/gateway.sock","from":"socket","to":"127.0.0.1:35271","decision":"forwarded"}
+{"at":"2026-11-14T13:47:06.562Z","method":"CONNECT","host":"registry.npmjs.org","port":443,"decision":"allowed"}
+{"at":"2026-11-14T13:47:06.828Z","method":"CONNECT","host":"registry.npmjs.org","port":443,"decision":"allowed"}
+{"at":"2026-11-14T13:47:07.291Z","method":"CONNECT","host":"example.com","port":443,"decision":"refused"}
+{"at":"2026-11-14T13:47:07.294Z","method":"GET","host":"registry.npmjs.org","port":80,"decision":"allowed"}
+{"at":"2026-11-14T13:47:07.299Z","method":"GET","host":"example.com","port":80,"decision":"refused"}
+{"at":"2026-11-14T13:47:07.301Z","listen":"/sock/gateway.sock","from":"socket","to":"127.0.0.1:35271","decision":"forwarded"}
+{"at":"2026-11-14T13:47:11.307Z","listen":"/sock/gateway.sock","from":"socket","to":"127.0.0.1:35271","decision":"forwarded"}

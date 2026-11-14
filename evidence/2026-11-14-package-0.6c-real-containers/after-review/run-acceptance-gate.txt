@@ -1,0 +1,26 @@
+The gate's tests (package 3.1b), with the two new ones for the live isolation file. No container: Docker is pointed at an address where nothing listens.
+On a copy of commit 00c9a2f (git archive; node_modules as real folders), started 2026-11-14T15:15:39Z.
+Command, from builder/: node node_modules/vitest/vitest.mjs run test/acceptance-gate.test.ts --reporter=verbose
+
+
+ RUN  v5.1.0 <scratchpad>/run06c/builder
+
+ ✓ test/acceptance-gate.test.ts > the live acceptance tests' prerequisites, each named with how to put it right > Docker: not answering, or not installed 57ms
+ ✓ test/acceptance-gate.test.ts > the live acceptance tests' prerequisites, each named with how to put it right > the browser zip: the setting unset, a folder without the zip, another file, a link 5ms
+ ✓ test/acceptance-gate.test.ts > the live acceptance tests' prerequisites, each named with how to put it right > Docker's own message, when long, is cut at a word and marked with '…' (after the review: it was cut mid-word) 3ms
+ ✓ test/acceptance-gate.test.ts > the live acceptance tests' prerequisites, each named with how to put it right > both missing: both are named 47ms
+ ✓ test/acceptance-gate.test.ts > the gate: npm test cannot pass while the browser was not exercised > the live acceptance test file, run with the zip absent and Docker not answering, fails: all 7 of its tests, none skipped, each naming both and how to put them right 731ms
+ ✓ test/acceptance-gate.test.ts > the gate: npm test cannot pass while the browser was not exercised > the live isolation test file for the real containers (package 0.6c, 14 Nov 2026), run with the zip absent and Docker not answering, fails: all 10 of its tests, none skipped, each naming both and how to put them right 1014ms
+ ✓ test/acceptance-gate.test.ts > the gate: npm test cannot pass while the browser was not exercised > no test file can skip a test, mark one to do, run one alone, run one only if something holds, or expect it to fail; the test runner runs every test file in test/; npm test runs the whole suite 333ms
+ ✓ test/acceptance-gate.test.ts > the gate's scan, on made-up folders: each rule finds what it is for (added after the package's review) > a failure turned into a pass: `fails` after it or test is found 2ms
+ ✓ test/acceptance-gate.test.ts > the gate's scan, on made-up folders: each rule finds what it is for (added after the package's review) > a file in a subfolder of test/ is read 2ms
+ ✓ test/acceptance-gate.test.ts > the gate's scan, on made-up folders: each rule finds what it is for (added after the package's review) > a file the test runner runs outside test/ is read 1ms
+ ✓ test/acceptance-gate.test.ts > the gate's scan, on made-up folders: each rule finds what it is for (added after the package's review) > a test file in test/ that the test runner would not run is named, whatever setting leaves it out (here one the settings file takes from another file, so no word in it shows) 346ms
+ ✓ test/acceptance-gate.test.ts > the gate's scan, on made-up folders: each rule finds what it is for (added after the package's review) > settings that name projects, dir, root or workspace, and another settings file or a workspace file, are named; so are the earlier ones 3ms
+
+ Test Files  1 passed (1)
+      Tests  12 passed (12)
+   Start at  15:15:39
+   Duration  2.77s (tests 97%, transform 2%, import 1%)
+
+exit code: 0

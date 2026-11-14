@@ -1,6 +1,28 @@
 /**
- * Shared by the live isolation test (test/isolation.test.ts) and its demonstration (scripts/demo-isolation.ts),
- * package 0.6c: the stand-ins and the ways of running the isolation probe in each container.
+ * Shared by the live isolation tests (test/isolation.test.ts and test/isolation-real-live.test.ts) and their
+ * demonstration (scripts/demo-isolation.ts), package 0.6c: the ways of running the isolation probe in each
+ * container, in stand-in images and, since 14 Nov 2026, in the real ones.
+ *
+ * WHICH FUNCTIONS MAKE STAND-INS, AND WHICH USE THE REAL IMAGES
+ * - Stand-ins: `buildStandIns` (images), `startGatewayStandIn`, `startFrontStandIn`. A project made with
+ *   `buildStandIns` shows where the Compose file PLACES a container; it is not the real container, and a run in
+ *   it does not count as "run in each of those containers" (build plan, package 0.6c, "Done means").
+ * - Real: `ensureRunnerImage` (the acceptance runner's image, from the approved browser zip), `startRealProject`
+ *   (example 1 made by the product's own functions: makeExample1, the scripted engine's steps 01 and 02,
+ *   buildAndStart; the app and tools images are the template's build), `imageFacts` and `realImageProblemsFrom`
+ *   (does any image have the settings of one of the three stand-ins of 13 Nov), `imageContents` and
+ *   `imageContentProblemsFrom` (does the app image hold the pages the scripted engine's step 02 adds, and the tools
+ *   image the two tools the product runs in it), `probeServiceSeen` (the probe in a one-off container of a service, with Docker
+ *   asked which image the container runs), `probeInPlace` (the probe inside a RUNNING container, through
+ *   `sandbox.exec`), `editCompose` (a deliberate misconfiguration, as a text edit of the Compose file the manager
+ *   wrote, before anything starts) and `destroyRealProject`.
+ *   Added after the review of 14 Nov 2026: `portTakenProblem`, `gatewayPortProblem`, `ownContainerIds`, `folderLeft`
+ *   and `leftOfProjectId` (see each).
+ * - Either: `probeService`, `probeInNetworkOf`, `probeComparison`, `devProbeSettings`, `startCanary`, `leftOf`,
+ *   `removeImages` (which refuses every name but the three a project's own images can have: its app, tools and
+ *   runner stand-in images).
+ * Nothing here is package 2.2's engine: that engine does not exist. The scripted engine's container (package 2.1)
+ * and the engine service placed as 2.2's option would place it are each named for what they are.
  *
  * - Stand-in images for the app, tools and runner services, made from the approved Node image with no network:
  *   the app stand-in answers every request with 200 and `server: app-stand-in`; the runner stand-in adds the
@@ -19,13 +41,18 @@
  * Nothing the probe tests runs on the machine: every attempt is made from inside a container.
  */
 import { execFile, spawn, spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
+import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import http from "node:http";
 import net, { type AddressInfo } from "node:net";
+import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { createInterface } from "node:readline";
 import { promisify } from "node:util";
+import { buildRunnerImage, RUNNER_IMAGE, runnerImageLabelProblem, runnerImageProblem } from "../src/acceptance/runner-image.js";
 import { readMachineAddresses, readMachineSide, sessionProxyHostPort } from "../src/sandbox/isolation.js";
-import { appImageName, composeProjectName, DEFAULT_IMAGES, dockerEnv, HARDENING, sandbox, toolsImageName, type Sandbox } from "../src/sandbox/manager.js";
+import { appImageName, composeProjectName, DEFAULT_IMAGES, dockerEnv, HARDENING, sandbox, toolsImageName, type Sandbox, type StreamingRun } from "../src/sandbox/manager.js";
+import { buildAndStart, destroyExample1, makeExample1, portFree, runStep, type Example1 } from "./example-1-sandbox.js";
 
 const run = promisify(execFile);
 export const builderDir = resolve(import.meta.dirname, "..");
@@ -55,7 +82,20 @@ export function buildStandIns(sb: Sandbox, projectId: string): string[] {
   return images;
 }
 
+/** The only names an image of this project can have here: its app image, its tools image and its runner stand-in. */
+export const ownImageNames = (sb: Pick<Sandbox, "projectName">): string[] => [`${sb.projectName}-app:latest`, `${sb.projectName}-tools:latest`, runnerStandInImage(sb)];
+
+/**
+ * Remove images of the sandbox's own project, by name. Any other name is refused before Docker is asked anything
+ * (14 Nov 2026): the acceptance runner's image is machine-wide and shared with other sessions, and must never be
+ * removed from here. Removal is by name only, never by id: two projects built from the same files can share one id.
+ * After the review of 14 Nov 2026 a name must be exactly one of the three this project can have (`ownImageNames`).
+ * As first written, any name that began with the project's name and a dash was taken as its own, so the images of
+ * a project whose id is this id, a dash, and more (project ids may hold dashes) would have been accepted.
+ */
 export async function removeImages(sb: Sandbox, images: string[]): Promise<void> {
+  const notOurs = images.filter((image) => !ownImageNames(sb).includes(image));
+  if (notOurs.length) throw new Error(`The isolation harness removes only images of its own project (${sb.projectName}-...); refused: ${notOurs.join(", ")}.`);
   for (const image of images) await run("docker", ["image", "rm", "-f", image], { env: dockerEnv(sb) }).catch(() => undefined);
 }
 
@@ -74,8 +114,38 @@ export const FRONT_STAND_IN = "preview-front-stand-in";
 /** Package J3: a stand-in for the preview front on 127.0.0.1:`port` (4041, the automated run's), so that it is listening while the machine's listeners are read for group M. */
 export async function startFrontStandIn(port: number): Promise<{ port: number; close: () => Promise<void> }> {
   const server = http.createServer((_req, res) => res.writeHead(200, { server: FRONT_STAND_IN, "content-type": "text/plain" }).end("stand-in preview front"));
-  await new Promise<void>((r) => server.listen(port, "127.0.0.1", r));
+  // After the review of 14 Nov 2026: a port that is taken is a plain failure, at once. Before, the server's error had
+  // no handler, so this never settled and each test that waited for it ran to its own time limit.
+  await new Promise<void>((ok, no) => {
+    server.once("error", (err: NodeJS.ErrnoException) =>
+      no(new Error(`The preview front's stand-in cannot listen on 127.0.0.1:${port} (${err.code ?? err.message}). ${WHO_HOLDS_THE_PORT}`)),
+    );
+    server.listen(port, "127.0.0.1", ok);
+  });
   return { port, close: () => new Promise((r) => server.close(() => r())) };
+}
+
+const WHO_HOLDS_THE_PORT = "Something else holds that port: another run of a live test, or the builder's own preview front. Stop it, then run this again.";
+
+/**
+ * Why the preview front's stand-in could not take 127.0.0.1:`port` now, in plain words, or null when nothing accepts
+ * a connection there. It asks by opening one connection and closing it (`portFree`, the product helper's own), not
+ * by listening: so the question itself never takes the port from another run for a moment.
+ */
+export async function portTakenProblem(port: number): Promise<string | null> {
+  return (await portFree(port)) ? null : `Something already accepts connections on 127.0.0.1:${port}, the port the preview front's stand-in needs. ${WHO_HOLDS_THE_PORT}`;
+}
+
+/**
+ * Why the machine's listening sockets (as `devProbeSettings` reads them) show something on the gateway's port, or
+ * null. A real example-1 project is given the gateway address 127.0.0.1:`port` (4010, the real model gateway's
+ * default port), and the runs in real containers say that nothing listens behind it. This is the check of that
+ * sentence (added after the review of 14 Nov 2026): with a gateway running on the machine, a container put on the
+ * `out` network on purpose would send it one request through the door.
+ */
+export function gatewayPortProblem(machineListeners: string[], port: number): string | null {
+  const there = machineListeners.filter((l) => l.split(":").pop() === String(port));
+  return there.length ? `Something listens on the machine at ${there.join(", ")}: that is the gateway address a real example-1 project is given. This run says nothing is behind it, and would send it a request through the door; it does not go on. Stop what listens there, then run this again.` : null;
 }
 
 /** A stand-in gateway on 127.0.0.1, on a port the system chooses. */
@@ -137,8 +207,8 @@ export async function devProbeSettings(sb: Sandbox, ctx: ProjectProbeContext): P
   return { settings, machineAddresses, machineListeners };
 }
 
-/** The probe in a fresh one-off container of a project service, through the sandbox manager. */
-export async function probeService(sb: Sandbox, service: string, label: string, settings: string, extraVolumes: string[] = []): Promise<string[]> {
+/** Start the probe in a fresh one-off container of a project service, through the sandbox manager: its handle, and its lines once it has ended. */
+function startProbe(sb: Sandbox, service: string, label: string, settings: string, extraVolumes: string[]): { handle: StreamingRun; lines: Promise<string[]> } {
   const lines: string[] = [];
   const r = sandbox.runStreaming(sb, service, ["node", PROBE_MOUNT, settings], {
     container: `${sb.projectName}-isolation-${label}`,
@@ -146,9 +216,91 @@ export async function probeService(sb: Sandbox, service: string, label: string, 
     volumes: [`${PROBE_FILE}:${PROBE_MOUNT}:ro`, ...extraVolumes],
     timeoutMs: 600_000,
   });
-  const end = await r.done;
-  if (end.code !== 0) lines.push(JSON.stringify({ kind: "error", reason: `the container ended with code ${end.code}${end.timedOut ? " (time limit)" : ""}: ${end.stderrTail.slice(-500)}` }));
-  return lines;
+  const ended = r.done.then((end) => {
+    if (end.code !== 0) lines.push(JSON.stringify({ kind: "error", reason: `the container ended with code ${end.code}${end.timedOut ? " (time limit)" : ""}: ${end.stderrTail.slice(-500)}` }));
+    return lines;
+  });
+  return { handle: r, lines: ended };
+}
+
+/** The probe in a fresh one-off container of a project service, through the sandbox manager. */
+export async function probeService(sb: Sandbox, service: string, label: string, settings: string, extraVolumes: string[] = []): Promise<string[]> {
+  return startProbe(sb, service, label, settings, extraVolumes).lines;
+}
+
+/** What Docker said about a one-off container while it ran (`docker inspect`). */
+export interface SeenContainer {
+  container: string;
+  /** True if Docker answered with the container running, before its run ended. Evidence that relies on what was seen fails if it did not. */
+  whileRunning: boolean;
+  /** The id of the image the container runs (`.Image`), and the name it was started from (`.Config.Image`). */
+  imageId?: string;
+  imageName?: string;
+  user?: string;
+  networkMode?: string;
+  networks?: string[];
+  readOnlyRoot?: boolean;
+  mounts?: Array<{ type?: string; source?: string; destination?: string; readWrite?: boolean }>;
+  problem?: string;
+}
+
+export interface SeenProbe {
+  lines: string[];
+  seen: SeenContainer;
+  /** The exact arguments given to `docker` (the sandbox manager's own: `StreamingRun.args`). */
+  command: string[];
+}
+
+/**
+ * Ask Docker about a one-off container until it is seen running, or its run has ended (no fixed wait). It asks
+ * again 20 ms after each answer: the probe in the real runner image ends about 0.2 s after its container starts
+ * (measured 14 Nov 2026: evidence/2026-11-14-package-0.6c-real-containers/measurements/M6-seen-while-running.txt),
+ * so a slower rhythm could miss it. A container that is missed is reported as not seen, never guessed at.
+ */
+async function seeWhileRunning(handle: StreamingRun, env: NodeJS.ProcessEnv): Promise<SeenContainer> {
+  let ended = false;
+  void handle.done.then(() => (ended = true));
+  while (!ended) {
+    try {
+      const { stdout } = await run("docker", ["inspect", handle.container, "--format", "{{json .}}"], { env, maxBuffer: 8 * 1024 * 1024 });
+      const i = JSON.parse(stdout) as {
+        Image?: string;
+        State?: { Running?: boolean };
+        Config?: { Image?: string; User?: string };
+        HostConfig?: { NetworkMode?: string; ReadonlyRootfs?: boolean };
+        NetworkSettings?: { Networks?: Record<string, unknown> | null };
+        Mounts?: Array<{ Type?: string; Source?: string; Destination?: string; RW?: boolean }>;
+      };
+      if (i.State?.Running) {
+        return {
+          container: handle.container,
+          whileRunning: !ended,
+          imageId: i.Image,
+          imageName: i.Config?.Image,
+          user: i.Config?.User,
+          networkMode: i.HostConfig?.NetworkMode,
+          networks: Object.keys(i.NetworkSettings?.Networks ?? {}).sort(),
+          readOnlyRoot: i.HostConfig?.ReadonlyRootfs,
+          mounts: (i.Mounts ?? []).map((m) => ({ type: m.Type, source: m.Source, destination: m.Destination, readWrite: m.RW })),
+        };
+      }
+    } catch {
+      /* not created yet, or gone already */
+    }
+    await new Promise((r) => setTimeout(r, 20));
+  }
+  return { container: handle.container, whileRunning: false, problem: "the container ended before docker inspect saw it running" };
+}
+
+/**
+ * As `probeService`, and Docker is asked about the container while it runs: the image it runs (id and name), its
+ * user, its networks, whether its root is read-only, and its mounts. So "it ran in the real image" is checked from
+ * Docker's own answer, not assumed from the Compose file. Also gives the exact docker command.
+ */
+export async function probeServiceSeen(sb: Sandbox, service: string, label: string, settings: string, extraVolumes: string[] = []): Promise<SeenProbe> {
+  const p = startProbe(sb, service, label, settings, extraVolumes);
+  const seen = await seeWhileRunning(p.handle, dockerEnv(sb));
+  return { lines: await p.lines, seen, command: p.handle.args ?? [] };
 }
 
 /** `docker run` of the probe in the approved Node image, hardened as a project container, on the network given. */
@@ -190,7 +342,402 @@ export async function leftOf(sb: Sandbox): Promise<string> {
     `named containers: ${await ask(["ps", "-a", "--filter", `name=${sb.projectName}-`, "--format", "{{.Names}}"])}`,
     `networks: ${await ask(["network", "ls", "--filter", label, "--format", "{{.Name}}"])}`,
     `volumes: ${await ask(["volume", "ls", "--filter", label, "--format", "{{.Name}}"])}`,
-    // Every image made here is named `<project>-<name>`; the dash keeps another project whose name starts the same out.
+    // Every image made here is named `<project>-<name>`. The dash keeps out another project whose name starts the same
+    // and goes on with an underscore (as every id used here does); a project whose id is this id, a dash, and more
+    // would be listed too, here and under "named containers". This only reads: listing too much makes a red result.
     `images: ${await ask(["images", "--format", "{{.Repository}}:{{.Tag}}", "--filter", `reference=${sb.projectName}-*`])}`,
   ].join("; ");
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// The run in real containers (14 Nov 2026). Everything below uses the real images and the product's own functions.
+// ---------------------------------------------------------------------------------------------------------------
+
+/**
+ * The acceptance runner's real image, built from the approved browser zip as test/acceptance-live.test.ts builds it
+ * (from Docker's build cache when nothing changed). It must be as approved and carry the zip's label. Returns the
+ * image's id. The image has one machine-wide name, shared with other sessions: nothing here ever removes it.
+ */
+export async function ensureRunnerImage(): Promise<{ image: string; imageId: string }> {
+  const img = await buildRunnerImage({ hostProxy: { url: process.env.HTTPS_PROXY ?? "", caBundlePath: "/root/.ccr/ca-bundle.crt" } });
+  if (img.problems.length) throw new Error(`The runner image ${RUNNER_IMAGE} is not as approved: ${img.problems.join("; ")}`);
+  const problem = await runnerImageProblem(RUNNER_IMAGE, process.env);
+  if (problem) throw new Error(`The runner image cannot be used: ${problem}`);
+  return { image: RUNNER_IMAGE, imageId: img.imageId };
+}
+
+/** What `docker image inspect` says about an image: enough to tell the template's build from a stand-in. */
+export interface ImageFacts {
+  name: string;
+  /** Empty when the image is not on this machine. */
+  id: string;
+  user: string;
+  command: string[];
+  entrypoint: string[];
+  workingDir: string;
+  labels: Record<string, string>;
+  /** Set when Docker could not show the image: its own first line. */
+  missing?: string;
+  /** The date Docker gives the image (`.Created`). A date before the project was made means that the build's last step did not run for this project: Docker took it from its build cache. */
+  created?: string;
+}
+
+export async function imageFacts(sb: Pick<Sandbox, "dir">, image: string): Promise<ImageFacts> {
+  try {
+    const { stdout } = await run("docker", ["image", "inspect", image, "--format", "{{json .}}"], { env: dockerEnv(sb), maxBuffer: 8 * 1024 * 1024 });
+    const i = JSON.parse(stdout) as { Id?: string; Created?: string; Config?: { User?: string; Cmd?: string[] | null; Entrypoint?: string[] | null; WorkingDir?: string; Labels?: Record<string, string> | null } };
+    return { name: image, id: i.Id ?? "", user: i.Config?.User ?? "", command: i.Config?.Cmd ?? [], entrypoint: i.Config?.Entrypoint ?? [], workingDir: i.Config?.WorkingDir ?? "", labels: i.Config?.Labels ?? {}, created: i.Created ?? "" };
+  } catch (err) {
+    const e = err as { stderr?: string; message?: string };
+    return { name: image, id: "", user: "", command: [], entrypoint: [], workingDir: "", labels: {}, missing: ((e.stderr || e.message || "no answer").trim().split("\n")[0] ?? "").slice(0, 200) };
+  }
+}
+
+/** The four images a real project's containers run: the app and tools images, the acceptance service's image, and the approved Node image. */
+export interface RealImages {
+  app: ImageFacts;
+  tools: ImageFacts;
+  acceptance: ImageFacts;
+  node: ImageFacts;
+}
+
+/**
+ * A check against the three stand-in images of 13 Nov (`buildStandIns`): one plain sentence per problem, empty when
+ * none is found. It is NOT proof that an image is the template's build (said after the review of 14 Nov 2026). It
+ * reads an image's settings only, and asks Docker nothing: the app image must have the settings of the template's
+ * `run` stage (user "app", command node server.js), the tools image those of its `tools` stage (user "node",
+ * working folder /app), neither may be the approved Node image under another name, and the acceptance service's
+ * image must have the runner's own name and carry the approved zip's label. Each stand-in of 13 Nov fails these.
+ * Any other image given the same settings passes. What makes the images real in a run is that the product's own
+ * build (`sandbox.build`, in `buildAndStart`) made them from the project's workspace just before; what their
+ * content shows is `imageContentProblemsFrom`.
+ */
+export function realImageProblemsFrom(f: RealImages): string[] {
+  const imageProblems: string[] = [];
+  for (const [what, i] of [["app", f.app], ["tools", f.tools], ["acceptance service's", f.acceptance], ["approved Node", f.node]] as const)
+    if (i.missing || !i.id) imageProblems.push(`the ${what} image ${i.name} is not on this machine${i.missing ? ` (${i.missing})` : ""}`);
+  if (f.app.user !== "app") imageProblems.push(`the app image ${f.app.name} runs as user "${f.app.user}", not "app" as the template's Dockerfile sets it: it is not the template's build`);
+  if (JSON.stringify(f.app.command) !== JSON.stringify(["node", "server.js"])) imageProblems.push(`the app image ${f.app.name} starts ${JSON.stringify(f.app.command).slice(0, 80)}, not ["node","server.js"]: it is not the template's build`);
+  if (f.tools.user !== "node") imageProblems.push(`the tools image ${f.tools.name} runs as user "${f.tools.user}", not "node" as the template's Dockerfile sets it: it is not the template's tools stage`);
+  if (f.tools.workingDir !== "/app") imageProblems.push(`the tools image ${f.tools.name} works in "${f.tools.workingDir}", not "/app": it is not the template's tools stage`);
+  for (const i of [f.app, f.tools]) if (i.id && i.id === f.node.id) imageProblems.push(`the image ${i.name} is the approved Node image itself under another name (id ${i.id}): a stand-in, not the template's build`);
+  if (f.acceptance.name !== RUNNER_IMAGE) imageProblems.push(`the acceptance service's image is ${f.acceptance.name}, not ${RUNNER_IMAGE}: it is not the acceptance runner's real image`);
+  const label = runnerImageLabelProblem(f.acceptance.name, JSON.stringify(f.acceptance.labels));
+  if (label) imageProblems.push(label);
+  return imageProblems;
+}
+
+/**
+ * What must be found in the real images of an example-1 project after the scripted engine's two steps (added after
+ * the review of 14 Nov 2026; the paths were read in a real image that day). In the app image: the server the
+ * template's build makes, and the two "my requests" pages, which only step 02 adds to the workspace. In the tools
+ * image: the two tools the product itself runs there (`buildAndStart`). Paths are relative to /app.
+ */
+export const REAL_IMAGE_CONTENTS = {
+  app: ["server.js", ".next/server/app/[locale]/my-requests/page.js", ".next/server/app/[locale]/my-requests/new/page.js"],
+  tools: ["node_modules/.bin/drizzle-kit", "scripts/seed.ts"],
+} as const;
+
+/** For each path asked about, whether it was there, as read inside a container of the image. */
+export type ImageContents = Record<"app" | "tools", Record<string, boolean>>;
+
+/**
+ * Read `REAL_IMAGE_CONTENTS` in a one-off container of the app service and one of the tools service (the sandbox
+ * manager's own `runOnce`), each started from the image's name with a one-line Node command in place of the
+ * service's own. Nothing is written. A container that prints something else gives every path as not there.
+ */
+export async function imageContents(sb: Sandbox, runOnce: (sb: Sandbox, service: string, cmd: string[]) => Promise<string> = sandbox.runOnce): Promise<ImageContents> {
+  const script = "const fs=require('fs');console.log(JSON.stringify(Object.fromEntries(process.argv.slice(1).map((p)=>[p,fs.existsSync('/app/'+p)]))))";
+  const read = async (service: "app" | "tools"): Promise<Record<string, boolean>> => {
+    const asked = REAL_IMAGE_CONTENTS[service];
+    let said: Record<string, unknown> = {};
+    try {
+      said = JSON.parse((await runOnce(sb, service, ["node", "-e", script, ...asked])).trim().split("\n").pop() ?? "") as Record<string, unknown>;
+    } catch {
+      /* the container did not start, or printed something else: every path reads as not there */
+    }
+    return Object.fromEntries(asked.map((p) => [p, said[p] === true]));
+  };
+  return { app: await read("app"), tools: await read("tools") };
+}
+
+/**
+ * What the images do not hold of `REAL_IMAGE_CONTENTS`, one plain sentence per image; empty when all is there. A
+ * plain function: it asks Docker nothing. This shows that the app image is a build of the workspace AFTER step 02,
+ * and that the tools image holds the product's two tools. It is still not proof of how the image was made: an image
+ * built on purpose to hold files of those names would pass.
+ */
+export function imageContentProblemsFrom(c: ImageContents): string[] {
+  const out: string[] = [];
+  for (const service of ["app", "tools"] as const) {
+    const notThere = REAL_IMAGE_CONTENTS[service].filter((p) => c[service]?.[p] !== true);
+    if (notThere.length) out.push(`the ${service} image does not hold ${notThere.map((p) => `/app/${p}`).join(", ")}: it is not the build of the workspace after the scripted engine's two steps`);
+  }
+  return out;
+}
+
+/** One text edit of a Compose file: `from` must occur exactly once, in the named service's block or, with no service, in the whole file. */
+export interface ComposeEdit {
+  service?: string;
+  from: string;
+  to: string;
+}
+
+/** Where a service's block is in the Compose text the sandbox manager writes: from its own line under `services:` to the next service, or the section's end. */
+function serviceBlock(text: string, service: string): { start: number; end: number } {
+  const top = /^services:\n/m.exec(text);
+  if (!top) throw new Error("The Compose file has no services section.");
+  const sectionStart = top.index + top[0].length;
+  const after = text.slice(sectionStart);
+  const section = after.slice(0, /^\S/m.exec(after)?.index ?? after.length);
+  const head = new RegExp(`^  ${service.replace(/[.*+?^${}()|[\]\\-]/g, "\\$&")}:\\n`, "m").exec(section);
+  if (!head) throw new Error(`The Compose file has no ${service} service.`);
+  const bodyStart = head.index + head[0].length;
+  const next = /^  \S/m.exec(section.slice(bodyStart));
+  return { start: sectionStart + head.index, end: sectionStart + (next ? bodyStart + next.index : section.length) };
+}
+
+/**
+ * Apply text edits to a Compose file's text, in order. Each `from` must be found exactly once where it is looked
+ * for; found no times, or more than once, the edit is refused. So a deliberate misconfiguration can never silently
+ * not apply (for example after the sandbox manager's wording of the file has changed).
+ */
+export function editComposeText(text: string, edits: ComposeEdit[]): string {
+  let out = text;
+  for (const e of edits) {
+    const { start, end } = e.service ? serviceBlock(out, e.service) : { start: 0, end: out.length };
+    const block = out.slice(start, end);
+    const found = block.split(e.from).length - 1;
+    if (found !== 1) throw new Error(`A Compose edit is refused: its text was found ${found} times, not once, in ${e.service ? `the ${e.service} service` : "the file"}: ${JSON.stringify(e.from).slice(0, 160)}`);
+    out = out.slice(0, start) + block.replace(e.from, () => e.to) + out.slice(end);
+  }
+  return out;
+}
+
+/** Edit the Compose file the sandbox manager wrote for this sandbox, before anything starts (`editComposeText`). */
+export function editCompose(sb: Pick<Sandbox, "composeFile">, edits: ComposeEdit[]): void {
+  writeFileSync(sb.composeFile, editComposeText(readFileSync(sb.composeFile, "utf8"), edits));
+}
+
+/** One edit inside one service's block of the sandbox's Compose file. */
+export function editComposeService(sb: Pick<Sandbox, "composeFile">, service: string, from: string, to: string): void {
+  editCompose(sb, [{ service, from, to }]);
+}
+
+/**
+ * The four deliberate misconfigurations of real containers (14 Nov 2026), each as text edits of the Compose file
+ * the manager writes for a real example-1 project. Each must make its container FAIL the comparison with its list.
+ */
+export const REAL_MISCONFIGURATIONS = {
+  R1: {
+    what: "the real app also on an ordinary bridge (a way out)",
+    edits: [
+      { from: "\nsecrets:\n", to: "\n  ext:\n    enable_ipv6: false\nsecrets:\n" },
+      { service: "app", from: '    networks:\n      - "data"\n      - "front"\n', to: '    networks:\n      - "data"\n      - "front"\n      - "ext"\n' },
+    ],
+  },
+  R2: {
+    what: "the data network internal, but without the isolated gateway mode",
+    edits: [{ from: '  data:\n    internal: true\n    enable_ipv6: false\n    driver_opts:\n      com.docker.network.bridge.gateway_mode_ipv4: "isolated"\n', to: "  data:\n    internal: true\n    enable_ipv6: false\n" }],
+  },
+  R3: {
+    what: "the real runner also on the data network",
+    edits: [{ service: "acceptance", from: '    networks:\n      - "front"\n', to: '    networks:\n      - "front"\n      - "data"\n' }],
+  },
+  R4: {
+    what: "the scripted engine's container given the out network",
+    edits: [{ service: "engine", from: '    network_mode: "none"\n', to: '    networks:\n      - "out"\n' }],
+  },
+} satisfies Record<string, { what: string; edits: ComposeEdit[] }>;
+
+/** The scripted engine's two fixed steps of example 1, as the product runs them. */
+export const REAL_STEPS = ["01-data", "02-submitter-screen"] as const;
+
+/** A real example-1 project, as `startRealProject` leaves it. */
+export interface RealProject {
+  x: Example1;
+  /** The images' facts, read from Docker after the build (an image that is not there has an empty id). */
+  images: RealImages;
+  /** The running app container's id and the id of the image it runs, as Docker reports them; null when nothing was built. */
+  appContainer: { id: string; imageId: string } | null;
+}
+
+/** The id of a service's running container (`docker compose ps -q`), or "" when it has none. */
+export async function runningContainerId(sb: Sandbox, service: string): Promise<string> {
+  return (await run("docker", ["compose", "-f", sb.composeFile, "ps", "-q", service], { env: dockerEnv(sb) })).stdout.trim();
+}
+
+/**
+ * A real example-1 project, made by the product's own functions, unchanged: `makeExample1` with the real runner
+ * image, the scripted engine's steps 01 and 02 (`runStep`), then `buildAndStart` (the app and tools images built
+ * from the template, tables and sample users made in the tools container, the app started and healthy). One
+ * addition, which the product does not make for a scripted-engine project today: the door (`egress`) is started
+ * too, so that a listening door is there to be NOT reached. `edits` change the Compose file before anything
+ * starts (a deliberate misconfiguration). With `build: false`: the project, the edits and the door only.
+ * `onMade` is called as soon as the project's folder exists, so that the caller can remove it whatever happens next.
+ */
+export async function startRealProject(o: { projectId: string; appPort: number; edits?: ComposeEdit[]; build?: boolean; onMade?: (x: Example1) => void; log?: (s: string) => void }): Promise<RealProject> {
+  const x = await makeExample1({ projectId: o.projectId, appPort: o.appPort, buildProxyPort: await freePort(), runnerImage: RUNNER_IMAGE });
+  o.onMade?.(x);
+  if (o.edits?.length) editCompose(x.sb, o.edits);
+  if (o.build !== false) {
+    for (const step of REAL_STEPS) {
+      const r = await runStep(x, step);
+      if (!r.ok) throw new Error(`The scripted engine's step ${step} did not end ok in ${x.sb.projectName}: ${JSON.stringify(r).slice(0, 400)}`);
+    }
+    await buildAndStart(x, o.log);
+  }
+  await sandbox.up(x.sb, ["egress"]);
+  const images: RealImages = {
+    app: await imageFacts(x.sb, appImageName(o.projectId)),
+    tools: await imageFacts(x.sb, toolsImageName(o.projectId)),
+    acceptance: await imageFacts(x.sb, x.sb.acceptanceImage ?? "(the sandbox has no acceptance service)"),
+    node: await imageFacts(x.sb, DEFAULT_IMAGES.node),
+  };
+  let appContainer: RealProject["appContainer"] = null;
+  if (o.build !== false) {
+    const id = await runningContainerId(x.sb, "app");
+    const imageId = id ? (await run("docker", ["inspect", id, "--format", "{{.Image}}"], { env: dockerEnv(x.sb) })).stdout.trim() : "";
+    appContainer = { id, imageId };
+  }
+  return { x, images, appContainer };
+}
+
+/** Where the probe is put inside a running container: its own /tmp, which every project service has as a small tmpfs. */
+export const IN_PLACE_PATH = "/tmp/isolation-probe.mjs";
+/** The most characters the encoded probe may have to be handed over as one command argument (the kernel's limit for one argument is 131,071 here; measured 14 Nov 2026). */
+export const IN_PLACE_MAX_ENCODED = 100_000;
+// Each runs inside the container with `node -e`: write the file from one base64 argument (flag "wx": nothing already
+// there is overwritten), print its SHA-256, remove it and say whether it is gone.
+const IN_PLACE_WRITE = "const fs=require('fs');const p=process.argv[1];fs.writeFileSync(p,Buffer.from(process.argv[2],'base64'),{flag:'wx',mode: 0o600});console.log('written '+fs.statSync(p).size)";
+const IN_PLACE_HASH = "console.log(require('crypto').createHash('sha256').update(require('fs').readFileSync(process.argv[1])).digest('hex'))";
+const IN_PLACE_REMOVE = "const fs=require('fs');fs.rmSync(process.argv[1],{force:true});console.log(fs.existsSync(process.argv[1])?'still there':'gone')";
+
+/** A command run inside a running service's container; `sandbox.exec` is the real one. */
+export type ExecInService = (sb: Sandbox, service: string, cmd: string[]) => Promise<string>;
+
+export interface InPlaceProbe {
+  lines: string[];
+  /** SHA-256 of the repository's probe file, and of the file as read back inside the container before it was run. */
+  sha256: { repository: string; inside: string };
+  /** The running container's id before the probe and after it (`docker compose ps -q`): the same container throughout. */
+  container: { before: string; after: string };
+  /** True once the file was removed and seen gone. */
+  removed: boolean;
+  /** How many characters the probe was as one base64 argument. */
+  encodedLength: number;
+}
+
+/**
+ * The probe INSIDE a running service's container (14 Nov 2026), through the sandbox manager's own `exec`
+ * (`docker compose exec -T <service>`): it runs in the container that is already running, in its own namespaces and
+ * as its own user, beside the service's process. Four commands, each a `node` inside the container:
+ * 1. the probe file is written to the container's own /tmp from one base64 argument (refused here, before anything
+ *    is sent, if it is over IN_PLACE_MAX_ENCODED characters; nothing already at that place is overwritten);
+ * 2. its SHA-256 is read back inside and must equal the repository file's, or the probe is NOT run;
+ * 3. it is run there: `node /tmp/isolation-probe.mjs <settings>`. A non-zero end becomes an error line, with the
+ *    lines printed so far kept;
+ * 4. the file is removed, always, and seen gone.
+ * `o.exec`, `o.containerId` and `o.probeFile` are for the unit tests, which use no Docker.
+ *
+ * Two things a caller must know (written after the review of 14 Nov 2026):
+ * - Which container. The running container's id is read first (`docker compose ps -q`), and the probe is refused
+ *   when there is none, because the manager's `exec` can enter a ONE-OFF container of the service when the service's
+ *   own container is not running (measured by the reviewer, 14 Nov). This function reads the id before and after; it
+ *   is the caller that must compare both with the id of the container it means (test L4 and L6 do).
+ * - Whom it trusts. The file is written, fingerprinted and run in three separate commands, each as the container's
+ *   own user, in the container's own /tmp. Code already running in that container as that user (the app itself)
+ *   could replace the file between the fingerprint and the run, or read the probe and its settings: the settings
+ *   (the machine's listening ports and addresses, the session proxy's host and port) are a command argument, shown
+ *   in the container's process list while the probe runs. So the fingerprint guards against accident, not against
+ *   the container's own code, and the result is only as trustworthy as the app being probed. Today that is the
+ *   house template after two fixed steps. Before an app a model wrote is probed in place, an engineer should decide
+ *   how the file and the settings are handed over (proposed known gap 185).
+ */
+export async function probeInPlace(sb: Sandbox, service: string, settings: string, o: { exec?: ExecInService; containerId?: (sb: Sandbox, service: string) => Promise<string>; probeFile?: string } = {}): Promise<InPlaceProbe> {
+  const exec = o.exec ?? sandbox.exec;
+  const idOf = o.containerId ?? runningContainerId;
+  const bytes = readFileSync(o.probeFile ?? PROBE_FILE);
+  const encoded = bytes.toString("base64");
+  if (encoded.length > IN_PLACE_MAX_ENCODED)
+    throw new Error(`The probe file is ${encoded.length} characters once encoded, over the ${IN_PLACE_MAX_ENCODED} that can be handed to a running container as one argument; nothing was sent.`);
+  const repository = createHash("sha256").update(bytes).digest("hex");
+  const before = await idOf(sb, service);
+  if (!before) throw new Error(`The ${service} service has no running container to probe in place.`);
+  const split = (text: string) => text.split("\n").filter(Boolean);
+  try {
+    await exec(sb, service, ["node", "-e", IN_PLACE_WRITE, IN_PLACE_PATH, encoded]);
+  } catch (err) {
+    const said = String((err as { stderr?: string }).stderr || (err as Error).message);
+    // Something is already at that place: it was not overwritten, and it is not removed, since this run did not put it there.
+    if (/EEXIST/.test(said)) throw new Error(`Something is already at ${IN_PLACE_PATH} in the running ${service} container; it was not overwritten and not removed, and the probe was not run.`);
+    await exec(sb, service, ["node", "-e", IN_PLACE_REMOVE, IN_PLACE_PATH]).catch(() => undefined);
+    throw new Error(`The probe file could not be written into the running ${service} container: ${said.slice(-600)}`);
+  }
+  let inside = "";
+  let lines: string[] = [];
+  let removed = false;
+  try {
+    inside = (await exec(sb, service, ["node", "-e", IN_PLACE_HASH, IN_PLACE_PATH])).trim();
+    if (inside !== repository) throw new Error(`The file written into the running ${service} container has SHA-256 ${inside || "(nothing read)"}, not the repository's probe (${repository}); it was not run.`);
+    lines = await exec(sb, service, ["node", IN_PLACE_PATH, settings]).then(split, (err: { stdout?: string; stderr?: string; message?: string }) => [
+      ...split(err.stdout ?? ""),
+      JSON.stringify({ kind: "error", reason: `the probe run in place ended with an error: ${(err.stderr || err.message || "").slice(-500)}` }),
+    ]);
+  } finally {
+    // Always, whatever happened above: the file is removed, and seen gone.
+    removed = (await exec(sb, service, ["node", "-e", IN_PLACE_REMOVE, IN_PLACE_PATH]).then((said) => said.trim(), () => "")) === "gone";
+  }
+  return { lines, sha256: { repository, inside }, container: { before, after: await idOf(sb, service) }, removed, encodedLength: encoded.length };
+}
+
+/** What `destroyRealProject` asks `docker ps` to print for each container: its id, its names, and the Compose project it is labelled with. */
+export const OWN_CONTAINERS_FORMAT = '{{.ID}}\t{{.Names}}\t{{.Label "com.docker.compose.project"}}';
+
+/**
+ * Which containers are this project's to remove, from `docker ps` lines in `OWN_CONTAINERS_FORMAT`: those Compose
+ * labels with exactly this project's name, and the harness's own probe containers, named `<project>-isolation-...`.
+ * A plain function. After the review of 14 Nov 2026: as first written, every container whose name held the
+ * project's name and a dash was removed, and project ids may hold dashes, so removing project X also removed the
+ * containers of a project whose id is X, a dash, and more (shown by the reviewer). Such a neighbour is left alone now.
+ */
+export function ownContainerIds(psLines: string[], projectName: string): string[] {
+  return psLines
+    .map((l) => l.split("\t"))
+    .filter(([id, names = "", project = ""]) => Boolean(id) && (project === projectName || names.split(",").some((n) => n.startsWith(`${projectName}-isolation-`))))
+    .map(([id]) => id!);
+}
+
+/** Whether a project's folder (its Compose file, its made-up secrets, its copy of the template) is still on the machine. */
+export const folderLeft = (x: Pick<Example1, "dir">): string => (existsSync(x.dir) ? `still there (${x.dir})` : "gone");
+
+/**
+ * Remove a real project: any probe container a failed run left (`ownContainerIds`), then the project's containers,
+ * networks, volume, its two images (by name) and its folder (`destroyExample1`). Returns what is left, as `leftOf`
+ * reads it; `folderLeft` says whether the folder is gone. The acceptance runner's image is not the project's and is
+ * never touched.
+ * After the review of 14 Nov 2026 the folder is removed whatever Docker said. Before, when Docker did not answer,
+ * this stopped before the folder was removed, and the folder (with the project's made-up secrets) stayed on the
+ * machine unreported. Docker's failure is still passed on to the caller.
+ */
+export async function destroyRealProject(x: Example1): Promise<string> {
+  const env = dockerEnv(x.sb);
+  try {
+    const listed = await run("docker", ["ps", "-a", "--filter", `name=${x.sb.projectName}`, "--format", OWN_CONTAINERS_FORMAT], { env }).catch(() => ({ stdout: "" }));
+    for (const id of ownContainerIds(listed.stdout.split("\n"), x.sb.projectName)) await run("docker", ["rm", "-f", id], { env }).catch(() => undefined);
+    await destroyExample1(x);
+  } finally {
+    rmSync(x.dir, { recursive: true, force: true });
+  }
+  return leftOf(x.sb);
+}
+
+/**
+ * What is on the machine of a project that has not been made yet, by its id (`leftOf`, for a project with no
+ * folder). Added after the review of 14 Nov 2026: a run that was interrupted (its process killed) leaves its
+ * containers, networks, volume and images behind under the same fixed names, and the next run would start on top of
+ * them. The live test and the demonstration read this first and stop, naming what is there.
+ */
+export function leftOfProjectId(projectId: string): Promise<string> {
+  return leftOf({ projectName: composeProjectName(projectId), dir: join(tmpdir(), `builder-no-such-folder-${projectId}`) } as Sandbox);
 }

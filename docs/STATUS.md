@@ -1,6 +1,6 @@
 # Status
 
-**As of:** 14 November 2026, pull request #51: known gap 180's fix, and the marks of the merged packages checked. Questions: [`docs/QUESTIONS.md`](QUESTIONS.md). Before this: `docs/log/2026-11-14-status-before-j2-second-review.md`.
+**As of:** 14 November 2026: pull request #51 merged; this one adds 0.6c's check inside the real containers. Questions: [`docs/QUESTIONS.md`](QUESTIONS.md). Before this: `docs/log/2026-11-14-status-before-j2-second-review.md`.
 
 ## What you can now do
 
@@ -11,21 +11,21 @@
 
 ## State
 
-1. **Tested** (scripted engine or stand-ins; no real model): 0.1 to 0.5, 0.6a (development profile), 1.1 to 1.5 with 1.2b and 1.4b, 2.1, 3.1, W4, J2. Marked on your "Fix it" as Claude Code read it, yours to take back: 3.1, 1.4b, J2. Eleven fresh readers checked them (`docs/reviews/2026-11-14-marks-checked.md`).
-2. **Built, not tested:** 1.4c (two points are yours to say), 0.6c (its real engine does not exist), J3 (no finish criteria written; phone test not run), J1 and 3.1b (item 3), R1, the day's fixes.
+1. **Tested** (scripted engine or stand-ins; no real model): 0.1 to 0.5, 0.6a (development profile), 1.1 to 1.5 with 1.2b and 1.4b, 2.1, 3.1, W4, J2. Marked on your "Fix it" as Claude Code read it, yours to take back: 3.1, 1.4b, J2 (`docs/reviews/2026-11-14-marks-checked.md`).
+2. **Built, not tested:** 1.4c (two points are yours to say), 0.6c (item 4), J3 (no finish criteria written; phone test not run), J1 and 3.1b (item 3), R1, the day's fixes.
 3. **J1 and 3.1b were read adversarially** (to break them) by six fresh reviewers: nothing blocking; eight serious points to fix (gaps 187 to 189).
-4. **Checked on #51's code:** the whole suite 814 of 814; 87 of 87 controls (a safeguard removed, its test must fail); the automated runs: J2 153 of 153, J1 54 of 54, J3 46 of 46 (`evidence/2026-11-14-gap-180-removal-checked/merged/`).
+4. **0.6c:** its isolation check (what each container can reach) now ran inside the real app, tools and runner containers; each matched its list. Three fresh reviewers read it; a second round and the whole suite are running. Its fourth container, the real engine, does not exist (question 31).
+5. **Last whole-suite run:** 814 of 814, on #51's code (`evidence/2026-11-14-gap-180-removal-checked/merged/`).
 
 ## Next
 
 1. Fix gaps 187 to 189, then mark J1 and 3.1b.
-2. 0.6c inside the real containers: built and reviewed on a side branch, not merged.
-3. Package 3.2, the export: the other session (pull request #50).
-4. Your phone test.
+2. Package 3.2, the export: the other session (pull request #50).
+3. Your phone test.
 
 ## What blocks it
 
-- Your answers: questions 19 (where new sessions start) and 21 (Vercel); the first four lines of "Yours to confirm".
+- Your answers: questions 19 (where new sessions start), 21 (Vercel) and 31 (0.6c); the first four lines of "Yours to confirm".
 - An engineer's reading (gaps 35, 148, 149, 159, 179, 180, 187, 188).
 - Package 2.2's engine: not before gaps 187 to 189 are fixed. The real-model gate (2.3): 2.2, the key, 0.6c tested.
 

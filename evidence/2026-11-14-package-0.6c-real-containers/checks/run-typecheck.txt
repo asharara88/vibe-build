@@ -1,0 +1,12 @@
+The type check.
+On a copy of commit 51d6cc0 (git archive; node_modules as real folders), started 2026-11-14T13:23:55Z.
+Command, from builder/: npm run typecheck; then scripts/demo-isolation.ts and the two measurement scripts, which the project's own settings do not cover, checked with the same options
+
+
+> builder@0.0.1 typecheck
+> tsc --noEmit
+
+exit code: 0
+
+scripts/demo-isolation.ts and the measurement scripts, directly:
+exit code: 0

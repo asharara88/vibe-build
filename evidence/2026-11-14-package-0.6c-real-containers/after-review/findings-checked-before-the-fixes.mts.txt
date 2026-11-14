@@ -1,0 +1,73 @@
+// Checks of the reviewers' findings against the code as it stood before the fixes. No container is started:
+// Docker is pointed at an address where nothing listens (DOCKER_HOST=tcp://127.0.0.1:1), set by the caller.
+import { mkdirSync, mkdtempSync, existsSync, writeFileSync, rmSync } from "node:fs";
+import net from "node:net";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
+const WT = process.argv[2]!;
+const iso = await import(`${WT}/builder/src/sandbox/isolation.js`);
+const h = await import(`${WT}/builder/scripts/isolation-harness.js`);
+const m = await import(`${WT}/builder/src/sandbox/manager.js`);
+const ri = await import(`${WT}/builder/src/acceptance/runner-image.js`);
+
+if (process.env.DOCKER_HOST !== "tcp://127.0.0.1:1") throw new Error("run with DOCKER_HOST=tcp://127.0.0.1:1");
+const attempt = (o: Record<string, unknown>) => JSON.stringify({ kind: "attempt", id: "A1", group: "g", toward: "outside", what: "w", target: "t:1", how: "h", result: "refused", code: "ECONNREFUSED", detail: "", ...o });
+const end = (n: number) => JSON.stringify({ kind: "end", attempts: n });
+const ctx = { appPort: 3191, gatewayServer: /server: x/ };
+
+// 1. A look-alike image passes the realness check.
+const id = (c: string) => `sha256:${c.repeat(64)}`;
+const lookAlike = {
+  app: { name: m.appImageName("p_x"), id: id("a"), user: "app", command: ["node", "server.js"], entrypoint: [], workingDir: "", labels: {} },
+  tools: { name: m.toolsImageName("p_x"), id: id("b"), user: "node", command: ["node"], entrypoint: [], workingDir: "/app", labels: {} },
+  acceptance: { name: ri.RUNNER_IMAGE, id: id("c"), user: "runner", command: [], entrypoint: [], workingDir: "/runner", labels: { [ri.BROWSER_ZIP_LABEL]: ri.BROWSER_ZIP_SHA256 } },
+  node: { name: m.DEFAULT_IMAGES.node, id: id("d"), user: "", command: ["node"], entrypoint: [], workingDir: "", labels: {} },
+};
+console.log("1. realImageProblemsFrom on a look-alike (only USER app + CMD node server.js; only USER node + WORKDIR /app):", JSON.stringify(h.realImageProblemsFrom(lookAlike)));
+
+// 2. The running app's list and a second listener at 127.0.0.11.
+const base = [
+  attempt({ id: "A2", result: "timed out", code: "TIMEOUT" }),
+  attempt({ id: "D3", toward: "lookup", target: "db", result: "found 1 address", code: null }),
+  attempt({ id: "Pdb:5432", toward: "project", target: "db:5432", result: "connected", code: null }),
+  attempt({ id: "Papp:3191", toward: "project", target: "app:3191", result: "connected", code: null }),
+  attempt({ id: "X3191", toward: "host", target: "127.0.0.1:3191", result: "connected", code: null }),
+  attempt({ id: "X41000", toward: "host", target: "127.0.0.11:41000", result: "connected", code: null }),
+];
+const second = attempt({ id: "X8080", toward: "host", target: "127.0.0.11:8080", result: "connected", code: null });
+const c2 = iso.compareWithExpected(iso.parseProbeOutput([...base, second, end(7)]), iso.expectedOnDevelopment("app-running", ctx));
+console.log("2. app-running with a SECOND listener at 127.0.0.11:8080: pass =", c2.pass, "failing =", JSON.stringify(c2.rows.filter((r: { pass: boolean }) => !r.pass).map((r: { id: string }) => r.id)));
+
+// 3. The empty list and a probe that made no attempt.
+const c3 = iso.compareWithExpected(iso.parseProbeOutput([end(0)]), iso.expectedOnDevelopment("engine-scripted", ctx));
+console.log("3. engine-scripted with a closing line only (0 attempts): pass =", c3.pass, "rows =", c3.rows.length);
+
+// 4. startFrontStandIn on a taken port.
+const taken = net.createServer();
+await new Promise<void>((r) => taken.listen(0, "127.0.0.1", r));
+const port = (taken.address() as net.AddressInfo).port;
+let uncaught = "";
+const onUncaught = (e: Error) => (uncaught = (e as NodeJS.ErrnoException).code ?? e.message);
+process.on("uncaughtException", onUncaught);
+const settled = await Promise.race([h.startFrontStandIn(port).then(() => "resolved", (e: Error) => `rejected: ${e.message}`), new Promise((r) => setTimeout(() => r("NEVER SETTLED within 3 s"), 3000))]);
+process.off("uncaughtException", onUncaught);
+console.log(`4. startFrontStandIn(${port}) while that port is taken: ${settled}; uncaught exception seen by the process: ${uncaught || "none"}`);
+await new Promise((r) => taken.close(r));
+
+// 5. removeImages and a neighbour whose id is this id, a dash, and more.
+const sb = { dir: tmpdir(), composeFile: "/made-up/compose.yaml", projectName: m.composeProjectName("p_x") };
+const neighbour = m.appImageName("p_x-b");
+console.log(`5. removeImages(${sb.projectName}) given ${neighbour}:`, await h.removeImages(sb, [neighbour]).then(() => "ACCEPTED as its own (Docker would have been asked; here it is pointed at nothing)", (e: Error) => `refused: ${e.message}`));
+
+// 6. destroyRealProject with Docker not answering.
+const dir = mkdtempSync(join(tmpdir(), "builder-acceptance-verify-"));
+mkdirSync(join(dir, "secrets"));
+writeFileSync(join(dir, "secrets", "db_password"), "made-up");
+writeFileSync(join(dir, "compose.yaml"), "services: {}\n");
+const x = { projectId: "p_iso06c_verify", dir, sb: { dir, composeFile: join(dir, "compose.yaml"), projectName: m.composeProjectName("p_iso06c_verify") } };
+const said = await h.destroyRealProject(x).then((s: string) => `returned: ${s}`, (e: Error) => `REJECTED: ${e.message.split("\n")[0]}`);
+console.log(`6. destroyRealProject with Docker not answering: ${said}`);
+console.log(`   the project's folder, with its secrets file: ${existsSync(join(dir, "secrets", "db_password")) ? "STILL THERE" : "gone"}`);
+rmSync(dir, { recursive: true, force: true });
+process.exit(0);

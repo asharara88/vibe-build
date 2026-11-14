@@ -1,0 +1,9 @@
+The implementer's own check of six of the reviewers' findings (F1, F7/F15, F19, F16, F18, F17), run on the code as it stood at commit 49ca639, before any fix. No container: Docker was pointed at an address where nothing listens (DOCKER_HOST=tcp://127.0.0.1:1). The script is findings-checked-before-the-fixes.mts.txt.
+
+1. realImageProblemsFrom on a look-alike (only USER app + CMD node server.js; only USER node + WORKDIR /app): []
+2. app-running with a SECOND listener at 127.0.0.11:8080: pass = true failing = []
+3. engine-scripted with a closing line only (0 attempts): pass = true rows = 0
+4. startFrontStandIn(37513) while that port is taken: NEVER SETTLED within 3 s; uncaught exception seen by the process: EADDRINUSE
+5. removeImages(builder_p_x) given builder_p_x-b-app:latest: ACCEPTED as its own (Docker would have been asked; here it is pointed at nothing)
+6. destroyRealProject with Docker not answering: REJECTED: Command failed: docker ps -a --filter label=com.docker.compose.project=builder_p_iso06c_verify --format {{.Names}}
+   the project's folder, with its secrets file: STILL THERE

@@ -1,0 +1,17 @@
+The three kept scripts' guards, added after the review (finding F21), tried by hand on 2026-11-14T15:25:01Z. No container; nothing is removed by any of these calls.
+
+1. run-checks.sh, a step asked for when the copy is not there (SCRATCH names an empty folder):
+step typecheck: the copy <scratchpad>/fix06c/empty/run06c/builder is not there; run the step "copy" first. Nothing was run.
+   exit code: 2
+
+2. make-run-copy.sh, a destination inside a scratch folder whose last part is not one of this change's own names:
+the destination's last part must be run06c, copy or try06c (this change's own names); nothing was removed
+   exit code: 2; the folder was not made: yes
+
+3. controls-real.py with TMPDIR not set:
+TMPDIR is not set to a folder of this change's own; the controls do not run (their clean-up removes folders in it by name).
+   exit code: 1
+
+4. controls-real.py, given a work folder that already holds a folder named copy with no marker of which commit it is:
+<scratchpad>/fix06c/stale/copy is already there and is not marked as a copy of commit 00c9a2f629ba9ec0aaa3c07d42b094da66ae5f61; the controls do not run on it. Remove the work folder, or name another.
+   exit code: 1

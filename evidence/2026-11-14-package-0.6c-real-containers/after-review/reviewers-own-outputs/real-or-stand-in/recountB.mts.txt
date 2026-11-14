@@ -1,0 +1,12 @@
+// Reviewer: recompute each part-B column's comparison from the kept probe lines (no container; reads files only).
+import { readFileSync } from "node:fs";
+import { compareWithExpected, expectedOnDevelopment, parseProbeOutput, type DevContainer } from "./copy/builder/src/sandbox/isolation.ts";
+const dir = process.argv[2]!;
+const ctx = { appPort: 3171, gatewayServer: /server: gateway-stand-in/, frontServer: /server: preview-front-stand-in/ };
+const cols: Array<[string, DevContainer]> = [["app", "app"], ["tools", "tools"], ["db", "db"], ["runner", "runner"], ["engine", "engine"], ["egress", "egress"], ["check", "check"], ["camera", "camera"],
+  ["misconfiguration-1-app-with-a-way-out", "app"], ["misconfiguration-2-internal-without-isolated", "tools"], ["misconfiguration-3-check", "check"], ["misconfiguration-4-check", "check"]];
+for (const [key, kind] of cols) {
+  const r = parseProbeOutput(readFileSync(`${dir}/probe-${key}.jsonl`, "utf8").split("\n").filter(Boolean));
+  const c = compareWithExpected(r, expectedOnDevelopment(kind, ctx));
+  console.log(`${key} vs ${kind}: ${c.rows.filter((x) => x.pass).length} PASS, ${c.rows.filter((x) => !x.pass).length + c.missing.length} FAIL; pass=${c.pass}; user id ${r.info.find((i) => i.name === "user id")?.value}`);
+}

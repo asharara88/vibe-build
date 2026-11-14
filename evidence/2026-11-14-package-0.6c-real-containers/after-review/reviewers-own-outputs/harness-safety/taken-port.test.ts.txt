@@ -1,0 +1,28 @@
+// Reviewer's probe: what a test that calls the harness's startFrontStandIn does under vitest when the port is taken.
+// A port of the reviewer's own (never 4041). No container, no Docker.
+import net from "node:net";
+import { afterAll, describe, expect, it } from "vitest";
+import { startFrontStandIn } from "/tmp/claude-0/-home-user-vibe-build/121da6b0-2980-566b-82d7-1563934e4c7d/scratchpad/wt06c/builder/scripts/isolation-harness.ts";
+
+describe("startFrontStandIn on a taken port, under vitest", () => {
+  const taken = net.createServer();
+  let front: Awaited<ReturnType<typeof startFrontStandIn>> | undefined;
+  let port = 0;
+  const listeners = async () => {
+    if (!port) {
+      await new Promise<void>((r) => taken.listen(0, "127.0.0.1", r));
+      port = (taken.address() as net.AddressInfo).port;
+    }
+    front ??= await startFrontStandIn(port);
+    return front;
+  };
+  afterAll(() => new Promise<void>((r) => taken.close(() => r())));
+  it("first test that needs the listeners (time limit 4 s here; 40 minutes in L4)", async () => {
+    await listeners();
+    expect(true).toBe(true);
+  }, 4000);
+  it("second test that needs the listeners (time limit 4 s here; 10 to 40 minutes in L5 to L9)", async () => {
+    await listeners();
+    expect(true).toBe(true);
+  }, 4000);
+});

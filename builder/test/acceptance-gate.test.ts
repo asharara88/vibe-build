@@ -85,11 +85,33 @@ describe("the gate: npm test cannot pass while the browser was not exercised", (
     expect(out).toContain("npx tsx scripts/fetch-browser.ts");
   }, 200_000);
 
+  it("the live isolation test file for the real containers (package 0.6c, 14 Nov 2026), run with the zip absent and Docker not answering, fails: all 10 of its tests, none skipped, each naming both and how to put them right", () => {
+    const empty = mkdtempSync(join(scratch, "no-zip-"));
+    const r = spawnSync(process.execPath, [join(builderDir, "node_modules", "vitest", "vitest.mjs"), "run", "test/isolation-real-live.test.ts"], {
+      cwd: builderDir,
+      env: { ...process.env, ...noDocker(), BUILDER_BROWSER_CACHE: empty, NO_COLOR: "1", FORCE_COLOR: "0" },
+      encoding: "utf8",
+      timeout: 180_000,
+    });
+    const out = `${r.stdout}\n${r.stderr}`;
+    expect(r.status, out.slice(-3000)).toBe(1);
+    expect(out).toMatch(/Tests\s+10 failed \(10\)/);
+    expect(out).not.toMatch(/\b\d+ (?:skipped|todo)\b/);
+    // Each of the ten fails with the same words, once each: none of them got as far as starting anything.
+    const words = "This live isolation test runs the probe in the real containers, so it needs Docker and the approved browser zip; it fails (it is never skipped). Missing: Docker does not answer on this machine";
+    expect(out.split(words).length - 1).toBe(10);
+    expect(out.split(`The approved browser zip is not in the folder BUILDER_BROWSER_CACHE names: The browser cache has no ${BROWSER_ZIP}`).length - 1).toBe(10);
+    expect(out).toContain("nohup dockerd");
+    expect(out).toContain("npx tsx scripts/fetch-browser.ts");
+  }, 200_000);
+
   it("no test file can skip a test, mark one to do, run one alone, run one only if something holds, or expect it to fail; the test runner runs every test file in test/; npm test runs the whole suite", () => {
     // The scan is in test/gate-scan.ts; the tests below, on made-up folders, show that each of its rules finds what it is for.
     const listed = runnerTestFiles(builderDir);
     expect(listed).toContain(realpathSync(join(builderDir, "test", "acceptance-live.test.ts")));
     expect(listed).toContain(realpathSync(join(builderDir, "test", "acceptance-gate.test.ts")));
+    // Package 0.6c, 14 Nov 2026: the live isolation tests in the real containers are on the runner's own list too.
+    expect(listed).toContain(realpathSync(join(builderDir, "test", "isolation-real-live.test.ts")));
     expect(scanForLeftOutTests(builderDir, listed)).toEqual([]);
     expect(scanRunnerSettings(builderDir)).toEqual([]);
   }, 60_000);

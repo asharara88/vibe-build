@@ -1,0 +1,19 @@
+$ df -h /
+Filesystem      Size  Used Avail Use% Mounted on
+/dev/vda        252G   17G   22G  44% /
+
+$ docker system df
+TYPE            TOTAL     ACTIVE    SIZE      RECLAIMABLE
+Images          4         0         1.87GB    1.74GB (93%)
+Containers      0         0         0B        0B
+Local Volumes   0         0         0B        0B
+Build Cache     130       0         5.053GB   3.008GB
+
+$ docker version --format (client, server)
+29.9.2 29.9.2
+
+$ docker info --format (storage driver)
+overlayfs [["driver-type","io.containerd.snapshotter.v1"]]
+
+$ docker compose version
+Docker Compose version v5.6.1

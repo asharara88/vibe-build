@@ -1,0 +1,10 @@
+Lock held from 14:43:12 UTC.
+composeProjectName("p_iso06c_rev_ha") = builder_p_iso06c_rev_ha; composeProjectName("p_iso06c_rev_ha-b") = builder_p_iso06c_rev_ha-b
+before: ["builder_p_iso06c_rev_ha-b-app-1","builder_p_iso06c_rev_ha-isolation-left"]
+destroyRealProject(p_iso06c_rev_ha) said: containers: none; named containers: none; networks: none; volumes: none; images: none
+after: []
+the other project's container (builder_p_iso06c_rev_ha-b-app-1): REMOVED by the harness, though it is not project p_iso06c_rev_ha's
+removeImages for p_iso06c_rev_ha, given the other project's image name builder_p_iso06c_rev_ha-b-app:latest: ACCEPTED as its own (no such image exists, nothing was removed)
+cleaned up: containers left []; folder removed
+exit code: 0
+Lock released at 14:43:13 UTC.
