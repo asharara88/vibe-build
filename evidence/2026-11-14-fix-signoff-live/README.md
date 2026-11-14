@@ -158,3 +158,8 @@ On the fix, seven of seven passed.
   with a stand-in for the app's streams (a stand-in app on the machine's loopback address). The phone test is separate.
 - Gap 173 (a request already inside the app when its stream is killed) is a reading of how the streams end, not a
   measurement.
+
+## Notes from the review
+
+*Added 14 Nov 2026 by Claude Code.* One adversarial reviewer who did not write the fix read the claims, the evidence and the code, tried the interleavings (an open during sign-off; a sign-off during an open; another project's open replacing this one's session; "End the live app" before and after; the timers, the front's exit and sign-out; a restart), reran the seven new tests (7 of 7; on the old code 6 failed and the control passed) and checked the eight controls. **Nothing blocking.** Recorded in gap 173: the record can lack the close before the sign-off if writing it fails; a `live_entered` already being written is not waited for; and the sign-off waits for Docker under the project's lock. Gap 173's main point, a request the app had already received finishing after the sign-off, stays the owner's choice (stop the app's server for a moment at sign-off, or not).
+
