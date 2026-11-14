@@ -21,6 +21,7 @@ import type { EngineEvent, StepResult } from "../src/engine/interface.js";
 import { initProjectRepo, type ProjectRepo } from "../src/engine/project-repo.js";
 import { ScriptedEngine, TEMPLATE_PROTECTED_PATHS, type EngineRunner } from "../src/engine/scripted.js";
 import { createSandbox, dockerEnv, sandbox, type Sandbox, type StreamingRun } from "../src/sandbox/manager.js";
+import { makeTables, NO_DRIFT } from "../src/sandbox/tables.js";
 
 const run = promisify(execFile);
 export const builderDir = resolve(import.meta.dirname, "..");
@@ -136,14 +137,17 @@ export async function runStep(
  * Build the images, create the tables and sample users in the tools container, and start the app, after
  * checking, from a container on the project's `front` network, that nothing answers at the app's address yet
  * (only the project's own app can take the name `app` there; known gap 75).
+ * The tables are made from the fixed migration files with `drizzle-kit migrate`, then the drift check runs; a
+ * drift refuses the start, naming it (package 3.2; src/sandbox/tables.ts).
  */
 export async function buildAndStart(x: Example1, log: (s: string) => void = () => undefined): Promise<void> {
   await sandbox.build(x.sb);
   log("  App and tools images built (the template's guard check and next build ran in the build).");
   await sandbox.up(x.sb, ["db"]);
-  await sandbox.runOnce(x.sb, "tools", ["node_modules/.bin/drizzle-kit", "push", "--force"]);
+  const tables = await makeTables(x.sb, { workspace: x.workspace, scratchDir: x.dir });
+  log(`  Tables made from the fixed migration files with drizzle-kit migrate (${tables.migrate.trim().split("\n").length} lines); drift check passed: "${NO_DRIFT}", no file added.`);
   const seed = await sandbox.runOnce(x.sb, "tools", ["node", "--import", "tsx", "scripts/seed.ts"]);
-  log(`  Tables created and sample users added in the tools container (${seed.trim().split("\n").length} lines from the seed).`);
+  log(`  Sample users added in the tools container (${seed.trim().split("\n").length} lines from the seed).`);
   const before = await sandbox.askApp(x.sb, `${x.appUrl}/en/sign-in`);
   if (!("error" in before)) throw new Error(`Something already answers at ${x.appUrl} on the project's network (HTTP ${before.status}); the app is not started, so that the runner cannot test another program.`);
   log(`  Before the app was started, nothing answered at ${x.appUrl}, asked from a container on the project's front network (${before.error}).`);

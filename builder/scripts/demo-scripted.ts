@@ -10,7 +10,8 @@
  *  3. A probe in the same engine service: a write to a protected file, its mounts, its network
  *     interfaces, its settings.
  *  4. sandbox.build: the image build runs the template's guard check and `next build`.
- *  5. The tables (drizzle-kit push) and the sample users (seed) in the tools container; the table read
+ *  5. The tables (drizzle-kit migrate, from the fixed migration files, then the drift check: package 3.2) and
+ *     the sample users (seed) in the tools container; the table read
  *     back from the database; the app started.
  *  6. scripts/screenshot-scripted.ts signs in as the sample employee and records the screens, in the
  *     project's acceptance runner container on the project's `front` network (package 0.6c), never on
@@ -30,6 +31,7 @@ import { describeNotAllowed, entriesGitCannotSee, git, initProjectRepo, type Pro
 import { listSteps, ScriptedEngine, TEMPLATE_PROTECTED_PATHS } from "../src/engine/scripted.js";
 import { buildRunnerImage, RUNNER_IMAGE } from "../src/acceptance/runner-image.js";
 import { createSandbox, dockerEnv, sandbox } from "../src/sandbox/manager.js";
+import { makeTables } from "../src/sandbox/tables.js";
 import { runBrowserScript } from "./browser-in-project.js";
 
 const run = promisify(execFile);
@@ -197,8 +199,9 @@ try {
   log("");
   log("== 5. Tables and sample users in the tools container; the table read back; the app started ==");
   await sandbox.up(sb, ["db"]);
-  const push = await sandbox.runOnce(sb, "tools", ["node_modules/.bin/drizzle-kit", "push", "--force"]);
-  log(indent("drizzle-kit push (last lines):\n" + push.trim().split("\n").slice(-4).join("\n")));
+  const tables = await makeTables(sb, { workspace, scratchDir: dir });
+  log(indent("drizzle-kit migrate (last lines):\n" + tables.migrate.trim().split("\n").slice(-4).join("\n")));
+  log(indent("drift check, drizzle-kit generate into a temporary copy of drizzle/ (last lines):\n" + tables.drift.output.trim().split("\n").slice(-2).join("\n")));
   const seed = await sandbox.runOnce(sb, "tools", ["node", "--import", "tsx", "scripts/seed.ts"]);
   log(indent(seed));
   const psql = (sql: string) => sandbox.exec(sb, "db", ["psql", "-U", "app", "-d", "app", "-X", "-A", "-F", " | ", "-c", sql]);
