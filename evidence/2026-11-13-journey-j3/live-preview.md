@@ -25,7 +25,7 @@ Two test pages with no data, which this session starts when you say "phone test"
 
 1. Open **probe-a**. Press its steps in order: 1 (send a form to this page), 2 (open this page again), 3 (go to probe B by a link), 4 (send a form to probe B), 5 (try a port that was not shared), 6 (the cached page, twice). If step 3 or 4 says the address could not be built, open probe-b from the list instead.
 2. Open **probe-b** and press its steps.
-3. Say "done". If you can, also say whether probe-a opens in a private window when you are signed out of Claude.
+3. Say "done" with three answers (since the fix after the review of 14787d8, 14 Nov 2026; `evidence/2026-11-14-fix-phone-decision/`): what step 5 showed (a page saying "Port 4034 answered", or an error); whether the cached page's number stayed the same the second time; and whether probe-a opened in a private window where you are not signed in to Claude (or that you could not try). The report says GO ON only when every required item has its evidence and the three answers are given; otherwise it says "not decided" and names what is missing.
 
 The pages record each request's address, what kind of page sent it, and the names (not values) of its headers and cookies (`builder/scripts/probe-phone.ts`). Claude Code then reads them and applies the design's table: same origin for both pages, or a pane that frames them from another site, **stops** the live preview (option (b), guided clicks, instead); the same host on another port, same-site, or cross-site **goes on**, with what it shows added to known gap 157. Tried on this machine with `curl` only; not yet on your phone.
 
