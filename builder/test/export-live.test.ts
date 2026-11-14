@@ -49,6 +49,10 @@ const plainEnv = () => ({ PATH: process.env.PATH ?? "/usr/local/bin:/usr/bin:/bi
 const copyEnv = () => ({ ...plainEnv(), APP_PORT: String(APP_PORT) });
 const docker = async (args: string[], o: { cwd?: string; env?: NodeJS.ProcessEnv; timeout?: number } = {}) =>
   (await run("docker", args, { env: o.env ?? plainEnv(), cwd: o.cwd, maxBuffer: 32 * 1024 * 1024, timeout: o.timeout ?? 300_000 })).stdout;
+/** What a test saw, printed for the evidence (the session's temporary folder written <tmp>); never a secret: the tests read none. */
+const note = (...lines: string[]) => {
+  for (const l of lines) console.log(`[x32] ${l.split(tmpdir()).join("<tmp>")}`);
+};
 const gone = (args: string[]) => docker(args).then(
   () => false,
   () => true,
@@ -191,6 +195,9 @@ describe("package 3.2, live: the export's checks, the exported copy's own start,
       runManifestSha256: version.manifestSha256,
       check: (p) => sbx.checkExport(x1, p),
     });
+    for (const c of out.checks) note(`L1 check ${c.id}: ${c.passed ? "passed" : "NOT passed"}: ${c.summary}`);
+    note(`L1 the copy's build, install step lines: ${JSON.stringify(out.checks.find((c) => c.id === "images_built")?.install_step ?? [])}`);
+    note(`L1 export: ${out.files.length} files, ${out.commits} commits, ${out.bytes} bytes, manifest SHA-256 ${out.manifestSha256}`);
     expect(out.checks.map((c) => [c.id, c.passed])).toEqual(
       ["archive_contents", "fixed_files", "images_built", "compose_config", "run_image_packages", "run_image_notices", "tools_image_packages", "licence_check"].map((id) => [id, true]),
     );
@@ -235,15 +242,20 @@ describe("package 3.2, live: the export's checks, the exported copy's own start,
     await madeUpImage(toolsImage, longer, "printf '%s\\n' 'Made-up line added after export.' >> /app/THIRD-PARTY-NOTICES.md");
 
     const a = await runChecks(lightning);
+    const b0 = await runChecks(ranges);
+    const c0 = await runChecks(noNotices);
+    const d0 = await toolsChecks(longer);
+    for (const [what, r] of [["lightningcss under /app", a], ["second spdx-ranges outside /app", b0], ["no notices file", c0], ["notices file one line longer", d0]] as const)
+      for (const k of r) note(`L1 made-up image (${what}): ${k.id} ${k.passed ? "passed" : "NOT passed"}: ${k.summary}`);
     expect(a[0]).toMatchObject({ id: "run_image_packages", passed: false });
     expect(a[0]!.summary).toContain("lightningcss 1.30.1 at /app/node_modules/lightningcss, under /app");
-    const b = await runChecks(ranges);
+    const b = b0;
     expect(b[0]).toMatchObject({ id: "run_image_packages", passed: false });
     expect(b[0]!.summary).toContain("spdx-ranges 2.1.1 at /opt/made-up/node_modules/spdx-ranges, outside /app but not the base image's own npm copy that is allowed");
-    const c = await runChecks(noNotices);
+    const c = c0;
     expect(c.map((k) => [k.id, k.passed])).toEqual([["run_image_packages", true], ["run_image_notices", false]]);
     expect(c[1]!.summary).toBe("The image the app runs from has no /app/THIRD-PARTY-NOTICES.md.");
-    const d = await toolsChecks(longer);
+    const d = d0;
     expect(d.map((k) => [k.id, k.passed])).toEqual([["tools_image_packages", true], ["licence_check", false]]);
     expect(d[1]!.summary).toMatch(/^The template's own licence check did not pass from the copy: exit code [1-9]/);
     for (const image of [lightning, ranges, noNotices, longer, runImage, toolsImage]) await docker(["image", "rm", "-f", image]);
@@ -258,8 +270,14 @@ describe("package 3.2, live: the export's checks, the exported copy's own start,
     copyFolders.push(copyDir);
     const command = startItCommand(readFileSync(join(copyDir, "README.md"), "utf8"));
     expect(command).toBe("docker compose up --build");
+    const t0 = Date.now();
     started = startCopy(copyDir, command!);
     await waitHealthy(copyDir, started);
+    note(`L2 first start: the README's command "${command}" ran in <tmp>/x32-live-.../delivered/${PROJECT}; the app healthy after ${Math.round((Date.now() - t0) / 1000)} s`);
+    // The install step's own lines (whether npm ran, or the step came from an earlier layer), then the keys and the users.
+    const steps = new Set(started.output.filter((l) => /npm ci/.test(l)).map((l) => /^(#\d+) /.exec(l.trim())?.[1]).filter(Boolean));
+    const installLines = started.output.filter((l) => steps.has(/^(#\d+) /.exec(l.trim())?.[1] ?? "") || /added \d+ packages/.test(l));
+    for (const l of [...installLines.slice(0, 30), ...started.output.filter((l) => /keys-1 +\||setup-1 +\| (created|exists|\[✓\])/.test(l)).slice(0, 20)]) note(`L2 first start | ${l.trim().slice(0, 240)}`);
     const said = started.output.join("\n");
     for (const k of ["db_password", "auth_secret", "sample_password"]) expect(said, k).toMatch(new RegExp(`keys-1 +\\| made ${k}`));
     for (const u of ["employee@example.test", "manager@example.test", "hr.admin@example.test"]) expect(said, u).toContain(`created: ${u}`);
@@ -267,6 +285,7 @@ describe("package 3.2, live: the export's checks, the exported copy's own start,
     expect(await sql(copyDir, 'select count(*) from "user"')).toBe("3");
     const ps = await composePs(copyDir);
     const published = ps.flatMap((c) => (c.Publishers ?? []).filter((p) => p.PublishedPort).map((p) => ({ service: c.Service, ...p })));
+    note(`L2 published ports: ${JSON.stringify(published)}; migrations recorded: 2; users: 3`);
     expect(published).toEqual([{ service: "door", URL: "127.0.0.1", TargetPort: 3000, PublishedPort: APP_PORT, Protocol: "tcp" }]);
     // The person's way in, from the machine: the door.
     const page = await fetch(`http://127.0.0.1:${APP_PORT}/en/sign-in`);
@@ -290,6 +309,7 @@ describe("package 3.2, live: the export's checks, the exported copy's own start,
     const override = join(other, "compose.override.yaml");
     writeFileSync(override, "services:\n  door:\n    privileged: true\n");
     const bad = await ec.composeConfigCheck(other, mkdtempSync(join(work, "s30-scratch-")));
+    note(`L2b plain copy: ${ok.summary}`, `L2b with compose.override.yaml: ${bad.summary}`);
     expect(bad).toMatchObject({ id: "compose_config", passed: false });
     expect(bad.differences).toContain("services.door.privileged");
     expect(bad.summary).toContain("services.door.privileged");
@@ -325,6 +345,14 @@ describe("package 3.2, live: the export's checks, the exported copy's own start,
         })();
       },
     });
+    note(
+      `L3 reading: ${report.reading.outcome}; ${report.reading.summary}; label "${report.label}"; run ${report.runId}`,
+      `L3 the app found: ${JSON.stringify(report.app)}`,
+      `L3 the forwarder: ${JSON.stringify(report.forwarder)}`,
+      `L3 the runner: ${JSON.stringify(report.runner)}; exit ${JSON.stringify(report.exit)}`,
+      `L3 the copy: ${JSON.stringify(report.copy)}; forwarder removed: ${report.forwarderRemoved}; after: ${JSON.stringify(report.afterProblems)}`,
+      ...report.output.map((l) => `L3 runner | ${l}`),
+    );
     expect(report.refused, JSON.stringify(report.reading)).toBeNull();
     expect(report.exit).toEqual({ code: 0, timedOut: false });
     expect(report.reading.outcome).toBe("passed");
@@ -344,6 +372,11 @@ describe("package 3.2, live: the export's checks, the exported copy's own start,
     expect(await gone(["inspect", report.forwarder!.name])).toBe(true);
     // L3c (S27), as the runner ran.
     const seen = (await inspected!) as { runner: Record<string, any>; forwarder: Record<string, any>; whileRunning: boolean; problem?: string };
+    note(
+      `L3c the forwarder while the runner ran: networks ${JSON.stringify(Object.keys(seen.forwarder?.NetworkSettings?.Networks ?? {}))}, user ${seen.forwarder?.Config?.User}, read-only ${seen.forwarder?.HostConfig?.ReadonlyRootfs}, image ${seen.forwarder?.Config?.Image}`,
+      `L3c the runner while it ran: network mode ${seen.runner?.HostConfig?.NetworkMode} (the forwarder is ${seen.forwarder?.Id}), user ${seen.runner?.Config?.User}, read-only ${seen.runner?.HostConfig?.ReadonlyRootfs}, cap drop ${JSON.stringify(seen.runner?.HostConfig?.CapDrop)}, security ${JSON.stringify(seen.runner?.HostConfig?.SecurityOpt)}, tmpfs ${JSON.stringify(seen.runner?.HostConfig?.Tmpfs)}`,
+      `L3c the runner's mounts: ${JSON.stringify((seen.runner?.Mounts ?? []).map((m: Record<string, unknown>) => ({ Type: m.Type, Name: m.Name, Source: m.Type === "volume" ? undefined : m.Source, Destination: m.Destination, RW: m.RW })))}`,
+    );
     expect(seen.problem).toBeUndefined();
     expect(seen.whileRunning).toBe(true);
     expect(Object.keys(seen.forwarder.NetworkSettings.Networks)).toEqual([`${PROJECT}_front`]);
@@ -375,6 +408,7 @@ describe("package 3.2, live: the export's checks, the exported copy's own start,
     try {
       writeFileSync(f, loosened);
       const r = await c.checkFromCopy({ copyDir, projectId: PROJECT, version: version.version, manifestSha256: out.manifestSha256, checklistItems: CHECKLIST_ITEMS, runFolder: join(work, "check-tampered") });
+      note(`L3 tampered copy: refused: ${r.refused}; ${r.reading.summary}`);
       expect(r.refused).toMatch(/item-01\.spec\.ts does not match its fingerprint in the manifest/);
       expect(r.reading.items.map((i) => i.status)).toEqual(["did not run"]);
       expect(r.reading.outcome).toBe("not passed");
@@ -401,6 +435,7 @@ describe("package 3.2, live: the export's checks, the exported copy's own start,
     // 1. Another unpacked copy, in a folder of the same name (L2b's): its Compose project would have the same name.
     const other = join(work, "s30", PROJECT);
     const a = await check(other, "check-other-copy");
+    note(`L3b another copy of the same name: refused: ${a.refused}`);
     expect(a.refused).toMatch(/no app container was started from this copy/);
     notStarted(a);
     // 2. The image named <project>-app is not the one the app container runs.
@@ -408,6 +443,7 @@ describe("package 3.2, live: the export's checks, the exported copy's own start,
     try {
       await docker(["tag", `${PROJECT}-setup`, `${PROJECT}-app`]);
       const b = await check(copyDir, "check-other-image");
+      note(`L3b the image named ${PROJECT}-app moved: refused: ${b.refused}`);
       expect(b.refused).toMatch(new RegExp(`the app container's image is not the image named ${PROJECT}-app`));
       notStarted(b);
     } finally {
@@ -420,6 +456,7 @@ describe("package 3.2, live: the export's checks, the exported copy's own start,
     await docker(["run", "-d", "--name", guest, "--network", `${PROJECT}_front`, "--read-only", "--user", "node", "--entrypoint", "node", DEFAULT_IMAGES.node, "-e", "setInterval(()=>{},1000)"]);
     try {
       const g = await check(copyDir, "check-guest");
+      note(`L3b a container not the project's on its front network: refused: ${g.refused}`);
       expect(g.refused).toMatch(new RegExp(`${guest}.*is on ${PROJECT}_front`));
       notStarted(g);
       expect(g.forwarder).toBeNull();
@@ -432,8 +469,11 @@ describe("package 3.2, live: the export's checks, the exported copy's own start,
     needsPrerequisites();
     await docker(["compose", "down"], { cwd: copyDir, env: copyEnv(), timeout: 180_000 });
     expect(await started!.ended).not.toBeUndefined();
+    const t1 = Date.now();
     started = startCopy(copyDir, "docker compose up --build");
     await waitHealthy(copyDir, started);
+    note(`L2 second start: the app healthy after ${Math.round((Date.now() - t1) / 1000)} s`);
+    for (const l of started.output.filter((l) => /keys-1 +\||setup-1 +\| (created|exists)/.test(l)).slice(0, 20)) note(`L2 second start | ${l.trim().slice(0, 240)}`);
     const said = started.output.join("\n");
     for (const k of ["db_password", "auth_secret", "sample_password"]) expect(said, k).toMatch(new RegExp(`keys-1 +\\| kept ${k}`));
     for (const u of ["employee@example.test", "manager@example.test", "hr.admin@example.test"]) expect(said, u).toContain(`exists: ${u}`);
@@ -457,6 +497,7 @@ describe("package 3.2, live: the export's checks, the exported copy's own start,
     const lines: string[] = [];
     let err: Error | null = null;
     await sbx.buildAndStart(x!, (l) => lines.push(l)).catch((e: Error) => (err = e));
+    note(`L4 the start: ${err ? `refused: ${(err as Error).message}` : "not refused"}`, ...lines.map((l) => `L4 log | ${l}`));
     expect(err).not.toBeNull();
     const message = (err as unknown as Error).message;
     expect(message).toMatch(/^The tables were made, but the drift check did not pass: drizzle-kit generate did not say "No schema changes, nothing to migrate", and it wrote /);
