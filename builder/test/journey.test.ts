@@ -6,6 +6,7 @@
  * workspace and history, no container.
  */
 import { execFileSync, spawnSync } from "node:child_process";
+import { randomBytes } from "node:crypto";
 import net from "node:net";
 import { existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -29,10 +30,13 @@ import { LivePreview } from "../src/web/preview.js";
 import { runBudgetedStep } from "../src/orchestrator/steps.js";
 import { sandbox as sandboxManager, type Sandbox, type StreamingOptions } from "../src/sandbox/manager.js";
 import { networkChecks } from "../scripts/journey-network-checks.js";
+import { cleanStopRecordChecks, crashRestartRecordChecks, midStepChecks, parseImages, parseNameLabel, parseProcesses, projectLeftovers } from "../scripts/journey-restart-checks.js";
+import { createPool } from "../src/store/db.js";
+import { migrate } from "../src/store/migrate.js";
 import { appendEvent, listEvents } from "../src/store/events.js";
 import { getBudget, listStepHolds, openStepHold } from "../src/store/holds.js";
 import { createProject } from "../src/store/projects.js";
-import { testPool, uniqueId } from "./helpers.js";
+import { testPool, TEST_DB_URL, uniqueId } from "./helpers.js";
 
 const builderDir = resolve(import.meta.dirname, "..");
 let pool: pg.Pool;
@@ -2031,5 +2035,214 @@ describe("J2 (a): the broken copy rejected (stand-in sandboxes, each with its ow
     await expect(j.signOff(id)).rejects.toThrow(/interrupted when the interface stopped/);
     expect(await listEvents(pool, id, EV.signedOff)).toEqual([]);
     await j.closeProject(id);
+  });
+});
+
+describe("J2 (c): the clean stop and restart, the journey's part (stand-in sandboxes; no container, no model)", () => {
+  /** A database of its own for one test (named after the test database, so builder_test_j2_… in J2's runs), migrated; dropped by `drop`. */
+  async function freshDb() {
+    const base = new URL(TEST_DB_URL);
+    const name = `${decodeURIComponent(base.pathname.slice(1))}_rs_${randomBytes(3).toString("hex")}`;
+    expect(name).toMatch(/^[a-z0-9_]{1,63}$/);
+    await pool.query(`create database "${name}"`);
+    base.pathname = `/${name}`;
+    const db = createPool(base.toString());
+    await migrate(db);
+    const sandboxes = new StandInSandboxes(db);
+    return {
+      db,
+      sandboxes,
+      drop: async () => {
+        sandboxes.removeAll();
+        await db.end();
+        await pool.query(`drop database if exists "${name}" with (force)`);
+      },
+    };
+  }
+  const ready = async (j: Journey, name: string) => {
+    const id = await j.createProject({ name, cap: "5", brief: "I need an app where staff can request leave and managers approve it" });
+    await j.continueWithExample(id);
+    await j.answerRestFromSheet(id);
+    await j.confirmBrief(id);
+    await j.confirmPlan(id);
+    return id;
+  };
+
+  it("C6: the demonstration pause: with stepPauseMs set, each build step first records journey.step.paused_for_demonstration and the engine's applier is given --delay-ms; unset or 0, neither", async () => {
+    const sandboxes = new StandInSandboxes(pool);
+    try {
+      for (const pause of [4000, 0, undefined]) {
+        const box: { jobs?: JourneyJobs } = {};
+        const j = new Journey({ pool, dataDir, cleanupProject: (id, rec) => box.jobs!.cleanup(id, rec) });
+        box.jobs = new JourneyJobs({ journey: j, sandboxes, measureFree: () => 50 * 1024 ** 3, ...(pause === undefined ? {} : { stepPauseMs: pause }) });
+        expect(box.jobs.stepPauseMs()).toBe(pause ?? 0);
+        const id = await ready(j, `Pause ${String(pause)} (made-up)`);
+        await box.jobs.buildStep(id, "01-data");
+        await j.waitForJob();
+        await box.jobs.approve(id, "01-data");
+        await j.waitForJob();
+        const calls = sandboxes.runnerCalls.filter((c) => c.container.startsWith(`builder_${id}-engine-`));
+        expect(calls.map((c) => c.step), String(pause)).toEqual(["01-data", "02-submitter-screen"]);
+        for (const c of calls) {
+          const at = c.cmd.indexOf("--delay-ms");
+          if (pause) expect(c.cmd.slice(at, at + 2), String(pause)).toEqual(["--delay-ms", "4000"]);
+          else expect(at, String(pause)).toBe(-1);
+        }
+        for (const step of ["01-data", "02-submitter-screen"]) {
+          const kinds = (await listEvents(pool, id)).filter((e) => e.step === step).map((e) => e.kind);
+          const paused = (await listEvents(pool, id, "journey.step.paused_for_demonstration")).filter((e) => e.step === step);
+          if (pause) {
+            // First in the job, right after its start.
+            expect(kinds.slice(0, 2), step).toEqual([EV.jobStarted, "journey.step.paused_for_demonstration"]);
+            expect(paused.map((e) => e.payload), step).toEqual([{ pause_ms: 4000, setting: "BUILDER_DEMO_STEP_PAUSE_MS", label: "Demonstration setting: the scripted engine pauses before each write, so that a stop part-way can be shown. Every step is slower." }]);
+          } else expect(paused, step).toEqual([]);
+        }
+        await j.closeProject(id);
+      }
+    } finally {
+      sandboxes.removeAll();
+    }
+  });
+
+  it("C10: a Close project in progress when the stop comes: the stop waits on that project's chain of actions, then skips it, closed; the record holds one journey.sandbox.removed; an action not ended within the wait leaves its project for the next start", async () => {
+    const f = await freshDb();
+    let release!: () => void;
+    const hold = new Promise<void>((r) => (release = r));
+    try {
+      let holdClose = false;
+      let inside!: () => void;
+      const closing = new Promise<void>((r) => (inside = r));
+      const box: { jobs?: JourneyJobs } = {};
+      const j = new Journey({
+        pool: f.db,
+        dataDir,
+        cleanupProject: async (id, rec) => {
+          if (holdClose) {
+            inside();
+            await hold;
+          }
+          await box.jobs!.cleanup(id, rec);
+        },
+      });
+      box.jobs = new JourneyJobs({ journey: j, sandboxes: f.sandboxes, measureFree: () => 50 * 1024 ** 3 });
+      const id = await ready(j, "Closed while the interface stops (made-up)");
+      await box.jobs.buildStep(id, "01-data");
+      await j.waitForJob();
+      holdClose = true;
+      const closed = j.closeProject(id);
+      await closing;
+      // The stop comes now, while the close is removing the sandbox: the journey is halted, then the removal runs.
+      await j.halt("Made-up stop for the test.");
+      setTimeout(release, 300);
+      const t0 = Date.now();
+      const r = await j.removeAtStop({ waitUntil: Date.now() + 10_000, mayRemove: async () => null });
+      expect(Date.now() - t0).toBeGreaterThanOrEqual(250);
+      await closed;
+      expect(r).toEqual({ removed: [], left: [], ended: null });
+      expect((await listEvents(f.db, id, EV.sandboxRemoved)).map((e) => e.payload)).toEqual([{ reason: "The project was closed.", interrupted: false }]);
+      expect((await j.state(id)).stage).toBe("closed");
+      expect(f.sandboxes.destroyed).toEqual([id]);
+
+      // An action that has not ended when the wait ends: its project is left, named, and not read or removed.
+      let release2!: () => void;
+      const hold2 = new Promise<void>((r2) => (release2 = r2));
+      let inside2!: () => void;
+      const closing2 = new Promise<void>((r2) => (inside2 = r2));
+      const box2: { jobs?: JourneyJobs; hold: boolean } = { hold: false };
+      const j2 = new Journey({
+        pool: f.db,
+        dataDir,
+        cleanupProject: async (pid, rec) => {
+          if (box2.hold) {
+            inside2();
+            await hold2;
+          }
+          await box2.jobs!.cleanup(pid, rec);
+        },
+      });
+      box2.jobs = new JourneyJobs({ journey: j2, sandboxes: f.sandboxes, measureFree: () => 50 * 1024 ** 3 });
+      const id2 = await ready(j2, "Its close outlasts the wait (made-up)");
+      await box2.jobs.buildStep(id2, "01-data");
+      await j2.waitForJob();
+      box2.hold = true;
+      const closed2 = j2.closeProject(id2);
+      await closing2;
+      await j2.halt("Made-up stop for the test.");
+      const r2 = await j2.removeAtStop({ waitUntil: Date.now() + 300, mayRemove: async () => null });
+      expect(r2).toEqual({ removed: [], left: [{ projectId: id2, why: "an action of this project was still in progress when the wait ended" }], ended: null });
+      release2();
+      await closed2;
+      expect((await listEvents(f.db, id2, EV.sandboxRemoved)).map((e) => e.payload)).toEqual([{ reason: "The project was closed.", interrupted: false }]);
+    } finally {
+      release();
+      await f.drop();
+    }
+  });
+
+  it("C8 (regression guard): the automated run's pure checks on made-up lists: N reports a container, a volume, a network, an image, a process or the folder of the project, each alone, and nothing of another project; the record checks for a clean stop, a crash and a step running", () => {
+    const P = "j1-0123456789ab";
+    const Q = "j1-ba9876543210";
+    const none = { containers: [], volumes: [], networks: [], images: [] };
+    const gone = { path: "/made-up/builder-acceptance-p", exists: false };
+    expect(projectLeftovers(P, none, [], gone)).toEqual([]);
+    // Each kind alone is reported.
+    expect(projectLeftovers(P, { ...none, containers: [{ name: `builder_${P}-engine-02-submitter-screen-1a2b3c`, composeProject: "" }] }, [], gone)).toEqual([`container builder_${P}-engine-02-submitter-screen-1a2b3c`]);
+    expect(projectLeftovers(P, { ...none, containers: [{ name: "made-up-name", composeProject: `builder_${P}` }] }, [], gone)).toEqual(["container made-up-name"]);
+    expect(projectLeftovers(P, { ...none, volumes: [{ name: `builder_${P}_pgdata`, composeProject: "" }] }, [], gone)).toEqual([`volume builder_${P}_pgdata`]);
+    expect(projectLeftovers(P, { ...none, volumes: [{ name: "made-up-volume", composeProject: `builder_${P}` }] }, [], gone)).toEqual(["volume made-up-volume"]);
+    expect(projectLeftovers(P, { ...none, networks: [{ name: `builder_${P}_front`, composeProject: "" }] }, [], gone)).toEqual([`network builder_${P}_front`]);
+    expect(projectLeftovers(P, { ...none, images: [{ repository: `builder_${P}-app`, tag: "latest" }] }, [], gone)).toEqual([`image builder_${P}-app:latest`]);
+    expect(projectLeftovers(P, { ...none, images: [{ repository: `builder_${P}-tools`, tag: "latest" }] }, [], gone)).toEqual([`image builder_${P}-tools:latest`]);
+    expect(projectLeftovers(P, { ...none, images: [{ repository: `builder_${P}-other`, tag: "made-up" }] }, [], gone)).toEqual([`image builder_${P}-other:made-up`]);
+    expect(projectLeftovers(P, none, [{ pid: 4242, args: `docker compose -p builder_${P} up --detach app` }], gone)).toEqual([`process 4242 docker compose -p builder_${P} up --detach app`]);
+    expect(projectLeftovers(P, none, [], { ...gone, exists: true })).toEqual(["folder /made-up/builder-acceptance-p"]);
+    // Nothing of another project, nor a name that only starts the same way without the separator.
+    const others = {
+      containers: [{ name: `builder_${Q}-app-1`, composeProject: `builder_${Q}` }, { name: `builder_${P}x-app-1`, composeProject: `builder_${P}x` }],
+      volumes: [{ name: `builder_${Q}_pgdata`, composeProject: `builder_${Q}` }],
+      networks: [{ name: `builder_${Q}_front`, composeProject: `builder_${Q}` }, { name: "bridge", composeProject: "" }],
+      images: [{ repository: `builder_${Q}-app`, tag: "latest" }, { repository: "node", tag: "22" }],
+    };
+    expect(projectLeftovers(P, others, [{ pid: 7, args: `docker compose -p builder_${Q} up` }], gone)).toEqual([]);
+    // The parsers of Docker's and ps's lines.
+    expect(parseNameLabel(`builder_${P}-app-1\tbuilder_${P}\nlone\t\n`)).toEqual([{ name: `builder_${P}-app-1`, composeProject: `builder_${P}` }, { name: "lone", composeProject: "" }]);
+    expect(parseImages(`builder_${P}-app:latest\nnode:22\n<none>:<none>\n`)).toEqual([{ repository: `builder_${P}-app`, tag: "latest" }, { repository: "node", tag: "22" }, { repository: "<none>", tag: "<none>" }]);
+    expect(parseProcesses("  PID COMMAND\n  12 node --import tsx src/web/main.ts\n 345 docker build --tag x .\n")).toEqual([{ pid: 12, args: "node --import tsx src/web/main.ts" }, { pid: 345, args: "docker build --tag x ." }]);
+
+    // The record checks. A made-up record of a clean stop with step 2 running (path T).
+    let n = 0;
+    const ev = (kind: string, payload: Record<string, unknown>, step: string | null = null) => ({ id: String(++n), kind, step, payload });
+    const writes = (k: number) => Array.from({ length: k }, (_, i) => ev(EV.engineEvent, { type: "tool_call", tool: "scripted.write", input: { path: `made-up-${i}.ts` } }, "02-submitter-screen"));
+    const started = ev(EV.jobStarted, { job_id: "job-0000aaaa", kind: "build_step", step: "02-submitter-screen" }, "02-submitter-screen");
+    const t = [
+      started,
+      ...writes(3),
+      ev("step.hold_closed", { reason: "step_ended" }, "02-submitter-screen"),
+      ev(EV.jobInterrupted, { job_id: "job-0000aaaa", reason: "The interface stopped while this job ran: The interface was stopped on purpose (SIGTERM). The job was stopped part-way and is not resumed." }, "02-submitter-screen"),
+      ev(EV.sandboxRemoved, { reason: "The interface was stopped on purpose; this project's containers, images and folder were removed at the stop. It is not resumed.", interrupted: true, removed: true }),
+    ];
+    const allOk = (rows: Array<{ ok: boolean }>) => rows.length > 0 && rows.every((r) => r.ok);
+    expect(allOk(cleanStopRecordChecks(t, "job-0000aaaa", "02-submitter-screen"))).toBe(true);
+    const failing = (rows: Array<{ name: string; ok: boolean }>) => rows.filter((r) => !r.ok).map((r) => r.name);
+    expect(failing(cleanStopRecordChecks(t.filter((e) => e.kind !== "step.hold_closed"), "job-0000aaaa", "02-submitter-screen"))).toHaveLength(1);
+    expect(failing(cleanStopRecordChecks([...t, ev(EV.workspaceReset, {}, "02-submitter-screen")], "job-0000aaaa", "02-submitter-screen"))).toHaveLength(1);
+    expect(failing(cleanStopRecordChecks([...t, ev(EV.jobFailed, { job_id: "job-0000aaaa", reason: "made-up" }, "02-submitter-screen")], "job-0000aaaa", "02-submitter-screen"))).toHaveLength(1);
+    expect(failing(cleanStopRecordChecks(t.map((e) => (e.kind === EV.sandboxRemoved ? { ...e, payload: { ...e.payload, reason: "Found at start: made by an interface that has since stopped. It is not resumed." } } : e)), "job-0000aaaa", "02-submitter-screen"))).toHaveLength(1);
+    // A step running: at least one and fewer than all of its writes, and its engine container in Docker's list.
+    expect(allOk(midStepChecks([started, ...writes(1)], "02-submitter-screen", 8, [`builder_${P}-engine-02-submitter-screen-1a2b3c`], P))).toBe(true);
+    expect(failing(midStepChecks([started], "02-submitter-screen", 8, [`builder_${P}-engine-02-submitter-screen-1a2b3c`], P))).toHaveLength(1);
+    expect(failing(midStepChecks([started, ...writes(8)], "02-submitter-screen", 8, [`builder_${P}-engine-02-submitter-screen-1a2b3c`], P))).toHaveLength(1);
+    expect(failing(midStepChecks([started, ...writes(2)], "02-submitter-screen", 8, [`builder_${Q}-engine-02-submitter-screen-1a2b3c`], P))).toHaveLength(1);
+    // A crash, then the next start (path K).
+    const k = [
+      started,
+      ...writes(2),
+      ev(EV.jobInterrupted, { job_id: "job-0000aaaa", reason: "The interface stopped while this job ran. It is not resumed." }, "02-submitter-screen"),
+      ev(EV.sandboxRemoved, { reason: "Found at start: made by an interface that has since stopped. It is not resumed.", interrupted: true, removed: true }),
+      ev("step.hold_closed", { reason: "job_interrupted" }, "02-submitter-screen"),
+    ];
+    expect(allOk(crashRestartRecordChecks(k, "job-0000aaaa", "02-submitter-screen"))).toBe(true);
+    expect(failing(crashRestartRecordChecks(k.map((e) => (e.kind === "step.hold_closed" ? { ...e, payload: { reason: "step_ended" } } : e)), "job-0000aaaa", "02-submitter-screen"))).toHaveLength(1);
+    expect(failing(crashRestartRecordChecks(k.filter((e) => e.kind !== EV.sandboxRemoved), "job-0000aaaa", "02-submitter-screen"))).toHaveLength(1);
   });
 });

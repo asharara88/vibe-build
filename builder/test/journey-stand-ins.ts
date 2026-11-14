@@ -43,7 +43,8 @@ export const PASSED_SUMMARY = "version passed; checklist incomplete (5 of the ap
 
 export class StandInSandboxes implements Sandboxes {
   made: string[] = [];
-  runnerCalls: Array<{ step: string; container: string }> = [];
+  /** Each engine container asked for: its step, its name and (package J2 (c)) the applier's command, to show the pause passed or not. */
+  runnerCalls: Array<{ step: string; container: string; cmd: string[] }> = [];
   destroyed: string[] = [];
   destroyedRecorded: Array<{ projectId: string; rec: SandboxRecord }> = [];
   stoppedApps: string[] = [];
@@ -134,7 +135,7 @@ export class StandInSandboxes implements Sandboxes {
   engineRunner(x: ProjectSandbox): EngineRunner {
     return (a) => {
       const step = a.cmd[a.cmd.indexOf("--step") + 1]!;
-      this.runnerCalls.push({ step, container: a.container });
+      this.runnerCalls.push({ step, container: a.container, cmd: [...a.cmd] });
       // Package J2: from the sandbox's own change-set folder, as the engine's container reads it (mounted at /engine).
       const m = readManifest(x.changeSets, EXAMPLE, step);
       let finish: (e: StreamingEnd) => void = () => undefined;
