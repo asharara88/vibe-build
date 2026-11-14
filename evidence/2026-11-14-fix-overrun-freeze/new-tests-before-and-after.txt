@@ -1,0 +1,53 @@
+Known gap 145: the new tests, 2026-11-14T03:44:57Z. Command (from builder/, TMPDIR <scratchpad>/fx145-tmp): flock <scratchpad>/live-tests.lock npx vitest run test/overrun-stop.test.ts --reporter=verbose; only the tests run, their measurements, the first line of each failure and the summary are kept below.
+
+1. BEFORE the fix: builder/src as at 14787d8 (git checkout 14787d8 -- src, and the migration added since removed), the tests as committed in 9b2c29c. Database builder_test_fx145_before, fresh. Expected: every test fails but the arithmetic check and the control (4), which pass on both.
+   builder/src differs from 14787d8's: 0 lines of diff, 0 files not in 14787d8 (0 and 0: none)
+NOTICE:  database "builder_test_fx145_before" does not exist, skipping
+ ✓ test/overrun-stop.test.ts > gap 145: the arithmetic of these tests (the first model of the price table has the rates written above) 2ms
+MEASURED gap 145 (1): {"next_call_status":200,"calls_forwarded_for_the_project":2,"counting_calls_for_the_project":2,"stop_in_the_database_when_the_caller_saw_the_marker":{"error":"column \"read_above_hold_usd\" does not exist"},"marker_written_by_the_provider_to_seen_by_the_caller_ms":5.6,"other_project_status":200}
+ × test/overrun-stop.test.ts > gap 145 (1) the delayed stream ending: the provider ends its body 1.5 s after the end marker; the same project's next call, sent the moment the caller sees the marker, is refused with nothing forwarded and no counting call; the stop was written before the marker reached the caller; another project's call at that moment is forwarded; the settlement then freezes the project as in package 1.4c 133ms
+MEASURED gap 145 (2): {"statuses":{"H_same_gateway_held_counts":[200,200,200],"Z_second_gateway_held_counts":[200,200],"M_same_gateway_at_marker":[200,200,200],"W_second_gateway_at_marker":[200,200],"Q_other_project_at_marker":[200,200]},"calls_forwarded_for_the_project":13,"forwards_after_the_figures_were_handed_to_the_gateway":[{"test":"ok","after_ms":19.3},{"test":"ok","after_ms":32.4},{"test":"ok","after_ms":44},{"test":"ok","after_ms":67.7},{"test":"ok","after_ms":72},{"test":"ok","after_ms":108.7},{"test":"ok","after_ms":49},{"test":"ok","after_ms":57},{"test":"ok","after_ms":99.2},{"test":"ok","after_ms":115.7}],"last_forward_before_the_figures_ms":-115.7,"figures_handed_to_marker_seen_ms":1.1,"counting_calls_for_the_project":13,"refused_before_the_counting_call":0,"refused_under_the_project_lock":0,"hold_opened_then_not_forwarded":0}
+ × test/overrun-stop.test.ts > gap 145 (2) concurrent calls: calls of the same project sent just before the figures arrive (their counting calls still out) and at the moment the marker is seen, through the same gateway and through a second gateway on the same database: none is forwarded after the gateway was handed the figures; another project's calls at that moment are forwarded 312ms
+MEASURED gap 145 (3): {"second_call_status":200,"calls_forwarded_for_the_project":2}
+MEASURED gap 145 (4) control: {"next_call_status":200,"marker_written_by_the_provider_to_seen_by_the_caller_ms":6.1,"body_still_open":true}
+ × test/overrun-stop.test.ts > gap 145 (3) a call whose hold was opened before the stop was written, and which reaches its forward after the figures were read, is not forwarded: the gateway's own check just before it forwards stops it, and its hold is given back as never sent 866ms
+ ✓ test/overrun-stop.test.ts > gap 145 (4) control: a stream with no overrun is not held back: its end marker reaches the caller before the provider's body ends, nothing is written on its hold, and the same project's next call, sent at that moment, is forwarded 1541ms
+MEASURED gap 145 (5): {"next_call_status":200,"calls_forwarded_for_the_project":2}
+ × test/overrun-stop.test.ts > gap 145 (5) a call above its hold only at the rate it is settled at (cache writes not split by lifetime, at the one-hour rate; $0.010922 against $0.009960, while the five-minute rate gives $0.009122) is stopped before its marker reaches the caller too 40ms
+ × test/overrun-stop.test.ts > gap 145 (6) the stop outlives its gateway: a hold read above its amount whose gateway is gone is kept by the next gateway's start, which freezes the project (kind 'kept_above_hold', with the cost as read); the owner's reconciliation of the hold clears it 8ms
+ × test/overrun-stop.test.ts > gap 145 (7) the database refuses a stop that is not above its hold, is not a number, or has only one of its two fields 13ms
+ × test/overrun-stop.test.ts > gap 145 (8) the end marker waits for the stop's write: with that write made slow (0.5 s, by a test-only trigger), the marker reaches the caller only after it; while it is being written, the same gateway refuses the project's call and passed-through request before anything goes to the provider; once written, a second gateway refuses the project's call before its counting call 10693ms
+ × test/overrun-stop.test.ts > gap 145 (9) a stop whose call then ends with figures that can no longer be trusted (a figure falls) freezes nothing, as in package 1.4c, and once that ending is recorded the project's next call is forwarded 191ms
+AssertionError: expected 200 to be 402 // Object.is equality
+AssertionError: expected [ 200, 200, 200, 200, 200, 200, …(4) ] to deeply equal [ 402, 402, 402, 402, 402, 402, …(4) ]
+AssertionError: expected 200 to be 402 // Object.is equality
+AssertionError: expected 200 to be 402 // Object.is equality
+TypeError: markReadAboveHold is not a function
+AssertionError: 0.009960 now(): expected error: column "read_above_hold_usd" of re… { …(15) } to match object { code: '23514', …(1) }
+Error: timed out waiting for: the stop being written
+AssertionError: expected null to match object { usd: '0.012284' }
+ Test Files  1 failed (1)
+      Tests  8 failed | 2 passed (10)
+
+2. AFTER the fix: the same command on 9b2c29c (git diff 14787d8 --stat -- src:  3 files changed, 259 insertions(+), 2 deletions(-)). Database builder_test_fx145_after, fresh.
+NOTICE:  database "builder_test_fx145_after" does not exist, skipping
+ ✓ test/overrun-stop.test.ts > gap 145: the arithmetic of these tests (the first model of the price table has the rates written above) 2ms
+MEASURED gap 145 (1): {"next_call_status":402,"calls_forwarded_for_the_project":1,"counting_calls_for_the_project":1,"stop_in_the_database_when_the_caller_saw_the_marker":[{"usd":"0.012284"}],"marker_written_by_the_provider_to_seen_by_the_caller_ms":10.1,"other_project_status":200}
+ ✓ test/overrun-stop.test.ts > gap 145 (1) the delayed stream ending: the provider ends its body 1.5 s after the end marker; the same project's next call, sent the moment the caller sees the marker, is refused with nothing forwarded and no counting call; the stop was written before the marker reached the caller; another project's call at that moment is forwarded; the settlement then freezes the project as in package 1.4c 1633ms
+MEASURED gap 145 (2): {"statuses":{"H_same_gateway_held_counts":[402,402,402],"Z_second_gateway_held_counts":[402,402],"M_same_gateway_at_marker":[402,402,402],"W_second_gateway_at_marker":[402,402],"Q_other_project_at_marker":[200,200]},"calls_forwarded_for_the_project":3,"forwards_after_the_figures_were_handed_to_the_gateway":[],"last_forward_before_the_figures_ms":70.4,"figures_handed_to_marker_seen_ms":33.4,"counting_calls_for_the_project":8,"refused_before_the_counting_call":5,"refused_under_the_project_lock":2,"hold_opened_then_not_forwarded":3}
+ ✓ test/overrun-stop.test.ts > gap 145 (2) concurrent calls: calls of the same project sent just before the figures arrive (their counting calls still out) and at the moment the marker is seen, through the same gateway and through a second gateway on the same database: none is forwarded after the gateway was handed the figures; another project's calls at that moment are forwarded 1662ms
+MEASURED gap 145 (3): {"second_call_status":402,"calls_forwarded_for_the_project":1}
+ ✓ test/overrun-stop.test.ts > gap 145 (3) a call whose hold was opened before the stop was written, and which reaches its forward after the figures were read, is not forwarded: the gateway's own check just before it forwards stops it, and its hold is given back as never sent 1589ms
+MEASURED gap 145 (4) control: {"next_call_status":200,"marker_written_by_the_provider_to_seen_by_the_caller_ms":1.3,"body_still_open":true}
+ ✓ test/overrun-stop.test.ts > gap 145 (4) control: a stream with no overrun is not held back: its end marker reaches the caller before the provider's body ends, nothing is written on its hold, and the same project's next call, sent at that moment, is forwarded 1540ms
+MEASURED gap 145 (5): {"next_call_status":402,"calls_forwarded_for_the_project":1}
+ ✓ test/overrun-stop.test.ts > gap 145 (5) a call above its hold only at the rate it is settled at (cache writes not split by lifetime, at the one-hour rate; $0.010922 against $0.009960, while the five-minute rate gives $0.009122) is stopped before its marker reaches the caller too 1539ms
+ ✓ test/overrun-stop.test.ts > gap 145 (6) the stop outlives its gateway: a hold read above its amount whose gateway is gone is kept by the next gateway's start, which freezes the project (kind 'kept_above_hold', with the cost as read); the owner's reconciliation of the hold clears it 39ms
+ ✓ test/overrun-stop.test.ts > gap 145 (7) the database refuses a stop that is not above its hold, is not a number, or has only one of its two fields 14ms
+MEASURED gap 145 (8): {"call_during_the_write_status":402,"passed_through_request_during_the_write_status":402,"second_gateway_call_at_the_marker_status":402,"counting_calls_for_the_project":1,"marker_written_by_the_provider_to_seen_by_the_caller_ms":511.2,"both_sent_ms_after_the_marker_was_written":7.2,"both_answered_ms_after_the_marker_was_written":513.7}
+ ✓ test/overrun-stop.test.ts > gap 145 (8) the end marker waits for the stop's write: with that write made slow (0.5 s, by a test-only trigger), the marker reaches the caller only after it; while it is being written, the same gateway refuses the project's call and passed-through request before anything goes to the provider; once written, a second gateway refuses the project's call before its counting call 1563ms
+ ✓ test/overrun-stop.test.ts > gap 145 (9) a stop whose call then ends with figures that can no longer be trusted (a figure falls) freezes nothing, as in package 1.4c, and once that ending is recorded the project's next call is forwarded 207ms
+ Test Files  1 passed (1)
+      Tests  10 passed (10)
+
+Working tree of builder/ after (git status --porcelain, count): 0
