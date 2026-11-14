@@ -1,8 +1,8 @@
-# House template (TypeScript)
+# Internal web app (made-up data)
 
-This is the starter every generated app begins from. It is not an app yet: it has sign-in, three sample roles, English and Arabic, and the rules every app must follow built in. The builder adds the app's own tables, screens and actions on top, one step at a time.
+An internal web app that the builder made from its house template. Every user and every record in it is made up.
 
-**Sample data.** Every user here is made up. The sample password is set by the builder per project and never written down in this folder.
+**Internal only, not for customers.** The two container images it names, `node:22-alpine` and `postgres:16-alpine`, each pinned to one digest, are approved for the builder's internal development and testing only. Its development-only packages are approved for development use only, never in what a customer receives.
 
 ## Start it
 
@@ -12,7 +12,32 @@ With Docker installed, from this folder:
 docker compose up --build
 ```
 
-Then open http://localhost:3000. Sign in as `employee@example.test`, `manager@example.test` or `hr.admin@example.test` with the sample password the builder gave you.
+Then open http://localhost:3000, not 127.0.0.1: sign-in accepts only the address it was given. To use another port, set `APP_PORT` (for example `APP_PORT=3100` before the command) and open http://localhost:3100.
+
+At its first start the command:
+
+1. makes the app's three passwords and secrets on this machine, into a Docker volume, and keeps them for later starts (the `keys` service); nothing is written in this folder;
+2. starts the database (`db`), with no port on this machine;
+3. makes the tables from the fixed files in `drizzle/`, then adds the three made-up users (`setup`, built from this folder's own `Dockerfile`);
+4. starts the app (`app`, also built from this folder) and one way in, `door`, on this machine's loopback address only.
+
+A later start keeps the passwords, applies no table change twice and adds no user twice.
+
+## The made-up users
+
+Sign in as `employee@example.test`, `manager@example.test` or `hr.admin@example.test`. The three share one made-up password, made on this machine at the first start and written nowhere in this folder. To see it:
+
+```
+docker compose run --rm --no-deps keys cat /keys/sample_password
+```
+
+## Stop it
+
+Press Ctrl-C, or run `docker compose down`. To remove everything, the data included: `docker compose down --volumes`.
+
+## The checklist's tests
+
+An exported copy holds the checklist's tests in `acceptance/`, with their label (a stand-in test is labelled as one). They are run by the builder's own checklist runner, on a machine the business controls. That runner and its browser are not part of this folder: the browser is approved only inside the runner, never given to anyone. The tests are kept out of both images (`.dockerignore`) and out of the type check (`tsconfig.json`).
 
 ## What the template guarantees (the ten quality rules)
 
@@ -28,10 +53,6 @@ Then open http://localhost:3000. Sign in as `employee@example.test`, `manager@ex
 | 8 Numbers show source and period | `common.source` message; a component is added with the first number |
 | 9 Exports show their filters | Added with the first export |
 | 10 Works on a phone | Mobile-first styles; no fixed widths |
-
-## Files the builder must not change
-
-`src/auth.ts`, `src/lib/roles.tsx`, `src/lib/access.ts`, `scripts/check-guards.ts`, the four sign-in tables in `src/db/schema.ts`, and anything under `acceptance/`. The build engine is to be told not to change these, and `scripts/check-guards.ts`, `src/lib/roles.tsx` and `src/lib/access.ts` with them; that rule belongs to the engine, which is not built yet, so nothing enforces it today.
 
 ## The role guard (rule 5)
 

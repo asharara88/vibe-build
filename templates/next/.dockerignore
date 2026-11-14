@@ -1,7 +1,11 @@
-# Never sent to the image build: local settings, installed packages, build output.
+# Never sent to the image build: local settings, installed packages, build output; the checklist's tests
+# (acceptance/, which an export adds: they belong in neither image, package 3.2); and an exported copy's
+# history (.git).
 node_modules
 .next
 .env
 .env.*
 !.env.example
 licences.csv
+acceptance
+.git
