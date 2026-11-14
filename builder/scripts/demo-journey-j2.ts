@@ -577,18 +577,16 @@ async function main(): Promise<number> {
     }
     count("K3", { name: `the restart prints "${START_LINE} 1."`, ok: startLine(s4.iface) === `${START_LINE} 1.`, detail: startLine(s4.iface) || "no such line" });
     if (job2) for (const c of crashRestartRecordChecks(await eventsOf(p2.id), job2, STEP2)) count("K3", c);
-    const k4a = await machine();
-    const left4a = await leftOf(p2.id, k4a);
-    const procs4a = left4a.filter((l) => l.startsWith("process "));
-    count("K4", { name: "after the restart's recovery: no container, volume, network or image of P2, and its folder gone (N; a docker program still running is recorded, and looked for again below)", ok: left4a.length === procs4a.length, detail: shown(left4a) });
+    const left4a = await leftOf(p2.id);
+    count("K4", { name: "after the restart's recovery: nothing of P2 is left (N)", ok: left4a.length === 0, detail: shown(left4a) });
     const waitUntil = Date.now() + 60_000;
-    let procsLeft = procs4a;
+    let procsLeft = left4a.filter((l) => l.startsWith("process "));
     while (procsLeft.length && Date.now() < waitUntil) {
       await sleep(1000);
       procsLeft = (await leftOf(p2.id)).filter((l) => l.startsWith("process "));
     }
     const left4b = await leftOf(p2.id);
-    count("K4", { name: `once no process names builder_${p2.id} (waited at most 60 s): nothing of P2 is left (N)`, ok: left4b.length === 0, detail: shown(left4b) });
+    count("K4", { name: `again once no process names builder_${p2.id} (the run waits at most 60 s): nothing of P2 is left (N)`, ok: left4b.length === 0, detail: `${shown(left4b)}; waited ${procsLeft.length ? "60 s, a process still named it" : "until no process named it"}` });
     await camera("K5 and K6", "j2c-after", { BUILDER_CAMERA_PATH: "k", BUILDER_CAMERA_PROJECT: p2.id, BUILDER_CAMERA_HOLD_REASON: "job_interrupted" });
     await stopClean("Start 4's stop", s4.iface, 0);
     await listsBetween("After start 4's stop");
