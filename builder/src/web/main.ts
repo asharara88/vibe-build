@@ -319,15 +319,10 @@ export async function stopOnSignal(sig: StopSignal, o: StopOptions): Promise<voi
     const job = o.journey.runningJob();
     o.log(`[interface stopping] ${why} ${job ? `Its running job (${job.jobId}, project ${job.projectId}) is being stopped first.` : "No job was running."} Every request is now answered "${STOPPING}"`);
     o.closeServer();
-    // 2 and 3. The journey halted, and a bounded wait for the running job (each project's action is waited for below).
-    // After J2's review (14 Nov 2026): halted before the live preview is stopped, not after. The halt is set, and the
-    // running job told to stop, at once; a request already in flight can then start no job while the preview's stop,
-    // which takes seconds, is awaited. The wait for the job counts from here, the preview's stop included.
-    const waitUntil = Date.now() + waitMs;
-    const halting = o.journey.halt(why);
-    halting.catch(() => undefined);
     await o.preview?.stop().catch(() => undefined);
-    const halted = await within(halting, waitUntil - Date.now());
+    // 2 and 3. The journey halted, and a bounded wait for the running job (each project's action is waited for below).
+    const waitUntil = Date.now() + waitMs;
+    const halted = await within(o.journey.halt(why), waitMs);
     if (job) {
       o.log(
         halted.done

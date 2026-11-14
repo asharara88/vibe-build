@@ -538,13 +538,6 @@ async function runJ2a() {
     (await page.locator("p.note", { hasText: "Sign-off is offered once a checklist run has passed." }).count()) === 1 && (await text("[data-broken-never]")) === "A deliberately broken copy is never signed off or exported." && !(await has("[data-broken-passed]")),
     await text("[data-broken-never]"),
   );
-  // After J2's review: the limit of the demonstration is said on the screen itself.
-  const limit = await text("[data-demo-limit]");
-  check(
-    "the checklist screen says what the demonstration shows and what it does not (same author for the defect and the test; not defects in general)",
-    limit.includes("Claude Code wrote both the planted defect and the test, each knowing the other.") && limit.includes("It does not show that the checklist catches defects in general."),
-    limit,
-  );
   const tabNames = await page.$$eval("ul.tabs li", (lis) => lis.map((li) => (li.textContent ?? "").trim()));
   check("no Export tab", !tabNames.includes("Export") && (await page.locator(`a[href="/projects/${id}/export"]`).count()) === 0, JSON.stringify(tabNames));
   await photo(7, "checklist", ["en", "ar", "phone"]);

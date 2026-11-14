@@ -1,0 +1,11 @@
+J2 after the review: how PostgreSQL orders the run script's event queries, 2026-11-14T06:45:42Z. Made-up ids in a VALUES list named events (no table read or written), on this machine's PostgreSQL (16.15 (Ubuntu 16.15-0ubuntu0.24.04.1)).
+
+1. As the run of record's script wrote it (commit c81eccb): select id::text as id ... order by id. The name in ORDER BY is the output column, the text, so the ids are sorted as text:
+1, 10, 100, 101, 11, 2, 9
+
+2. As the script now writes it (after the review): select id::text as id ... order by events.id. The table's own column, the number:
+1, 2, 9, 10, 11, 100, 101
+
+3. The order of the ids in events.json, the run of record's file (first 12):
+1, 10, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109
+sorted by number: False | sorted as text: True | events: 193

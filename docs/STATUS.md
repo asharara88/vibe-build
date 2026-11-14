@@ -1,33 +1,33 @@
 # Status
 
-**As of:** 13 November 2026, J3's review and the review bot answered. Rules: build plan section 8, rule 6. Questions: [`docs/QUESTIONS.md`](QUESTIONS.md). Earlier versions: `docs/log/` (the one before this: `2026-11-13-status-before-j3-review.md`).
+**As of:** 14 November 2026, J2 (pull request #48) ready to merge into the integration branch at `e6bf03d`. Rules: build plan section 8, rule 6. Questions: [`docs/QUESTIONS.md`](QUESTIONS.md). Before this: `docs/log/2026-11-14-status-before-j2-final.md`.
 
-## What you can now do (J3, built, reviewed once, not tested)
+## What you can now do
 
-- **Use the scripted app live from your phone, after your phone test.** "Open the live app" on the preview screen shows a pass once (2 minutes); open "app" in your Claude app's preview list, type it, and use example 1's app. Labelled "Simulated build"; made-up data only.
-- **Off until then.** It starts only when turned on (`BUILDER_LIVE_PREVIEW=1`), after your two-page phone test (`docs/QUESTIONS.md`, "Yours to confirm").
-- Shown by an automated run on `0706ee3` (46 of 46 checks, 20 photographs): `evidence/2026-11-13-journey-j3/live-preview.md`.
-
-## The review
-
-Nothing blocking; nine notes, six fixed (among them the switch above, and a live session ending with its sign-in); gaps 148, 149 corrected, 159 to 161 added (161, the live app after sign-off, is your choice). The review bot found two, my own check a third: a sign-out in another tab while the live app was opening, or closing, still gave a pass; an answer the app cut short stayed open 60 seconds. All fixed, each with a test that failed before and a control.
+- **J1 (merged):** brief to sign-off and export; simulated build, made-up data.
+- **J3, the live app (merged):** off until your phone test passes.
+- **J2 (merging now):** a "Simulated build" button on Projects makes a deliberately broken copy; the checklist reads **Failed**; it is never signed off or exported. Claude Code wrote both mistake and test, so this does not show the checklist catches mistakes in general.
+- **J2, a stop mid-step:** stopping the interface marks the project interrupted and removes its containers (sealed boxes a step or the app runs in); after a crash, the next start does. Nothing resumes.
+- **Merged today:** the three review fixes (phone-test decision, gap 145, sign-off); the setup script's time limits (#45); the sandbox tests' folder clean-up and gap 162's fix (#39, #47).
 
 ## State
 
 1. **Tested:** 0.1 to 0.5, 0.6a (development profile), 1.1, 1.2, 1.2b, 1.3, 1.4, 1.5 (stand-in only), 2.1, W4.
-2. **Built, not tested:** 3.1, 1.4c, 3.1b, 1.4b, 0.6c, J1 (merged), J3 (pull request #38).
-3. **Checked after the review bot:** on `34ff56c`, the whole suite, 692 of 692 (live tests included), typecheck and licence check passed; 46 of 46 controls failed with their safeguard removed. Not repeated: 0.6c's isolation run (nothing it covers changed). **Assumed:** your phone's browser behaves as Chromium did (M1).
-4. **Your 4020 interface:** stopped at 19:24 UTC (the session's limit); restarted from the merged code once J3 merges, live preview off.
+2. **Built, not tested:** 3.1, 1.4c, 3.1b, 1.4b, 0.6c, J1, J3, the three fixes; **J2**: two review rounds, nothing blocking open. Not marked tested: the last commit a reviewer read is not the one merged; which rule decides "tested" is being put to you.
+3. **Checked on J2 merged with `e6bf03d`:** typecheck and licence check passed; the whole suite 787 of 787. On `3231071`: 53 controls failed with their safeguard removed, as they should; the automated run 150 of 150. **Assumed:** the stop's time limits.
+4. **A second session** also worked on J2. Agreed: this one merges #48; the other follows with its reviewers' extra fixes (#49) and the "tested" question.
 
 ## Next
 
-1. Your phone test, then its result recorded and the live preview turned on.
-2. J2: the broken copy rejected by the checklist; a restart mid-build shown; then 3.2, the export that starts on its own.
+1. Package 3.2, the exported app starting on its own: design under way, read by two critics before any code.
+2. Showing you the builder on a computer.
+3. A phone link through Vercel: waits for you to reconnect it with full access.
 
 ## What blocks it
 
-- No engineer has read 0.6c or J3 (gaps 35, 148, 149, 159).
-- 2.3, the first real-model run: 2.2, the key, and 0.6c tested.
+- Your phone test: needs this preview open on a computer.
+- An engineer's reading of 0.6c, J3 and J2's stop (gaps 35, 148, 149, 159, 179).
+- The real-model gate (2.3): 2.2, the key, and 0.6c tested.
 
 ## Money
 

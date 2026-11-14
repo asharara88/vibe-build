@@ -293,7 +293,7 @@ ${brokenCopyDemoShown() ? demoPanel(lang) : ""}`,
  * route behind it makes a project the builder names itself (journey.ts, `createBrokenCopyDemo`).
  */
 function demoPanel(lang: Lang): Html {
-  return panel(lang, "sim", t(lang, "demo.title"), html`<p>${t(lang, "demo.intro")}</p><p class="note" data-demo-limit>${t(lang, "demo.limit")}</p><div class="actions">${postButton("/demonstrations/broken-copy", t(lang, "demo.button"))}</div>`, { simNote: t(lang, "demo.sim_note") });
+  return panel(lang, "sim", t(lang, "demo.title"), html`<p>${t(lang, "demo.intro")}</p><div class="actions">${postButton("/demonstrations/broken-copy", t(lang, "demo.button"))}</div>`, { simNote: t(lang, "demo.sim_note") });
 }
 
 /**
@@ -970,7 +970,7 @@ ${ended ? html`<p>${t(lang, "acceptance.outcome")}: ${outcomeShown}</p>${finishe
       ? html`<p class="ok" data-signed-off>${t(lang, "acceptance.signed_off", { time: signed.at.toISOString().replace("T", " ").slice(0, 19) })}</p><p><span class="label" data-sign-off-label>${t(lang, "acceptance.sign_off_label")}</span></p>${englishToo(lang, SIGN_OFF_LABEL)}<div class="actions"><a href="/projects/${id}/export" data-go="export">${t(lang, "acceptance.go_export")}</a></div>`
       : signOffRefusal(s) === null
         ? html`<p><span class="label" data-sign-off-label>${t(lang, "acceptance.sign_off_label")}</span></p>${englishToo(lang, SIGN_OFF_LABEL)}<div class="actions">${postButton(`/projects/${id}/sign-off`, t(lang, "acceptance.sign_off"))}</div>`
-        : html`${s.brokenTrace && outcome === "passed" ? html`<p class="warn" data-broken-passed>${t(lang, "broken.passed_warning")}</p>` : html`<p class="note">${t(lang, "acceptance.sign_off_not_yet")}</p>`}${s.brokenTrace ? html`<p class="warn" data-broken-never>${t(lang, "broken.never_signed_off")}</p><p class="note" data-demo-limit>${t(lang, "demo.limit")}</p>` : ""}`,
+        : html`${s.brokenTrace && outcome === "passed" ? html`<p class="warn" data-broken-passed>${t(lang, "broken.passed_warning")}</p>` : html`<p class="note">${t(lang, "acceptance.sign_off_not_yet")}</p>`}${s.brokenTrace ? html`<p class="warn" data-broken-never>${t(lang, "broken.never_signed_off")}</p>` : ""}`,
   );
   return projectPage(lang, s, "acceptance", t(lang, "acceptance.title"), html`${runPanel}${results}${signOff}`, { refreshSeconds: s.runningJob ? 2 : undefined });
 }

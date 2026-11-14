@@ -1,16 +1,22 @@
-J2, after its review: the two new tests (A4b in test/journey.test.ts, C12 in test/web.test.ts), first with src/ as committed at ac4e992 (before the fixes: git stash of src/ only), then with the fixes. 2026-11-14T10:22:30Z.
+J2 after the review: the new tests, 2026-11-14T06:39:45Z. From builder/, database builder_test_j2_rvnew (fresh, dropped after), TMPDIR <scratchpad>/j2rv-tmp, each command under flock <scratchpad>/live-tests.lock. Only the tests run, the first line of each failure, and the summary are kept. Stand-in sandboxes only: no container, no model.
 
-== BEFORE the fixes (src/ as at ac4e992; the tests as changed)
-0
-     × A4b (after J2's review): the target check refuses a link at any folder the copy goes through (engine-change-sets, its example-1, the step's own folder), so the broken step is never copied through a link to somewhere else; plain folders pass 16ms
-⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
-AssertionError: expected null to be 'a folder the broken step would be cop…' // Object.is equality
-      Tests  1 failed | 68 skipped (69)
-     × C12 (after J2's review): at a stop the journey is halted before the live preview's stop is awaited; and a step of the project the stop marked interrupted is not approved afterwards, by a new interface on the same record: refused with the reason, nothin
-⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
-AssertionError: expected null to be 'The interface was stopped on purpose …' // Object.is equality
-      Tests  1 failed | 71 skipped (72)
+1. BEFORE: builder/src as at 5ed7f04 (git checkout 5ed7f04 -- src), the tests as committed in 16afa9e. Command: npx vitest run test/journey.test.ts -t "A4b|A6b" --reporter=verbose. Expected: A4b fails (a sandbox folder that is a link into builder/, or under one, before its change-set folder is made, was accepted); A6b passes (it guards a rule that was already there, which had no test that failed without it).
+   builder/src differs from 5ed7f04's: 0 lines of diff (0: none)
+ × test/journey.test.ts > J2 (a): the broken copy rejected (stand-in sandboxes, each with its own change-set folder; no container, no model) > A4b: the target check reads real paths: a change-set folder that is a link into builder/, a sandbox folder that is a link into builder/ before its change-set folder is made, and one under a folder that is such a link, are refused; real folders outside buil
+ ✓ test/journey.test.ts > J2 (a): the broken copy rejected (stand-in sandboxes, each with its own change-set folder; no container, no model) > A6b: a normal project whose record holds only a journey.plan_confirmed listing step 03 (forged, as confirmPlan writes its steps, or as plain step names) is refused sign-off and export the same 962ms
+AssertionError: expected 'accepted' to match /under builder\//
+ ❯ test/journey.test.ts:1924:27
+ Test Files  1 failed (1)
+      Tests  1 failed | 1 passed | 68 skipped (70)
 
-== AFTER the fixes (src/ changed: 2 files)
-      Tests  1 passed | 68 skipped (69)
-      Tests  1 passed | 71 skipped (72)
+2. AFTER: the same command on 16afa9e (git diff 5ed7f04 --stat -- src:  1 file changed, 19 insertions(+), 7 deletions(-)).
+ ✓ test/journey.test.ts > J2 (a): the broken copy rejected (stand-in sandboxes, each with its own change-set folder; no container, no model) > A4b: the target check reads real paths: a change-set folder that is a link into builder/, a sandbox folder that is a link into builder/ before its change-set folder is made, and one under a folder that is such a link, are refused; real folders outside bui
+ ✓ test/journey.test.ts > J2 (a): the broken copy rejected (stand-in sandboxes, each with its own change-set folder; no container, no model) > A6b: a normal project whose record holds only a journey.plan_confirmed listing step 03 (forged, as confirmPlan writes its steps, or as plain step names) is refused sign-off and export the same 993ms
+ Test Files  1 passed (1)
+      Tests  2 passed | 68 skipped (70)
+
+3. AFTER, every J2 (a) test of both files (the target check is also used by A4's tests): npx vitest run test/journey.test.ts test/web.test.ts -t "J2 \(a\)" --reporter=verbose
+ Test Files  2 passed (2)
+      Tests  24 passed | 110 skipped (134)
+
+Working tree after (git status --porcelain -- builder, count): 0

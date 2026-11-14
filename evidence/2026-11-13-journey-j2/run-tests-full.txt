@@ -1,11 +1,40 @@
-Package J2: the whole suite, live tests included, on 6e1b536 (builder/ tree a0bf766), working tree of builder/: 0 changed files. Database builder_test_j2_full, fresh (the J2 (c) tests make and drop databases of their own, builder_test_j2_full_<..>). TMPDIR <scratchpad>/j2full-tmp. Command: flock <scratchpad>/live-tests.lock npx vitest run (BUILDER_BROWSER_CACHE=<scratchpad>/p31-cache).
-Free disk before: /dev/vda        252G   16G   24G  41% /
+Package J2: the whole suite, live tests included, on 74736fd (builder/ tree 8449a9a), working tree of builder/: 0 changed files. Database builder_test_j2_full, fresh (the J2 (c) tests make and drop databases of their own, builder_test_j2_full_<..>). TMPDIR <scratchpad>/j2full-tmp. Command: flock <scratchpad>/live-tests.lock npx vitest run (BUILDER_BROWSER_CACHE=<scratchpad>/p31-cache).
+Free disk before: /dev/vda        252G   33G  6.1G  85% /
 Containers on this machine before (docker ps -a, count): 0
-Waiting for the shared lock from 10:31:42 UTC.
-Lock held from 10:31:42 UTC.
+Waiting for the shared lock from 05:28:48 UTC.
+Lock held from 05:45:24 UTC.
 
- RUN  v5.1.0 /home/user/vibe-build/builder
+ RUN  v5.1.0 <scratchpad>/wt-j2/builder
 
-(node:1117) DeprecationWarning: Client.activeQuery is deprecated and will be removed in pg@9.0
-(Use `node --trace-deprecation ...` to show where the warning was created)
-(node:1117) DeprecationWarning: Client.queryQueue is deprecated and will be removed in pg@9.0.
+{"at":"2026-11-14T06:02:16.265Z","method":"CONNECT","host":"registry.example.test","port":443,"decision":"allowed"}
+(node:12062) Warning: Closing file descriptor 25 on garbage collection
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:12062) [DEP0137] DeprecationWarning: Closing a FileHandle object on garbage collection is deprecated. Please close FileHandle objects explicitly using FileHandle.prototype.close(). In the future, an error will be thrown if a file descriptor is closed during garbage collection.
+(node:12062) Warning: Closing file descriptor 24 on garbage collection
+(node:12062) Warning: Closing file descriptor 26 on garbage collection
+(node:12062) Warning: Closing file descriptor 27 on garbage collection
+(node:12062) Warning: Closing file descriptor 28 on garbage collection
+(node:12062) Warning: Closing file descriptor 29 on garbage collection
+(node:12062) Warning: Closing file descriptor 24 on garbage collection
+(node:12062) Warning: Closing file descriptor 25 on garbage collection
+(node:12062) Warning: Closing file descriptor 26 on garbage collection
+(node:12062) Warning: Closing file descriptor 28 on garbage collection
+(node:12062) Warning: Closing file descriptor 25 on garbage collection
+(node:12062) Warning: Closing file descriptor 26 on garbage collection
+(node:12062) Warning: Closing file descriptor 27 on garbage collection
+(node:12062) Warning: Closing file descriptor 28 on garbage collection
+(node:12062) Warning: Closing file descriptor 25 on garbage collection
+(node:12062) Warning: Closing file descriptor 26 on garbage collection
+(node:12062) Warning: Closing file descriptor 27 on garbage collection
+
+ Test Files  29 passed (29)
+      Tests  728 passed (728)
+   Start at  05:45:25
+   Duration  1037.37s (tests 100%)
+
+vitest exit code: 0
+Lock released at 06:02:42 UTC.
+Containers on this machine after (docker ps -a, count): 0
+Short folders of previews left in /tmp: 0
+Databases builder_test_j2_full_<..> left by the J2 (c) tests: 0
+Free disk after: /dev/vda        252G   33G  5.9G  85% /

@@ -32,8 +32,8 @@
  * with the stop's own reason. Nothing is resumed.
  */
 import { randomBytes } from "node:crypto";
-import { lstatSync, readFileSync, realpathSync, statfsSync } from "node:fs";
-import { isAbsolute, join, resolve } from "node:path";
+import { readFileSync, realpathSync, statfsSync } from "node:fs";
+import { basename, dirname, isAbsolute, join, resolve } from "node:path";
 import type pg from "pg";
 import type { BuildEngine, EngineEvent, StepInstruction, StepResult } from "../engine/interface.js";
 import { listSteps, readManifest, ScriptedEngine, type ScriptedEngineOptions } from "../engine/scripted.js";
@@ -141,7 +141,8 @@ export function brokenStageRefusal(s: Pick<JourneyState, "brokenCopy" | "plan" |
 /**
  * Why the broken step may not be staged into a sandbox's change-set folder, or null (final design, section 3.3): the
  * folder must be the sandbox's own, `engine-change-sets` inside its folder, as makeExample1 makes it, and not under
- * builder/ (so never builder/scripted, which every project's plan reads), by its path and, if it exists, by its real path.
+ * builder/ (so never builder/scripted, which every project's plan reads), by its path and by its real path as far as
+ * the path exists (`realpathAsFar`).
  */
 export function brokenStageTargetProblem(x: { dir: string; changeSets: string }): string | null {
   if (!isAbsolute(x.dir) || !isAbsolute(x.changeSets)) return "the sandbox's folders are not absolute paths";
@@ -149,21 +150,26 @@ export function brokenStageTargetProblem(x: { dir: string; changeSets: string })
   if (resolve(x.changeSets) !== own || x.changeSets !== own) return `the sandbox's change-set folder is not its own folder's engine-change-sets (${x.changeSets})`;
   const builder = realpathAsFar(BUILDER_DIR);
   if (insideOrEqual(own, resolve(BUILDER_DIR)) || insideOrEqual(realpathAsFar(own), builder)) return `the sandbox's change-set folder is under builder/ (${x.changeSets})`;
-  // After J2's review (14 Nov 2026): the folders the copy goes through, too. The copy follows a linked folder inside its
-  // destination path, so a link at engine-change-sets, at its example-1, or at the step's own folder would take the
-  // broken step somewhere else. None of the three may be a link; makeExample1 makes them as plain folders.
-  for (const through of [own, join(own, EXAMPLE), join(own, EXAMPLE, BROKEN_STEP)]) {
-    if (lstatSync(through, { throwIfNoEntry: false })?.isSymbolicLink()) return `a folder the broken step would be copied through is a link, not a folder (${through})`;
-  }
   return null;
 }
 
-/** A path's real path, or the path itself when it does not exist (yet). */
+/**
+ * A path's real path, as far as it exists: the real path of its nearest folder that exists, with the rest of the path
+ * after it, so that a folder not made yet under a link into builder/ is still seen as under builder/ (J2's review,
+ * 14 Nov 2026). The path itself only when no part of it can be read.
+ */
 function realpathAsFar(p: string): string {
-  try {
-    return realpathSync(p);
-  } catch {
-    return resolve(p);
+  const whole = resolve(p);
+  const rest: string[] = [];
+  for (let head = whole; ; ) {
+    try {
+      return join(realpathSync(head), ...rest);
+    } catch {
+      const up = dirname(head);
+      if (up === head) return whole;
+      rest.unshift(basename(head));
+      head = up;
+    }
   }
 }
 
@@ -210,15 +216,6 @@ export const EV = {
   stepPaused: "journey.step.paused_for_demonstration",
 } as const;
 
-/**
- * Why "Open the live app" is refused once the project is signed off (after the review of 14787d8, known gap 161: the
- * owner chose to refuse the live app after sign-off).
- */
-export const LIVE_AFTER_SIGN_OFF = "This project is signed off. The live app is not opened after sign-off, so the signed-off app is not changed through it.";
-/** The reason a live session's close carries when the sign-off ended it (after the review of 14787d8). */
-export const LIVE_CLOSED_BY_SIGN_OFF = "signed_off";
-/** Why a step of an interrupted project is not approved (after J2's review, 14 Nov 2026). */
-export const APPROVE_INTERRUPTED = "This project was interrupted when the interface stopped. It is not resumed, so no step of it is approved.";
 /** Package J2 (c): why `journey.sandbox.removed` was written at a clean stop (final design, section 4.1, item 5). */
 export const REMOVED_AT_STOP = "The interface was stopped on purpose; this project's containers, images and folder were removed at the stop. It is not resumed.";
 /** Why it was written at start, for a sandbox left by an interface that stopped (a crash, or a stop that left it). */
@@ -234,6 +231,13 @@ export interface StopRemoval {
   ended: string | null;
 }
 
+/**
+ * Why "Open the live app" is refused once the project is signed off (after the review of 14787d8, known gap 161: the
+ * owner chose to refuse the live app after sign-off).
+ */
+export const LIVE_AFTER_SIGN_OFF = "This project is signed off. The live app is not opened after sign-off, so the signed-off app is not changed through it.";
+/** The reason a live session's close carries when the sign-off ended it (after the review of 14787d8). */
+export const LIVE_CLOSED_BY_SIGN_OFF = "signed_off";
 /** The label a sign-off carries (final design, section 1, item 8). */
 export const SIGN_OFF_LABEL = "Sign-off on a simulated build, checked by a stand-in test of item 1 only: not acceptance";
 /** The label the export carries (final design, section 1, item 9). */
@@ -529,8 +533,8 @@ export const JOB_RULES: Record<JobKind, (s: JourneyState) => string | null> = {
           : null,
   // Package J2: a broken copy is never exported, whatever its record says of sign-off (section 3.5).
   export: (s) => (!s.signedOff ? "The project is not signed off yet. Export is offered only after sign-off." : s.brokenTrace ? BROKEN_COPY_REFUSAL : null),
-  // After the review of 14787d8 (known gap 161, the owner's choice): never after sign-off.
-  // Package J2: a broken copy is refused before the scripted-only check, which its record would pass (section 3.6).
+  // After the review of 14787d8 (known gap 161, the owner's choice): never after sign-off. Package J2: a broken copy is
+  // refused before the scripted-only check, which its record would pass (section 3.6).
   live: (s) =>
     !s.planConfirmed
       ? "The plan is not confirmed yet."
@@ -605,9 +609,6 @@ export function buildStepRefusal(s: JourneyState, step: string | undefined): str
 /** When a step may be approved: its last build job finished, and it is not approved yet. */
 export function approveRefusal(s: JourneyState, step: string): string | null {
   if (s.stage === "stopped" || s.stage === "closed") return "This project is stopped or closed.";
-  // After J2's review (14 Nov 2026): an interrupted project is not resumed, so nothing of it is approved either. The
-  // screen already showed no button; a request made anyway used to write the approval.
-  if (s.interrupted) return APPROVE_INTERRUPTED;
   if (!s.plan.includes(step)) return "That step is not one of the plan's.";
   if (s.approved.has(step)) return "This step is already approved.";
   if (s.stepJobs.get(step)?.state !== "finished") return "This step is not built yet. A step is approved only once it has run to the end.";

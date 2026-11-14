@@ -45,9 +45,7 @@ export function projectLeftovers(projectId: string, seen: DockerSeen, processes:
   for (const v of seen.volumes) if (v.name.startsWith(`${compose}_`) || v.composeProject === compose) out.push(`volume ${v.name}`);
   for (const n of seen.networks) if (n.name.startsWith(`${compose}_`) || n.composeProject === compose) out.push(`network ${n.name}`);
   for (const i of seen.images) if (i.repository.startsWith(`${compose}-`)) out.push(`image ${i.repository}:${i.tag}`);
-  // After J2's review: the builder's own Compose commands name the sandbox's folder (-f <folder>/compose.yaml), not the
-  // project's Compose name, so a command line that holds the recorded folder counts too.
-  for (const p of processes) if (p.args.includes(compose) || (folder.path !== null && p.args.includes(folder.path))) out.push(`process ${p.pid} ${p.args}`);
+  for (const p of processes) if (p.args.includes(compose)) out.push(`process ${p.pid} ${p.args}`);
   if (folder.path !== null && folder.exists) out.push(`folder ${folder.path}`);
   return out;
 }

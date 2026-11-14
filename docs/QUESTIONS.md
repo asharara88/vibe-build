@@ -8,11 +8,6 @@ None open right now. Question 15, the browser and the runner's two base images, 
 
 ## Not blocking yet
 
-**19. New sessions start from `main`, which holds none of the work. How should that end?** Three sessions on 14 Nov started from `main`'s out-of-date record. Since pull request #46, `main` carries a notice that sends a session here; the work itself is still only on `claude/stage-1`.
-(a) **You make `claude/stage-1` the repository's default branch in GitHub's settings** (recommended: new sessions then start on the work, and `main` keeps meaning "accepted by you").
-(b) Merge `claude/stage-1` into `main` now, marked "built, not accepted". Simple, but `main` then holds work you have not accepted.
-(c) Leave it: the notice on `main` is enough until checkpoint 1.
-
 **16. What is package 1.3 checked against?** Built to (a); the build does not wait on your answer.
 (a) **Proof row B7 in full: a step refused before it starts, and a step that starts has its calls drawn from its reserved budget, the unused part released at its end.** Recommended: a running step cannot be starved by other spending or by a cap lowering.
 Its cost: while a step runs, its whole reservation stops the cap being lowered, there is no command to stop a running step, and a cap raise does not top up a running step.
@@ -46,10 +41,6 @@ Its cost: while a step runs, its whole reservation stops the cap being lowered, 
 
 Claude Code's readings and work, recorded as such, not as your decisions. Detail: `docs/log/2026-11-13-status-before-rewrite.md`, "Yours to confirm".
 
-- **Package J2 (14 Nov 2026), one thing to know:** from J2 on, stopping your interface on purpose removes your open projects' containers at the stop, instead of at the next start. Either way those projects end "interrupted" and are not resumed.
-- Package J2: Claude Code's choices, listed in `docs/DECISIONS.md` (14 Nov, "Package J2, Claude Code's choices"): among them the export refused for a broken copy, the demonstration pause setting, the waits of 30 s, 5 s and 90 s (chosen, not measured), and what was changed after its review.
-- Package J2: the new screen sentences, in English and Arabic, wording Claude Code's (`docs/arabic-wording-list.md`, 16 messages added): among them "What this shows, and what it does not: Claude Code wrote both the planted defect and the test, each knowing the other. A failed run here shows the checklist's runner rejecting this one defect. It does not show that the checklist catches defects in general."
-- The reading of your words of 14 Nov ("Fix it and build properly. Merge what needs to be merged."): pull request #46 merged into `main` (documents only); `claude/stage-1` itself **not** merged into `main` (question 19).
 - **J3's phone test, yours to run (two test pages, no data):** tell Claude Code "phone test"; it starts the two pages and adds "probe-a" and "probe-b" to your Claude app's preview list. Open probe-a and press its steps 1 to 6 in order (step 6 twice); open probe-b and press its steps; then say "done" and give three answers the report needs (since the fix after the review of 14787d8, 14 Nov 2026): what step 5 showed (a page saying "Port 4034 answered", or an error), whether the cached page's number stayed the same the second time, and whether probe-a opened in a private window where you are not signed in (or that you could not try). Without all three, or with a step missing, the report says "not decided" and names what to redo. *14 Nov 2026:* the Claude app on the owner's phone showed no preview list; the test is being tried from a computer at claude.ai/code instead. Claude Code reads what the pages recorded and says what the design's table decides. The live app stays "not yet approved for use" until then, and, since J3's review, off: it is turned on (`BUILDER_LIVE_PREVIEW=1`) only once the test is recorded (`evidence/2026-11-13-journey-j3/live-preview.md`, "Your phone test"; `builder/scripts/probe-phone.ts`).
 - Proof rows B7 to B14 assigned to packages 1.3 to 1.5 (B7's extra over 1.3's wording is now question 16; 1.5 is taken after 1.4).
 - The message a refused step shows, reworded from design note 5.5 for a step (package 1.3; the note of 13 Nov there).
@@ -86,3 +77,4 @@ Claude Code's readings and work, recorded as such, not as your decisions. Detail
 - Package J1: sign-off offered only after a checklist run that passed, and labelled as a sign-off on a simulated build checked by a stand-in test of item 1 only.
 - Package J1: the export holds the project's history and, in the exported copy only, the stand-in tests and a note; labelled internal only.
 - Package J1: a build refused below 4 GB of free disk, a floor assumed, not measured (gap 137).
+- Package J2: Claude Code's choices, each yours to overrule (`docs/DECISIONS.md`, 14 Nov): a broken copy never exported rather than labelled; sign-off and export refused on any trace of it; a stop on purpose removes your open projects' containers at the stop; the stop's limits of 30 s, 5 s and 90 s (chosen, not measured, gap 179); a demonstration pause setting, off by default (gap 181); after its review, names that only look like the demonstration's recorded, not refused (gap 182). Your answer on where the demonstration's button lives ("Always on Projects") is recorded there word for word.

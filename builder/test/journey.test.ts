@@ -1905,37 +1905,38 @@ describe("J2 (a): the broken copy rejected (stand-in sandboxes, each with its ow
     expect(brokenStageTargetProblem({ dir: madeUp, changeSets: join(madeUp, "engine-change-sets", "..", "elsewhere") })).toMatch(/not its own folder's engine-change-sets/);
   });
 
-  it("A4b (after J2's review): the target check refuses a link at any folder the copy goes through (engine-change-sets, its example-1, the step's own folder), so the broken step is never copied through a link to somewhere else; plain folders pass; the real adapter's own check refuses too, before anything is copied", async () => {
-    const elsewhere = mkdtempSync(join(tmpdir(), "builder-link-target-"));
-    outside.push(elsewhere);
-    const sandbox = (make: (own: string) => void) => {
-      const dir = mkdtempSync(join(tmpdir(), "builder-link-sandbox-"));
-      outside.push(dir);
-      make(join(dir, "engine-change-sets"));
-      return { dir, changeSets: join(dir, "engine-change-sets") };
-    };
-    // Plain folders, as makeExample1 makes them, with and without the step's own folder: accepted.
-    expect(brokenStageTargetProblem(sandbox((own) => mkdirSync(join(own, "example-1"), { recursive: true })))).toBeNull();
-    expect(brokenStageTargetProblem(sandbox((own) => mkdirSync(join(own, "example-1", BROKEN), { recursive: true })))).toBeNull();
-    // example-1 is a link to another folder: refused, and named.
-    const linkedExample = sandbox((own) => {
-      mkdirSync(own);
-      symlinkSync(elsewhere, join(own, "example-1"));
-    });
-    expect(brokenStageTargetProblem(linkedExample)).toBe(`a folder the broken step would be copied through is a link, not a folder (${join(linkedExample.changeSets, "example-1")})`);
-    // The step's own folder is a link: refused.
-    const linkedStep = sandbox((own) => {
-      mkdirSync(join(own, "example-1"), { recursive: true });
-      symlinkSync(elsewhere, join(own, "example-1", BROKEN));
-    });
-    expect(brokenStageTargetProblem(linkedStep)).toMatch(/is a link, not a folder/);
-    // engine-change-sets itself is a link to a folder outside builder/: refused (before, only a link into builder/ was).
-    expect(brokenStageTargetProblem(sandbox((own) => symlinkSync(elsewhere, own)))).toMatch(/is a link, not a folder/);
-    // The real adapter's own check, in front of the copy (no container is started by it): the same refusals.
-    const adapter = example1Sandboxes();
-    await expect(adapter.stageBrokenStep({ ...linkedExample, projectId: "j1-0123456789ab" } as unknown as ProjectSandbox)).rejects.toThrow(/^The broken step was not staged: a folder the broken step would be copied through is a link, not a folder/);
-    await expect(adapter.stageBrokenStep({ dir: linkedStep.dir, changeSets: elsewhere, projectId: "j1-0123456789ab" } as unknown as ProjectSandbox)).rejects.toThrow(/^The broken step was not staged: the sandbox's change-set folder is not its own folder's engine-change-sets/);
-    expect(readdirSync(elsewhere)).toEqual([]);
+  it("A4b: the target check reads real paths: a change-set folder that is a link into builder/, a sandbox folder that is a link into builder/ before its change-set folder is made, and one under a folder that is such a link, are refused; real folders outside builder/ are accepted", () => {
+    // Made-up folders in the test's temporary folder; the links point at builder/scripted and builder/test, which the
+    // check only reads. rmSync removes a link, never what it points at.
+    const base = mkdtempSync(join(tmpdir(), "builder-target-links-"));
+    outside.push(base);
+    // What the check says; "accepted" for null, so that a failure names it.
+    const check = (dir: string) => brokenStageTargetProblem({ dir, changeSets: join(dir, "engine-change-sets") }) ?? "accepted";
+    // 1. The sandbox's folder is real; its engine-change-sets is a link to builder/scripted (the real-path half).
+    const real = join(base, "real-sandbox");
+    mkdirSync(real);
+    symlinkSync(join(builderDir, "scripted"), join(real, "engine-change-sets"));
+    expect(check(real)).toMatch(/under builder\//);
+    // 2. The sandbox's folder is itself a link into builder/; its engine-change-sets is not made yet.
+    const linked = join(base, "linked-sandbox");
+    symlinkSync(join(builderDir, "test"), linked);
+    expect(existsSync(join(linked, "engine-change-sets"))).toBe(false);
+    expect(check(linked)).toMatch(/under builder\//);
+    // 3. The sandbox's folder does not exist yet, under a folder that is a link to builder/.
+    const parent = join(base, "parent-link");
+    symlinkSync(builderDir, parent);
+    expect(existsSync(join(parent, "made-up-sandbox"))).toBe(false);
+    expect(check(join(parent, "made-up-sandbox"))).toMatch(/under builder\//);
+    // 4. Real folders outside builder/: accepted before and after the change-set folder is made, and when not made yet.
+    const plain = join(base, "plain-sandbox");
+    mkdirSync(plain);
+    expect(check(plain)).toBe("accepted");
+    mkdirSync(join(plain, "engine-change-sets"));
+    expect(check(plain)).toBe("accepted");
+    expect(check(join(base, "not-made-yet"))).toBe("accepted");
+    // Nothing was written under builder/.
+    expect(existsSync(join(builderDir, "test", "engine-change-sets"))).toBe(false);
+    expect(existsSync(join(builderDir, "made-up-sandbox"))).toBe(false);
   });
 
   it("A4: the job checks the state again before staging: given a state without the honoured choice, or without step 2's approval, it refuses and stages nothing", async () => {
@@ -2021,6 +2022,37 @@ describe("J2 (a): the broken copy rejected (stand-in sandboxes, each with its ow
       expect(JOB_RULES.export(await j.state(n)), what).toBe(NEVER);
       await expect(jobs.exportProject(n), what).rejects.toThrow(NEVER);
       expect(await listEvents(pool, n, EV.exportWritten), what).toEqual([]);
+      await j.closeProject(n);
+    }
+  });
+
+  it("A6b: a normal project whose record holds only a journey.plan_confirmed listing step 03 (forged, as confirmPlan writes its steps, or as plain step names) is refused sign-off and export the same", async () => {
+    const { j, jobs } = make();
+    const forms: Array<[string, (steps: unknown[]) => unknown[]]> = [
+      ["the steps as confirmPlan writes them, step 03 added", (steps) => [...steps, { step: BROKEN, label: brokenManifest().label, files: brokenManifest().files.length }]],
+      ["the steps as plain names, step 03 among them", () => ["01-data", "02-submitter-screen", BROKEN]],
+    ];
+    for (const [what, steps] of forms) {
+      const n = await previewed(j, jobs, await normal(j));
+      await passedRun(j, jobs, n);
+      expect(signOffRefusal(await j.state(n)), what).toBeNull();
+      const confirmed = await listEvents(pool, n, EV.planConfirmed);
+      expect(confirmed, what).toHaveLength(1);
+      const p = confirmed[0]!.payload;
+      expect(Array.isArray(p.steps) && p.steps.length === 2, what).toBe(true);
+      await appendEvent(pool, n, EV.planConfirmed, { ...p, steps: steps(p.steps as unknown[]), note: "forged by the test" });
+      const s = await j.state(n);
+      expect(s.plan, what).toEqual(["01-data", "02-submitter-screen"]);
+      expect(s.brokenCopy, what).toBeNull();
+      expect(s.acceptanceVersion, what).toBe(p.acceptance_version);
+      expect(s.brokenTrace, what).toBe(true);
+      expect(signOffRefusal(s), what).toBe(NEVER);
+      await expect(j.signOff(n), what).rejects.toThrow(NEVER);
+      await appendEvent(pool, n, EV.signedOff, { note: "forged by the test" });
+      expect(JOB_RULES.export(await j.state(n)), what).toBe(NEVER);
+      await expect(jobs.exportProject(n), what).rejects.toThrow(NEVER);
+      expect(await listEvents(pool, n, EV.exportWritten), what).toEqual([]);
+      expect(stagedCalls(n), what).toEqual([]);
       await j.closeProject(n);
     }
   });
@@ -2229,10 +2261,6 @@ describe("J2 (c): the clean stop and restart, the journey's part (stand-in sandb
     expect(projectLeftovers(P, { ...none, images: [{ repository: `builder_${P}-other`, tag: "made-up" }] }, [], gone)).toEqual([`image builder_${P}-other:made-up`]);
     expect(projectLeftovers(P, none, [{ pid: 4242, args: `docker compose -p builder_${P} up --detach app` }], gone)).toEqual([`process 4242 docker compose -p builder_${P} up --detach app`]);
     expect(projectLeftovers(P, none, [], { ...gone, exists: true })).toEqual(["folder /made-up/builder-acceptance-p"]);
-    // After J2's review: a Compose command of the builder's own names the sandbox's folder, not the project's Compose name.
-    expect(projectLeftovers(P, none, [{ pid: 4243, args: "docker compose -f /made-up/builder-acceptance-p/compose.yaml down --volumes" }], gone)).toEqual(["process 4243 docker compose -f /made-up/builder-acceptance-p/compose.yaml down --volumes"]);
-    expect(projectLeftovers(P, none, [{ pid: 4244, args: "docker compose -f /made-up/builder-acceptance-q/compose.yaml down --volumes" }], gone)).toEqual([]);
-    expect(projectLeftovers(P, none, [{ pid: 4245, args: "docker compose -f /made-up/builder-acceptance-p/compose.yaml down" }], { path: null, exists: false })).toEqual([]);
     // Nothing of another project, nor a name that only starts the same way without the separator.
     const others = {
       containers: [{ name: `builder_${Q}-app-1`, composeProject: `builder_${Q}` }, { name: `builder_${P}x-app-1`, composeProject: `builder_${P}x` }],

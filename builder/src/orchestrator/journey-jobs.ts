@@ -40,9 +40,6 @@
  *   sign-out of the builder sign-in session that asked for it cancels it; the preview looks at that, and at whether the
  *   sign-in session still reads as valid, with nothing awaited between that look and the session being opened; and
  *   if the session has ended by the time its opening is recorded, its pass is not returned.
- * - After the review of 14787d8 (known gap 161, the owner's choice): "Open the live app" is refused once the project is
- *   signed off (journey.ts, `JOB_RULES.live`); attaching the preview gives the journey the way to end a project's live
- *   session, and wait for its close to be recorded, before its sign-off is recorded (journey.ts, `signOff`).
  * - Package J2 (a): a step's turn count comes from its own manifest, wherever that step is read from (`changeSetsFor`).
  *   A build job of the broken step 03-wrong-status stages it just before its engine is made, only for a project made
  *   as the broken copy whose earlier steps are approved (`brokenStageRefusal`, checked again here), and only into the
@@ -51,6 +48,9 @@
  * - Package J2 (c): with the demonstration pause on (`stepPauseMs`, from BUILDER_DEMO_STEP_PAUSE_MS, off by default), each
  *   build step first records `journey.step.paused_for_demonstration`, and the scripted engine's applier pauses that long
  *   before each write (`delayMsPerWrite`), so that a stop part-way can be shown. Off, neither happens.
+ * - After the review of 14787d8 (known gap 161, the owner's choice): "Open the live app" is refused once the project is
+ *   signed off (journey.ts, `JOB_RULES.live`); attaching the preview gives the journey the way to end a project's live
+ *   session, and wait for its close to be recorded, before its sign-off is recorded (journey.ts, `signOff`).
  */
 import { chmodSync, chownSync, closeSync, constants, fstatSync, mkdirSync, openSync, readFileSync, readSync, rmSync, writeFileSync } from "node:fs";
 import { randomBytes } from "node:crypto";

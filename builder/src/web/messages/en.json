@@ -321,7 +321,6 @@
   "demo.intro": "Builds example 1 with one more step that Claude Code broke on purpose: a new request is saved as Approved instead of Waiting. The steps are fixed changes written in advance; no AI model is called. The checklist run on it is real. It is never signed off or exported.",
   "demo.button": "Start the broken-copy demonstration",
   "demo.sim_note": "Fixed changes written in advance by Claude Code (the AI assistant building this project), one of them broken on purpose; no model call by the builder. The checklist run on it is real.",
-  "demo.limit": "What this shows, and what it does not: Claude Code wrote both the planted defect and the test, each knowing the other. A failed run here shows the checklist's runner rejecting this one defect. It does not show that the checklist catches defects in general.",
   "broken.badge": "Deliberately broken copy: a defect Claude Code planted on purpose",
   "broken.step_note": "Deliberately broken copy: a new request is saved as Approved instead of Waiting. Made so that the checklist rejects it.",
   "broken.no_quality_check": "No quality check after a step yet, and no retry (milestones 1 and 3): only the checklist at the end checks the app.",
@@ -330,7 +329,7 @@
   "build.approve_broken": "Approve and build step {n} (the deliberately broken copy)",
   "build.approve_after_broken": "Go on to the preview with this broken step (no quality check after a step yet)",
   "acceptance.failed_at_step": "Failed at step: {step}",
-  "interrupted.no_job": "The interface stopped while this project's app was set up or running. Its containers are removed at the stop or at the next start; nothing is resumed. Close the project, or start a new one.",
+  "interrupted.no_job": "The interface stopped while this project's app was set up or running. Its containers were removed; nothing is resumed. Close the project, or start a new one.",
   "cost.stopped_part_way": "stopped part-way when the interface stopped; not resumed",
   "build.step_pause": "Demonstration setting: the scripted engine pauses {ms} ms before each write, so that a stop part-way can be shown."
 }
