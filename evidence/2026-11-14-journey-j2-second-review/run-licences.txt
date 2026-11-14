@@ -1,4 +1,4 @@
-J2, second review: npm run check:licences on f8cfc57 (builder/ tree 37ae8c2), 2026-11-14T11:08:20Z. No dependency file is changed by these fixes.
+J2, second review: npm run check:licences on abe41e5 (builder/ tree f942582), 2026-11-14T11:48:20Z. No dependency file is changed by these fixes.
 
 > builder@0.0.1 check:licences
 > bash scripts/check-licences.sh
